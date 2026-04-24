@@ -123,8 +123,23 @@ Delegate via the Task tool when a subagent's specialty matches the work.
 ### Pull requests
 
 - Target `staging` (not `main`) for feature work.
-- Require 1 approval + green CI + resolved conversations.
 - Squash-merge unless the feature spans multiple meaningful commits.
+- Use the [PR template](.github/pull_request_template.md) — it enforces
+  the Jira link, Gherkin acceptance check, test plan, and rollout notes.
+
+### Branch & PR naming (Jira auto-link)
+
+The Jira ↔ GitHub integration links commits, branches, and PRs to FHS
+tickets when the ticket key appears in the name. Use:
+
+- **Branch:** `<type>/FHS-XXX-short-slug` — e.g., `feat/FHS-149-stack-scaffolding`
+- **PR title:** `<type>(FHS-XXX): short summary` — e.g.,
+  `feat(FHS-149): scaffold Hono API with /health and /hello`
+- **Commit footer:** include `Refs FHS-XXX` or `Closes FHS-XXX` to drive
+  Jira workflow transitions (configured per-project).
+
+Types follow Conventional Commits: `feat`, `fix`, `chore`, `docs`, `test`,
+`refactor`, `perf`.
 
 ### Code style
 
