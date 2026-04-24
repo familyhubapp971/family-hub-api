@@ -226,29 +226,38 @@ or updating the requirement docs **before** implementation begins.
 
 ```text
 docs/
-  product/      # what & why — owned by product-manager agent
-    overview.md
-    personas.md
-    features/
-      <feature-slug>.md
-  technical/    # how — owned by engineering (architect-reviewer, backend-developer, etc.)
+  README.md         # index of subfolders + how docs flow
+  features/         # what & why — owned by product-manager agent
+    <feature-slug>.md
+  technical/        # how — owned by engineering subagents
     architecture.md
+    deployment.md
+    slos.md
     api/
     data-model/
-    deployment.md
-    decisions/  # ADRs (mirrors docs/decisions/ if used)
+  decisions/        # ADRs — durable choices, immutable once accepted
+    NNNN-kebab-case.md
+  strategy/         # long-form strategy docs (vision, positioning, transformation)
+    <topic-slug>.md
 ```
 
-- `docs/product/` holds user-facing requirements: personas, user stories,
+- `docs/features/` — user-facing requirements: personas, user stories,
   acceptance criteria, success metrics, scope boundaries.
-- `docs/technical/` holds implementation specs derived from those
-  requirements: API contracts, schemas, sequence diagrams, infra topology.
-- Every product requirement should have a corresponding technical doc once
+- `docs/technical/` — implementation specs derived from features:
+  API contracts, schemas, sequence diagrams, infra topology, SLOs.
+- `docs/decisions/` — ADRs in MADR-lite format; see the
+  [ADR section](#architecture-decision-records-adrs) below.
+- `docs/strategy/` — long-form direction-setting docs that inform
+  the features backlog.
+- Every feature should have a corresponding technical doc once
   implementation begins. Cross-link both directions.
+
+Each subfolder has its own `README.md` documenting purpose, when to add a
+doc, and naming convention — read those before adding to the folder.
 
 ### User story format (required)
 
-Every requirement in `docs/product/features/` must be expressed as one or
+Every requirement in `docs/features/` must be expressed as one or
 more **user stories** with **Gherkin (Given/When/Then)** acceptance
 criteria. Template:
 
@@ -294,7 +303,7 @@ criteria. Template:
 ### Workflow
 
 1. New feature request → invoke `product-manager` subagent.
-2. Agent drafts `docs/product/features/<slug>.md` using the template above.
+2. Agent drafts `docs/features/<slug>.md` using the template above.
 3. User reviews and approves the requirement doc.
 4. Engineering subagents (`backend-developer`, `frontend-developer`,
    `api-designer`, etc.) translate it into `docs/technical/...` specs.
@@ -336,7 +345,7 @@ another's job.
 - **Where:** `tests/e2e/**/*.spec.ts` at the repo root (or `apps/web/e2e/`
   if scoped to a single app).
 - **Scope:** full browser → web → API → DB stack. One test per Gherkin
-  scenario in the corresponding `docs/product/features/<slug>.md`. Test
+  scenario in the corresponding `docs/features/<slug>.md`. Test
   name **must** mirror scenario name for traceability.
 - **Run:** `pnpm test:e2e` locally; runs against `staging` in CI on PRs
   targeting `main`.
@@ -360,7 +369,7 @@ another's job.
   migration failure historically — real Postgres is mandatory for those
   tiers.
 - **Test names mirror Gherkin scenario names** so traceability between
-  `docs/product/features/<slug>.md` and the test file is automatic.
+  `docs/features/<slug>.md` and the test file is automatic.
 - **A feature is not "done" until its tier-appropriate tests pass green
   in CI** — the pre-merge checklist enforces this.
 
@@ -385,8 +394,8 @@ convention, error envelope, rate-limit headers, etc.
 
 ## Architecture Decision Records (ADRs)
 
-ADRs live in `docs/technical/decisions/` (also linked from
-`docs/decisions/` if used). One file per decision: `NNNN-short-title.md`.
+ADRs live in `docs/decisions/`. One file per decision:
+`NNNN-short-title.md` (zero-padded sequential numbering, kebab-case).
 
 Write an ADR whenever you make a decision that:
 
@@ -440,7 +449,7 @@ mirrors this list):
 - [ ] **Multi-tenancy:** queries respect `tenant_id` / RLS; no `bypassrls`
 - [ ] **Secrets:** nothing in git that should be in `.env.local` or Railway env
 - [ ] **OpenAPI:** spec regenerated and committed if API surface changed
-- [ ] **Docs:** `docs/product/` or `docs/technical/` updated; ADR added if a decision was made
+- [ ] **Docs:** `docs/features/` or `docs/technical/` updated; ADR added in `docs/decisions/` if a decision was made
 - [ ] **Migrations:** Drizzle migration committed; rollback path noted in PR body
 - [ ] **Observability:** new failure modes have logs/metrics; alerts updated if SLO-relevant
 - [ ] **Manual verification:** described in the PR body — what was actually exercised in a browser / curl
