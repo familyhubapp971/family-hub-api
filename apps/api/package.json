@@ -4,18 +4,33 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "echo 'API dev — wired in FHS-150'",
+    "dev": "tsx watch --env-file=../../.env.local src/index.ts",
+    "start": "node --env-file=../../.env.local dist/index.js",
     "build": "tsc",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "lint": "echo 'lint — wired in FHS-169'"
+    "lint": "echo 'lint — wired in FHS-169'",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@familyhub/shared": "workspace:*",
+    "@hono/node-server": "1.13.7",
+    "@hono/zod-validator": "0.4.1",
+    "drizzle-orm": "0.36.1",
+    "hono": "4.6.10",
+    "pg": "8.13.1",
+    "pino": "9.5.0",
     "zod": "3.23.8"
   },
   "devDependencies": {
     "@types/node": "20.16.11",
+    "@types/pg": "8.11.10",
+    "drizzle-kit": "0.28.0",
+    "tsx": "4.19.2",
     "typescript": "5.6.3",
     "vitest": "2.1.4"
   }

@@ -217,14 +217,30 @@ Steps:
 The closing comment is part of the deliverable, not a separate task.
 Drift between merged code and ticket status is a process bug.
 
-### Closing parent epics
+After the transition, **refresh the Confluence "FHS — Epics & Tickets"
+page** (ID `3079340034` in space `FA`) so its Progress column stays
+in sync with Jira. Re-run the builder script (`/tmp/build_epics_page_v3.py`
+or equivalent) which regenerates the page body from live Jira and
+PUTs an incremented version. If multiple tickets close in quick
+succession (child close that cascades to an epic close), refresh
+**once at the end**, not per transition.
 
-After closing a child story, check the parent epic. If **every** child
-of that epic is also Done (treat "Won't Do" / "Cancelled" as Done for
-this purpose), close the epic too with a brief structured comment
-listing each child story it delivered. Don't make the user chase
-parent-epic closure — same logic as the post-merge ticket close, one
-level up.
+### Epic status follows its children
+
+An epic's status always mirrors the state of its children:
+
+- **First child enters In Progress** → transition the epic from
+  **To Do → In Progress** (transition id `21` for FHS).
+- **All children Done** (treat "Won't Do" / "Cancelled" as Done) →
+  transition the epic to **Done** (id `31`) with a brief structured
+  comment listing each child story it delivered. Don't make the user
+  chase epic closure — same logic as the post-merge ticket close,
+  one level up.
+- If an epic is already at the target status, skip — don't re-transition.
+
+After any epic transition, **refresh the Confluence "FHS — Epics &
+Tickets" page** per the Confluence-refresh step in the "Closing
+tickets" section above.
 
 ### Change-impact propagation
 

@@ -1,0 +1,43 @@
+import { z } from 'zod';
+
+const configSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    PORT: z.coerce.number().int().positive().default(3001),
+    LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+    DATABASE_URL: z.string().url().optional(),
+  })
+  .superRefine((cfg, ctx) => {
+    if (!cfg.DATABASE_URL) {
+      if (cfg.NODE_ENV === 'production') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['DATABASE_URL'],
+          message: 'DATABASE_URL is required in production (no localhost fallback permitted)',
+        });
+      }
+    }
+  })
+  .transform((cfg) => ({
+    ...cfg,
+    DATABASE_URL:
+      cfg.DATABASE_URL ??
+      (cfg.NODE_ENV === 'production'
+        ? (() => {
+            throw new Error('unreachable: production DATABASE_URL checked in superRefine');
+          })()
+        : 'postgres://localhost:5432/familyhub_dev'),
+  }));
+
+export type Config = z.infer<typeof configSchema>;
+
+function loadConfig(): Config {
+  const parsed = configSchema.safeParse(process.env);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n');
+    throw new Error(`Invalid environment configuration:\n${issues}`);
+  }
+  return parsed.data;
+}
+
+export const config = loadConfig();
