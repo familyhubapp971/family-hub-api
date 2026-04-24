@@ -129,17 +129,33 @@ Delegate via the Task tool when a subagent's specialty matches the work.
 
 ### Branch & PR naming (Jira auto-link)
 
+**Rule:** Every Jira ticket gets its own feature branch. **Never commit
+directly to `staging` or `main`** — always branch first, even for
+single-file changes.
+
 The Jira ↔ GitHub integration links commits, branches, and PRs to FHS
 tickets when the ticket key appears in the name. Use:
 
-- **Branch:** `<type>/FHS-XXX-short-slug` — e.g., `feat/FHS-149-stack-scaffolding`
+- **Branch:** `<type>/FHS-XXX-short-slug` — short and identifiable, 2–4
+  kebab-case words. Examples:
+  - `feat/FHS-149-stack-scaffold`
+  - `fix/FHS-12-tenant-ctx-async`
+  - `docs/FHS-146-claude-md-rules`
 - **PR title:** `<type>(FHS-XXX): short summary` — e.g.,
   `feat(FHS-149): scaffold Hono API with /health and /hello`
+- **PR target:** `staging` (not `main`) for feature work.
 - **Commit footer:** include `Refs FHS-XXX` or `Closes FHS-XXX` to drive
   Jira workflow transitions (configured per-project).
 
 Types follow Conventional Commits: `feat`, `fix`, `chore`, `docs`, `test`,
 `refactor`, `perf`.
+
+**First action when starting a ticket:**
+
+```bash
+git checkout main && git pull
+git checkout -b <type>/FHS-XXX-short-slug
+```
 
 ### Code style
 
@@ -266,9 +282,161 @@ criteria. Template:
 
 ---
 
+## Testing
+
+Four test tiers, each with a clear scope. Don't let one tier swallow
+another's job.
+
+### Unit — Vitest
+
+- **Where:** colocated `*.test.ts` next to the source file (e.g.,
+  `apps/api/src/users/users.service.test.ts`).
+- **Scope:** pure functions, single class/module, no I/O. Mock external
+  collaborators, but **never mock the thing under test**.
+- **Run:** `pnpm test` (watches) · `pnpm test:run` (one-shot, used in CI).
+- **Bar:** every public function in `packages/shared/` and every service
+  method in `apps/api/src/**/*.service.ts` has direct unit coverage.
+
+### Integration — Vitest + real Postgres
+
+- **Where:** `apps/api/src/**/*.integration.test.ts`.
+- **Scope:** API route → service → real Postgres (per-test transaction,
+  rolled back at end). Exercises Drizzle queries and RLS policies for
+  real. **Do not mock the database** — mocked DBs hide migration breakage.
+- **Run:** `pnpm test:integration` (spins up local Postgres via
+  docker-compose or uses the dev DB with a `_test` schema).
+- **Bar:** every endpoint has an integration test for happy path + at
+  least one tenant-isolation scenario (request as tenant A must not
+  see tenant B's data).
+
+### E2E — Playwright
+
+- **Where:** `tests/e2e/**/*.spec.ts` at the repo root (or `apps/web/e2e/`
+  if scoped to a single app).
+- **Scope:** full browser → web → API → DB stack. One test per Gherkin
+  scenario in the corresponding `docs/product/features/<slug>.md`. Test
+  name **must** mirror scenario name for traceability.
+- **Run:** `pnpm test:e2e` locally; runs against `staging` in CI on PRs
+  targeting `main`.
+- **Bar:** every user-facing acceptance criterion in a shipped feature
+  has a passing Playwright scenario.
+
+### Performance — k6
+
+- **Where:** `tests/perf/**/*.js`.
+- **Scope:** load + soak tests for performance-critical endpoints (auth,
+  feed/timeline reads, write hot paths). Define SLOs in the script
+  (e.g., p95 < 250 ms at 100 RPS for 5 min).
+- **Run:** `pnpm test:perf` against staging; not in PR CI — run on
+  release candidates and weekly.
+- **Bar:** any endpoint added to the SLO list (in
+  `docs/technical/slos.md`) has a k6 script that asserts its target.
+
+### Cross-tier rules
+
+- **No mocking the DB in integration or E2E.** Mocked DBs caused a prod
+  migration failure historically — real Postgres is mandatory for those
+  tiers.
+- **Test names mirror Gherkin scenario names** so traceability between
+  `docs/product/features/<slug>.md` and the test file is automatic.
+- **A feature is not "done" until its tier-appropriate tests pass green
+  in CI** — the pre-merge checklist enforces this.
+
+---
+
+## API contracts (OpenAPI)
+
+- The Hono API publishes its OpenAPI 3.1 spec at `apps/api/openapi.yaml`
+  (generated from Zod schemas via `@hono/zod-openapi`).
+- Every new endpoint must have a Zod schema for request + response and be
+  registered with the OpenAPI app — no untyped routes.
+- Run `pnpm -F api openapi:generate` after changing schemas; commit the
+  resulting `openapi.yaml` so consumers (frontend, docs, mobile) get a
+  reviewable diff.
+- Breaking changes (removed fields, changed types, removed endpoints) bump
+  the API version in the spec and trigger a "breaking" label on the PR.
+
+This section will grow as the API matures — auth schemes, pagination
+convention, error envelope, rate-limit headers, etc.
+
+---
+
+## Architecture Decision Records (ADRs)
+
+ADRs live in `docs/technical/decisions/` (also linked from
+`docs/decisions/` if used). One file per decision: `NNNN-short-title.md`.
+
+Write an ADR whenever you make a decision that:
+
+- changes the shape of the system in a way someone might later question,
+- chooses one viable option over another (e.g., Postgres vs DynamoDB),
+- locks in a constraint future contributors need to respect.
+
+Don't write an ADR for routine implementation choices — only for the
+ones future-you would want context on.
+
+Template (Nygard / MADR-lite):
+
+```markdown
+# NNNN — <decision title>
+
+**Status:** proposed | accepted | superseded by NNNN
+**Date:** YYYY-MM-DD
+**Jira:** FHS-XXX (optional)
+
+## Context
+
+<What forces are at play? What problem are we solving?>
+
+## Decision
+
+<What did we decide?>
+
+## Consequences
+
+<What becomes easier? What becomes harder? What follow-ups does this create?>
+
+## Alternatives considered
+
+- **<option A>** — why rejected
+- **<option B>** — why rejected
+```
+
+Initial seed ADRs are tracked in FHS-171, FHS-172, FHS-174.
+
+---
+
+## Pre-merge checklist
+
+Every PR author confirms (the [PR template](.github/pull_request_template.md)
+mirrors this list):
+
+- [ ] **Jira:** ticket key in branch name + PR title + commit footer
+- [ ] **Tests:** unit (Vitest) + E2E (Playwright) added/updated; `pnpm test` green
+- [ ] **Acceptance criteria:** every Gherkin scenario from the ticket maps to a passing test
+- [ ] **Types:** TypeScript strict, no new `any`, schemas validate at boundaries
+- [ ] **Multi-tenancy:** queries respect `tenant_id` / RLS; no `bypassrls`
+- [ ] **Secrets:** nothing in git that should be in `.env.local` or Railway env
+- [ ] **OpenAPI:** spec regenerated and committed if API surface changed
+- [ ] **Docs:** `docs/product/` or `docs/technical/` updated; ADR added if a decision was made
+- [ ] **Migrations:** Drizzle migration committed; rollback path noted in PR body
+- [ ] **Observability:** new failure modes have logs/metrics; alerts updated if SLO-relevant
+- [ ] **Manual verification:** described in the PR body — what was actually exercised in a browser / curl
+
+---
+
 ## Useful slash commands
 
 - `/plan`, `/write-plan`, `/execute-plan` — planning lifecycle
 - `/brainstorm` — feature exploration
 - `/start` — surface relevant skills at session start
 - `/status` — check progress
+
+---
+
+## Living document
+
+This file is **expected to evolve**. When we encounter a recurring decision,
+a footgun, or a convention worth codifying, add it here in the relevant
+section. Drift between code reality and CLAUDE.md is a bug — fix in the
+same PR that introduced the drift.
