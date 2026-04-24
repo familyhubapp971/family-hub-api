@@ -1,0 +1,22 @@
+{
+  "name": "@familyhub/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'API dev — wired in FHS-150'",
+    "build": "tsc",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'lint — wired in FHS-169'"
+  },
+  "dependencies": {
+    "@familyhub/shared": "workspace:*",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "20.16.11",
+    "typescript": "5.6.3",
+    "vitest": "2.1.4"
+  }
+}
