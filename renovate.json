@@ -1,0 +1,112 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":timezone(Europe/London)"
+  ],
+  "baseBranches": ["staging"],
+  "schedule": ["before 6am on monday"],
+  "prHourlyLimit": 4,
+  "prConcurrentLimit": 10,
+  "rangeStrategy": "update-lockfile",
+  "semanticCommitScope": "deps",
+  "labels": ["dependencies"],
+  "rebaseWhen": "behind-base-branch",
+  "postUpdateOptions": ["pnpmDedupe"],
+  "ignorePaths": ["**/node_modules/**", "**/dist/**"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "schedule": ["at any time"],
+    "automerge": false
+  },
+  "packageRules": [
+    {
+      "description": "Group React ecosystem updates",
+      "matchPackageNames": [
+        "react",
+        "react-dom",
+        "@types/react",
+        "@types/react-dom"
+      ],
+      "matchPackagePrefixes": ["@vitejs/plugin-react"],
+      "groupName": "react ecosystem"
+    },
+    {
+      "description": "Group Vite + Vitest ecosystem updates",
+      "matchPackageNames": ["vite", "vitest"],
+      "matchPackagePrefixes": ["@vitejs/", "@vitest/"],
+      "groupName": "vite ecosystem"
+    },
+    {
+      "description": "Group Tailwind ecosystem updates",
+      "matchPackageNames": ["tailwindcss", "postcss", "autoprefixer"],
+      "matchPackagePrefixes": ["@tailwindcss/"],
+      "groupName": "tailwind ecosystem"
+    },
+    {
+      "description": "Group Drizzle updates (ORM + kit + zod adapter)",
+      "matchPackageNames": ["drizzle-orm", "drizzle-kit", "drizzle-zod"],
+      "groupName": "drizzle ecosystem"
+    },
+    {
+      "description": "Group Hono updates",
+      "matchPackageNames": ["hono"],
+      "matchPackagePrefixes": ["@hono/"],
+      "groupName": "hono ecosystem"
+    },
+    {
+      "description": "Group Supabase SDK updates (active once FHS-190 adds @supabase/supabase-js)",
+      "matchPackagePrefixes": ["@supabase/"],
+      "groupName": "supabase ecosystem"
+    },
+    {
+      "description": "Group Stripe SDK updates (active once FHS-68 adds stripe + @stripe/*)",
+      "matchPackageNames": ["stripe"],
+      "matchPackagePrefixes": ["@stripe/"],
+      "groupName": "stripe ecosystem"
+    },
+    {
+      "description": "Default weekly group for remaining minor + patch production updates",
+      "matchDepTypes": ["dependencies", "peerDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "weekly prod minor + patch"
+    },
+    {
+      "description": "Default weekly group for remaining devDependency minor updates (patches handled by auto-merge rule below)",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor"],
+      "groupName": "weekly dev minor"
+    },
+    {
+      "description": "Major version bumps require manual review — never auto-merge, dashboard approval required",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "major-bump"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Pin Node engine updates behind manual review",
+      "matchPackageNames": ["node", "@types/node"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "runtime"]
+    },
+    {
+      "description": "Auto-merge patch updates for devDependencies once CI is green. Declared LAST so it overrides ecosystem groupings for devDep patches (AC 4).",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "devDependencies patch auto-merge",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true,
+      "labels": ["dependencies", "automerge"]
+    }
+  ],
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "Dependency Dashboard (Renovate)"
+}

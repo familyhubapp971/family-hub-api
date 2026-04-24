@@ -1,0 +1,28 @@
+# Dependabot runs as a second line of defense alongside Renovate.
+# Primary dependency updates come from Renovate (see /renovate.json).
+# Dependabot here covers two things Renovate doesn't handle as well:
+#   1. GitHub Actions versions in .github/workflows/ (grouped weekly PRs)
+#   2. Auto-triggered security updates — enabled in repo settings, not here
+#
+# Both target `staging` per ADR 0006 (main is frozen bootstrap-phase).
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: staging
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/London
+    labels:
+      - dependencies
+      - github-actions
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      actions:
+        patterns: ["*"]
