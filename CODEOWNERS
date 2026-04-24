@@ -1,0 +1,29 @@
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+#
+# NOTE: familyhubapp971 is currently a user account, so team handles
+# (@familyhubapp971/platform, @familyhubapp971/product) cannot be used here.
+# Replace @familyhubapp971 below with the appropriate user/team handles
+# once a GitHub organization is set up.
+
+# Default owner — fallback for anything not matched below
+*                       @familyhubapp971
+
+# Infrastructure & ops
+/.github/               @familyhubapp971
+/infra/                 @familyhubapp971
+/docker/                @familyhubapp971
+*.dockerfile            @familyhubapp971
+Dockerfile*             @familyhubapp971
+docker-compose*.yml     @familyhubapp971
+railway.json            @familyhubapp971
+railway.toml            @familyhubapp971
+
+# CI / CD
+/.github/workflows/     @familyhubapp971
+
+# Application code
+/apps/                  @familyhubapp971
+/packages/              @familyhubapp971
+
+# Docs
+/docs/                  @familyhubapp971
