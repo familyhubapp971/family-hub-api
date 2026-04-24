@@ -161,9 +161,27 @@ Types follow Conventional Commits: `feat`, `fix`, `chore`, `docs`, `test`,
 ```bash
 git checkout staging && git pull   # branch from staging during bootstrap
 git checkout -b <type>/FHS-XXX-short-slug
+git push -u origin <type>/FHS-XXX-short-slug   # publish so the Jira rule fires
 ```
 
 (Branch from `main` once the staging-only policy is lifted.)
+
+> **Trigger rule:** creating and **pushing** the feature branch is the
+> signal that work has started. The Jira Automation rule **"Branch
+> created → In Progress"** (configured in
+> `https://qualicion2.atlassian.net/jira/software/projects/FHS/settings/automation`)
+> auto-transitions the matching FHS-XXX ticket from To Do → In Progress
+> when the branch is pushed. No manual API call needed.
+>
+> **Manual fallback** — if the automation rule is disabled or fails,
+> transition manually:
+>
+> ```bash
+> curl -s -u "$EMAIL:$JIRA_API_TOKEN" -X POST \
+>   "$URL/rest/api/3/issue/FHS-XXX/transitions" \
+>   -H "Content-Type: application/json" \
+>   -d '{"transition":{"id":"21"}}'   # 21 = In Progress for FHS
+> ```
 
 ### Closing tickets (post-merge)
 
