@@ -406,63 +406,97 @@ criteria. Template:
 
 ## Testing
 
-Four test tiers, each with a clear scope. Don't let one tier swallow
-another's job.
+Four test tiers under one **centralized** `tests/` directory at the repo
+root — never colocated next to source. Mirrors the legacy family-hub
+layout, reorganised by package within each tier.
+
+### Folder structure (canonical)
+
+```text
+tests/
+  unit/
+    api/{routes,middleware,lib}/      # mirrors apps/api/src/
+    web/{components,hooks}/           # mirrors apps/web/src/
+    shared/{schemas}/                 # mirrors packages/shared/src/
+  integration/
+    vitest.config.ts                  # separate config from unit
+    specs/                            # one spec per domain
+    support/                          # global-setup, helpers, db client
+    features/                         # Cucumber-style .feature files
+  e2e/
+    playwright.config.ts              # full matrix
+    playwright.critical.config.ts     # @critical subset for PR CI
+    features/                         # mirror docs/features/<slug>.md scenario names
+    steps/                            # one file per feature slug
+    support/pages/                    # page objects (no raw locators in steps)
+  performance/
+    config.js                         # BASE_URL + thresholds tied to docs/technical/slos.md
+    scripts/                          # shared k6 helpers
+    scenarios/{smoke,load,stress,soak}.js
+    reports/                          # gitignored
+```
+
+Per-package `vitest.config.ts` files (`apps/api`, `apps/web`,
+`packages/shared`) keep working — their `include` glob points at
+`../../tests/unit/<pkg>/`.
+
+> **Current state (2026-04-25):** test files added in FHS-150 / FHS-151
+> are temporarily colocated. Migration into `tests/unit/<pkg>/` is
+> tracked as part of [FHS-186](https://qualicion2.atlassian.net/browse/FHS-186)
+> ("one green test per tier") so it lands together with the integration /
+> e2e / perf hello-world scaffolds. **All new test files from this point
+> on must be created under `tests/<tier>/...`, not colocated.**
 
 ### Unit — Vitest
 
-- **Where:** colocated `*.test.ts` next to the source file (e.g.,
-  `apps/api/src/users/users.service.test.ts`).
-- **Scope:** pure functions, single class/module, no I/O. Mock external
-  collaborators, but **never mock the thing under test**.
-- **Run:** `pnpm test` (watches) · `pnpm test:run` (one-shot, used in CI).
-- **Bar:** every public function in `packages/shared/` and every service
-  method in `apps/api/src/**/*.service.ts` has direct unit coverage.
+- **Where:** `tests/unit/{api,web,shared}/...` mirroring source hierarchy.
+- **File naming:** `*.test.ts` / `*.test.tsx` (reserve `*.spec.ts` for integration).
+- **Run:** `pnpm test` (root, via `vitest.workspace.ts` — runs all packages); `pnpm test:watch`; `pnpm test:coverage` for merged lcov.
+- **Environment:** `node` for api + shared; `jsdom` + `@testing-library/react` for web.
+- **Coverage thresholds (starting):** lines 70%, branches 60%, functions 70% — raise to 80/70/80 after FHS-186 baseline. Hard-gating only after thresholds calibrate.
+- **Scope:** pure functions, single class/module, no I/O. Mock external collaborators, **never** mock the thing under test.
 
 ### Integration — Vitest + real Postgres
 
-- **Where:** `apps/api/src/**/*.integration.test.ts`.
-- **Scope:** API route → service → real Postgres (per-test transaction,
-  rolled back at end). Exercises Drizzle queries and RLS policies for
-  real. **Do not mock the database** — mocked DBs hide migration breakage.
-- **Run:** `pnpm test:integration` (spins up local Postgres via
-  docker-compose or uses the dev DB with a `_test` schema).
-- **Bar:** every endpoint has an integration test for happy path + at
-  least one tenant-isolation scenario (request as tenant A must not
-  see tenant B's data).
+- **Where:** `tests/integration/specs/*.spec.ts`.
+- **Config:** dedicated `tests/integration/vitest.config.ts`.
+- **Run:** `pnpm test:integration` — spins Postgres 16 via `docker-compose.test.yml` on port 5433 (offset from dev's 5432). CI uses GitHub Actions `services:` block.
+- **Setup:** drop + recreate test DB, `drizzle-kit push --force` to apply schema + RLS policies. Per-test transaction rollback (faster than truncate; preserves sequences).
+- **Mandatory pattern:** every spec touching a tenant-scoped endpoint includes a `tenant isolation` test — tenant B reads must return zero rows from tenant A. Defence in depth for [ADR 0001](docs/decisions/0001-multi-tenancy.md).
+- **Pool:** test pool is `max: 2`, `idle_timeout: 5`, separate from the prod pool. Lives in `tests/integration/support/db.ts` against `DATABASE_URL_TEST`.
+- **Never mock the database** — mocked DBs hide RLS regressions and migration breakage.
 
-### E2E — Playwright
+### E2E — Playwright + playwright-bdd
 
-- **Where:** `tests/e2e/**/*.spec.ts` at the repo root (or `apps/web/e2e/`
-  if scoped to a single app).
-- **Scope:** full browser → web → API → DB stack. One test per Gherkin
-  scenario in the corresponding `docs/features/<slug>.md`. Test
-  name **must** mirror scenario name for traceability.
-- **Run:** `pnpm test:e2e` locally; runs against `staging` in CI on PRs
-  targeting `main`.
-- **Bar:** every user-facing acceptance criterion in a shipped feature
-  has a passing Playwright scenario.
+- **Where:** `tests/e2e/`. Two configs: `playwright.config.ts` (full matrix) and `playwright.critical.config.ts` (`@critical`-tagged subset, chromium only).
+- **Traceability contract:** scenario names in `tests/e2e/features/<slug>.feature` are **character-for-character identical** to the Gherkin scenarios in `docs/features/<slug>.md`. `bddgen` generates the spec; the generated `test()` name carries through. This is the Jira AC ↔ test traceability mechanism.
+- **Page objects:** `tests/e2e/support/pages/<FeatureName>Page.ts`. No raw `page.locator()` in step files.
+- **Browser matrix:** chromium only on PR (critical subset, fast); full matrix (chromium + webkit + mobile-chrome) post-merge to staging.
+- **Run:** `pnpm test:e2e` (full), `pnpm test:e2e:critical` (PR-fast subset), `pnpm test:e2e:ui` (interactive). Each script runs `bddgen` first then `playwright test`.
 
 ### Performance — k6
 
-- **Where:** `tests/perf/**/*.js`.
-- **Scope:** load + soak tests for performance-critical endpoints (auth,
-  feed/timeline reads, write hot paths). Define SLOs in the script
-  (e.g., p95 < 250 ms at 100 RPS for 5 min).
-- **Run:** `pnpm test:perf` against staging; not in PR CI — run on
-  release candidates and weekly.
-- **Bar:** any endpoint added to the SLO list (in
-  `docs/technical/slos.md`) has a k6 script that asserts its target.
+- **Where:** `tests/performance/scenarios/{smoke,load,stress,soak}.js` with shared helpers in `tests/performance/scripts/`.
+- **Multi-tenancy add-ons** vs family-hub: per-tenant VU groups (split VUs across 2–3 synthetic tenants to validate RLS overhead under concurrent load); `withTenantHeader(tenantSlug)` helper.
+- **Thresholds:** defined in `tests/performance/config.js`, tied to `docs/technical/slos.md` (p95 < 250 ms read, p95 < 500 ms write — until SLO doc lands, those are the working targets).
+- **Schedule:**
+  - `smoke` — every CI run after integration (30s, 1 VU).
+  - `load` — nightly against staging.
+  - `stress` — pre-release, before staging → main promotion.
+  - `soak` — weekly Sunday nightly run.
+- **Run locally:** `pnpm perf:smoke`, `pnpm perf:load`, etc.
 
 ### Cross-tier rules
 
-- **No mocking the DB in integration or E2E.** Mocked DBs caused a prod
-  migration failure historically — real Postgres is mandatory for those
-  tiers.
-- **Test names mirror Gherkin scenario names** so traceability between
-  `docs/features/<slug>.md` and the test file is automatic.
-- **A feature is not "done" until its tier-appropriate tests pass green
-  in CI** — the pre-merge checklist enforces this.
+- **No mocking the DB in integration or E2E.** Real Postgres is mandatory.
+- **Test names mirror Gherkin scenario names** for automatic AC traceability.
+- **A feature is not "done"** until its tier-appropriate tests pass green in CI — the pre-merge checklist enforces this.
+- **Shared test utilities live in `packages/test-utils`** (FHS-184) — `withTenant()`, factories, `testDb`, RTL render wrapper, MSW handlers, `makeRequest()`. Never duplicate these in test files.
+- **Pipeline orchestration** (per the test-automator design):
+  - **PR CI (must finish < 5 min, gates merge):** unit + integration + e2e-critical + typecheck (parallel jobs).
+  - **Post-merge to staging:** e2e-full matrix + perf smoke.
+  - **Nightly:** perf load (daily) + perf soak (weekly Sunday).
+  - **Pre-release:** perf stress before staging → main batch promotion.
 
 ---
 
