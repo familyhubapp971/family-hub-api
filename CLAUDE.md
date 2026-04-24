@@ -123,7 +123,9 @@ Delegate via the Task tool when a subagent's specialty matches the work.
 ### Pull requests
 
 - Target `staging` (not `main`) for feature work.
-- Squash-merge unless the feature spans multiple meaningful commits.
+- **Merge style (conditional, per [ADR 0006](docs/decisions/0006-branching-strategy.md)):**
+  - **Solo / 1 active contributor (current):** squash-merge feature → staging; merge-commit `staging → main`.
+  - **≥2 active contributors:** switch to `--no-ff` merge commits at every level. Trigger: second person opens their first PR.
 - Use the [PR template](.github/pull_request_template.md) — it enforces
   the Jira link, Gherkin acceptance check, test plan, and rollout notes.
 
