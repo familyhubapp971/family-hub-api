@@ -127,6 +127,12 @@ Delegate via the Task tool when a subagent's specialty matches the work.
 - Use the [PR template](.github/pull_request_template.md) — it enforces
   the Jira link, Gherkin acceptance check, test plan, and rollout notes.
 
+> **Bootstrap-phase policy (effective 2026-04-24):** all merges land on
+> `staging` only. **Do not open or merge `staging` → `main` promotion
+> PRs.** `main` is held at its current commit until the W1 vertical
+> slice (FHS-179 epic) is complete and validated, after which everything
+> promotes to `main` as one tested batch. Revisit when FHS-198 ships.
+
 ### Branch & PR naming (Jira auto-link)
 
 **Rule:** Every Jira ticket gets its own feature branch. **Never commit
@@ -153,15 +159,18 @@ Types follow Conventional Commits: `feat`, `fix`, `chore`, `docs`, `test`,
 **First action when starting a ticket:**
 
 ```bash
-git checkout main && git pull
+git checkout staging && git pull   # branch from staging during bootstrap
 git checkout -b <type>/FHS-XXX-short-slug
 ```
 
+(Branch from `main` once the staging-only policy is lifted.)
+
 ### Closing tickets (post-merge)
 
-**Rule:** As soon as the implementation PR for a ticket merges into `main`,
-the ticket must be commented and closed — automatically, without the user
-asking.
+**Rule:** As soon as the implementation PR for a ticket merges into the
+target branch (`staging` during the bootstrap phase; `main` afterwards),
+the ticket must be commented and closed — automatically, without the
+user asking.
 
 Steps:
 
