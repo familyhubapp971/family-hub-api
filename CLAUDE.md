@@ -208,6 +208,43 @@ Steps:
 The closing comment is part of the deliverable, not a separate task.
 Drift between merged code and ticket status is a process bug.
 
+### Closing parent epics
+
+After closing a child story, check the parent epic. If **every** child
+of that epic is also Done (treat "Won't Do" / "Cancelled" as Done for
+this purpose), close the epic too with a brief structured comment
+listing each child story it delivered. Don't make the user chase
+parent-epic closure — same logic as the post-merge ticket close, one
+level up.
+
+### Change-impact propagation
+
+When a change has impact beyond its immediate surface, **flag it
+explicitly before doing the work**, wait for acknowledgement, then
+update every affected surface in the same PR (per the bundling rule).
+Categories to scan when proposing a change:
+
+| Category | Surfaces |
+| --- | --- |
+| Product / requirements | `docs/features/`, Jira ticket scope + AC, PR template |
+| Technical | code, schemas, API contracts (OpenAPI), migrations, infra (Railway, Supabase, Stripe), CI workflows |
+| Tests | Vitest unit, Vitest integration, Playwright E2E, k6 perf |
+| Architecture | ADRs in `docs/decisions/` — write a new ADR or supersede an existing one |
+| Strategy | `docs/strategy/saas-transformation.md` and any Confluence mirror |
+| Business / launch | pricing, marketing copy, sales collateral, onboarding flow copy |
+| Confluence | `https://qualicion2.atlassian.net/spaces/FA/...` pages |
+| Legal / compliance | LICENSE, ToS, privacy policy, regulated-tier obligations |
+| Process | CLAUDE.md rules, PR template, memory entries |
+
+**Anti-pattern:** silently updating only the file the user pointed at,
+leaving every other affected surface stale. That's how a "small"
+change becomes a months-later bug or contradiction.
+
+When in doubt, flag it. The cost of "this change touches X / Y / Z,
+OK?" is trivial; the cost of letting drift compound is large. Close
+the loop in the Jira ticket's closing comment by listing the surfaces
+touched so the audit trail captures the cascade.
+
 ### Code style
 
 - TypeScript strict mode everywhere.
