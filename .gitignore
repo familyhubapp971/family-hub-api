@@ -48,3 +48,6 @@ Thumbs.db
 # Misc
 .cache/
 tmp/
+
+# Claude Code — personal overrides (project-shared config is committed under .claude/)
+.claude/settings.local.json

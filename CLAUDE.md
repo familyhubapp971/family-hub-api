@@ -128,6 +128,15 @@ Delegate via the Task tool when a subagent's specialty matches the work.
   - **≥2 active contributors:** switch to `--no-ff` merge commits at every level. Trigger: second person opens their first PR.
 - Use the [PR template](.github/pull_request_template.md) — it enforces
   the Jira link, Gherkin acceptance check, test plan, and rollout notes.
+- **Self-review every PR before opening it.** Run the `code-reviewer`
+  subagent ([`.claude/agents/code-reviewer.md`](.claude/agents/code-reviewer.md))
+  on the branch's diff with the ticket context; action every blocking
+  finding in the same branch; mention the review in the PR body
+  (e.g., *"Self-reviewed via code-reviewer subagent; findings addressed
+  in commit abc1234"*). Defer non-blocking findings to a "Follow-ups"
+  section so the human reviewer can see what was punted on purpose.
+  See the [`requesting-code-review`](.claude/skills/requesting-code-review/SKILL.md)
+  skill for the workflow.
 
 > **Bootstrap-phase policy (effective 2026-04-24):** all merges land on
 > `staging` only. **Do not open or merge `staging` → `main` promotion
