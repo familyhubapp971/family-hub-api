@@ -157,6 +157,28 @@ git checkout main && git pull
 git checkout -b <type>/FHS-XXX-short-slug
 ```
 
+### Closing tickets (post-merge)
+
+**Rule:** As soon as the implementation PR for a ticket merges into `main`,
+the ticket must be commented and closed — automatically, without the user
+asking.
+
+Steps:
+
+1. Verify the merge landed on `main` (and `staging` is in sync if a
+   promotion PR was used).
+2. Post a **brief, structured** comment on the Jira ticket using ADF
+   `bulletList` / `heading` blocks. Never dense prose. 4–8 bullets is
+   the target — cover what was delivered, the PR number(s), any
+   caveats / follow-ups, and the next ticket if known.
+3. Transition the ticket to **Done** (transition ID `31` for FHS;
+   confirm via `GET /rest/api/3/issue/<KEY>/transitions` if unsure).
+4. If the work has caveats / partial completion, still close, but list
+   the caveats under a "Caveats" or "Follow-ups" section in the comment.
+
+The closing comment is part of the deliverable, not a separate task.
+Drift between merged code and ticket status is a process bug.
+
 ### Code style
 
 - TypeScript strict mode everywhere.
