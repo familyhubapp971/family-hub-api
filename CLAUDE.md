@@ -242,6 +242,61 @@ After any epic transition, **refresh the Confluence "FHS — Epics &
 Tickets" page** per the Confluence-refresh step in the "Closing
 tickets" section above.
 
+### Fix Versions — Sprint cluster releases
+
+The FHS project uses **Fix Versions** to mark Sprint cluster releases,
+mapped 1-to-1 to the Sprint-to-milestone table in
+[`docs/strategy/saas-transformation.md`](docs/strategy/saas-transformation.md):
+
+| Version | Sprint cluster |
+| --- | --- |
+| `0.0-bootstrap` | Sprint 0 — Bootstrap (current) |
+| `0.1-tenant-foundation` | Sprint 1 |
+| `0.2-signup-custom-url` | Sprint 2 |
+| `0.3-modules-gating` | Sprint 3 |
+| `0.4-stripe-billing` | Sprint 4 |
+| `0.5-invites-roles` | Sprint 5 |
+| `1.0-white-label-launch` | Sprint 6 (GA) |
+
+Rules:
+
+- **Tag at branch-creation time** (alongside the auto-In-Progress
+  transition) so Sprint-cluster ownership is visible from day 1.
+- **Mark a Fix Version released** when the Sprint cluster's vertical
+  slice ships and is verified in production. For `0.0-bootstrap`, that's
+  when [FHS-198](https://qualicion2.atlassian.net/browse/FHS-198) closes
+  and the staging → main batch promotion lands per
+  [FHS-200](https://qualicion2.atlassian.net/browse/FHS-200).
+- **Auto-generate release notes** per version when it ships:
+  `project = FHS AND fixVersion = "<version>"` lists every ticket;
+  publish to a per-version Confluence page.
+- Post-launch we move to semver `1.0.x` / `1.1.x`.
+
+### Decisions log sync
+
+ADRs in [`docs/decisions/`](docs/decisions/) are the canonical record of
+project shape. **When an ADR is added, superseded, or materially edited,
+propagate the change across every surface that references it** in the
+same PR (per bundling) or the same session (for Jira / Confluence):
+
+| Surface | What to update |
+| --- | --- |
+| `docs/decisions/<NNNN>-<slug>.md` | The ADR file itself |
+| `docs/decisions/README.md` | Index entry — accepted / superseded marker |
+| Root [`README.md`](README.md) | ADR list entry (if present) |
+| [`docs/strategy/saas-transformation.md`](docs/strategy/saas-transformation.md) | Architecture table row pointing at the ADR |
+| `CLAUDE.md` | Any conventions section that references the ADR |
+| Jira: epic comment | Structured comment summarising the ADR + linking to repo |
+| Jira: child tickets | Comment on any open ticket whose scope shifts (header: "Scope adjusted — ADR XXXX") |
+| Confluence: "Family Hub — Vision & Strategy" → "Architecture & multi-tenancy" | Update architecture table row |
+| Confluence: "FHS — Epics & Tickets" | Refresh via builder (per the Confluence-refresh rule) |
+
+Cross-link both ways: the ADR file links to the Jira ticket(s) it
+answers; those tickets link back to the ADR. Never delete a superseded
+ADR — flip its `Status:` line to `superseded by NNNN`. After any
+update, re-read at least the strategy doc + Architecture Confluence
+page to confirm they don't still reference the dead decision.
+
 ### Change-impact propagation
 
 When a change has impact beyond its immediate surface, **flag it

@@ -32,8 +32,13 @@ pnpm-debug.log*
 coverage/
 .nyc_output/
 playwright-report/
+playwright-report-critical/
 playwright/.cache/
 test-results/
+test-results-critical/
+tests/e2e/.features-gen/
+tests/e2e/.features-gen-critical/
+tests/performance/reports/
 
 # Editor / OS
 .DS_Store
