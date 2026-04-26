@@ -56,3 +56,9 @@ tmp/
 
 # Claude Code — personal overrides (project-shared config is committed under .claude/)
 .claude/settings.local.json
+
+# MCP server config — contains plaintext API tokens (Railway, etc).
+# Each contributor adds their own via `claude mcp add ... --scope local`
+# (don't use --scope project — that commits the file, defeating this rule).
+# Setup steps: docs/technical/deployment.md → "Operational handles".
+.mcp.json
