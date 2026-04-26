@@ -6,9 +6,9 @@
 // Override target:
 //   k6 run -e BASE_URL=https://staging.familyhub.app tests/performance/scenarios/smoke.js
 
-import { group, sleep } from 'k6';
-import { PROFILES, THRESHOLDS } from '../config.js';
-import { apiGet, checkResponse } from '../scripts/helpers.js';
+import { sleep } from 'k6';
+import { PROFILES, THRESHOLDS, TENANTS } from '../config.js';
+import { defaultWorkload } from '../scripts/helpers.js';
 export { handleSummary } from '../scripts/report.js';
 
 export const options = {
@@ -21,15 +21,9 @@ export const options = {
 };
 
 export default function () {
-  group('Health', () => {
-    const res = apiGet('/health');
-    checkResponse(res, 'health');
-  });
-
-  group('Hello', () => {
-    const res = apiGet('/hello');
-    checkResponse(res, 'hello');
-  });
-
+  // Single VU rotates through tenants by iteration so the smoke
+  // exercises the per-tenant code path even with vus=1.
+  const tenant = TENANTS[__ITER % TENANTS.length];
+  defaultWorkload(tenant);
   sleep(1);
 }

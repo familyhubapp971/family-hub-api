@@ -4,7 +4,7 @@
 // requests against /health and /hello.
 
 import http from 'k6/http';
-import { check } from 'k6';
+import { check, group } from 'k6';
 import { BASE_URL, TENANTS } from '../config.js';
 
 export function apiGet(path, params = {}) {
@@ -14,16 +14,45 @@ export function apiGet(path, params = {}) {
 
 export function apiPost(path, body, params = {}) {
   const url = `${BASE_URL}${path}`;
-  return http.post(url, JSON.stringify(body), {
-    headers: { 'Content-Type': 'application/json' },
-    ...params,
-  });
+  // Spread caller headers so they don't silently clobber Content-Type.
+  const headers = { 'Content-Type': 'application/json', ...(params.headers ?? {}) };
+  return http.post(url, JSON.stringify(body), { ...params, headers });
 }
 
+// Per-request status check. Latency is asserted at the threshold level
+// (config.js THRESHOLDS) — single source of truth for "what counts as
+// slow", per FHS-153 self-review follow-up.
 export function checkResponse(res, label, expectedStatus = 200) {
   return check(res, {
     [`${label} status is ${expectedStatus}`]: (r) => r.status === expectedStatus,
-    [`${label} response time < 500ms`]: (r) => r.timings.duration < 500,
+  });
+}
+
+// Inline single-request latency check (fast escape valve when you
+// genuinely need a per-call assertion above the global threshold).
+// `maxMs` is required — caller must opt into the budget to avoid the
+// "did you mean read or write SLO?" footgun.
+export function checkLatency(res, label, maxMs) {
+  if (typeof maxMs !== 'number') {
+    throw new Error(`checkLatency: maxMs is required (use THRESHOLDS.p95_response or .p95_response_write)`);
+  }
+  return check(res, {
+    [`${label} response time < ${maxMs}ms`]: (r) => r.timings.duration < maxMs,
+  });
+}
+
+// Shared workload — the default request pattern used by every scenario.
+// Centralised here so adding a new endpoint to the perf suite is a
+// one-file change. FHS-184 / FHS-194 will extend this with /api/me etc.
+export function defaultWorkload(tenant) {
+  const params = { ...withTenantHeader(tenant), tags: { tenant } };
+  group('Health (no tenant)', () => {
+    const res = apiGet('/health');
+    checkResponse(res, 'health');
+  });
+  group(`Hello (tenant=${tenant})`, () => {
+    const res = apiGet('/hello', params);
+    checkResponse(res, 'hello');
   });
 }
 

@@ -33,5 +33,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORTS_DIR="$SCRIPT_DIR/../reports"
 mkdir -p "$REPORTS_DIR"
 
-# Pass absolute reports dir into k6 so report.js writes there reliably.
-exec k6 run -e REPORTS_DIR="$REPORTS_DIR" "$scenario" "$@"
+# Pass absolute reports dir + scenario name into k6 so report.js can
+# namespace its output (back-to-back runs don't clobber each other).
+SCENARIO_NAME="$(basename "$scenario" .js)"
+exec k6 run -e REPORTS_DIR="$REPORTS_DIR" -e SCENARIO="$SCENARIO_NAME" "$scenario" "$@"

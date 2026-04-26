@@ -11,8 +11,14 @@ import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.2/index.js';
 
 export function handleSummary(data) {
   const reportsDir = __ENV.REPORTS_DIR || 'tests/performance/reports';
+  // Namespace by scenario name so back-to-back runs (e.g. load → stress
+  // in the FHS-185 pre-release job) don't clobber each other.
+  // SCENARIO is set by run-k6.sh from the input filename.
+  const scenario = __ENV.SCENARIO || 'unknown';
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
   return {
     stdout: textSummary(data, { indent: ' ', enableColors: true }),
-    [`${reportsDir}/summary.json`]: JSON.stringify(data, null, 2),
+    [`${reportsDir}/summary-${scenario}.json`]: JSON.stringify(data, null, 2),
+    [`${reportsDir}/summary-${scenario}-${ts}.json`]: JSON.stringify(data, null, 2),
   };
 }
