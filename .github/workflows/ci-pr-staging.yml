@@ -1,0 +1,144 @@
+# ci-pr-staging: PR-gating CI for PRs targeting staging.
+# Per CLAUDE.md must finish < 5 min. Required checks for branch protection:
+#   typecheck, unit, integration, e2e-critical
+# All four jobs run in parallel. Build is informational (warns but doesn't gate).
+
+name: ci-pr-staging
+
+on:
+  pull_request:
+    branches:
+      - staging
+
+concurrency:
+  group: ci-pr-staging-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.32.0'
+
+jobs:
+  typecheck:
+    name: Type check (TypeScript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r typecheck
+
+  unit:
+    name: Unit tests — frontend + backend + shared
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:coverage
+      - name: Coverage summary on PR
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-pr-staging
+          path: coverage/
+
+  integration:
+    name: Integration tests (with database)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: familyhub_test
+          POSTGRES_USER: fh_test
+          POSTGRES_PASSWORD: fh_test
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 1s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL_TEST: postgres://fh_test:fh_test@localhost:5433/familyhub_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      # Skip the local docker compose pretest hook in CI — the service
+      # container above replaces it.
+      - run: pnpm exec vitest run --config tests/integration/vitest.config.ts
+
+  e2e-critical:
+    name: Smoke test (Critical Journeys)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: familyhub_test
+          POSTGRES_USER: fh_test
+          POSTGRES_PASSWORD: fh_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 1s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://fh_test:fh_test@localhost:5432/familyhub_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+      - name: Install Playwright chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - run: pnpm test:e2e:critical
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-critical
+          path: tests/e2e/playwright-report-critical/
+          retention-days: 7
+
+  build:
+    name: Compile check — does it build? (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build

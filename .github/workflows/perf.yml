@@ -1,0 +1,108 @@
+# perf: scheduled + on-demand performance scenarios.
+#   - load   = nightly against staging
+#   - stress = manual / pre-release
+#   - soak   = weekly Sunday nightly against staging
+#
+# Per CLAUDE.md "Pipeline orchestration" + tests/performance schedule.
+
+name: perf
+
+on:
+  schedule:
+    # Daily 02:00 UTC nightly load run.
+    - cron: '0 2 * * *'
+    # Weekly Sunday 03:00 UTC soak run (the if: below scopes it).
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'k6 scenario to run'
+        required: true
+        default: 'smoke'
+        type: choice
+        options: [smoke, load, stress, soak]
+      base_url:
+        description: 'Override BASE_URL (default: staging)'
+        required: false
+        type: string
+
+concurrency:
+  group: perf-${{ github.event.inputs.scenario || github.event.schedule }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.32.0'
+
+jobs:
+  load-nightly:
+    name: Nightly load test (50 users / 5 min)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 2 * * *' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - uses: grafana/setup-k6-action@v1
+      - name: k6 load against ${{ vars.STAGING_API_URL || 'http://localhost:3001' }}
+        env:
+          BASE_URL: ${{ vars.STAGING_API_URL || 'http://localhost:3001' }}
+        run: tests/performance/scripts/run-k6.sh tests/performance/scenarios/load.js
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: perf-load-nightly, path: tests/performance/reports/, retention-days: 30 }
+
+  soak-weekly:
+    name: Weekly soak test (30 users / 2 hours, Sunday)
+    runs-on: ubuntu-latest
+    timeout-minutes: 150 # 2h scenario + headroom
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * 0' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - uses: grafana/setup-k6-action@v1
+      - name: k6 soak
+        env:
+          BASE_URL: ${{ vars.STAGING_API_URL || 'http://localhost:3001' }}
+        run: tests/performance/scripts/run-k6.sh tests/performance/scenarios/soak.js
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: perf-soak-weekly, path: tests/performance/reports/, retention-days: 30 }
+
+  manual:
+    name: Manual performance run — ${{ github.event.inputs.scenario }}
+    runs-on: ubuntu-latest
+    # Soak runs 2h; bump well above so manual choice doesn't kill it.
+    timeout-minutes: 150
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - uses: grafana/setup-k6-action@v1
+      - name: k6 ${{ github.event.inputs.scenario }}
+        env:
+          BASE_URL: ${{ github.event.inputs.base_url || vars.STAGING_API_URL || 'http://localhost:3001' }}
+          # Restricted to the choice list above ─ defence in depth.
+          SCENARIO: ${{ github.event.inputs.scenario }}
+        run: tests/performance/scripts/run-k6.sh "tests/performance/scenarios/${SCENARIO}.js"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-${{ github.event.inputs.scenario }}-manual-${{ github.run_id }}
+          path: tests/performance/reports/
+          retention-days: 30

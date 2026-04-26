@@ -1,0 +1,61 @@
+# ci-feature: cheap fast feedback on every push to a feature branch.
+# Runs typecheck + unit tests only. Per CLAUDE.md "Pipeline orchestration"
+# this is the lightest tier — must finish well under 2 min so a developer
+# pushing every few minutes isn't waiting on it.
+
+name: ci-feature
+
+on:
+  push:
+    branches:
+      - 'feat/**'
+      - 'fix/**'
+      - 'chore/**'
+      - 'docs/**'
+      - 'test/**'
+      - 'refactor/**'
+      - 'perf/**'
+
+concurrency:
+  group: ci-feature-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  typecheck-and-unit:
+    name: Type check & unit tests — frontend + backend + shared
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (all workspaces)
+        run: pnpm -r typecheck
+
+      - name: Unit tests with coverage
+        run: pnpm test:coverage
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-feature
+          path: coverage/
+          retention-days: 7

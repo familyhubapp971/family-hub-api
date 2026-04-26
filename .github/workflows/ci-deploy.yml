@@ -1,0 +1,58 @@
+# ci-deploy: post-deploy validation after a push to main lands in
+# production. Currently dormant per the staging-only bootstrap policy
+# (main is frozen). When the policy lifts and the first staging → main
+# batch promotion ships, Railway auto-deploys; this workflow then
+# smokes the deployed environment.
+#
+# Per CLAUDE.md "Pipeline orchestration": post-deploy k6 smoke against
+# the deployed env confirms the build is alive in the wild.
+
+name: ci-deploy
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.32.0'
+
+jobs:
+  post-deploy-smoke:
+    name: Post-deploy smoke (verify production)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # vars.PROD_API_URL set in repo settings once Railway prod is live
+    # (FHS-200 — production environments + batch promotion).
+    if: ${{ vars.PROD_API_URL != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - uses: grafana/setup-k6-action@v1
+      - name: k6 smoke against PROD_API_URL
+        # Use env: + quoted "$BASE_URL" instead of inline ${{ }} in run:
+        # to defend against shell injection via repo-vars.
+        env:
+          BASE_URL: ${{ vars.PROD_API_URL }}
+        run: |
+          tests/performance/scripts/run-k6.sh tests/performance/scenarios/smoke.js \
+            -e "BASE_URL=$BASE_URL"
+      - name: Upload smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-deploy-smoke-report
+          path: tests/performance/reports/
+          retention-days: 30

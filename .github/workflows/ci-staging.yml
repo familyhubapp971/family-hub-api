@@ -1,0 +1,151 @@
+# ci-staging: full validation on every push to staging.
+# Runs the full e2e matrix + a perf smoke against the running api.
+# Can take longer than PR CI.
+#
+# Per CLAUDE.md "Pipeline orchestration":
+#   - PR CI gates merge (ci-pr-staging.yml)
+#   - This runs AFTER merge to staging — informational + catches matrix
+#     differences chromium-only didn't catch.
+#
+# webkit project removed from matrix — playwright.config.ts only
+# declares chromium + mobile-chrome. Re-add when FHS-182 follow-up
+# adds the webkit project + Linux deps audit.
+
+name: ci-staging
+
+on:
+  push:
+    branches:
+      - staging
+
+concurrency:
+  group: ci-staging
+  cancel-in-progress: false # let prior runs finish — they're informational
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.32.0'
+
+jobs:
+  e2e-full:
+    name: Browser tests — ${{ matrix.browser }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, mobile-chrome]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: familyhub_test
+          POSTGRES_USER: fh_test
+          POSTGRES_PASSWORD: fh_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 1s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://fh_test:fh_test@localhost:5432/familyhub_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        env:
+          BROWSER: ${{ matrix.browser }}
+        # Map mobile-chrome to chromium binary (Pixel 5 device profile uses chromium).
+        run: |
+          case "$BROWSER" in
+            mobile-chrome) npx playwright install --with-deps chromium ;;
+            *) npx playwright install --with-deps "$BROWSER" ;;
+          esac
+      - name: Run e2e (project=${{ matrix.browser }})
+        env:
+          PROJECT: ${{ matrix.browser }}
+        run: pnpm exec playwright test --config tests/e2e/playwright.config.ts --project "$PROJECT"
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: tests/e2e/playwright-report/
+          retention-days: 14
+
+  perf-smoke:
+    name: Performance smoke (k6, 30s)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: familyhub_test
+          POSTGRES_USER: fh_test
+          POSTGRES_PASSWORD: fh_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 1s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://fh_test:fh_test@localhost:5432/familyhub_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - uses: grafana/setup-k6-action@v1
+      - name: Boot api in background
+        run: |
+          NODE_ENV=test PORT=3001 LOG_LEVEL=error \
+            pnpm --filter @familyhub/api dev > /tmp/api.log 2>&1 &
+          API_PID=$!
+          echo "API_PID=$API_PID" >> "$GITHUB_ENV"
+          for i in {1..30}; do
+            if curl -sf http://localhost:3001/health >/dev/null; then
+              echo "api up"; exit 0
+            fi
+            sleep 1
+          done
+          echo "✗ api never responded — last 50 log lines:"
+          tail -n 50 /tmp/api.log || true
+          exit 1
+      - name: k6 smoke
+        run: pnpm perf:smoke
+      - name: Stop api
+        if: always()
+        run: |
+          if [ -n "${API_PID:-}" ]; then kill "$API_PID" 2>/dev/null || true; fi
+      - name: Upload api log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: api-log-perf-smoke, path: /tmp/api.log, retention-days: 7 }
+      - name: Upload perf report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-smoke-report
+          path: tests/performance/reports/
+          retention-days: 14
