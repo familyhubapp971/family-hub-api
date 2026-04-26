@@ -14,7 +14,7 @@ export function getTestDb() {
   if (_db) return _db;
   const url =
     process.env['DATABASE_URL_TEST'] ??
-    'postgres://fh_test:test@localhost:5433/familyhub_test';
+    'postgres://fh_test:fh_test@localhost:5433/familyhub_test';
   _pool = new pg.Pool({
     connectionString: url,
     application_name: '@familyhub/test-utils',

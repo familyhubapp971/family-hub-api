@@ -19,6 +19,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "pretest:integration": "pnpm test:db:up",
+    "test:integration": "vitest run --config tests/integration/vitest.config.ts",
+    "test:integration:watch": "vitest --config tests/integration/vitest.config.ts",
+    "test:db:up": "docker compose -f docker-compose.test.yml up -d --wait",
+    "test:db:down": "docker compose -f docker-compose.test.yml down",
     "_assert-bddgen": "find tests/e2e/.features-gen -name '*.spec.js' | grep -q . || (echo '✗ bddgen produced 0 specs — feature/step paths broken?' && exit 1)",
     "_assert-bddgen-critical": "find tests/e2e/.features-gen-critical -name '*.spec.js' | grep -q . || (echo '✗ bddgen produced 0 specs — feature/step paths broken or @critical tag missing?' && exit 1)",
     "test:e2e": "bddgen test --config tests/e2e/playwright.config.ts && pnpm run _assert-bddgen && playwright test --config tests/e2e/playwright.config.ts",
@@ -34,7 +39,10 @@
   },
   "devDependencies": {
     "@playwright/test": "1.48.2",
+    "@types/node": "20.16.11",
+    "@types/pg": "8.11.10",
     "@vitest/coverage-v8": "2.1.4",
+    "pg": "8.13.1",
     "playwright-bdd": "8.4.2",
     "typescript": "5.6.3",
     "vitest": "2.1.4"

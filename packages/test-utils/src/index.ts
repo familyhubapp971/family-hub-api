@@ -3,7 +3,7 @@
 // k6 helpers (plain JS) live at @familyhub/test-utils/k6.
 
 export { getTestDb, closeTestDb } from './db/client.js';
-export { withTenant, currentTenantId } from './db/withTenant.js';
+export { withTenant, currentTenantId, setTenantOnTransaction } from './db/withTenant.js';
 export { truncateAll } from './db/truncate.js';
 
 export {

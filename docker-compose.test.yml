@@ -1,0 +1,31 @@
+# Dockerized Postgres for the integration test tier.
+# Spins on port 5433 (offset from dev's 5432) so dev + tests can run in
+# parallel without colliding. Locally:
+#   docker compose -f docker-compose.test.yml up -d
+#   pnpm test:integration
+#   docker compose -f docker-compose.test.yml down
+#
+# In CI we use a GitHub Actions service container with the same image
+# (FHS-185 wires that). The connection string DATABASE_URL_TEST defaults
+# to postgres://fh_test:fh_test@localhost:5433/familyhub_test (matches
+# the credentials below) so neither local dev nor CI needs to override.
+
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: familyhub-postgres-test
+    environment:
+      POSTGRES_DB: familyhub_test
+      POSTGRES_USER: fh_test
+      POSTGRES_PASSWORD: fh_test
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fh_test -d familyhub_test"]
+      interval: 1s
+      timeout: 5s
+      retries: 30
+    tmpfs:
+      # In-memory data directory — fast, ephemeral. Acceptable because
+      # the global-setup hook recreates the schema each run.
+      - /var/lib/postgresql/data
