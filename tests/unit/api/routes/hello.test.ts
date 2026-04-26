@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { helloResponseSchema } from '@familyhub/shared';
-import { buildApp } from '../app.js';
+import { buildApp } from '../../../../apps/api/src/app.js';
 
 describe('GET /hello', () => {
   it('returns 200 with a payload matching the shared Zod schema', async () => {

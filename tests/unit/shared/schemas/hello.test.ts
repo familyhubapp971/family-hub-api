@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { helloResponseSchema } from './hello.js';
+import { helloResponseSchema } from '@familyhub/shared';
 
 describe('helloResponseSchema', () => {
   it('accepts a valid payload', () => {

@@ -25,6 +25,7 @@ export default defineConfig({
         'apps/*/postcss.config.js',
         'apps/*/tailwind.config.js',
         'apps/*/src/main.tsx',
+        'apps/*/src/test/**', // setup files, not logic
       ],
       all: true,
     },
