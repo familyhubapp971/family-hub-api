@@ -6,6 +6,7 @@ import { defineWorkspace } from 'vitest/config';
 // still works — vitest picks up each package's own config.
 export default defineWorkspace([
   'packages/shared',
+  'packages/test-utils',
   'apps/api',
   'apps/web',
 ]);
