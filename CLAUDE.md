@@ -120,6 +120,18 @@ Delegate via the Task tool when a subagent's specialty matches the work.
 - Local repo identity is `toonday-fh <familyhubapp971@gmail.com>` — do not
   alter unless explicitly asked.
 
+**Keep messages short and plain.** One-line subject under 70 chars. Body
+is optional — add only when the _why_ isn't obvious from the diff or the
+ticket. When a body is needed, max ~5 lines, plain language, no marketing
+voice. Don't recap the diff (the diff already shows it). Don't list every
+sub-decision and every nit you fixed — those live in the PR body or the
+Jira ticket. **Goal: a future reader scanning `git log --oneline` learns
+what changed; clicking through tells them why.**
+
+Anti-pattern: 30-line commit messages with bulleted "What ships",
+self-review notes, and follow-up trackers. That belongs in the PR body
+or Jira comment, not the commit.
+
 ### Pull requests
 
 - Target `staging` (not `main`) for feature work.
@@ -127,16 +139,33 @@ Delegate via the Task tool when a subagent's specialty matches the work.
   - **Solo / 1 active contributor (current):** squash-merge feature → staging; merge-commit `staging → main`.
   - **≥2 active contributors:** switch to `--no-ff` merge commits at every level. Trigger: second person opens their first PR.
 - Use the [PR template](.github/pull_request_template.md) — it enforces
-  the Jira link, Gherkin acceptance check, test plan, and rollout notes.
+  the Jira link, Gherkin acceptance check, and rollout notes.
 - **Self-review every PR before opening it.** Run the `code-reviewer`
   subagent ([`.claude/agents/code-reviewer.md`](.claude/agents/code-reviewer.md))
   on the branch's diff with the ticket context; action every blocking
   finding in the same branch; mention the review in the PR body
-  (e.g., *"Self-reviewed via code-reviewer subagent; findings addressed
-  in commit abc1234"*). Defer non-blocking findings to a "Follow-ups"
+  (e.g., _"Self-reviewed via code-reviewer subagent; findings addressed
+  in commit abc1234"_). Defer non-blocking findings to a "Follow-ups"
   section so the human reviewer can see what was punted on purpose.
   See the [`requesting-code-review`](.claude/skills/requesting-code-review/SKILL.md)
   skill for the workflow.
+
+**Keep PR bodies short.** Default sections are: **Summary** (1-3 lines),
+**AC trace** (one line per AC, pass/fail), and **Self-review** (one
+sentence + count of blockers actioned). Add anything else only when it
+genuinely changes how a reviewer evaluates the PR.
+
+**Do NOT include a "Test plan" section.** Verification commands ran
+locally and CI status are not artefacts the reviewer needs to read —
+CI either passes (visible on the PR) or it doesn't. If a manual
+verification step is essential to assess the change (e.g. a UI flow a
+reviewer should click through), put it in a one-line note under
+Summary. Otherwise skip it.
+
+**Don't bloat with**: "What ships" exhaustive bullets duplicating the
+diff, "Decisions worth flagging" boilerplate, "Deferred follow-ups"
+when there are none, marketing-voice section headings. The diff and
+the ticket already say most of this.
 
 > **Bootstrap-phase policy (effective 2026-04-24):** all merges land on
 > `staging` only. **Do not open or merge `staging` → `main` promotion
@@ -259,15 +288,15 @@ The FHS project uses **Fix Versions** to mark Sprint cluster releases,
 mapped 1-to-1 to the Sprint-to-milestone table in
 [`docs/strategy/saas-transformation.md`](docs/strategy/saas-transformation.md):
 
-| Version | Sprint cluster |
-| --- | --- |
-| `0.0-bootstrap` | Sprint 0 — Bootstrap (current) |
-| `0.1-tenant-foundation` | Sprint 1 |
-| `0.2-signup-custom-url` | Sprint 2 |
-| `0.3-modules-gating` | Sprint 3 |
-| `0.4-stripe-billing` | Sprint 4 |
-| `0.5-invites-roles` | Sprint 5 |
-| `1.0-white-label-launch` | Sprint 6 (GA) |
+| Version                  | Sprint cluster                 |
+| ------------------------ | ------------------------------ |
+| `0.0-bootstrap`          | Sprint 0 — Bootstrap (current) |
+| `0.1-tenant-foundation`  | Sprint 1                       |
+| `0.2-signup-custom-url`  | Sprint 2                       |
+| `0.3-modules-gating`     | Sprint 3                       |
+| `0.4-stripe-billing`     | Sprint 4                       |
+| `0.5-invites-roles`      | Sprint 5                       |
+| `1.0-white-label-launch` | Sprint 6 (GA)                  |
 
 Rules:
 
@@ -290,17 +319,17 @@ project shape. **When an ADR is added, superseded, or materially edited,
 propagate the change across every surface that references it** in the
 same PR (per bundling) or the same session (for Jira / Confluence):
 
-| Surface | What to update |
-| --- | --- |
-| `docs/decisions/<NNNN>-<slug>.md` | The ADR file itself |
-| `docs/decisions/README.md` | Index entry — accepted / superseded marker |
-| Root [`README.md`](README.md) | ADR list entry (if present) |
-| [`docs/strategy/saas-transformation.md`](docs/strategy/saas-transformation.md) | Architecture table row pointing at the ADR |
-| `CLAUDE.md` | Any conventions section that references the ADR |
-| Jira: epic comment | Structured comment summarising the ADR + linking to repo |
-| Jira: child tickets | Comment on any open ticket whose scope shifts (header: "Scope adjusted — ADR XXXX") |
-| Confluence: "Family Hub — Vision & Strategy" → "Architecture & multi-tenancy" | Update architecture table row |
-| Confluence: "FHS — Epics & Tickets" | Refresh via builder (per the Confluence-refresh rule) |
+| Surface                                                                        | What to update                                                                      |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `docs/decisions/<NNNN>-<slug>.md`                                              | The ADR file itself                                                                 |
+| `docs/decisions/README.md`                                                     | Index entry — accepted / superseded marker                                          |
+| Root [`README.md`](README.md)                                                  | ADR list entry (if present)                                                         |
+| [`docs/strategy/saas-transformation.md`](docs/strategy/saas-transformation.md) | Architecture table row pointing at the ADR                                          |
+| `CLAUDE.md`                                                                    | Any conventions section that references the ADR                                     |
+| Jira: epic comment                                                             | Structured comment summarising the ADR + linking to repo                            |
+| Jira: child tickets                                                            | Comment on any open ticket whose scope shifts (header: "Scope adjusted — ADR XXXX") |
+| Confluence: "Family Hub — Vision & Strategy" → "Architecture & multi-tenancy"  | Update architecture table row                                                       |
+| Confluence: "FHS — Epics & Tickets"                                            | Refresh via builder (per the Confluence-refresh rule)                               |
 
 Cross-link both ways: the ADR file links to the Jira ticket(s) it
 answers; those tickets link back to the ADR. Never delete a superseded
@@ -315,17 +344,17 @@ explicitly before doing the work**, wait for acknowledgement, then
 update every affected surface in the same PR (per the bundling rule).
 Categories to scan when proposing a change:
 
-| Category | Surfaces |
-| --- | --- |
-| Product / requirements | `docs/features/`, Jira ticket scope + AC, PR template |
-| Technical | code, schemas, API contracts (OpenAPI), migrations, infra (Railway, Supabase, Stripe), CI workflows |
-| Tests | Vitest unit, Vitest integration, Playwright E2E, k6 perf |
-| Architecture | ADRs in `docs/decisions/` — write a new ADR or supersede an existing one |
-| Strategy | `docs/strategy/saas-transformation.md` and any Confluence mirror |
-| Business / launch | pricing, marketing copy, sales collateral, onboarding flow copy |
-| Confluence | `https://qualicion2.atlassian.net/spaces/FA/...` pages |
-| Legal / compliance | LICENSE, ToS, privacy policy, regulated-tier obligations |
-| Process | CLAUDE.md rules, PR template, memory entries |
+| Category               | Surfaces                                                                                            |
+| ---------------------- | --------------------------------------------------------------------------------------------------- |
+| Product / requirements | `docs/features/`, Jira ticket scope + AC, PR template                                               |
+| Technical              | code, schemas, API contracts (OpenAPI), migrations, infra (Railway, Supabase, Stripe), CI workflows |
+| Tests                  | Vitest unit, Vitest integration, Playwright E2E, k6 perf                                            |
+| Architecture           | ADRs in `docs/decisions/` — write a new ADR or supersede an existing one                            |
+| Strategy               | `docs/strategy/saas-transformation.md` and any Confluence mirror                                    |
+| Business / launch      | pricing, marketing copy, sales collateral, onboarding flow copy                                     |
+| Confluence             | `https://qualicion2.atlassian.net/spaces/FA/...` pages                                              |
+| Legal / compliance     | LICENSE, ToS, privacy policy, regulated-tier obligations                                            |
+| Process                | CLAUDE.md rules, PR template, memory entries                                                        |
 
 **Anti-pattern:** silently updating only the file the user pointed at,
 leaving every other affected surface stale. That's how a "small"
@@ -340,7 +369,7 @@ touched so the audit trail captures the cascade.
 
 - TypeScript strict mode everywhere.
 - 2-space indent, LF line endings, UTF-8 (enforced by `.editorconfig`).
-- No comments unless the *why* is non-obvious.
+- No comments unless the _why_ is non-obvious.
 - Avoid premature abstraction — three similar lines beats a wrong helper.
 
 ### Secrets
@@ -465,6 +494,7 @@ criteria. Template:
 #### Acceptance criteria
 
 **Scenario: <descriptive scenario name>**
+
 - **Given** <initial context / preconditions>
 - **And** <additional context, optional>
 - **When** <action / event>
@@ -472,17 +502,21 @@ criteria. Template:
 - **And** <additional outcome, optional>
 
 **Scenario: <edge case or alternative path>**
+
 - **Given** ...
 - **When** ...
 - **Then** ...
 
 ## Out of scope
+
 - ...
 
 ## Open questions
+
 - ...
 
 ## Success metrics
+
 - ...
 ```
 

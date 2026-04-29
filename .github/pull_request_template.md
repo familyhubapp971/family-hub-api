@@ -35,13 +35,6 @@ Closes [FHS-XXX](https://qualicion2.atlassian.net/browse/FHS-XXX)
   - [ ] Given/When/Then validated
 - [ ] **Scenario:** ...
 
-## Test plan
-
-- [ ] Unit tests (Vitest) added/updated
-- [ ] E2E tests (Playwright) added/updated where user-facing
-- [ ] `pnpm test` passes locally
-- [ ] Manual verification done — describe what you exercised
-
 ## Screenshots / recordings
 
 <!-- Required for any UI change. Drag and drop here. -->
