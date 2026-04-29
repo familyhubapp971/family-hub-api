@@ -76,6 +76,8 @@ jobs:
       - name: Run e2e (project=${{ matrix.browser }})
         env:
           PROJECT: ${{ matrix.browser }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: pnpm exec playwright test --config tests/e2e/playwright.config.ts --project "$PROJECT"
       - if: always()
         uses: actions/upload-artifact@v4
