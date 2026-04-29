@@ -1,0 +1,35 @@
+<!-- subject: Confirm your new Family Hub email -->
+<h1>Confirm your new email</h1>
+
+<p>Hi there,</p>
+
+<p>
+  You asked to change the email on your Family Hub account from <strong>{{ .Email }}</strong> to
+  <strong>{{ .NewEmail }}</strong>. Confirm the change so we can update your account:
+</p>
+
+<p>
+  <a
+    href="{{ .ConfirmationURL }}"
+    style="
+      display: inline-block;
+      padding: 12px 20px;
+      background: #1f2937;
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: 600;
+    "
+    >Confirm new email</a
+  >
+</p>
+
+<p>If the button doesn't work, paste this link into your browser:</p>
+<p><a href="{{ .ConfirmationURL }}">{{ .ConfirmationURL }}</a></p>
+
+<p>
+  If you didn't request this change, ignore this message and your email will stay the same. You may
+  also want to reset your password as a precaution.
+</p>
+
+<p>— The Family Hub team</p>

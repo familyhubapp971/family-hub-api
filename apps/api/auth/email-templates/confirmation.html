@@ -1,0 +1,35 @@
+<!-- subject: Confirm your Family Hub email -->
+<h1>Welcome to Family Hub</h1>
+
+<p>Hi there,</p>
+
+<p>
+  You're one click away from setting up your family's space. Confirm your email so we know it's
+  really you:
+</p>
+
+<p>
+  <a
+    href="{{ .ConfirmationURL }}"
+    style="
+      display: inline-block;
+      padding: 12px 20px;
+      background: #1f2937;
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: 600;
+    "
+    >Confirm my email</a
+  >
+</p>
+
+<p>If the button doesn't work, paste this link into your browser:</p>
+<p><a href="{{ .ConfirmationURL }}">{{ .ConfirmationURL }}</a></p>
+
+<p>
+  This link expires in 24 hours. If you didn't sign up for Family Hub, you can safely ignore this
+  message — your address won't be added.
+</p>
+
+<p>— The Family Hub team</p>

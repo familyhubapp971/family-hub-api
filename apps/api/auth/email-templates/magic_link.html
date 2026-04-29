@@ -1,0 +1,32 @@
+<!-- subject: Your Family Hub sign-in link -->
+<h1>Sign in to Family Hub</h1>
+
+<p>Hi there,</p>
+
+<p>Tap the link below to sign in. No password needed:</p>
+
+<p>
+  <a
+    href="{{ .ConfirmationURL }}"
+    style="
+      display: inline-block;
+      padding: 12px 20px;
+      background: #1f2937;
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: 600;
+    "
+    >Sign in to Family Hub</a
+  >
+</p>
+
+<p>If the button doesn't work, paste this link into your browser:</p>
+<p><a href="{{ .ConfirmationURL }}">{{ .ConfirmationURL }}</a></p>
+
+<p>
+  This link works once and expires in 1 hour. If you didn't try to sign in, you can ignore this
+  message — nobody can sign in without it.
+</p>
+
+<p>— The Family Hub team</p>

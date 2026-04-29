@@ -20,6 +20,10 @@ out/
 *.pem
 *.key
 
+# Python — bytecode caches from helper scripts under scripts/
+__pycache__/
+*.pyc
+
 # Logs
 logs/
 *.log

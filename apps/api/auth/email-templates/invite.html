@@ -1,0 +1,42 @@
+<!-- subject: You're invited to join a family on Family Hub -->
+<h1>You're invited to Family Hub</h1>
+
+<p>Hi there,</p>
+
+<p>
+  Someone you know has invited you to share a family space on Family Hub — the place where
+  calendars, tasks, and the small stuff of family life all live together.
+</p>
+
+<p>Accept your invite to get started:</p>
+
+<p>
+  <a
+    href="{{ .ConfirmationURL }}"
+    style="
+      display: inline-block;
+      padding: 12px 20px;
+      background: #1f2937;
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: 600;
+    "
+    >Accept invite</a
+  >
+</p>
+
+<p>If the button doesn't work, paste this link into your browser:</p>
+<p><a href="{{ .ConfirmationURL }}">{{ .ConfirmationURL }}</a></p>
+
+<p>
+  You'll be taken to <a href="{{ .SiteURL }}">{{ .SiteURL }}</a> to set up your account. The invite
+  expires in 7 days.
+</p>
+
+<p>
+  If this came as a surprise, no harm done — just ignore this message and you won't be added to
+  anything.
+</p>
+
+<p>— The Family Hub team</p>
