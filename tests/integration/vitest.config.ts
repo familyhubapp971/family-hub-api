@@ -28,6 +28,7 @@ export default defineConfig({
     alias: {
       '@familyhub/test-utils': path.join(ROOT, 'packages/test-utils/src/index.ts'),
       '@familyhub/api/app': path.join(ROOT, 'apps/api/src/app.ts'),
+      '@familyhub/api/middleware/auth': path.join(ROOT, 'apps/api/src/middleware/auth.ts'),
     },
   },
 });

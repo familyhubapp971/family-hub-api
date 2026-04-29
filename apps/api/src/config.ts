@@ -20,6 +20,19 @@ const configSchema = z
     SENTRY_DSN_API: z.string().default(''),
     SENTRY_RELEASE: z.string().default(''),
     SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
+    // Supabase — auth middleware (FHS-191) verifies JWTs against the
+    // project JWKS at <SUPABASE_URL>/auth/v1/.well-known/jwks.json.
+    // Required in production; empty in dev/test means the middleware
+    // rejects every protected request (fail-closed) until configured.
+    SUPABASE_URL: z.string().url().optional(),
+    // Cache TTL for the JWKS in milliseconds. 10 minutes by default —
+    // long enough to amortise network cost, short enough that a key
+    // rotation propagates without an api restart.
+    JWKS_CACHE_TTL_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(10 * 60_000),
   })
   .superRefine((cfg, ctx) => {
     if (!cfg.DATABASE_URL) {
@@ -30,6 +43,13 @@ const configSchema = z
           message: 'DATABASE_URL is required in production (no localhost fallback permitted)',
         });
       }
+    }
+    if (!cfg.SUPABASE_URL && cfg.NODE_ENV === 'production') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['SUPABASE_URL'],
+        message: 'SUPABASE_URL is required in production for JWT verification (FHS-191).',
+      });
     }
   })
   .transform((cfg) => ({

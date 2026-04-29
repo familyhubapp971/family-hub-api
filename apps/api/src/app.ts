@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import { config } from './config.js';
 import { createLogger } from './logger.js';
+import { authMiddleware } from './middleware/auth.js';
 import { corsMiddleware } from './middleware/cors-allowlist.js';
 import { rateLimit } from './middleware/rate-limit.js';
 import { requestContext } from './middleware/request-context.js';
@@ -50,6 +51,12 @@ export function buildApp() {
 
   app.use('*', rateLimit({ capacity: config.RATE_LIMIT_PER_MINUTE, windowMs: 60_000 }));
 
+  // Auth runs after request-context (so the 401 log line carries the
+  // request id) but before any tenant-context resolution that keys off
+  // the authenticated user. /health and /hello are public — handled
+  // inside authMiddleware via PUBLIC_PATH_PREFIXES.
+  app.use('*', authMiddleware());
+
   app.use('*', async (c, next) => {
     const started = Date.now();
     await next();
@@ -61,6 +68,7 @@ export function buildApp() {
         durationMs: Date.now() - started,
         request_id: c.get('requestId'),
         tenant_id: c.get('tenantId'),
+        user_id: c.get('user')?.id,
       },
       'request',
     );
