@@ -360,6 +360,35 @@ here for emphasis on this repo:
 
 ---
 
+## Explaining decisions — keep it simple
+
+When explaining a decision, trade-off, or recommendation:
+
+- **Lead with the answer** in one sentence. The reasoning comes after, only
+  if asked or if it changes the user's choice.
+- **Pick the shortest format that fits.** A one-line answer beats a
+  three-paragraph one. A two-row table beats a five-row one. Bullets
+  beat prose when there are 3+ parallel items, but don't bullet a
+  single thought.
+- **No hedging stacks.** "It depends, but generally, in most cases,
+  arguably..." → just say which way you'd go and why. One sentence on
+  the main trade-off is enough.
+- **Skip the optionality theatre.** Don't list 3 options when 1 is
+  obviously right and 2 are filler. Recommend the one and mention an
+  alternative only if it's a real choice.
+- **Drop ceremony.** No "Great question!", no "Let me walk you through
+  this", no "TL;DR" headers on a 4-line answer.
+- **Plain language over jargon** unless the jargon is the precise term.
+  "Use a shared password manager so teammates don't DM you keys" beats
+  "Implement centralized credential management with team-shared vault
+  primitives for secret rotation hygiene."
+
+If a decision genuinely needs more depth (architectural, multi-surface,
+risk-bearing), **flag that it needs depth** and write the full version.
+Most decisions don't.
+
+---
+
 ## Requirements documentation
 
 Use the **`product-manager`** subagent
