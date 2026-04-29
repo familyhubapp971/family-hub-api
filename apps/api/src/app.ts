@@ -6,6 +6,7 @@ import { corsMiddleware } from './middleware/cors-allowlist.js';
 import { rateLimit } from './middleware/rate-limit.js';
 import { requestContext } from './middleware/request-context.js';
 import { healthRouter } from './routes/health.js';
+import { captureException } from './sentry.js';
 import { helloRouter } from './routes/hello.js';
 
 const log = createLogger('app');
@@ -71,6 +72,12 @@ export function buildApp() {
   app.notFound((c) => c.json({ error: 'not found' }, 404));
   app.onError((err, c) => {
     log.error({ err }, 'unhandled error');
+    captureException(err, {
+      requestId: c.get('requestId'),
+      tenantId: c.get('tenantId'),
+      path: c.req.path,
+      method: c.req.method,
+    });
     return c.json({ error: 'internal server error' }, 500);
   });
 

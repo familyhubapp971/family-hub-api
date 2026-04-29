@@ -1,3 +1,8 @@
+// Sentry MUST initialise before app.js imports anything that might throw —
+// the SDK patches global handlers at init time.
+import { initSentry } from './sentry.js';
+initSentry();
+
 import { serve } from '@hono/node-server';
 import { app } from './app.js';
 import { config } from './config.js';

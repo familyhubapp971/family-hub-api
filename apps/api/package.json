@@ -20,6 +20,7 @@
     "@familyhub/shared": "workspace:*",
     "@hono/node-server": "1.13.7",
     "@hono/zod-validator": "0.4.1",
+    "@sentry/node": "^8.55.2",
     "drizzle-orm": "0.36.1",
     "hono": "4.6.10",
     "pg": "8.13.1",
