@@ -1,0 +1,67 @@
+# codeql: GitHub's semantic code analysis. Findings appear under the repo's
+# Security → Code scanning tab and gate the relevant PR check on staging /
+# main. Runs on every PR (gating), every push to staging or main (catches
+# regressions on the integration branch), and weekly (catches new query-pack
+# rules without waiting for a code change).
+#
+# Default config + javascript-typescript pack covers the api (Node/Hono),
+# the web (React), packages/shared, and any future TS surface.
+
+name: codeql
+
+on:
+  push:
+    branches:
+      - staging
+      - main
+  pull_request:
+    branches:
+      - staging
+      - main
+  schedule:
+    # Mondays at 06:17 London — off the :00 / :30 burst per CLAUDE.md
+    # cron-jitter convention.
+    - cron: '17 6 * * 1'
+
+concurrency:
+  # On PRs, cancel superseded runs to save minutes. On protected-branch
+  # pushes (staging / main), let every commit scan so the Security tab
+  # history stays continuous.
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: CodeQL — javascript-typescript
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # JS/TS extractor runs from source — no build needed. build-mode:
+          # none avoids autobuild's npm install fallback, which can fail on
+          # pnpm workspace: protocol references.
+          build-mode: none
+          # security-extended catches CWE-Top-25 patterns (XSS, SSRF,
+          # prototype pollution, ReDoS). security-and-quality is louder;
+          # revisit if signal-to-noise tanks.
+          queries: security-extended
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:${{ matrix.language }}'
