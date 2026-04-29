@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# ./scripts/seed — populate the dev database with fake tenants + users.
+#
+# Idempotent: safe to re-run. Until Sprint 1 lands the tenants/users
+# tables (ADR 0001), this is a no-op that warns the schema isn't ready.
+# Once the schema exists, edit apps/api/src/db/seed.ts SEED constant
+# and uncomment the insert block.
+
+set -euo pipefail
+
+command -v pnpm >/dev/null || { echo "✗ pnpm not found on PATH" >&2; exit 1; }
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
+if [[ ! -f .env.local ]]; then
+  echo "✗ .env.local missing — run ./scripts/dev first to bootstrap." >&2
+  exit 1
+fi
+
+# Delegate to the apps/api db:seed script so env-loading + config
+# validation match `pnpm --filter @familyhub/api dev`.
+pnpm --filter @familyhub/api db:seed

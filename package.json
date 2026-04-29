@@ -15,6 +15,10 @@
   },
   "scripts": {
     "dev": "pnpm -r --parallel --stream dev",
+    "dev:up": "docker compose up -d --wait",
+    "dev:down": "docker compose down",
+    "dev:reset": "docker compose down -v && docker compose up -d --wait",
+    "seed": "./scripts/seed",
     "build": "pnpm -r build",
     "test": "vitest run",
     "test:watch": "vitest",

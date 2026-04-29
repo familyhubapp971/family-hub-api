@@ -11,10 +11,11 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'lint — wired in FHS-169'",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:generate": "node --env-file=../../.env.local node_modules/drizzle-kit/bin.cjs generate",
+    "db:migrate": "node --env-file=../../.env.local node_modules/drizzle-kit/bin.cjs migrate",
+    "db:push": "node --env-file=../../.env.local node_modules/drizzle-kit/bin.cjs push",
+    "db:seed": "tsx --env-file=../../.env.local src/db/seed.ts",
+    "db:studio": "node --env-file=../../.env.local node_modules/drizzle-kit/bin.cjs studio"
   },
   "dependencies": {
     "@familyhub/shared": "workspace:*",
