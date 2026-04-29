@@ -1,0 +1,13 @@
+**/dist/**
+**/build/**
+**/.next/**
+**/.turbo/**
+**/.vite/**
+**/coverage/**
+**/node_modules/**
+**/playwright-report*/**
+**/test-results*/**
+**/.features-gen*/**
+**/tests/performance/reports/**
+**/openapi.yaml
+pnpm-lock.yaml

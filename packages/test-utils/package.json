@@ -13,8 +13,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc",
-    "test": "vitest run --passWithNoTests",
-    "lint": "echo 'lint — wired in FHS-169'"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@faker-js/faker": "9.0.3"
@@ -28,9 +27,15 @@
     "react-dom": "^18.0.0"
   },
   "peerDependenciesMeta": {
-    "@testing-library/react": { "optional": true },
-    "react": { "optional": true },
-    "react-dom": { "optional": true }
+    "@testing-library/react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@testing-library/react": "16.0.1",

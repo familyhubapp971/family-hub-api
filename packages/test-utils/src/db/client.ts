@@ -13,8 +13,7 @@ let _db: ReturnType<typeof drizzle> | undefined;
 export function getTestDb() {
   if (_db) return _db;
   const url =
-    process.env['DATABASE_URL_TEST'] ??
-    'postgres://fh_test:fh_test@localhost:5433/familyhub_test';
+    process.env['DATABASE_URL_TEST'] ?? 'postgres://fh_test:fh_test@localhost:5433/familyhub_test';
   _pool = new pg.Pool({
     connectionString: url,
     application_name: '@familyhub/test-utils',
@@ -24,7 +23,6 @@ export function getTestDb() {
   });
   _pool.on('error', (err) => {
     // Don't crash the test process on idle-client error.
-    // eslint-disable-next-line no-console
     console.error('[test-utils] postgres pool error', err);
   });
   _db = drizzle(_pool);

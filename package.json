@@ -10,7 +10,7 @@
     "pnpm": ">=10"
   },
   "volta": {
-    "node": "20.15.1",
+    "node": "20.19.0",
     "pnpm": "10.32.0"
   },
   "scripts": {
@@ -37,11 +37,16 @@
     "perf:load": "tests/performance/scripts/run-k6.sh tests/performance/scenarios/load.js",
     "perf:stress": "tests/performance/scripts/run-k6.sh tests/performance/scenarios/stress.js",
     "perf:soak": "tests/performance/scripts/run-k6.sh tests/performance/scenarios/soak.js",
-    "lint": "pnpm -r lint",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "typecheck": "pnpm -r typecheck",
-    "clean": "pnpm -r exec rm -rf dist .turbo node_modules/.cache"
+    "clean": "pnpm -r exec rm -rf dist .turbo node_modules/.cache",
+    "prepare": "husky || true"
   },
   "devDependencies": {
+    "@eslint/js": "9.18.0",
     "@playwright/test": "1.48.2",
     "@testing-library/jest-dom": "6.6.3",
     "@testing-library/react": "16.0.1",
@@ -49,12 +54,22 @@
     "@types/pg": "8.11.10",
     "@vitejs/plugin-react": "4.3.3",
     "@vitest/coverage-v8": "2.1.4",
+    "eslint": "9.18.0",
+    "eslint-config-prettier": "9.1.0",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react": "7.37.4",
+    "eslint-plugin-react-hooks": "5.1.0",
+    "globals": "15.14.0",
+    "husky": "9.1.7",
     "jsdom": "25.0.1",
+    "lint-staged": "15.4.3",
     "pg": "8.13.1",
     "playwright-bdd": "8.4.2",
+    "prettier": "3.4.2",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "typescript": "5.6.3",
+    "typescript-eslint": "8.18.2",
     "vitest": "2.1.4"
   },
   "packageManager": "pnpm@10.32.0"
