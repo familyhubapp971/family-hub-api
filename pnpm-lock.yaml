@@ -32,6 +32,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: 2.1.4
         version: 2.1.4(vitest@2.1.4(@types/node@20.16.11)(jsdom@25.0.1))
+      drizzle-orm:
+        specifier: 0.36.1
+        version: 0.36.1(@opentelemetry/api@1.9.1)(@types/pg@8.11.10)(@types/react@18.3.11)(pg@8.13.1)(react@18.3.1)
       eslint:
         specifier: 9.18.0
         version: 9.18.0(jiti@1.21.7)

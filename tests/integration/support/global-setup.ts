@@ -1,14 +1,63 @@
 // Vitest globalSetup — runs once per `pnpm test:integration` invocation,
-// BEFORE any spec. Asserts the test DB is reachable. Schema + RLS push
-// will land here once Sprint 1 (FHS-1) adds the Drizzle tables.
+// BEFORE any spec. Asserts the test DB is reachable and applies all
+// Drizzle migration SQL files so specs see the schema.
+//
+// FHS-192 wired up the first migration (users mirror table). Subsequent
+// tickets just drop new SQL files into apps/api/drizzle/ and the loop
+// below picks them up in journal order.
 
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import pg from 'pg';
 
 function url(): string {
   return (
-    process.env['DATABASE_URL_TEST'] ??
-    'postgres://fh_test:fh_test@localhost:5433/familyhub_test'
+    process.env['DATABASE_URL_TEST'] ?? 'postgres://fh_test:fh_test@localhost:5433/familyhub_test'
   );
+}
+
+const MIGRATIONS_DIR = path.resolve(__dirname, '../../../apps/api/drizzle');
+
+interface JournalEntry {
+  idx: number;
+  tag: string;
+}
+
+interface Journal {
+  entries: JournalEntry[];
+}
+
+async function readJournal(): Promise<JournalEntry[]> {
+  const journalPath = path.join(MIGRATIONS_DIR, 'meta', '_journal.json');
+  try {
+    const raw = await fs.readFile(journalPath, 'utf8');
+    const journal = JSON.parse(raw) as Journal;
+    return [...journal.entries].sort((a, b) => a.idx - b.idx);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw err;
+  }
+}
+
+async function applyMigrations(client: pg.Client): Promise<void> {
+  const entries = await readJournal();
+  if (entries.length === 0) return;
+
+  // Drop + recreate the public schema for a clean slate. Per ADR 0001
+  // this is acceptable for the integration test DB — the docker-compose
+  // service uses tmpfs, so there's nothing valuable to preserve.
+  await client.query('DROP SCHEMA IF EXISTS public CASCADE');
+  await client.query('CREATE SCHEMA public');
+  await client.query('GRANT ALL ON SCHEMA public TO PUBLIC');
+
+  for (const entry of entries) {
+    const file = path.join(MIGRATIONS_DIR, `${entry.tag}.sql`);
+    const sql = await fs.readFile(file, 'utf8');
+    // Drizzle's --> statement-breakpoint markers split logical statements
+    // when present; plain pg.Client.query handles a multi-statement
+    // string fine, so we can pass the file as-is.
+    await client.query(sql);
+  }
 }
 
 export async function setup(): Promise<void> {
@@ -28,12 +77,8 @@ export async function setup(): Promise<void> {
   if (!res.rows[0]) {
     throw new Error('[integration] SELECT NOW() returned no row');
   }
+  await applyMigrations(client);
   await client.end();
-
-  // FHS-1 lands here:
-  //   - drop + recreate the test schema (idempotent runs)
-  //   - npx drizzle-kit push --force --config apps/api/drizzle.config.ts
-  //   - apply RLS policies via raw SQL (drizzle-kit doesn't manage them yet)
 }
 
 export async function teardown(): Promise<void> {
