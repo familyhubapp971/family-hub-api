@@ -219,11 +219,22 @@ Drift between merged code and ticket status is a process bug.
 
 After the transition, **refresh the Confluence "FHS — Epics & Tickets"
 page** (ID `3079340034` in space `FA`) so its Progress column stays
-in sync with Jira. Re-run the builder script (`/tmp/build_epics_page_v3.py`
-or equivalent) which regenerates the page body from live Jira and
-PUTs an incremented version. If multiple tickets close in quick
-succession (child close that cascades to an epic close), refresh
-**once at the end**, not per transition.
+in sync with Jira:
+
+```bash
+set -a; source .env.local; set +a
+python3 scripts/refresh-confluence-epics-page.py --reason "FHS-XXX close"
+```
+
+The script ([`scripts/refresh-confluence-epics-page.py`](scripts/refresh-confluence-epics-page.py))
+fetches every epic + its children from Jira, groups by Fix Version,
+renders a storage-format body with status lozenges and per-epic
+progress (done/total), and PUTs version+1 to the page. Standard
+library only.
+
+If multiple tickets close in quick succession (child close that
+cascades to an epic close), refresh **once at the end**, not per
+transition.
 
 ### Epic status follows its children
 
