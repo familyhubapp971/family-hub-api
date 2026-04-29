@@ -6,6 +6,15 @@ const configSchema = z
     PORT: z.coerce.number().int().positive().default(3001),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
     DATABASE_URL: z.string().url().optional(),
+    // Cookie domain root + CORS allowlist root + tenant-slug subdomain
+    // (ADR 0002). localhost in dev; familyhub.app in prod.
+    BASE_DOMAIN: z.string().default('localhost'),
+    // Comma-separated explicit allowlist override; when empty the CORS
+    // middleware derives http+https variants of BASE_DOMAIN and any
+    // subdomain.
+    CORS_ALLOWED_ORIGINS: z.string().default(''),
+    // Token bucket: requests per minute per IP. Set 0 to disable (tests).
+    RATE_LIMIT_PER_MINUTE: z.coerce.number().int().nonnegative().default(100),
   })
   .superRefine((cfg, ctx) => {
     if (!cfg.DATABASE_URL) {
@@ -34,7 +43,9 @@ export type Config = z.infer<typeof configSchema>;
 function loadConfig(): Config {
   const parsed = configSchema.safeParse(process.env);
   if (!parsed.success) {
-    const issues = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n');
+    const issues = parsed.error.issues
+      .map((i) => `  - ${i.path.join('.')}: ${i.message}`)
+      .join('\n');
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
   return parsed.data;
