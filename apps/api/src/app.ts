@@ -4,6 +4,7 @@ import { config } from './config.js';
 import { createLogger } from './logger.js';
 import { corsMiddleware } from './middleware/cors-allowlist.js';
 import { rateLimit } from './middleware/rate-limit.js';
+import { requestContext } from './middleware/request-context.js';
 import { healthRouter } from './routes/health.js';
 import { helloRouter } from './routes/hello.js';
 
@@ -44,6 +45,8 @@ export function buildApp() {
 
   app.use('*', corsMiddleware());
 
+  app.use('*', requestContext());
+
   app.use('*', rateLimit({ capacity: config.RATE_LIMIT_PER_MINUTE, windowMs: 60_000 }));
 
   app.use('*', async (c, next) => {
@@ -55,6 +58,8 @@ export function buildApp() {
         path: c.req.path,
         status: c.res.status,
         durationMs: Date.now() - started,
+        request_id: c.get('requestId'),
+        tenant_id: c.get('tenantId'),
       },
       'request',
     );
