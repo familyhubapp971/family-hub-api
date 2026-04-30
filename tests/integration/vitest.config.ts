@@ -13,7 +13,14 @@ export default defineConfig({
   root: __dirname,
   test: {
     environment: 'node',
-    include: ['specs/**/*.spec.ts'],
+    // Two roots during the migration to BDD/Cucumber (FHS-218):
+    //  - specs/**/*.spec.ts — legacy Vitest specs, kept while coverage
+    //    is being migrated. Removed once each spec's scenarios live in
+    //    a corresponding tests/integration/features/<slug>.feature.
+    //  - steps/**/*.steps.ts — Cucumber step files powered by
+    //    @amiceli/vitest-cucumber, loading .feature files from
+    //    tests/integration/features/.
+    include: ['specs/**/*.spec.ts', 'steps/**/*.steps.ts'],
     globalSetup: './support/global-setup.ts',
     setupFiles: ['./support/setup.ts'],
     testTimeout: 30_000,

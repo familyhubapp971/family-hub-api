@@ -585,15 +585,17 @@ Per-package `vitest.config.ts` files (`apps/api`, `apps/web`,
 - **Coverage thresholds (starting):** lines 70%, branches 60%, functions 70% — raise to 80/70/80 after FHS-186 baseline. Hard-gating only after thresholds calibrate.
 - **Scope:** pure functions, single class/module, no I/O. Mock external collaborators, **never** mock the thing under test.
 
-### Integration — Vitest + real Postgres
+### Integration — Vitest + Cucumber + real Postgres
 
-- **Where:** `tests/integration/specs/*.spec.ts`.
-- **Config:** dedicated `tests/integration/vitest.config.ts`.
+- **Where:** `tests/integration/features/*.feature` (Gherkin scenarios) bound by `tests/integration/steps/*.steps.ts` (Vitest step definitions). Powered by [`@amiceli/vitest-cucumber`](https://github.com/amiceli/vitest-cucumber) — same BDD style as the E2E tier (FHS-218).
+- **Config:** dedicated `tests/integration/vitest.config.ts` includes both `steps/**/*.steps.ts` (current) and `specs/**/*.spec.ts` (legacy, drained as scenarios migrate).
 - **Run:** `pnpm test:integration` — spins Postgres 16 via `docker-compose.test.yml` on port 5433 (offset from dev's 5432). CI uses GitHub Actions `services:` block.
-- **Setup:** drop + recreate test DB, `drizzle-kit push --force` to apply schema + RLS policies. Per-test transaction rollback (faster than truncate; preserves sequences).
-- **Mandatory pattern:** every spec touching a tenant-scoped endpoint includes a `tenant isolation` test — tenant B reads must return zero rows from tenant A. Defence in depth for [ADR 0001](docs/decisions/0001-multi-tenancy.md).
+- **Setup:** drop + recreate test DB, `drizzle-kit push --force` to apply schema + RLS policies. Each scenario starts from a clean state via `Background:` in the .feature file (typically `TRUNCATE` or per-scenario seed).
+- **Mandatory pattern:** every feature touching a tenant-scoped endpoint includes a `tenant isolation` scenario — tenant B reads return zero rows from tenant A. Defence in depth for [ADR 0001](docs/decisions/0001-multi-tenancy.md).
+- **Cover the edges, not just the happy path:** boundary timestamps, oversized payloads, malformed Authorization headers, concurrent fan-out, unique-constraint races. The unit tier covers shape; integration covers what real Postgres + real network do.
 - **Pool:** test pool is `max: 2`, `idle_timeout: 5`, separate from the prod pool. Lives in `tests/integration/support/db.ts` against `DATABASE_URL_TEST`.
 - **Never mock the database** — mocked DBs hide RLS regressions and migration breakage.
+- **`.feature` ↔ `.steps.ts` pairing convention:** one feature file ↔ one steps file, same slug. Step definitions are `Given`/`When`/`Then`/`And` callbacks inside `describeFeature(...)` blocks. `Background` runs before every scenario in that feature.
 
 ### E2E — Playwright + playwright-bdd
 
