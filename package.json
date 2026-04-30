@@ -34,6 +34,7 @@
     "test:e2e:critical": "bddgen test --config tests/e2e/playwright.critical.config.ts && pnpm run _assert-bddgen-critical && playwright test --config tests/e2e/playwright.critical.config.ts",
     "test:e2e:ui": "bddgen test --config tests/e2e/playwright.config.ts && pnpm run _assert-bddgen && playwright test --ui --config tests/e2e/playwright.config.ts",
     "perf:smoke": "tests/performance/scripts/run-k6.sh tests/performance/scenarios/smoke.js",
+    "perf:smoke:auth": "tests/performance/scripts/run-k6.sh tests/performance/scenarios/auth-smoke.js",
     "perf:load": "tests/performance/scripts/run-k6.sh tests/performance/scenarios/load.js",
     "perf:stress": "tests/performance/scripts/run-k6.sh tests/performance/scenarios/stress.js",
     "perf:soak": "tests/performance/scripts/run-k6.sh tests/performance/scenarios/soak.js",
