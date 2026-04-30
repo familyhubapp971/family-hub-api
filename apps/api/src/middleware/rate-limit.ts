@@ -58,6 +58,14 @@ export function rateLimit({
   }
 
   return async (c, next) => {
+    // /health is exempt — Railway's internal probe hits the container
+    // direct (no x-forwarded-for), and rate-limiting health checks at
+    // 100 req/min would block 1-second probes within seconds anyway.
+    if (c.req.path === '/health') {
+      await next();
+      return;
+    }
+
     const ip =
       c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
       c.req.header('x-real-ip') ||
@@ -65,9 +73,9 @@ export function rateLimit({
 
     // Fail-closed in non-dev when we can't identify the caller. A
     // missing forwarded-for header in production usually means the proxy
-    // chain is misconfigured (header stripped, direct exposure, internal
-    // health-checker) — collapsing all traffic into one 'unknown' bucket
-    // would let 100 req/min lock the whole world out.
+    // chain is misconfigured (header stripped, direct exposure) —
+    // collapsing all traffic into one 'unknown' bucket would let 100
+    // req/min lock the whole world out.
     if (!ip && config.NODE_ENV !== 'development' && config.NODE_ENV !== 'test') {
       if (!warnedMissingIp) {
         log.warn(

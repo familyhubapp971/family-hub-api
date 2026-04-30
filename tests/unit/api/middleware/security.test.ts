@@ -43,17 +43,19 @@ describe('FHS-170 — security middleware', () => {
   });
 
   describe('rate limit (AC #3)', () => {
+    // /hello is rate-limited (any non-/health route is); /health is
+    // exempt so Railway's internal probe can hit it every second
+    // without tripping the limiter.
     it('returns 429 after 100 req/min from the same IP', async () => {
       const app = buildApp();
       const headers = { 'X-Forwarded-For': '203.0.113.7' };
 
-      // 100 must succeed, 101st must be 429.
       for (let i = 0; i < 100; i += 1) {
-        const ok = await app.request('/health', { headers });
+        const ok = await app.request('/hello', { headers });
         expect(ok.status, `request ${i + 1} should pass`).toBe(200);
       }
 
-      const blocked = await app.request('/health', { headers });
+      const blocked = await app.request('/hello', { headers });
       expect(blocked.status).toBe(429);
       const body = (await blocked.json()) as { error: string };
       expect(body.error).toBe('rate limit exceeded');
@@ -63,13 +65,22 @@ describe('FHS-170 — security middleware', () => {
 
     it('isolates buckets per IP', async () => {
       const app = buildApp();
-      // Burn IP A's bucket.
       for (let i = 0; i < 100; i += 1) {
-        await app.request('/health', { headers: { 'X-Forwarded-For': '198.51.100.1' } });
+        await app.request('/hello', { headers: { 'X-Forwarded-For': '198.51.100.1' } });
       }
-      // IP B should still be fresh.
-      const bRes = await app.request('/health', { headers: { 'X-Forwarded-For': '198.51.100.2' } });
+      const bRes = await app.request('/hello', { headers: { 'X-Forwarded-For': '198.51.100.2' } });
       expect(bRes.status).toBe(200);
+    });
+
+    it('exempts /health (Railway internal probe has no x-forwarded-for header)', async () => {
+      const app = buildApp();
+      // Simulate Railway's internal probe: 200 calls with NO IP headers.
+      // Without the bypass these would all 429 (or worse, fail-closed
+      // with "client identity unavailable" in non-dev).
+      for (let i = 0; i < 200; i += 1) {
+        const res = await app.request('/health');
+        expect(res.status, `health probe ${i + 1} should never be rate-limited`).toBe(200);
+      }
     });
   });
 });
