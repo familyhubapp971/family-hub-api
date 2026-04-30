@@ -2,17 +2,25 @@ import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import { config } from './config.js';
 import { createLogger } from './logger.js';
-import { authMiddleware } from './middleware/auth.js';
+import { getDb } from './db/client.js';
+import { getOrCreateUser } from './lib/user-mirror.js';
+import { authMiddleware, type AuthMiddlewareOptions } from './middleware/auth.js';
 import { corsMiddleware } from './middleware/cors-allowlist.js';
 import { rateLimit } from './middleware/rate-limit.js';
 import { requestContext } from './middleware/request-context.js';
 import { healthRouter } from './routes/health.js';
-import { captureException } from './sentry.js';
 import { helloRouter } from './routes/hello.js';
+import { meRouter } from './routes/me.js';
+import { captureException } from './sentry.js';
 
 const log = createLogger('app');
 
-export function buildApp() {
+export interface BuildAppOptions {
+  /** Test hook — passed straight through to authMiddleware. */
+  auth?: AuthMiddlewareOptions;
+}
+
+export function buildApp(opts: BuildAppOptions = {}) {
   const app = new Hono();
 
   // Security headers on every response. HSTS preload-eligible (1y +
@@ -55,7 +63,13 @@ export function buildApp() {
   // request id) but before any tenant-context resolution that keys off
   // the authenticated user. /health and /hello are public — handled
   // inside authMiddleware via PUBLIC_PATH_PREFIXES.
-  app.use('*', authMiddleware());
+  // Default production wiring: bind the users-mirror sync to the lazy
+  // DB pool. Tests pass opts.auth.userMirrorSync to inject a stub.
+  const authOpts: AuthMiddlewareOptions = {
+    userMirrorSync: (claims) => getOrCreateUser(getDb(), claims),
+    ...(opts.auth ?? {}),
+  };
+  app.use('*', authMiddleware(authOpts));
 
   app.use('*', async (c, next) => {
     const started = Date.now();
@@ -76,6 +90,7 @@ export function buildApp() {
 
   app.route('/health', healthRouter);
   app.route('/hello', helloRouter);
+  app.route('/api/me', meRouter);
 
   app.notFound((c) => c.json({ error: 'not found' }, 404));
   app.onError((err, c) => {

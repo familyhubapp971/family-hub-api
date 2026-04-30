@@ -2,7 +2,12 @@ import type { Context, MiddlewareHandler } from 'hono';
 import { createRemoteJWKSet, jwtVerify, errors as joseErrors } from 'jose';
 import type { JWTPayload, JWTVerifyGetKey } from 'jose';
 import { config } from '../config.js';
+import type { User } from '../db/schema.js';
+import type { UserMirrorClaims } from '../lib/user-mirror.js';
 import { createLogger } from '../logger.js';
+
+/** Function shape for mirror sync — `getOrCreateUser` bound to a Database, or a test stub. */
+export type UserMirrorSync = (claims: UserMirrorClaims) => Promise<User>;
 
 // JWT verification middleware (FHS-191).
 //
@@ -22,6 +27,8 @@ const PUBLIC_PATH_PREFIXES = ['/health', '/hello'] as const;
 declare module 'hono' {
   interface ContextVariableMap {
     user: AuthenticatedUser | undefined;
+    /** Mirror row from public.users (FHS-192/194). Set after JWT verify on protected routes. */
+    userRow: User | undefined;
   }
 }
 
@@ -50,6 +57,12 @@ export interface AuthMiddlewareOptions {
    * addition to the built-in /health and /hello.
    */
   publicPathPrefixes?: readonly string[];
+  /**
+   * Override the users-mirror sync function. Production binds
+   * `getOrCreateUser` to the lazy-pool `getDb()`. Tests pass a stub
+   * that returns a fixture row without touching Postgres.
+   */
+  userMirrorSync?: UserMirrorSync;
 }
 
 let cachedDefaultJwks: JWTVerifyGetKey | undefined;
@@ -155,6 +168,29 @@ export function authMiddleware(opts: AuthMiddlewareOptions = {}): MiddlewareHand
     const user: AuthenticatedUser =
       email !== undefined ? { id: sub, email, claims: payload } : { id: sub, claims: payload };
     c.set('user', user);
+
+    // Mirror sync (FHS-192/194). One INSERT…ON CONFLICT DO UPDATE
+    // RETURNING per protected request — idempotent, single round-trip.
+    // Reject if email is missing because the mirror table requires it
+    // (Supabase always stamps email on the JWT for password + OAuth flows).
+    // Mirror sync (FHS-192/194). Opt-in: if no sync function is wired,
+    // skip — useful for unit tests of the auth middleware in isolation
+    // and for any future routes that don't need the mirror row.
+    // Production wiring (app.ts) provides a sync function bound to the
+    // real DB pool.
+    if (opts.userMirrorSync) {
+      if (!email) return unauthorized(c, 'token-missing-email-claim', requestId);
+      try {
+        const row = await opts.userMirrorSync({ id: sub, email });
+        c.set('userRow', row);
+      } catch (err) {
+        log.error(
+          { err: err instanceof Error ? err.message : String(err), request_id: requestId, sub },
+          'auth: users-mirror upsert failed',
+        );
+        return c.json({ error: 'internal server error' }, 500);
+      }
+    }
 
     await next();
   };
