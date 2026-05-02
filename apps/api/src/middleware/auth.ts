@@ -22,7 +22,14 @@ export type UserMirrorSync = (claims: UserMirrorClaims) => Promise<User>;
 
 const log = createLogger('auth');
 
-const PUBLIC_PATH_PREFIXES = ['/health', '/hello'] as const;
+const PUBLIC_PATH_PREFIXES = [
+  '/health',
+  '/hello',
+  // FHS-27 — slug availability is a yes/no fact about the public DNS
+  // namespace; gating it behind auth would force the signup form to
+  // sign the user in before they've even picked a family name.
+  '/api/public/slug-available',
+] as const;
 
 declare module 'hono' {
   interface ContextVariableMap {

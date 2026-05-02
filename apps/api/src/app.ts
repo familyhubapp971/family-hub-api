@@ -12,6 +12,7 @@ import { healthRouter } from './routes/health.js';
 import { helloRouter } from './routes/hello.js';
 import { meRouter } from './routes/me.js';
 import { publicTenantRouter } from './routes/public-tenant.js';
+import { slugAvailableRouter } from './routes/slug-available.js';
 import { captureException } from './sentry.js';
 
 const log = createLogger('app');
@@ -93,6 +94,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/hello', helloRouter);
   app.route('/api/me', meRouter);
   app.route('/api/public/tenant', publicTenantRouter);
+  app.route('/api/public/slug-available', slugAvailableRouter);
 
   app.notFound((c) => c.json({ error: 'not found' }, 404));
   app.onError((err, c) => {
