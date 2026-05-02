@@ -78,6 +78,13 @@ jobs:
             mobile-chrome) npx playwright install --with-deps chromium ;;
             *) npx playwright install --with-deps "$BROWSER" ;;
           esac
+      - name: Generate BDD specs from .feature files
+        # bddgen converts tests/e2e/features/*.feature into runnable
+        # .spec.js files under tests/e2e/.features-gen/. Without it,
+        # `playwright test` finds 0 tests.
+        run: pnpm exec bddgen test --config tests/e2e/playwright.config.ts
+      - name: Assert bddgen produced specs
+        run: pnpm run _assert-bddgen
       - name: Run e2e (project=${{ matrix.browser }})
         env:
           PROJECT: ${{ matrix.browser }}
