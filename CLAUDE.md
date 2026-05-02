@@ -439,6 +439,41 @@ touched so the audit trail captures the cascade.
 - Postgres RLS policies enforce isolation — never bypass with `bypassrls`.
 - Tenant context is set per-request in API middleware (FHS-12).
 
+### Responsive design (mobile / tablet / desktop)
+
+Every page and component **must** look and work correctly across **three
+viewports**:
+
+- **Mobile** (≤ 640px / Tailwind default): single-column stacks,
+  finger-sized tap targets (≥ 44×44px), no horizontal scroll on the
+  main flow, fonts cap at `text-base` for body / `text-3xl` for hero.
+- **Tablet** (`sm:` 640px and `md:` 768px): two-column layouts where
+  density allows; nav can stay horizontal but trim labels if needed.
+- **Desktop** (`lg:` 1024px and `xl:` 1280px+): full multi-column
+  layouts, the design's intended max widths (`max-w-7xl` for
+  marketing, `max-w-[1400px]` for authenticated dashboards), hover
+  affordances enabled.
+
+How to apply:
+
+- Default styles target **mobile** first; layer `sm:` / `md:` / `lg:` /
+  `xl:` breakpoints to scale up. Never the other way around.
+- Use the design system's **`xs: 375px`** breakpoint (preset extension)
+  for the smallest devices when extra-tight rules are needed.
+- Hover effects (`hover:-translate-y-1`, `hover:shadow-neo-lg`,
+  `hover:scale-…`) must be wrapped in `motion-safe:` so
+  `prefers-reduced-motion` users see colour changes only — and pointer-
+  device-only via `@media (hover: hover)` if the effect is jarring on
+  touch devices.
+- Test in dev across at least three breakpoints before opening a PR:
+  open Chrome DevTools → device toolbar → toggle iPhone, iPad, Desktop.
+- Include a **"verified across breakpoints"** line in PR self-review
+  notes for any UI ticket.
+
+The "make it look good on Sarah's MacBook" reflex is fine for first
+draft; the responsive sweep is **not optional** before merge — Family
+Hub's adult users are 70%+ on phones in the field (per persona doc).
+
 ---
 
 ## Local-only conventions
