@@ -438,3 +438,21 @@ export const activityLogs = pgTable(
 
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type NewActivityLog = typeof activityLogs.$inferInsert;
+
+/**
+ * Registry of every tenant-scoped table. Drives the cross-tenant leak
+ * audit (FHS-6) and any future cross-cutting tooling that needs to walk
+ * all family-scoped tables. ADD NEW TABLES HERE when they land — the
+ * audit test fails loudly if a table with `tenant_id` is missing.
+ */
+export const TENANT_SCOPED_TABLES = [
+  members,
+  weeks,
+  habits,
+  weekActions,
+  savings,
+  savingsTransactions,
+  investments,
+  appSettings,
+  activityLogs,
+] as const;
