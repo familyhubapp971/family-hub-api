@@ -8,6 +8,13 @@
       "when": 1777490944942,
       "tag": "0000_users_mirror",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777647316051,
+      "tag": "0001_tenants",
+      "breakpoints": true
     }
   ]
 }

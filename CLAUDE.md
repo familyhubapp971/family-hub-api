@@ -26,7 +26,7 @@ Postgres with RLS (data) · Vitest + Playwright + k6 (testing) · Railway
 ```text
 apps/api    apps/web
 packages/shared  packages/test-utils
-docs/{features,technical,decisions,strategy}
+documents/{features,technical,decisions,strategy}
 ```
 
 **Branches:** `main` (production) · `staging` (pre-prod) · feature → PR into
@@ -135,7 +135,7 @@ or Jira comment, not the commit.
 ### Pull requests
 
 - Target `staging` (not `main`) for feature work.
-- **Merge style (conditional, per [ADR 0006](docs/decisions/0006-branching-strategy.md)):**
+- **Merge style (conditional, per [ADR 0006](documents/decisions/0006-branching-strategy.md)):**
   - **Solo / 1 active contributor (current):** squash-merge feature → staging; merge-commit `staging → main`.
   - **≥2 active contributors:** switch to `--no-ff` merge commits at every level. Trigger: second person opens their first PR.
 - Use the [PR template](.github/pull_request_template.md) — it enforces
@@ -186,7 +186,7 @@ tickets when the ticket key appears in the name. Use:
   kebab-case words. Examples:
   - `feat/FHS-149-stack-scaffold`
   - `fix/FHS-12-tenant-ctx-async`
-  - `docs/FHS-146-claude-md-rules`
+  - `documents/FHS-146-claude-md-rules`
 - **PR title:** `<type>(FHS-XXX): short summary` — e.g.,
   `feat(FHS-149): scaffold Hono API with /health and /hello`
 - **PR target:** `staging` (not `main`) for feature work.
@@ -286,7 +286,7 @@ tickets" section above.
 
 The FHS project uses **Fix Versions** to mark Sprint cluster releases,
 mapped 1-to-1 to the Sprint-to-milestone table in
-[`docs/strategy/saas-transformation.md`](docs/strategy/saas-transformation.md):
+[`documents/strategy/saas-transformation.md`](documents/strategy/saas-transformation.md):
 
 | Version                  | Sprint cluster                 |
 | ------------------------ | ------------------------------ |
@@ -314,28 +314,83 @@ Rules:
 
 ### Decisions log sync
 
-ADRs in [`docs/decisions/`](docs/decisions/) are the canonical record of
+ADRs in [`documents/decisions/`](documents/decisions/) are the canonical record of
 project shape. **When an ADR is added, superseded, or materially edited,
 propagate the change across every surface that references it** in the
 same PR (per bundling) or the same session (for Jira / Confluence):
 
-| Surface                                                                        | What to update                                                                      |
-| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `docs/decisions/<NNNN>-<slug>.md`                                              | The ADR file itself                                                                 |
-| `docs/decisions/README.md`                                                     | Index entry — accepted / superseded marker                                          |
-| Root [`README.md`](README.md)                                                  | ADR list entry (if present)                                                         |
-| [`docs/strategy/saas-transformation.md`](docs/strategy/saas-transformation.md) | Architecture table row pointing at the ADR                                          |
-| `CLAUDE.md`                                                                    | Any conventions section that references the ADR                                     |
-| Jira: epic comment                                                             | Structured comment summarising the ADR + linking to repo                            |
-| Jira: child tickets                                                            | Comment on any open ticket whose scope shifts (header: "Scope adjusted — ADR XXXX") |
-| Confluence: "Family Hub — Vision & Strategy" → "Architecture & multi-tenancy"  | Update architecture table row                                                       |
-| Confluence: "FHS — Epics & Tickets"                                            | Refresh via builder (per the Confluence-refresh rule)                               |
+| Surface                                                                                  | What to update                                                                      |
+| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `documents/decisions/<NNNN>-<slug>.md`                                                   | The ADR file itself                                                                 |
+| `documents/decisions/README.md`                                                          | Index entry — accepted / superseded marker                                          |
+| Root [`README.md`](README.md)                                                            | ADR list entry (if present)                                                         |
+| [`documents/strategy/saas-transformation.md`](documents/strategy/saas-transformation.md) | Architecture table row pointing at the ADR                                          |
+| `CLAUDE.md`                                                                              | Any conventions section that references the ADR                                     |
+| Jira: epic comment                                                                       | Structured comment summarising the ADR + linking to repo                            |
+| Jira: child tickets                                                                      | Comment on any open ticket whose scope shifts (header: "Scope adjusted — ADR XXXX") |
+| Confluence: "Family Hub — Vision & Strategy" → "Architecture & multi-tenancy"            | Update architecture table row                                                       |
+| Confluence: "FHS — Epics & Tickets"                                                      | Refresh via builder (per the Confluence-refresh rule)                               |
 
 Cross-link both ways: the ADR file links to the Jira ticket(s) it
 answers; those tickets link back to the ADR. Never delete a superseded
 ADR — flip its `Status:` line to `superseded by NNNN`. After any
 update, re-read at least the strategy doc + Architecture Confluence
 page to confirm they don't still reference the dead decision.
+
+### Feature impact analysis (pre-implementation)
+
+Before writing implementation code for **any** feature, ticket, or
+behaviour change, produce a short impact analysis covering at minimum
+**frontend**, **backend**, and **infrastructure**. Surface it to the
+user and wait for acknowledgement before starting the work — this
+catches cross-cutting dependencies (a new column needs a migration +
+API schema + form field + RLS policy + seed update) before they turn
+into mid-PR rework.
+
+Where it goes:
+
+- For ticketed work, post the analysis as a comment on the Jira
+  ticket (structured ADF: bullets/headings, never prose). For ad-hoc
+  tasks, post it inline in the conversation.
+- If the work warrants a `documents/features/<slug>.md` doc, add an
+  **Impact analysis** section to that doc as well.
+
+Dimensions to scan (skip a row only if you can articulate why it's
+genuinely untouched — silence is not the same as "no impact"):
+
+| Layer                    | Examples of what to check                                                                                               |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| **Frontend (web)**       | Routes, components, hooks, forms, validation schemas, copy, design-system tokens, accessibility, mobile-web fallback    |
+| **Backend (api)**        | New/changed endpoints, Zod schemas, OpenAPI spec, middleware, jobs, error envelope, rate limits, idempotency            |
+| **Data layer**           | Drizzle schema, migrations (and rollback), RLS policies, indexes, seed data, fixtures, FKs to `tenant_id` / `users`     |
+| **Infrastructure**       | Railway services, env vars, Supabase config (auth + storage), Stripe products/webhooks, CI workflows, scheduled jobs    |
+| **Auth / multi-tenancy** | New role checks, RLS coverage on new tables, `tenant_id` propagation, JWKS / JWT claim assumptions                      |
+| **Cross-cutting**        | Shared package types (`packages/shared`), test utilities (`packages/test-utils`), feature flags, observability surfaces |
+| **Tests**                | Which tier (unit / integration / e2e / perf) gains scenarios; new fixtures; whether tenant-isolation scenario is needed |
+| **Docs / process**       | `documents/features/`, `documents/technical/`, ADRs (does this need a new one?), CLAUDE.md, README, OpenAPI clients     |
+
+Recommended template for the analysis comment:
+
+```markdown
+**Impact analysis — FHS-XXX**
+
+- **Frontend:** <bullets, or "no impact — server-only">
+- **Backend:** <bullets, or "no impact">
+- **Data:** <migration? new table? RLS?>
+- **Infra:** <env vars, services, CI?>
+- **Tests:** <which tier(s); tenant-isolation scenario yes/no>
+- **Docs/ADR:** <files to update; ADR needed yes/no>
+- **Risks / unknowns:** <open questions to resolve before coding>
+```
+
+**Anti-pattern:** "I'll figure out the FE/infra parts as I go." That's
+how a backend ticket grows a surprise migration on day 3 and a copy
+change on day 4. Cheap to think about up front; expensive to discover
+mid-implementation.
+
+The analysis is not a separate Jira ticket — it's a comment on the
+implementing ticket. Once acknowledged, it becomes the scope contract
+for the PR.
 
 ### Change-impact propagation
 
@@ -346,11 +401,11 @@ Categories to scan when proposing a change:
 
 | Category               | Surfaces                                                                                            |
 | ---------------------- | --------------------------------------------------------------------------------------------------- |
-| Product / requirements | `docs/features/`, Jira ticket scope + AC, PR template                                               |
+| Product / requirements | `documents/features/`, Jira ticket scope + AC, PR template                                          |
 | Technical              | code, schemas, API contracts (OpenAPI), migrations, infra (Railway, Supabase, Stripe), CI workflows |
 | Tests                  | Vitest unit, Vitest integration, Playwright E2E, k6 perf                                            |
-| Architecture           | ADRs in `docs/decisions/` — write a new ADR or supersede an existing one                            |
-| Strategy               | `docs/strategy/saas-transformation.md` and any Confluence mirror                                    |
+| Architecture           | ADRs in `documents/decisions/` — write a new ADR or supersede an existing one                       |
+| Strategy               | `documents/strategy/saas-transformation.md` and any Confluence mirror                               |
 | Business / launch      | pricing, marketing copy, sales collateral, onboarding flow copy                                     |
 | Confluence             | `https://qualicion2.atlassian.net/spaces/FA/...` pages                                              |
 | Legal / compliance     | LICENSE, ToS, privacy policy, regulated-tier obligations                                            |
@@ -396,7 +451,7 @@ here for emphasis on this repo:
   `branch -D`, `clean -f`) without explicit user authorization.
 - **Never** skip hooks (`--no-verify`, `--no-gpg-sign`) without explicit ask.
 - **Never** create planning, decision, or analysis docs unless asked —
-  ADRs in `docs/decisions/` are the exception (created via FHS-171/172/174).
+  ADRs in `documents/decisions/` are the exception (created via FHS-171/172/174).
 
 ---
 
@@ -440,7 +495,7 @@ or updating the requirement docs **before** implementation begins.
 ### Folder layout
 
 ```text
-docs/
+documents/
   README.md         # index of subfolders + how docs flow
   features/         # what & why — owned by product-manager agent
     <feature-slug>.md
@@ -456,13 +511,13 @@ docs/
     <topic-slug>.md
 ```
 
-- `docs/features/` — user-facing requirements: personas, user stories,
+- `documents/features/` — user-facing requirements: personas, user stories,
   acceptance criteria, success metrics, scope boundaries.
-- `docs/technical/` — implementation specs derived from features:
+- `documents/technical/` — implementation specs derived from features:
   API contracts, schemas, sequence diagrams, infra topology, SLOs.
-- `docs/decisions/` — ADRs in MADR-lite format; see the
+- `documents/decisions/` — ADRs in MADR-lite format; see the
   [ADR section](#architecture-decision-records-adrs) below.
-- `docs/strategy/` — long-form direction-setting docs that inform
+- `documents/strategy/` — long-form direction-setting docs that inform
   the features backlog.
 - Every feature should have a corresponding technical doc once
   implementation begins. Cross-link both directions.
@@ -472,7 +527,7 @@ doc, and naming convention — read those before adding to the folder.
 
 ### User story format (required)
 
-Every requirement in `docs/features/` must be expressed as one or
+Every requirement in `documents/features/` must be expressed as one or
 more **user stories** with **Gherkin (Given/When/Then)** acceptance
 criteria. Template:
 
@@ -523,10 +578,10 @@ criteria. Template:
 ### Workflow
 
 1. New feature request → invoke `product-manager` subagent.
-2. Agent drafts `docs/features/<slug>.md` using the template above.
+2. Agent drafts `documents/features/<slug>.md` using the template above.
 3. User reviews and approves the requirement doc.
 4. Engineering subagents (`backend-developer`, `frontend-developer`,
-   `api-designer`, etc.) translate it into `docs/technical/...` specs.
+   `api-designer`, etc.) translate it into `documents/technical/...` specs.
 5. Implementation references the Gherkin scenarios as the source of truth
    for both unit tests (Vitest) and E2E tests (Playwright). Test names
    should mirror scenario names so traceability is automatic.
@@ -555,11 +610,11 @@ tests/
   e2e/
     playwright.config.ts              # full matrix
     playwright.critical.config.ts     # @critical subset for PR CI
-    features/                         # mirror docs/features/<slug>.md scenario names
+    features/                         # mirror documents/features/<slug>.md scenario names
     steps/                            # one file per feature slug
     support/pages/                    # page objects (no raw locators in steps)
   performance/
-    config.js                         # BASE_URL + thresholds tied to docs/technical/slos.md
+    config.js                         # BASE_URL + thresholds tied to documents/technical/slos.md
     scripts/                          # shared k6 helpers
     scenarios/{smoke,load,stress,soak}.js
     reports/                          # gitignored
@@ -591,7 +646,7 @@ Per-package `vitest.config.ts` files (`apps/api`, `apps/web`,
 - **Config:** dedicated `tests/integration/vitest.config.ts` includes both `steps/**/*.steps.ts` (current) and `specs/**/*.spec.ts` (legacy, drained as scenarios migrate).
 - **Run:** `pnpm test:integration` — spins Postgres 16 via `docker-compose.test.yml` on port 5433 (offset from dev's 5432). CI uses GitHub Actions `services:` block.
 - **Setup:** drop + recreate test DB, `drizzle-kit push --force` to apply schema + RLS policies. Each scenario starts from a clean state via `Background:` in the .feature file (typically `TRUNCATE` or per-scenario seed).
-- **Mandatory pattern:** every feature touching a tenant-scoped endpoint includes a `tenant isolation` scenario — tenant B reads return zero rows from tenant A. Defence in depth for [ADR 0001](docs/decisions/0001-multi-tenancy.md).
+- **Mandatory pattern:** every feature touching a tenant-scoped endpoint includes a `tenant isolation` scenario — tenant B reads return zero rows from tenant A. Defence in depth for [ADR 0001](documents/decisions/0001-multi-tenancy.md).
 - **Cover the edges, not just the happy path:** boundary timestamps, oversized payloads, malformed Authorization headers, concurrent fan-out, unique-constraint races. The unit tier covers shape; integration covers what real Postgres + real network do.
 - **Pool:** test pool is `max: 2`, `idle_timeout: 5`, separate from the prod pool. Lives in `tests/integration/support/db.ts` against `DATABASE_URL_TEST`.
 - **Never mock the database** — mocked DBs hide RLS regressions and migration breakage.
@@ -600,7 +655,7 @@ Per-package `vitest.config.ts` files (`apps/api`, `apps/web`,
 ### E2E — Playwright + playwright-bdd
 
 - **Where:** `tests/e2e/`. Two configs: `playwright.config.ts` (full matrix) and `playwright.critical.config.ts` (`@critical`-tagged subset, chromium only).
-- **Traceability contract:** scenario names in `tests/e2e/features/<slug>.feature` are **character-for-character identical** to the Gherkin scenarios in `docs/features/<slug>.md`. `bddgen` generates the spec; the generated `test()` name carries through. This is the Jira AC ↔ test traceability mechanism.
+- **Traceability contract:** scenario names in `tests/e2e/features/<slug>.feature` are **character-for-character identical** to the Gherkin scenarios in `documents/features/<slug>.md`. `bddgen` generates the spec; the generated `test()` name carries through. This is the Jira AC ↔ test traceability mechanism.
 - **Page objects:** `tests/e2e/support/pages/<FeatureName>Page.ts`. No raw `page.locator()` in step files.
 - **Browser matrix:** chromium only on PR (critical subset, fast); full matrix (chromium + webkit + mobile-chrome) post-merge to staging.
 - **Run:** `pnpm test:e2e` (full), `pnpm test:e2e:critical` (PR-fast subset), `pnpm test:e2e:ui` (interactive). Each script runs `bddgen` first then `playwright test`.
@@ -609,7 +664,7 @@ Per-package `vitest.config.ts` files (`apps/api`, `apps/web`,
 
 - **Where:** `tests/performance/scenarios/{smoke,load,stress,soak}.js` with shared helpers in `tests/performance/scripts/`.
 - **Multi-tenancy add-ons** vs family-hub: per-tenant VU groups (split VUs across 2–3 synthetic tenants to validate RLS overhead under concurrent load); `withTenantHeader(tenantSlug)` helper.
-- **Thresholds:** defined in `tests/performance/config.js`, tied to `docs/technical/slos.md` (p95 < 250 ms read, p95 < 500 ms write — until SLO doc lands, those are the working targets).
+- **Thresholds:** defined in `tests/performance/config.js`, tied to `documents/technical/slos.md` (p95 < 250 ms read, p95 < 500 ms write — until SLO doc lands, those are the working targets).
 - **Schedule:**
   - `smoke` — every CI run after integration (30s, 1 VU).
   - `load` — nightly against staging.
@@ -650,7 +705,7 @@ convention, error envelope, rate-limit headers, etc.
 
 ## Architecture Decision Records (ADRs)
 
-ADRs live in `docs/decisions/`. One file per decision:
+ADRs live in `documents/decisions/`. One file per decision:
 `NNNN-short-title.md` (zero-padded sequential numbering, kebab-case).
 
 Write an ADR whenever you make a decision that:
@@ -705,7 +760,7 @@ mirrors this list):
 - [ ] **Multi-tenancy:** queries respect `tenant_id` / RLS; no `bypassrls`
 - [ ] **Secrets:** nothing in git that should be in `.env.local` or Railway env
 - [ ] **OpenAPI:** spec regenerated and committed if API surface changed
-- [ ] **Docs:** `docs/features/` or `docs/technical/` updated; ADR added in `docs/decisions/` if a decision was made
+- [ ] **Docs:** `documents/features/` or `documents/technical/` updated; ADR added in `documents/decisions/` if a decision was made
 - [ ] **Migrations:** Drizzle migration committed; rollback path noted in PR body
 - [ ] **Observability:** new failure modes have logs/metrics; alerts updated if SLO-relevant
 - [ ] **Manual verification:** described in the PR body — what was actually exercised in a browser / curl

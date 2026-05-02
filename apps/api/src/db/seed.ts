@@ -1,73 +1,60 @@
 /**
  * Local development seed.
  *
- * Goal (per FHS-168): three fake tenants, each with one admin and one
- * member user, idempotent across re-runs. Useful for poking the dev
- * stack without manually creating accounts every time the volume gets
- * cleared.
+ * Inserts the "default" tenant (FHS-2) plus a small fixture of
+ * additional family rows for poking at the dev stack. Idempotent —
+ * every insert uses ON CONFLICT DO NOTHING on the slug unique key, so
+ * re-runs are safe.
  *
- * Current state: the Drizzle schema is intentionally empty until
- * Sprint 1 (ADR 0001 — tenants and users land with tenant_id + RLS).
- * The seed runs as a no-op until then. Once `tenants` and `users`
- * exist, replace the SEED constant below with the real inserts and
- * uncomment the active block.
+ * Sprint 1 will extend this with `family_members` rows once that table
+ * lands (FHS-1 epic, ADR 0009). For now: tenants only.
  *
  * Idempotency contract: every operation MUST be safe to re-run. Use
- * `INSERT ... ON CONFLICT DO NOTHING` (or Drizzle's `onConflictDoNothing()`)
- * with deterministic primary keys / unique constraints. Don't generate
- * fresh UUIDs each run.
+ * `INSERT ... ON CONFLICT DO NOTHING` with deterministic primary keys
+ * or unique constraints. Don't generate fresh UUIDs each run.
  */
 
-import { sql } from 'drizzle-orm';
 import { closeDb, getDb } from './client.js';
+import { SEED_DEFAULT_TENANT_ID, tenants, type NewTenant } from './schema.js';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('seed');
 
-// Deterministic IDs so re-runs upsert the same rows. Slugs follow the
-// `<slug>.familyhub.app` subdomain pattern from ADR 0002.
-const SEED = [
-  { slug: 'kingdom', name: 'The Kingdom Family', admin: 'admin@kingdom.test', member: 'member@kingdom.test' },
-  { slug: 'lighthouse', name: 'Lighthouse Family', admin: 'admin@lighthouse.test', member: 'member@lighthouse.test' },
-  { slug: 'compass', name: 'Compass Family', admin: 'admin@compass.test', member: 'member@compass.test' },
+// Deterministic seed rows. Slugs follow the `<slug>.familyhub.app`
+// subdomain pattern from ADR 0002. The "default" tenant uses the
+// frozen UUID exported from schema.ts so tests + downstream seeds can
+// reference it without lookups.
+const SEED_TENANTS: NewTenant[] = [
+  {
+    id: SEED_DEFAULT_TENANT_ID,
+    slug: 'default',
+    name: 'Default Family',
+    timezone: 'UTC',
+    currency: 'USD',
+  },
+  // Additional fixture families — swap in ones that match local dev needs.
+  { slug: 'kingdom', name: 'The Kingdom Family', timezone: 'Asia/Dubai', currency: 'AED' },
+  { slug: 'lighthouse', name: 'Lighthouse Family', timezone: 'America/New_York', currency: 'USD' },
+  { slug: 'compass', name: 'Compass Family', timezone: 'Europe/London', currency: 'GBP' },
 ];
-
-async function tableExists(db: ReturnType<typeof getDb>, name: string): Promise<boolean> {
-  // PostgreSQL system catalogue — single round-trip, no schema dep.
-  const { rows } = await db.execute<{ exists: boolean }>(
-    sql`SELECT EXISTS (
-      SELECT 1 FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_name = ${name}
-    ) AS exists`,
-  );
-  return Boolean(rows[0]?.exists);
-}
 
 async function main() {
   const db = getDb();
+  let inserted = 0;
 
-  const hasTenants = await tableExists(db, 'tenants');
-  const hasUsers = await tableExists(db, 'users');
-
-  if (!hasTenants || !hasUsers) {
-    log.warn(
-      { hasTenants, hasUsers, expected: ['tenants', 'users'] },
-      'seed: schema not ready — skipping. tenants/users land in Sprint 1 per ADR 0001. Re-run after the schema migration.',
-    );
-    return;
+  for (const t of SEED_TENANTS) {
+    const result = await db
+      .insert(tenants)
+      .values(t)
+      .onConflictDoNothing({ target: tenants.slug })
+      .returning();
+    if (result.length > 0) inserted += 1;
   }
 
-  // Replace this block when tenants/users exist:
-  // for (const t of SEED) {
-  //   const [tenant] = await db.insert(tenants).values({ slug: t.slug, name: t.name })
-  //     .onConflictDoNothing({ target: tenants.slug }).returning();
-  //   await db.insert(users).values([
-  //     { tenantId: tenant.id, email: t.admin, role: 'admin' },
-  //     { tenantId: tenant.id, email: t.member, role: 'member' },
-  //   ]).onConflictDoNothing({ target: [users.tenantId, users.email] });
-  // }
-
-  log.info({ tenants: SEED.length }, 'seed: schema ready — implement inserts (see SEED constant)');
+  log.info(
+    { totalSeed: SEED_TENANTS.length, inserted, skipped: SEED_TENANTS.length - inserted },
+    'seed: tenants',
+  );
 }
 
 main()

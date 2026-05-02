@@ -23,7 +23,7 @@ the email body.
    URL on its own line. Templates render across many email clients —
    inline styles only, no `<style>` blocks, no remote assets.
 2. Keep `{{ .SiteURL }}` rather than hardcoded URLs so the same template
-   serves staging and production (see [ADR 0008](../../../../docs/decisions/0008-supabase-environments.md)).
+   serves staging and production (see [ADR 0008](../../../../documents/decisions/0008-supabase-environments.md)).
 3. Re-apply to both Supabase projects:
 
    ```bash

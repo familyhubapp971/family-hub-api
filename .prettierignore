@@ -11,3 +11,6 @@
 **/tests/performance/reports/**
 **/openapi.yaml
 pnpm-lock.yaml
+# Design review artefacts — large self-contained HTML with inline Tailwind.
+# Prettier reformatting breaks inline layout and the files are generated.
+documents/design/**/*.html

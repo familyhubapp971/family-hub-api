@@ -1,7 +1,7 @@
 # Supabase infra notes
 
 Operator notes for our two Supabase projects (per
-[ADR 0008](../../docs/decisions/0008-supabase-environments.md)). The
+[ADR 0008](../../documents/decisions/0008-supabase-environments.md)). The
 projects themselves were provisioned in FHS-187; auth-config knobs
 (email templates, providers) and seed accounts live here.
 

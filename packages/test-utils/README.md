@@ -5,17 +5,17 @@ for tenant scoping, factories, request helpers, and test JWT minting.
 
 ## Three subpath exports
 
-| Subpath | Use from | Pulls in |
-| --- | --- | --- |
-| `@familyhub/test-utils` | api + integration specs (Node) | drizzle, pg, hono types only |
-| `@familyhub/test-utils/web` | apps/web vitest + future RTL specs | React + RTL |
-| `@familyhub/test-utils/k6` | k6 scenarios under `tests/performance/` | plain JS only |
+| Subpath                     | Use from                                | Pulls in                     |
+| --------------------------- | --------------------------------------- | ---------------------------- |
+| `@familyhub/test-utils`     | api + integration specs (Node)          | drizzle, pg, hono types only |
+| `@familyhub/test-utils/web` | apps/web vitest + future RTL specs      | React + RTL                  |
+| `@familyhub/test-utils/k6`  | k6 scenarios under `tests/performance/` | plain JS only                |
 
 Server-side specs **must not** import from `/web` or they'll pull React + jsdom into a node environment.
 
 ## Key exports
 
-### Tenant scoping (per [ADR 0001](../../docs/decisions/0001-multi-tenancy.md))
+### Tenant scoping (per [ADR 0001](../../documents/decisions/0001-multi-tenancy.md))
 
 ```ts
 import { withTenant, currentTenantId, setTenantOnTransaction } from '@familyhub/test-utils';
@@ -33,7 +33,7 @@ await db.transaction(async (tx) => {
 
 `setTenantOnTransaction` accepts UUIDs only. Slugs are resolved to UUIDs by the prod tenant middleware (FHS-12) before reaching this helper.
 
-### HTTP requests (per [ADR 0002](../../docs/decisions/0002-subdomain-tenant-routing.md))
+### HTTP requests (per [ADR 0002](../../documents/decisions/0002-subdomain-tenant-routing.md))
 
 ```ts
 import { makeRequest } from '@familyhub/test-utils';
@@ -74,7 +74,9 @@ import { getTestDb, closeTestDb } from '@familyhub/test-utils';
 const db = getTestDb(); // pg.Pool against DATABASE_URL_TEST
 
 // MUST be wired in a global afterAll, otherwise vitest --watch will hang.
-afterAll(async () => { await closeTestDb(); });
+afterAll(async () => {
+  await closeTestDb();
+});
 ```
 
 ### Web rendering

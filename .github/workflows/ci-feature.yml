@@ -11,7 +11,7 @@ on:
       - 'feat/**'
       - 'fix/**'
       - 'chore/**'
-      - 'docs/**'
+      - 'documents/**'
       - 'test/**'
       - 'refactor/**'
       - 'perf/**'

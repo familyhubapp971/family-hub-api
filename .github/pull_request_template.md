@@ -49,5 +49,5 @@ Closes [FHS-XXX](https://qualicion2.atlassian.net/browse/FHS-XXX)
 
 - [ ] PR title contains the FHS-XXX key
 - [ ] Branch name contains the FHS-XXX key
-- [ ] Docs updated (`docs/product/` or `docs/technical/` as appropriate)
+- [ ] Docs updated (`documents/product/` or `documents/technical/` as appropriate)
 - [ ] CODEOWNERS reviewers requested

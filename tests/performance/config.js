@@ -1,5 +1,5 @@
 // k6 shared config — VU profiles and thresholds.
-// Thresholds are tied to docs/technical/slos.md (FHS — TBD ticket).
+// Thresholds are tied to documents/technical/slos.md (FHS — TBD ticket).
 //
 // k6 hits the API origin directly (not the web dev proxy). Locally the
 // api dev server runs on :3001. In CI/staging override BASE_URL:
@@ -14,7 +14,7 @@ export const PROFILES = {
   soak: { vus: 30, duration: '2h' },
 };
 
-// Working SLO targets until docs/technical/slos.md is authored (FHS-167).
+// Working SLO targets until documents/technical/slos.md is authored (FHS-167).
 // Smoke tolerates a higher error rate than load/stress because a
 // 30s/1VU run with rate<0.01 fails on a single transient blip (1/30 = 3.3%).
 export const THRESHOLDS = {
