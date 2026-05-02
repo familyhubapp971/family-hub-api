@@ -12,9 +12,11 @@ import {
   date,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -366,3 +368,73 @@ export const investments = pgTable(
 
 export type Investment = typeof investments.$inferSelect;
 export type NewInvestment = typeof investments.$inferInsert;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tenant-scoped content tables (FHS-4 — Sprint 1, Tenant Foundation).
+//
+// Plain: per-family settings + audit trail. Sprint-1 vertical slice only —
+// the original ticket listed 12 feature tables (announcements, school work,
+// meals, stickers, etc.) but those land in their own feature PRs alongside
+// the UI that exposes them. RLS in FHS-8.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `app_settings` — per-family key/value config.
+ *
+ * Composite PK on (tenant_id, key): one entry per family per setting key.
+ * `value` is jsonb so settings can hold strings, numbers, arrays, or
+ * objects without a schema migration. Validation of value shape happens
+ * at the api edge (Zod) — the DB only enforces (tenant, key) uniqueness.
+ *
+ * Examples: ('theme', '"dark"'), ('default_currency', '"AED"'),
+ * ('habit_reminders', '{"enabled": true, "time": "20:00"}').
+ */
+export const appSettings = pgTable(
+  'app_settings',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    value: jsonb('value').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.tenantId, t.key] })],
+);
+
+export type AppSetting = typeof appSettings.$inferSelect;
+export type NewAppSetting = typeof appSettings.$inferInsert;
+
+/**
+ * `activity_logs` — append-only audit trail.
+ *
+ * Both actor columns are nullable: system-generated actions (cron jobs,
+ * webhooks) have no actor; member-attributed actions set `actor_member_id`
+ * and may also set `actor_user_id`. Cascade-delete on tenant; the actor
+ * FKs use SET NULL so deleting an actor preserves the audit trail.
+ *
+ * `metadata` is jsonb so individual log shapes can vary per action type
+ * without schema churn. Index on (tenant_id, created_at desc) for the
+ * dominant query: "recent activity for this family".
+ */
+export const activityLogs = pgTable(
+  'activity_logs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    actorMemberId: uuid('actor_member_id').references(() => members.id, { onDelete: 'set null' }),
+    actorUserId: uuid('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
+    action: text('action').notNull(),
+    targetType: text('target_type'),
+    targetId: uuid('target_id'),
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('activity_logs_tenant_created_idx').on(t.tenantId, t.createdAt)],
+);
+
+export type ActivityLog = typeof activityLogs.$inferSelect;
+export type NewActivityLog = typeof activityLogs.$inferInsert;
