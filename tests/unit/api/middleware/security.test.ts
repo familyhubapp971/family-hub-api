@@ -35,10 +35,10 @@ describe('FHS-170 — security middleware', () => {
       const app = buildApp();
       const res = await app.request('/health', {
         method: 'GET',
-        headers: { Origin: 'http://localhost:5173' },
+        headers: { Origin: 'http://localhost:5273' },
       });
 
-      expect(res.headers.get('access-control-allow-origin')).toBe('http://localhost:5173');
+      expect(res.headers.get('access-control-allow-origin')).toBe('http://localhost:5273');
     });
   });
 

@@ -7,7 +7,7 @@ import { config } from '../config.js';
  * comma-separated CORS_ALLOWED_ORIGINS list when set. Returns the
  * matched origin verbatim (not '*') so credentialed requests work.
  *
- * Localhost dev gets a wildcard port match so :3001 / :5173 / :6006
+ * Localhost dev gets a wildcard port match so :3001 / :5273 / :6006
  * (Storybook later) all pass without explicit listing.
  */
 export function corsMiddleware(): MiddlewareHandler {
