@@ -135,6 +135,17 @@ or Jira comment, not the commit.
 ### Pull requests
 
 - Target `staging` (not `main`) for feature work.
+- **One PR per ticket. Finish one ticket completely before starting the
+  next.** No parallel branches, no half-built features sitting in
+  flight. A ticket is "complete" only when:
+  - all relevant tests are written and green at every applicable tier
+    (unit / integration / e2e — see "Test coverage per ticket" below),
+  - PR opened, self-reviewed, CI green, merged to `staging`,
+  - Jira ticket transitioned to Done with a structured close comment,
+  - Confluence Epics & Tickets page refreshed.
+    Only then branch for the next ticket. The single exception:
+    reviewer-blocking polish pings on a still-open PR (those continue
+    on the same branch, not a new one).
 - **Merge style (conditional, per [ADR 0006](documents/decisions/0006-branching-strategy.md)):**
   - **Solo / 1 active contributor (current):** squash-merge feature → staging; merge-commit `staging → main`.
   - **≥2 active contributors:** switch to `--no-ff` merge commits at every level. Trigger: second person opens their first PR.
@@ -628,6 +639,39 @@ criteria. Template:
 Four test tiers under one **centralized** `tests/` directory at the repo
 root — never colocated next to source. Mirrors the legacy family-hub
 layout, reorganised by package within each tier.
+
+### Test coverage per ticket
+
+**Every ticket must ship with the test tiers that apply to its scope.**
+A ticket isn't done — and the PR isn't mergeable — until the right
+tiers are green. Use this matrix to decide what's required:
+
+| Ticket scope                                           | Unit                              | Integration                       | E2E                                                             | Perf              |
+| ------------------------------------------------------ | --------------------------------- | --------------------------------- | --------------------------------------------------------------- | ----------------- |
+| Pure logic / utility / type-only                       | required                          | n/a                               | n/a                                                             | n/a               |
+| `packages/ui` primitive (Button, Card, PinInput, etc.) | required (per prop / interaction) | n/a                               | n/a                                                             | n/a               |
+| API endpoint or middleware                             | required (handler logic)          | required (real Postgres + RLS)    | required if user-visible                                        | smoke if hot path |
+| Page / route (apps/web)                                | required (component shape)        | n/a                               | required (Gherkin scenario from `documents/features/<slug>.md`) | n/a               |
+| Schema migration                                       | required (drizzle-kit dry-run)    | required (RLS + tenant-isolation) | required if it affects a user flow                              | n/a               |
+| Cross-cutting (auth, feature flag, billing)            | required                          | required                          | required (full happy + sad path)                                | smoke             |
+
+Rules of thumb:
+
+- **Unit** — fast (<200ms each), no I/O, mocks for collaborators.
+  Asserts ONE thing per test. Never mock the unit under test.
+- **Integration** — real Postgres + real network. Always include a
+  tenant-isolation scenario for any tenant-scoped table or endpoint.
+- **E2E** — `tests/e2e/features/<slug>.feature` scenario names must
+  match the Gherkin scenarios in `documents/features/<slug>.md`
+  character-for-character. That's the Jira AC ↔ test traceability
+  contract.
+- **Perf** — only when the change touches a hot path (request handlers,
+  list endpoints, anything in the dashboard fan-out). k6 smoke is
+  enough for most tickets; load/stress run pre-release.
+
+If a ticket genuinely has no testable surface (pure docs, pure config),
+say so explicitly in the PR self-review section. Don't ship "no tests
+needed" silently — that's how regressions creep in.
 
 ### Folder structure (canonical)
 
