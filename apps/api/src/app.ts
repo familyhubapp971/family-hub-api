@@ -11,6 +11,7 @@ import { requestContext } from './middleware/request-context.js';
 import { healthRouter } from './routes/health.js';
 import { helloRouter } from './routes/hello.js';
 import { meRouter } from './routes/me.js';
+import { publicTenantRouter } from './routes/public-tenant.js';
 import { captureException } from './sentry.js';
 
 const log = createLogger('app');
@@ -91,6 +92,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/health', healthRouter);
   app.route('/hello', helloRouter);
   app.route('/api/me', meRouter);
+  app.route('/api/public/tenant', publicTenantRouter);
 
   app.notFound((c) => c.json({ error: 'not found' }, 404));
   app.onError((err, c) => {
