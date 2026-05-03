@@ -160,6 +160,23 @@ or Jira comment, not the commit.
   section so the human reviewer can see what was punted on purpose.
   See the [`requesting-code-review`](.claude/skills/requesting-code-review/SKILL.md)
   skill for the workflow.
+- **Always dispatch the `qa-expert` subagent in parallel with
+  `code-reviewer`** for any ticket that ships user-facing flows, API
+  endpoints, schema changes, or auth/multi-tenancy behaviour.
+  `code-reviewer` checks the _code_; `qa-expert` enumerates the
+  **flows + edge cases + missing-test scenarios** a real user could
+  hit (race conditions, error paths, empty states, partial failures,
+  unauthorized access, cross-tenant leakage, mobile/tablet/desktop
+  responsive behaviour, accessibility hits, browser back-button,
+  expired sessions, double-clicks, network drops, etc.). The two
+  agents are launched **in the same parallel block** (single message,
+  multiple Agent tool calls) so they run concurrently. Action every
+  blocking finding from both before opening the PR; mention both in
+  the Self-review section: _"Self-reviewed via code-reviewer +
+  qa-expert subagents; X+Y findings actioned"_. Skip the qa-expert
+  pass only on pure-internal changes (build config, test infra,
+  CI tweaks, docstring-only edits) and say so explicitly in the
+  PR body.
 
 **Keep PR bodies short.** Default sections are: **Summary** (1-3 lines),
 **AC trace** (one line per AC, pass/fail), and **Self-review** (one
