@@ -20,8 +20,10 @@ import {
   appSettings,
   habits,
   investments,
+  mealTemplates,
   members,
   pendingInvitations,
+  rewards,
   savings,
   savingsTransactions,
   tenants,
@@ -43,6 +45,8 @@ const ALL_SCHEMA_TABLES = [
   pendingInvitations,
   weeks,
   habits,
+  rewards,
+  mealTemplates,
   weekActions,
   savings,
   savingsTransactions,
@@ -95,6 +99,27 @@ async function seedRow(
         email: `invitee-${tenantId.slice(0, 4)}@example.com`,
         role: 'adult',
         invitedBy: ctx.memberId!,
+      });
+      break;
+    }
+    case 'rewards': {
+      // FHS-40 — one reward per tenant. Independent of habits/weeks.
+      await db.insert(rewards).values({
+        tenantId,
+        name: `reward-${tenantId.slice(0, 4)}`,
+        stickerCost: 5,
+      });
+      break;
+    }
+    case 'meal_templates': {
+      // FHS-40 — one template slot per tenant. dayOfWeek + slot are
+      // unique together (per the partial-unique index), so one row
+      // per tenant is fine.
+      await db.insert(mealTemplates).values({
+        tenantId,
+        dayOfWeek: 'mon',
+        slot: 'breakfast',
+        name: `meal-${tenantId.slice(0, 4)}`,
       });
       break;
     }
@@ -193,6 +218,8 @@ async function seedAllTablesForTenant(db: Database, tenantId: string): Promise<v
     'pending_invitations', // needs member (invited_by FK)
     'weeks',
     'habits',
+    'rewards', // tenant-only — no FK dependencies
+    'meal_templates', // tenant-only — no FK dependencies
     'savings',
     'week_actions', // needs member + week + habit
     'savings_transactions', // needs savings

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { onboardingRouter } from '../../../../apps/api/src/routes/onboarding.js';
+import { habits, members, rewards } from '../../../../apps/api/src/db/schema.js';
 import type { Tenant, User } from '../../../../apps/api/src/db/schema.js';
 
 // FHS-37 — POST /api/onboarding/complete tests. Same shape as the
@@ -193,14 +194,28 @@ describe('FHS-37 — POST /api/onboarding/complete', () => {
       currency: 'AED',
     });
 
-    // Capture the transaction callback so we can drive the inner inserts.
+    // Capture which TABLES the transaction inserts into rather than
+    // counting calls. Catches a future reordering / new-table addition
+    // with a clear assertion message instead of a "expected 3, got 4"
+    // mystery. Each table maps to a returning-row count appropriate
+    // for the seed shape (FHS-40: 5 habits, 3 rewards, 2 members).
+    const insertedTables: unknown[] = [];
     dbMock.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
       const tx = {
-        insert: () => ({
-          values: () => ({
-            returning: () => Promise.resolve([{ id: 'm1' }, { id: 'm2' }]),
-          }),
-        }),
+        insert: (table: unknown) => {
+          insertedTables.push(table);
+          const rowsForTable =
+            table === habits
+              ? [{ id: 'h1' }, { id: 'h2' }, { id: 'h3' }, { id: 'h4' }, { id: 'h5' }]
+              : table === rewards
+                ? [{ id: 'r1' }, { id: 'r2' }, { id: 'r3' }]
+                : table === members
+                  ? [{ id: 'm1' }, { id: 'm2' }]
+                  : [];
+          return {
+            values: () => ({ returning: () => Promise.resolve(rowsForTable) }),
+          };
+        },
         update: () => ({
           set: () => ({ where: () => ({ returning: () => Promise.resolve([updated]) }) }),
         }),
@@ -220,5 +235,9 @@ describe('FHS-37 — POST /api/onboarding/complete', () => {
     };
     expect(body.tenant.onboardingCompleted).toBe(true);
     expect(body.membersAdded).toBe(2);
+    // FHS-40 — assert the SET of tables touched inside the tx
+    // (members + habits seed + rewards seed). Order-independent so a
+    // future reorder doesn't break this test.
+    expect(new Set(insertedTables)).toEqual(new Set([members, habits, rewards]));
   });
 });

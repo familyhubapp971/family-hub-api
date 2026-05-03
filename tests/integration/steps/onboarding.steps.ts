@@ -169,10 +169,32 @@ describeFeature(feature, ({ Background, Scenario }) => {
       );
       expect(rows[0]?.onboarding_completed).toBe(false);
     });
+
+    // FHS-40 — verify the seed counts after the happy-path completion.
+    And('tenant {string} has 5 habits seeded', async (_ctx, slug: string) => {
+      const { rows } = await db.execute<{ count: string }>(
+        sql`SELECT COUNT(*)::text AS count FROM habits WHERE tenant_id = ${tenantIds[slug]!}`,
+      );
+      expect(Number(rows[0]?.count)).toBe(5);
+    });
+
+    And('tenant {string} has 3 rewards seeded', async (_ctx, slug: string) => {
+      const { rows } = await db.execute<{ count: string }>(
+        sql`SELECT COUNT(*)::text AS count FROM rewards WHERE tenant_id = ${tenantIds[slug]!}`,
+      );
+      expect(Number(rows[0]?.count)).toBe(3);
+    });
+
+    And('tenant {string} has 0 habits seeded', async (_ctx, slug: string) => {
+      const { rows } = await db.execute<{ count: string }>(
+        sql`SELECT COUNT(*)::text AS count FROM habits WHERE tenant_id = ${tenantIds[slug]!}`,
+      );
+      expect(Number(rows[0]?.count)).toBe(0);
+    });
   });
 
   Scenario(
-    'Idempotent — second submit returns 200 without duplicating members',
+    'Idempotent — second submit returns 200 without duplicating members or seed',
     ({ Given, When, Then, And }) => {
       let res: Response;
 
@@ -229,6 +251,23 @@ describeFeature(feature, ({ Background, Scenario }) => {
         // second pair. 1 admin + 2 from first call = 3.
         const { rows } = await db.execute<{ count: string }>(
           sql`SELECT COUNT(*)::text AS count FROM members WHERE tenant_id = ${tenantIds[slug]!}`,
+        );
+        expect(Number(rows[0]?.count)).toBe(3);
+      });
+
+      // FHS-40 — re-submit must NOT re-seed; counts identical to first
+      // completion. Same step text as the happy-path scenario; closure-
+      // scoped binding so each scenario picks up its own copy.
+      And('tenant {string} has 5 habits seeded', async (_ctx, slug: string) => {
+        const { rows } = await db.execute<{ count: string }>(
+          sql`SELECT COUNT(*)::text AS count FROM habits WHERE tenant_id = ${tenantIds[slug]!}`,
+        );
+        expect(Number(rows[0]?.count)).toBe(5);
+      });
+
+      And('tenant {string} has 3 rewards seeded', async (_ctx, slug: string) => {
+        const { rows } = await db.execute<{ count: string }>(
+          sql`SELECT COUNT(*)::text AS count FROM rewards WHERE tenant_id = ${tenantIds[slug]!}`,
         );
         expect(Number(rows[0]?.count)).toBe(3);
       });

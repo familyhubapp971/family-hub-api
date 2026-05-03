@@ -305,6 +305,88 @@ export type Habit = typeof habits.$inferSelect;
 export type NewHabit = typeof habits.$inferInsert;
 
 /**
+ * `rewards` (FHS-40) — items kids can redeem with stickers earned from
+ * habits + chores. Each tenant has its own list, seeded with 3 starter
+ * rewards on onboarding completion.
+ *
+ * Soft-delete via `archived_at` so a redeemed reward's history (a
+ * future `reward_redemptions` table) still has a valid FK.
+ */
+export const rewards = pgTable(
+  'rewards',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    // Stickers required to redeem. Stored as integer; the family
+    // earns stickers from habit/chore completion (separate ledger).
+    stickerCost: integer('sticker_cost').notNull().default(1),
+    // Optional emoji shown next to the reward in the UI.
+    icon: text('icon'),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('rewards_tenant_id_idx').on(t.tenantId, t.id),
+    index('rewards_tenant_created_idx').on(t.tenantId, t.createdAt),
+  ],
+);
+
+export type Reward = typeof rewards.$inferSelect;
+export type NewReward = typeof rewards.$inferInsert;
+
+/**
+ * Day of the week — Mon-first to align with `weeks.start_date` (also
+ * Monday-anchored across the schema).
+ */
+export const dayOfWeek = pgEnum('day_of_week', ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
+
+/**
+ * Meal slot inside a day. The four most-common slots families plan
+ * around; if a family doesn't eat lunch at home that's fine — the row
+ * just stays empty.
+ */
+export const mealSlot = pgEnum('meal_slot', ['breakfast', 'lunch', 'dinner', 'snack']);
+
+/**
+ * `meal_templates` (FHS-40) — the family's repeating weekly meal plan.
+ * One row per (tenant, day_of_week, slot). Seeded EMPTY at onboarding
+ * (the AC says "empty weekly meal template") — the table just exists
+ * for the UI to write into. The unique partial index keeps each tenant
+ * to one row per slot.
+ *
+ * Per-week meal logs (e.g. "this Tuesday's lunch was actually pizza")
+ * are a separate `week_meals` table when that feature ships.
+ */
+export const mealTemplates = pgTable(
+  'meal_templates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    dayOfWeek: dayOfWeek('day_of_week').notNull(),
+    slot: mealSlot('slot').notNull(),
+    name: text('name'),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('meal_templates_tenant_id_idx').on(t.tenantId, t.id),
+    index('meal_templates_tenant_created_idx').on(t.tenantId, t.createdAt),
+    uniqueIndex('meal_templates_tenant_day_slot_uniq').on(t.tenantId, t.dayOfWeek, t.slot),
+  ],
+);
+
+export type MealTemplate = typeof mealTemplates.$inferSelect;
+export type NewMealTemplate = typeof mealTemplates.$inferInsert;
+
+/**
  * `week_actions` — per-week tracking entry: did `member_id` complete `habit_id`
  * during `week_id`, and how many times.
  *
@@ -520,6 +602,8 @@ export const TENANT_SCOPED_TABLES = [
   pendingInvitations,
   weeks,
   habits,
+  rewards,
+  mealTemplates,
   weekActions,
   savings,
   savingsTransactions,

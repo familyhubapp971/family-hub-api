@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { members, memberRole, tenants, type Tenant } from '../db/schema.js';
+import { seedTenantDefaults } from '../db/seed-tenant-defaults.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 import { createLogger } from '../logger.js';
 
@@ -145,11 +146,14 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
     return c.json(completeOnboardingResponseSchema.parse(project(current, 0)), 200);
   }
 
-  // Single transaction: members insert + tenant update commit
-  // together so a partial failure doesn't leave the family in a
+  // Single transaction: members insert + tenant update + starter
+  // content seed (FHS-40) all commit together. Partial failure rolls
+  // back the whole onboarding so the family doesn't end up in a
   // half-onboarded state.
   let updatedTenant: Tenant | undefined;
   let membersAdded = 0;
+  let seedHabitsAdded = 0;
+  let seedRewardsAdded = 0;
   try {
     await db.transaction(async (tx) => {
       const newMemberRows = parsed.data.members.map((m) => ({
@@ -174,6 +178,14 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
       const t = updated[0];
       if (!t) throw new Error('tenant update returned no row');
       updatedTenant = t;
+
+      // FHS-40 — seed starter habits + rewards (empty meal template
+      // by design). Idempotency is upstream: this branch only runs
+      // when onboarding_completed was false, so the seed never fires
+      // twice for the same tenant.
+      const seeded = await seedTenantDefaults(tx, tenantId);
+      seedHabitsAdded = seeded.habitsAdded;
+      seedRewardsAdded = seeded.rewardsAdded;
     });
   } catch (err) {
     log.error(
@@ -191,7 +203,14 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
   }
 
   log.info(
-    { tenantId, membersAdded, timezone: parsed.data.timezone, currency: parsed.data.currency },
+    {
+      tenantId,
+      membersAdded,
+      seedHabitsAdded,
+      seedRewardsAdded,
+      timezone: parsed.data.timezone,
+      currency: parsed.data.currency,
+    },
     'onboarding completed',
   );
 

@@ -14,9 +14,16 @@ Feature: POST /api/onboarding/complete (FHS-37)
     And tenant "khan" has onboarding_completed = true
     And tenant "khan" has 3 members in total
     And tenant "smith" still has onboarding_completed = false
+    # FHS-40 — starter content seeded under tenant "khan", and only "khan".
+    And tenant "khan" has 5 habits seeded
+    And tenant "khan" has 3 rewards seeded
+    And tenant "smith" has 0 habits seeded
 
-  Scenario: Idempotent — second submit returns 200 without duplicating members
+  Scenario: Idempotent — second submit returns 200 without duplicating members or seed
     Given the admin has already completed onboarding for tenant "khan" with 2 members
     When the admin POSTs onboarding-complete for tenant "khan" with timezone "Asia/Dubai", currency "AED", and 2 members
     Then the response status is 200
     And tenant "khan" has 3 members in total
+    # FHS-40 — re-submit must NOT re-seed habits/rewards.
+    And tenant "khan" has 5 habits seeded
+    And tenant "khan" has 3 rewards seeded

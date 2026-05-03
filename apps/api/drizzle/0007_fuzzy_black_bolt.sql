@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS "meal_templates_tenant_created_idx" ON "meal_templates" USING btree ("tenant_id","created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "rewards_tenant_created_idx" ON "rewards" USING btree ("tenant_id","created_at");
