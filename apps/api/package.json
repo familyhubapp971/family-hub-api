@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "sh -c '([ -f ../../.env.local ] && tsx watch --env-file=../../.env.local src/index.ts) || tsx watch src/index.ts'",
-    "start": "node node_modules/drizzle-kit/bin.cjs push --force && sh -c '([ -f ../../.env.local ] && node --env-file=../../.env.local dist/index.js) || node dist/index.js'",
+    "start": "sh ./scripts/start.sh",
     "build": "tsc --noEmit && node build.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
