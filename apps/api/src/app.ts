@@ -18,6 +18,7 @@ import { healthRouter } from './routes/health.js';
 import { helloRouter } from './routes/hello.js';
 import { invitationsRouter } from './routes/invitations.js';
 import { meRouter } from './routes/me.js';
+import { mealsRouter } from './routes/meals.js';
 import { membersRouter } from './routes/members.js';
 import { onboardingRouter } from './routes/onboarding.js';
 import { publicTenantRouter } from './routes/public-tenant.js';
@@ -122,6 +123,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/invitations', invitationsRouter);
   app.route('/api/members', membersRouter);
   app.route('/api/dashboard', dashboardRouter);
+  app.route('/api/meals', mealsRouter);
   app.route('/api/onboarding', onboardingRouter);
 
   app.notFound((c) => c.json({ error: 'not found' }, 404));
