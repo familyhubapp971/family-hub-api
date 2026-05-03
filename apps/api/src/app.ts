@@ -14,6 +14,7 @@ import {
   type ResolveTenantOptions,
 } from './middleware/resolve-tenant.js';
 import { dashboardRouter } from './routes/dashboard.js';
+import { eventsRouter } from './routes/events.js';
 import { healthRouter } from './routes/health.js';
 import { helloRouter } from './routes/hello.js';
 import { invitationsRouter } from './routes/invitations.js';
@@ -124,6 +125,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/members', membersRouter);
   app.route('/api/dashboard', dashboardRouter);
   app.route('/api/meals', mealsRouter);
+  app.route('/api/events', eventsRouter);
   app.route('/api/onboarding', onboardingRouter);
 
   app.notFound((c) => c.json({ error: 'not found' }, 404));

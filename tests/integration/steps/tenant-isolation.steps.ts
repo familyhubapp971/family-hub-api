@@ -18,6 +18,7 @@ import {
   TENANT_SCOPED_TABLES,
   activityLogs,
   appSettings,
+  events,
   habits,
   investments,
   mealTemplates,
@@ -47,6 +48,7 @@ const ALL_SCHEMA_TABLES = [
   habits,
   rewards,
   mealTemplates,
+  events,
   weekActions,
   savings,
   savingsTransactions,
@@ -120,6 +122,15 @@ async function seedRow(
         dayOfWeek: 'mon',
         slot: 'breakfast',
         name: `meal-${tenantId.slice(0, 4)}`,
+      });
+      break;
+    }
+    case 'events': {
+      // FHS-230 — one event per tenant; date can repeat freely.
+      await db.insert(events).values({
+        tenantId,
+        date: '2026-01-06',
+        title: `event-${tenantId.slice(0, 4)}`,
       });
       break;
     }
@@ -220,6 +231,7 @@ async function seedAllTablesForTenant(db: Database, tenantId: string): Promise<v
     'habits',
     'rewards', // tenant-only — no FK dependencies
     'meal_templates', // tenant-only — no FK dependencies
+    'events', // tenant-only — member_id FK is nullable, no need to seed it
     'savings',
     'week_actions', // needs member + week + habit
     'savings_transactions', // needs savings

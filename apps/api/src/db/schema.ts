@@ -387,6 +387,43 @@ export type MealTemplate = typeof mealTemplates.$inferSelect;
 export type NewMealTemplate = typeof mealTemplates.$inferInsert;
 
 /**
+ * `events` (FHS-230) — calendar entries on the family Calendar tab.
+ * One row per event. `date` is a calendar day (no time zone); the
+ * optional `start_time` / `end_time` are HH:MM strings interpreted
+ * in the tenant's IANA timezone. `member_id` links the event to a
+ * specific family member when set (e.g. "Iman's swimming") and is
+ * nullable for whole-family events.
+ *
+ * Recurring events (weekly, monthly) are deferred — they'll need a
+ * separate `event_rules` table when shipped.
+ */
+export const events = pgTable(
+  'events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    date: date('date').notNull(),
+    startTime: text('start_time'),
+    endTime: text('end_time'),
+    title: text('title').notNull(),
+    notes: text('notes'),
+    memberId: uuid('member_id').references(() => members.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('events_tenant_id_idx').on(t.tenantId, t.id),
+    index('events_tenant_date_idx').on(t.tenantId, t.date),
+    index('events_tenant_member_idx').on(t.tenantId, t.memberId),
+  ],
+);
+
+export type Event = typeof events.$inferSelect;
+export type NewEvent = typeof events.$inferInsert;
+
+/**
  * `week_actions` — per-week tracking entry: did `member_id` complete `habit_id`
  * during `week_id`, and how many times.
  *
@@ -604,6 +641,7 @@ export const TENANT_SCOPED_TABLES = [
   habits,
   rewards,
   mealTemplates,
+  events,
   weekActions,
   savings,
   savingsTransactions,
