@@ -8,6 +8,11 @@ import { authMiddleware, type AuthMiddlewareOptions } from './middleware/auth.js
 import { corsMiddleware } from './middleware/cors-allowlist.js';
 import { rateLimit } from './middleware/rate-limit.js';
 import { requestContext } from './middleware/request-context.js';
+import {
+  makeDbLookup,
+  resolveTenant,
+  type ResolveTenantOptions,
+} from './middleware/resolve-tenant.js';
 import { healthRouter } from './routes/health.js';
 import { helloRouter } from './routes/hello.js';
 import { meRouter } from './routes/me.js';
@@ -20,6 +25,12 @@ const log = createLogger('app');
 export interface BuildAppOptions {
   /** Test hook — passed straight through to authMiddleware. */
   auth?: AuthMiddlewareOptions;
+  /**
+   * Test hook — passed to resolveTenant. Production wires
+   * `lookupTenantId` to a real Drizzle query against the lazy DB pool.
+   * Tests inject a stub so they don't need a live Postgres.
+   */
+  resolveTenant?: ResolveTenantOptions;
 }
 
 export function buildApp(opts: BuildAppOptions = {}) {
@@ -72,6 +83,15 @@ export function buildApp(opts: BuildAppOptions = {}) {
     ...(opts.auth ?? {}),
   };
   app.use('*', authMiddleware(authOpts));
+
+  // Tenant resolution runs AFTER auth so the JWT-claim source can use
+  // the verified payload. Public paths (slug-available, etc.) skipped
+  // auth and therefore have no user; resolveTenant falls through to
+  // subdomain / path-prefix sources, or leaves tenantId undefined.
+  const resolveTenantOpts: ResolveTenantOptions = opts.resolveTenant ?? {
+    lookupTenantId: makeDbLookup(getDb()),
+  };
+  app.use('*', resolveTenant(resolveTenantOpts));
 
   app.use('*', async (c, next) => {
     const started = Date.now();
