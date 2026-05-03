@@ -25,6 +25,16 @@ const configSchema = z
     // Required in production; empty in dev/test means the middleware
     // rejects every protected request (fail-closed) until configured.
     SUPABASE_URL: z.string().url().optional(),
+    // Service-role key — required by routes that call Supabase admin
+    // APIs (e.g. POST /api/invitations → admin.inviteUserByEmail in
+    // FHS-91). Optional in dev so health/hello stay bootable without
+    // it, but routes that need it fail loudly when it's missing.
+    SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+    // Public origin where the SPA serves the auth callback (e.g.
+    // https://frontend-staging-409d.up.railway.app). Used to build the
+    // redirectTo URL on Supabase admin invites — the invitee clicks
+    // the email link and lands on <APP_BASE_URL>/auth/callback.
+    APP_BASE_URL: z.string().url().optional(),
     // Cache TTL for the JWKS in milliseconds. 10 minutes by default —
     // long enough to amortise network cost, short enough that a key
     // rotation propagates without an api restart.

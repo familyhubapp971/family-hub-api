@@ -15,6 +15,7 @@ import {
 } from './middleware/resolve-tenant.js';
 import { healthRouter } from './routes/health.js';
 import { helloRouter } from './routes/hello.js';
+import { invitationsRouter } from './routes/invitations.js';
 import { meRouter } from './routes/me.js';
 import { publicTenantRouter } from './routes/public-tenant.js';
 import { slugAvailableRouter } from './routes/slug-available.js';
@@ -115,6 +116,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/me', meRouter);
   app.route('/api/public/tenant', publicTenantRouter);
   app.route('/api/public/slug-available', slugAvailableRouter);
+  app.route('/api/invitations', invitationsRouter);
 
   app.notFound((c) => c.json({ error: 'not found' }, 404));
   app.onError((err, c) => {

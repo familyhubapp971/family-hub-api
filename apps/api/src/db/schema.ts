@@ -8,6 +8,7 @@
 // id", which keeps the global-table shape consistent with the rest of
 // the schema and stops a misconfigured role from selecting every row.
 
+import { sql } from 'drizzle-orm';
 import {
   date,
   index,
@@ -165,6 +166,69 @@ export const members = pgTable(
 
 export type Member = typeof members.$inferSelect;
 export type NewMember = typeof members.$inferInsert;
+
+/**
+ * `pending_invitations` (FHS-91) — outstanding invites awaiting accept.
+ *
+ * One row per invite *send*. When an admin clicks "invite Sarah" we
+ * INSERT a row here with status='pending', then call
+ * `supabase.auth.admin.inviteUserByEmail` so Supabase mails the magic
+ * link. The redemption endpoint (FHS-92) flips status → 'accepted' and
+ * promotes the invite to a real `members` row at the same time.
+ *
+ * Distinct from `members` rows-with-null-user_id: members represents
+ * realised relationships, this represents the paperwork. Decoupling
+ * keeps invite-flow metadata (supabase_invite_id, invited_by, status)
+ * out of the members table where it would only ever be useful for
+ * rows that haven't accepted yet.
+ *
+ * Tenant-scoped — the unique partial index below blocks a tenant from
+ * double-inviting the same email while a previous invite is still
+ * pending. Different tenants inviting the same email is fine.
+ */
+export const invitationStatus = pgEnum('invitation_status', [
+  'pending',
+  'accepted',
+  'revoked',
+  'expired',
+]);
+
+export const pendingInvitations = pgTable(
+  'pending_invitations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    // citext would be ideal here but we lean on Postgres lower(email)
+    // in the unique index below to make case-insensitive uniqueness
+    // work without enabling the citext extension in every environment.
+    email: text('email').notNull(),
+    role: memberRole('role').notNull().default('adult'),
+    // members.id of the person who sent the invite. Nullable because
+    // the inviter could be removed from the family later — we still
+    // want the invite history.
+    invitedBy: uuid('invited_by').references(() => members.id, { onDelete: 'set null' }),
+    // Opaque id returned by Supabase admin invite — used by FHS-93/96
+    // for revoke + token-expiry checks.
+    supabaseInviteId: text('supabase_invite_id'),
+    status: invitationStatus('status').notNull().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('pending_invitations_tenant_status_idx').on(t.tenantId, t.status),
+    // Partial unique: at most one outstanding (pending) invite per
+    // (tenant, email). Accepted/revoked/expired rows don't block a
+    // re-invite.
+    uniqueIndex('pending_invitations_tenant_email_pending_uniq')
+      .on(t.tenantId, sql`lower(${t.email})`)
+      .where(sql`status = 'pending'`),
+  ],
+);
+
+export type PendingInvitation = typeof pendingInvitations.$inferSelect;
+export type NewPendingInvitation = typeof pendingInvitations.$inferInsert;
 
 /**
  * `weeks` — Mon–Sun tracking unit.
@@ -447,6 +511,7 @@ export type NewActivityLog = typeof activityLogs.$inferInsert;
  */
 export const TENANT_SCOPED_TABLES = [
   members,
+  pendingInvitations,
   weeks,
   habits,
   weekActions,

@@ -21,6 +21,7 @@ import {
   habits,
   investments,
   members,
+  pendingInvitations,
   savings,
   savingsTransactions,
   tenants,
@@ -39,6 +40,7 @@ const ALL_SCHEMA_TABLES = [
   users,
   tenants,
   members,
+  pendingInvitations,
   weeks,
   habits,
   weekActions,
@@ -82,6 +84,18 @@ async function seedRow(
         .values({ tenantId, displayName: `member-${tenantId.slice(0, 4)}` })
         .returning();
       ctx.memberId = r!.id;
+      break;
+    }
+    case 'pending_invitations': {
+      // Per-tenant fixture: a single pending invite under each tenant.
+      // Email is namespaced by tenantId so the partial unique index
+      // (tenant_id, lower(email)) WHERE status='pending' doesn't bite.
+      await db.insert(pendingInvitations).values({
+        tenantId,
+        email: `invitee-${tenantId.slice(0, 4)}@example.com`,
+        role: 'adult',
+        invitedBy: ctx.memberId!,
+      });
       break;
     }
     case 'weeks': {
@@ -176,6 +190,7 @@ async function seedAllTablesForTenant(db: Database, tenantId: string): Promise<v
   // their parents — process them last via a sorted pass.
   const DEPENDENCY_ORDER = [
     'members',
+    'pending_invitations', // needs member (invited_by FK)
     'weeks',
     'habits',
     'savings',

@@ -29,6 +29,13 @@
       "when": 1777701542801,
       "tag": "0003_tenants_content",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777785027122,
+      "tag": "0004_first_cloak",
+      "breakpoints": true
     }
   ]
 }
