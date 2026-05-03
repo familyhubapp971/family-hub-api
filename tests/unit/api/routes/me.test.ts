@@ -1,12 +1,27 @@
 import { Hono } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   authMiddleware,
   _resetJwksCacheForTests,
 } from '../../../../apps/api/src/middleware/auth.js';
 import { meRouter, meResponseSchema } from '../../../../apps/api/src/routes/me.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
+
+// /api/me now joins members → tenants for the FHS-37 onboarding gate;
+// stub getDb so the route uses our handcrafted chain instead of opening
+// a real pool.
+const dbMock = { select: vi.fn() };
+vi.mock('../../../../apps/api/src/db/client.js', () => ({
+  getDb: () => dbMock,
+}));
+
+beforeEach(() => {
+  // Default: user belongs to no tenants. Individual tests override.
+  dbMock.select.mockReturnValue({
+    from: () => ({ innerJoin: () => ({ where: () => Promise.resolve([]) }) }),
+  });
+});
 
 const ISSUER = 'https://test.supabase.local/auth/v1';
 const KID = 'me-test-kid';
@@ -98,6 +113,7 @@ describe('FHS-194 — GET /api/me', () => {
       id: USER_ID,
       email: USER_EMAIL,
       createdAt: '2026-01-15T10:30:00.000Z',
+      tenants: [],
     });
 
     // Mirror sync was called with the verified claims.

@@ -10,6 +10,7 @@
 
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   date,
   index,
   integer,
@@ -95,6 +96,11 @@ export const tenants = pgTable('tenants', {
   timezone: text('timezone').notNull().default('UTC'),
   // ISO 4217 currency code (e.g. "AED", "USD"). Drives Stripe + UI.
   currency: varchar('currency', { length: 3 }).notNull().default('USD'),
+  // Set to true by POST /api/onboarding/complete (FHS-37) once the
+  // family finishes the wizard. The /onboarding route bounces back
+  // to /dashboard when this is true so a returning user doesn't get
+  // the wizard a second time.
+  onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

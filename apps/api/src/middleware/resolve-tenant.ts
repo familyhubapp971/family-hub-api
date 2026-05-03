@@ -6,13 +6,17 @@ import { createLogger } from '../logger.js';
 
 // FHS-13 + FHS-249 — resolveTenant middleware.
 //
-// Sets c.var.tenantId / c.var.tenantSlug from one of three sources, in
+// Sets c.var.tenantId / c.var.tenantSlug from one of four sources, in
 // precedence order:
 //   1. JWT custom claim (app_metadata.tenant_slug) — fastest, no DB hit
 //      required to choose; we still verify the slug exists below.
 //   2. Subdomain — Host = `<slug>.<BASE_DOMAIN>`. Skipped when
 //      BASE_DOMAIN is `localhost` because local dev never uses subdomains.
-//   3. Path prefix — request path begins with `/t/<slug>/`. This is the
+//   3. `X-Tenant-Slug` request header — the SPA's hint when its
+//      route lives at `/t/<slug>/...` but the API call goes to a
+//      tenant-agnostic path like `/api/onboarding/complete`. Same
+//      validation as every other source (SLUG_RE before DB lookup).
+//   4. Path prefix — request path begins with `/t/<slug>/`. This is the
 //      interim mechanism (see ADR 0012) until we own a real domain.
 //
 // On miss the context vars stay undefined. Public routes that don't
@@ -148,7 +152,15 @@ function pickSlug(c: Parameters<MiddlewareHandler>[0], baseDomain: string): stri
     }
   }
 
-  // Source 3 — path prefix /t/<slug>/...
+  // Source 3 — `X-Tenant-Slug` request header. Set by the SPA when
+  // it's calling a tenant-agnostic API path from inside a /t/:slug/*
+  // route (e.g. POST /api/onboarding/complete from the wizard). The
+  // same SLUG_RE gate at the call site prevents a forged value from
+  // reaching the DB lookup.
+  const headerSlug = c.req.header('x-tenant-slug')?.trim();
+  if (headerSlug) return headerSlug;
+
+  // Source 4 — path prefix /t/<slug>/...
   const m = PATH_SLUG_RE.exec(c.req.path);
   if (m && m[1]) return m[1];
 

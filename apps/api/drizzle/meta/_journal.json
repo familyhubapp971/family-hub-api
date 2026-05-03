@@ -36,6 +36,13 @@
       "when": 1777785027122,
       "tag": "0004_first_cloak",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777792248661,
+      "tag": "0005_icy_titanium_man",
+      "breakpoints": true
     }
   ]
 }
