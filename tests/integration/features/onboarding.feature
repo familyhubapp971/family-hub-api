@@ -27,3 +27,16 @@ Feature: POST /api/onboarding/complete (FHS-37)
     # FHS-40 — re-submit must NOT re-seed habits/rewards.
     And tenant "khan" has 5 habits seeded
     And tenant "khan" has 3 rewards seeded
+
+  # FHS-41 — atomicity. If any step inside the onboarding transaction
+  # throws, the whole submission must roll back: no members inserted,
+  # no seeded content, tenant flag unchanged. Simulated by stubbing the
+  # seed helper to reject mid-transaction.
+  Scenario: Partial-failure rollback — seed throws, nothing commits
+    Given the seed step will throw on the next submission
+    When the admin POSTs onboarding-complete for tenant "khan" with timezone "Asia/Dubai", currency "AED", and 2 members
+    Then the response status is 500
+    And tenant "khan" still has onboarding_completed = false
+    And tenant "khan" has 1 member in total
+    And tenant "khan" has 0 habits seeded
+    And tenant "khan" has 0 rewards seeded

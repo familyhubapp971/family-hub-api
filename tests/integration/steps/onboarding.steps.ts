@@ -14,6 +14,30 @@ vi.mock('../../../apps/api/src/db/client.js', () => ({
   getDb: () => getTestDb(),
 }));
 
+// FHS-41 — partial-failure rollback scenario needs the seed step to
+// throw mid-transaction. Default: delegate to the real implementation
+// so the existing scenarios still seed habits/rewards. The "Given the
+// seed step will throw" step flips `seedShouldThrow=true` for one
+// scenario; the Background's truncate resets it before the next.
+let seedShouldThrow = false;
+vi.mock('../../../apps/api/src/db/seed-tenant-defaults.js', async () => {
+  const actual = await vi.importActual<
+    typeof import('../../../apps/api/src/db/seed-tenant-defaults.js')
+  >('../../../apps/api/src/db/seed-tenant-defaults.js');
+  return {
+    ...actual,
+    seedTenantDefaults: async (
+      db: Parameters<typeof actual.seedTenantDefaults>[0],
+      tenantId: string,
+    ) => {
+      if (seedShouldThrow) {
+        throw new Error('[FHS-41 test] forced seed failure for rollback assertion');
+      }
+      return actual.seedTenantDefaults(db, tenantId);
+    },
+  };
+});
+
 const feature = await loadFeature(
   new URL('../features/onboarding.feature', import.meta.url).pathname,
 );
@@ -66,9 +90,12 @@ describeFeature(feature, ({ Background, Scenario }) => {
     Given('the test Postgres has clean tenants, members, and onboarding state', async () => {
       db = getTestDb() as unknown as Database;
       await db.execute(sql`TRUNCATE TABLE pending_invitations RESTART IDENTITY CASCADE`);
+      await db.execute(sql`TRUNCATE TABLE rewards RESTART IDENTITY CASCADE`);
+      await db.execute(sql`TRUNCATE TABLE habits RESTART IDENTITY CASCADE`);
       await db.execute(sql`TRUNCATE TABLE members RESTART IDENTITY CASCADE`);
       await db.execute(sql`TRUNCATE TABLE tenants RESTART IDENTITY CASCADE`);
       _resetJwksCacheForTests();
+      seedShouldThrow = false; // FHS-41 — reset rollback flag per scenario
       for (const k of Object.keys(tenantIds)) delete tenantIds[k];
     });
 
@@ -270,6 +297,75 @@ describeFeature(feature, ({ Background, Scenario }) => {
           sql`SELECT COUNT(*)::text AS count FROM rewards WHERE tenant_id = ${tenantIds[slug]!}`,
         );
         expect(Number(rows[0]?.count)).toBe(3);
+      });
+    },
+  );
+
+  // FHS-41 — atomicity. Forces the seed step to throw mid-transaction
+  // and asserts the route returns 500 + nothing in the DB changed.
+  Scenario(
+    'Partial-failure rollback — seed throws, nothing commits',
+    ({ Given, When, Then, And }) => {
+      let res: Response;
+
+      Given('the seed step will throw on the next submission', () => {
+        seedShouldThrow = true;
+      });
+
+      When(
+        'the admin POSTs onboarding-complete for tenant {string} with timezone {string}, currency {string}, and 2 members',
+        async (_ctx, slug: string, timezone: string, currency: string) => {
+          res = await app.request('/api/onboarding/complete', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'x-test-tenant': tenantIds[slug]!,
+            },
+            body: JSON.stringify({
+              timezone,
+              currency,
+              members: [
+                { displayName: 'Iman', role: 'child' },
+                { displayName: 'Yusuf', role: 'adult' },
+              ],
+            }),
+          });
+        },
+      );
+
+      Then('the response status is 500', () => {
+        expect(res.status).toBe(500);
+      });
+
+      And('tenant {string} still has onboarding_completed = false', async (_ctx, slug: string) => {
+        const { rows } = await db.execute<{ onboarding_completed: boolean }>(
+          sql`SELECT onboarding_completed FROM tenants WHERE id = ${tenantIds[slug]!}`,
+        );
+        expect(rows[0]?.onboarding_completed).toBe(false);
+      });
+
+      And('tenant {string} has 1 member in total', async (_ctx, slug: string) => {
+        // Background inserted the founding admin; rollback means the
+        // wizard's 2 additional members were undone.
+        const { rows } = await db.execute<{ count: string }>(
+          sql`SELECT COUNT(*)::text AS count FROM members WHERE tenant_id = ${tenantIds[slug]!}`,
+        );
+        expect(Number(rows[0]?.count)).toBe(1);
+      });
+
+      And('tenant {string} has 0 habits seeded', async (_ctx, slug: string) => {
+        const { rows } = await db.execute<{ count: string }>(
+          sql`SELECT COUNT(*)::text AS count FROM habits WHERE tenant_id = ${tenantIds[slug]!}`,
+        );
+        expect(Number(rows[0]?.count)).toBe(0);
+      });
+
+      And('tenant {string} has 0 rewards seeded', async (_ctx, slug: string) => {
+        const { rows } = await db.execute<{ count: string }>(
+          sql`SELECT COUNT(*)::text AS count FROM rewards WHERE tenant_id = ${tenantIds[slug]!}`,
+        );
+        expect(Number(rows[0]?.count)).toBe(0);
       });
     },
   );
