@@ -424,6 +424,40 @@ export type Event = typeof events.$inferSelect;
 export type NewEvent = typeof events.$inferInsert;
 
 /**
+ * `assignments` (FHS-231) — homework / chores list on the family
+ * Assignments tab. One row per task. `due_date` is optional (general
+ * "to-do") — when set, lists sort earliest-first. `done_at` toggles
+ * completion (timestamp so we can show "completed at" later); UI
+ * filters by it. `member_id` assigns the assignment to a specific
+ * family member (e.g. "Iman's maths homework") and is nullable for
+ * household-wide tasks.
+ */
+export const assignments = pgTable(
+  'assignments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    notes: text('notes'),
+    dueDate: date('due_date'),
+    memberId: uuid('member_id').references(() => members.id, { onDelete: 'set null' }),
+    doneAt: timestamp('done_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('assignments_tenant_id_idx').on(t.tenantId, t.id),
+    index('assignments_tenant_due_idx').on(t.tenantId, t.dueDate),
+    index('assignments_tenant_member_idx').on(t.tenantId, t.memberId),
+  ],
+);
+
+export type Assignment = typeof assignments.$inferSelect;
+export type NewAssignment = typeof assignments.$inferInsert;
+
+/**
  * `week_actions` — per-week tracking entry: did `member_id` complete `habit_id`
  * during `week_id`, and how many times.
  *
@@ -642,6 +676,7 @@ export const TENANT_SCOPED_TABLES = [
   rewards,
   mealTemplates,
   events,
+  assignments,
   weekActions,
   savings,
   savingsTransactions,

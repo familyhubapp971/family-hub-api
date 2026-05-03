@@ -18,6 +18,7 @@ import {
   TENANT_SCOPED_TABLES,
   activityLogs,
   appSettings,
+  assignments,
   events,
   habits,
   investments,
@@ -134,6 +135,16 @@ async function seedRow(
       });
       break;
     }
+    case 'assignments': {
+      // FHS-231 — one assignment per tenant; due_date is optional but
+      // we set it so the index is exercised.
+      await db.insert(assignments).values({
+        tenantId,
+        title: `assignment-${tenantId.slice(0, 4)}`,
+        dueDate: '2026-01-10',
+      });
+      break;
+    }
     case 'weeks': {
       const [r] = await db
         .insert(weeks)
@@ -232,6 +243,7 @@ async function seedAllTablesForTenant(db: Database, tenantId: string): Promise<v
     'rewards', // tenant-only — no FK dependencies
     'meal_templates', // tenant-only — no FK dependencies
     'events', // tenant-only — member_id FK is nullable, no need to seed it
+    'assignments', // tenant-only — member_id FK is nullable, no need to seed it
     'savings',
     'week_actions', // needs member + week + habit
     'savings_transactions', // needs savings

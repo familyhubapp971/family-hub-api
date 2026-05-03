@@ -516,6 +516,49 @@ here for emphasis on this repo:
 - **Never** create planning, decision, or analysis docs unless asked —
   ADRs in `documents/decisions/` are the exception (created via FHS-171/172/174).
 
+### gh / git account safety
+
+The Mac has multiple GitHub accounts logged into `gh` (`qualicion`,
+`familyhubapp971`, `BabatundeOduniyi-ext_adcb`). This repo is owned
+by **`familyhubapp971`** — only that account has push + PR-merge
+permission. Most commands (`gh pr checks`, `gh api`, `gh pr view`)
+work from any account, but anything that **mutates the repo** —
+`git push`, `gh pr create`, `gh pr merge`, `gh pr close`, branch
+creation on the remote — fails with `403` or
+`does not have the correct permissions` when the active gh account
+isn't `familyhubapp971`.
+
+Before running any push / PR-create / PR-merge / branch-push command:
+
+1. Check the active account: `gh auth status 2>&1 | head -5`
+   (look for the `Active account: true` line under `familyhubapp971`).
+2. If the active account is anything else, switch:
+   `gh auth switch --user familyhubapp971`.
+3. If the switch fails with a keyring timeout (e.g. another
+   `gh`/`git` invocation is mid-flight holding the keyring lock),
+   **wait for that command to finish** before retrying — don't
+   force-kill or sleep-loop. A second retry of `gh auth switch
+--user familyhubapp971` after the other command completes is
+   usually enough.
+
+Read-only commands (`gh pr checks`, `gh pr view`, `gh api`,
+`gh run view`) do not require switching — they work fine from any
+authenticated account.
+
+Concrete pattern that's safe to embed in any push/merge step:
+
+```bash
+# Ensure we're pushing as the repo owner.
+gh auth switch --user familyhubapp971 2>&1 | tail -1
+git push -u origin <branch>
+```
+
+Anti-pattern: pushing without checking, getting a confusing
+`Permission to use Bash with command git push has been denied` or
+`403`-style failure, then retrying without switching the account —
+the failure isn't a permission denial from the tool, it's GitHub
+rejecting the push because the wrong account is active.
+
 ---
 
 ## Explaining decisions — keep it simple
