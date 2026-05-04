@@ -24,6 +24,7 @@ import {
   investments,
   mealTemplates,
   members,
+  notices,
   pendingInvitations,
   rewards,
   savings,
@@ -145,6 +146,14 @@ async function seedRow(
       });
       break;
     }
+    case 'notices': {
+      // FHS-232 — one notice per tenant.
+      await db.insert(notices).values({
+        tenantId,
+        body: `notice-${tenantId.slice(0, 4)}`,
+      });
+      break;
+    }
     case 'weeks': {
       const [r] = await db
         .insert(weeks)
@@ -244,6 +253,7 @@ async function seedAllTablesForTenant(db: Database, tenantId: string): Promise<v
     'meal_templates', // tenant-only — no FK dependencies
     'events', // tenant-only — member_id FK is nullable, no need to seed it
     'assignments', // tenant-only — member_id FK is nullable, no need to seed it
+    'notices', // tenant-only — author_member_id FK is nullable
     'savings',
     'week_actions', // needs member + week + habit
     'savings_transactions', // needs savings

@@ -458,6 +458,37 @@ export type Assignment = typeof assignments.$inferSelect;
 export type NewAssignment = typeof assignments.$inferInsert;
 
 /**
+ * `notices` (FHS-232) — family bulletin board on the Noticeboard tab.
+ * Pinned notes float to the top of the feed; everything else is in
+ * reverse-chronological order. `author_member_id` records who posted
+ * the note (FK set null on member delete so deleting a parent doesn't
+ * vaporise their notices).
+ */
+export const notices = pgTable(
+  'notices',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    body: text('body').notNull(),
+    pinned: boolean('pinned').notNull().default(false),
+    authorMemberId: uuid('author_member_id').references(() => members.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('notices_tenant_id_idx').on(t.tenantId, t.id),
+    index('notices_tenant_pinned_created_idx').on(t.tenantId, t.pinned, t.createdAt),
+  ],
+);
+
+export type Notice = typeof notices.$inferSelect;
+export type NewNotice = typeof notices.$inferInsert;
+
+/**
  * `week_actions` — per-week tracking entry: did `member_id` complete `habit_id`
  * during `week_id`, and how many times.
  *
@@ -677,6 +708,7 @@ export const TENANT_SCOPED_TABLES = [
   mealTemplates,
   events,
   assignments,
+  notices,
   weekActions,
   savings,
   savingsTransactions,

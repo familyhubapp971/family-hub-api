@@ -22,6 +22,7 @@ import { invitationsRouter } from './routes/invitations.js';
 import { meRouter } from './routes/me.js';
 import { mealsRouter } from './routes/meals.js';
 import { membersRouter } from './routes/members.js';
+import { noticesRouter } from './routes/notices.js';
 import { onboardingRouter } from './routes/onboarding.js';
 import { publicTenantRouter } from './routes/public-tenant.js';
 import { slugAvailableRouter } from './routes/slug-available.js';
@@ -128,6 +129,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/meals', mealsRouter);
   app.route('/api/events', eventsRouter);
   app.route('/api/assignments', assignmentsRouter);
+  app.route('/api/notices', noticesRouter);
   app.route('/api/onboarding', onboardingRouter);
 
   app.notFound((c) => c.json({ error: 'not found' }, 404));
