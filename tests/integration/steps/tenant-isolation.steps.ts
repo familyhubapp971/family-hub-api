@@ -29,6 +29,7 @@ import {
   rewards,
   savings,
   savingsTransactions,
+  tasks,
   tenants,
   weekActions,
   weeks,
@@ -154,6 +155,17 @@ async function seedRow(
       });
       break;
     }
+    case 'tasks': {
+      // FHS-233 — one task per tenant. member_id is NOT NULL — point
+      // it at the tenant's seed member (always present per the
+      // dependency order).
+      await db.insert(tasks).values({
+        tenantId,
+        memberId: ctx.memberId!,
+        title: `task-${tenantId.slice(0, 4)}`,
+      });
+      break;
+    }
     case 'weeks': {
       const [r] = await db
         .insert(weeks)
@@ -254,6 +266,7 @@ async function seedAllTablesForTenant(db: Database, tenantId: string): Promise<v
     'events', // tenant-only — member_id FK is nullable, no need to seed it
     'assignments', // tenant-only — member_id FK is nullable, no need to seed it
     'notices', // tenant-only — author_member_id FK is nullable
+    'tasks', // needs members (member_id NOT NULL FK)
     'savings',
     'week_actions', // needs member + week + habit
     'savings_transactions', // needs savings

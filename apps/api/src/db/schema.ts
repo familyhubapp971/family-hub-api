@@ -489,6 +489,38 @@ export type Notice = typeof notices.$inferSelect;
 export type NewNotice = typeof notices.$inferInsert;
 
 /**
+ * `tasks` (FHS-233) — per-member personal to-do list on the Tasks tab.
+ * Distinct from `assignments` (family homework): tasks are private to
+ * the assigned member; only that member can see / mutate them. The
+ * `member_id` FK uses `ON DELETE cascade` because removing a member
+ * vaporises their to-do list (no logical owner left).
+ */
+export const tasks = pgTable(
+  'tasks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    dueDate: date('due_date'),
+    doneAt: timestamp('done_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('tasks_tenant_id_idx').on(t.tenantId, t.id),
+    index('tasks_tenant_member_done_idx').on(t.tenantId, t.memberId, t.doneAt),
+  ],
+);
+
+export type Task = typeof tasks.$inferSelect;
+export type NewTask = typeof tasks.$inferInsert;
+
+/**
  * `week_actions` — per-week tracking entry: did `member_id` complete `habit_id`
  * during `week_id`, and how many times.
  *
@@ -709,6 +741,7 @@ export const TENANT_SCOPED_TABLES = [
   events,
   assignments,
   notices,
+  tasks,
   weekActions,
   savings,
   savingsTransactions,

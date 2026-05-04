@@ -78,6 +78,13 @@
       "when": 1777835218077,
       "tag": "0010_young_mister_sinister",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1777863358198,
+      "tag": "0011_sturdy_zodiak",
+      "breakpoints": true
     }
   ]
 }
