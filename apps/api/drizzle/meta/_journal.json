@@ -85,6 +85,13 @@
       "when": 1777863358198,
       "tag": "0011_sturdy_zodiak",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1777894224499,
+      "tag": "0012_bumpy_jamie_braddock",
+      "breakpoints": true
     }
   ]
 }

@@ -164,10 +164,23 @@ export const members = pgTable(
     displayName: text('display_name').notNull(),
     role: memberRole('role').notNull().default('adult'),
     avatarEmoji: text('avatar_emoji'),
+    // FHS-235 — Kid-Auth foundation. `pin_hash` holds a bcrypt hash of
+    // the kid's 4-digit PIN (null = no PIN set; parents never have
+    // one). `is_child` is an explicit flag for the kid-login flow,
+    // decoupled from `role` because a family may want a teen to use
+    // PIN-login or an adult-role member to sign in with a PIN — the
+    // role enum is about permissions, this flag is about auth flow.
+    pinHash: text('pin_hash'),
+    isChild: boolean('is_child').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('members_tenant_id_idx').on(t.tenantId, t.id)],
+  (t) => [
+    index('members_tenant_id_idx').on(t.tenantId, t.id),
+    // Lookup index for the kid-PIN login flow (tenant_slug → kid
+    // members in that tenant).
+    index('members_tenant_is_child_idx').on(t.tenantId, t.isChild),
+  ],
 );
 
 export type Member = typeof members.$inferSelect;
