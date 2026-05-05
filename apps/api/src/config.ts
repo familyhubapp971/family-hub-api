@@ -43,6 +43,33 @@ const configSchema = z
       .int()
       .positive()
       .default(10 * 60_000),
+    // FHS-236 — server-side secret used to sign / verify the
+    // child-scoped JWT issued by POST /api/auth/kid-pin. Required in
+    // production; in dev/test we tolerate a default so the api boots
+    // without the operator having generated a secret first.
+    KID_AUTH_SECRET: z
+      .string()
+      .min(32, 'KID_AUTH_SECRET must be at least 32 characters')
+      .default('dev-only-kid-auth-secret-replace-in-production'),
+    // Number of consecutive failed PINs before the (memberId, ip)
+    // bucket is locked out for KID_PIN_LOCKOUT_MS. Token bucket lives
+    // in process memory for v1 — replace with Redis once we have
+    // multi-replica api hosts.
+    KID_PIN_LOCKOUT_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
+    KID_PIN_LOCKOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(15 * 60_000),
+    // Lifetime of a successful kid JWT. Short by default — kids stay
+    // signed in long enough for a session of homework / meal-planning
+    // but the token expires before bedtime so an unattended device
+    // doesn't keep working overnight.
+    KID_JWT_TTL_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(60 * 60_000),
   })
   .superRefine((cfg, ctx) => {
     if (!cfg.DATABASE_URL) {
@@ -59,6 +86,16 @@ const configSchema = z
         code: z.ZodIssueCode.custom,
         path: ['SUPABASE_URL'],
         message: 'SUPABASE_URL is required in production for JWT verification (FHS-191).',
+      });
+    }
+    if (
+      cfg.NODE_ENV === 'production' &&
+      cfg.KID_AUTH_SECRET === 'dev-only-kid-auth-secret-replace-in-production'
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['KID_AUTH_SECRET'],
+        message: 'KID_AUTH_SECRET must be a real secret in production (FHS-236).',
       });
     }
   })

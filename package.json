@@ -56,6 +56,7 @@
     "@types/pg": "8.11.10",
     "@vitejs/plugin-react": "4.3.3",
     "@vitest/coverage-v8": "2.1.4",
+    "bcryptjs": "^3.0.3",
     "drizzle-orm": "0.36.1",
     "eslint": "9.18.0",
     "eslint-config-prettier": "9.1.0",

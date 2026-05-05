@@ -35,6 +35,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: 2.1.4
         version: 2.1.4(vitest@2.1.4(@types/node@20.16.11)(jsdom@25.0.1))
+      bcryptjs:
+        specifier: ^3.0.3
+        version: 3.0.3
       drizzle-orm:
         specifier: 0.36.1
         version: 0.36.1(@opentelemetry/api@1.9.1)(@types/pg@8.11.10)(@types/react@18.3.11)(pg@8.13.1)(react@18.3.1)
@@ -110,6 +113,9 @@ importers:
       '@sentry/node':
         specifier: ^8.55.2
         version: 8.55.2
+      bcryptjs:
+        specifier: ^3.0.3
+        version: 3.0.3
       drizzle-orm:
         specifier: 0.36.1
         version: 0.36.1(@opentelemetry/api@1.9.1)(@types/pg@8.11.10)(@types/react@18.3.11)(pg@8.13.1)(react@18.3.1)
@@ -2001,6 +2007,10 @@ packages:
   baseline-browser-mapping@2.10.21:
     resolution: {integrity: sha512-Q+rUQ7Uz8AHM7DEaNdwvfFCTq7a43lNTzuS94eiWqwyxfV/wJv+oUivef51T91mmRY4d4A1u9rcSvkeufCVXlA==}
     engines: {node: '>=6.0.0'}
+    hasBin: true
+
+  bcryptjs@3.0.3:
+    resolution: {integrity: sha512-GlF5wPWnSa/X5LKM1o0wz0suXIINz1iHRLvTS+sLyi7XPbe5ycmYI3DlZqVGZZtDgl4DmasFg7gOB3JYbphV5g==}
     hasBin: true
 
   binary-extensions@2.3.0:
@@ -5774,6 +5784,8 @@ snapshots:
   balanced-match@4.0.4: {}
 
   baseline-browser-mapping@2.10.21: {}
+
+  bcryptjs@3.0.3: {}
 
   binary-extensions@2.3.0: {}
 

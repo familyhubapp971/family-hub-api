@@ -14,6 +14,7 @@ import {
   type ResolveTenantOptions,
 } from './middleware/resolve-tenant.js';
 import { assignmentsRouter } from './routes/assignments.js';
+import { kidPinRouter } from './routes/auth-kid-pin.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { eventsRouter } from './routes/events.js';
 import { healthRouter } from './routes/health.js';
@@ -124,6 +125,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/me', meRouter);
   app.route('/api/public/tenant', publicTenantRouter);
   app.route('/api/public/slug-available', slugAvailableRouter);
+  app.route('/api/auth/kid-pin', kidPinRouter);
   app.route('/api/invitations', invitationsRouter);
   app.route('/api/members', membersRouter);
   app.route('/api/dashboard', dashboardRouter);

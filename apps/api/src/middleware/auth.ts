@@ -29,6 +29,9 @@ const PUBLIC_PATH_PREFIXES = [
   // namespace; gating it behind auth would force the signup form to
   // sign the user in before they've even picked a family name.
   '/api/public/slug-available',
+  // FHS-236 — kid-PIN login is itself the authentication step; it
+  // cannot be behind the auth middleware.
+  '/api/auth/kid-pin',
 ] as const;
 
 declare module 'hono' {
