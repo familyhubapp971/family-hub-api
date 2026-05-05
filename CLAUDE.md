@@ -340,6 +340,57 @@ Rules:
   publish to a per-version Confluence page.
 - Post-launch we move to semver `1.0.x` / `1.1.x`.
 
+### End-of-sprint demo manual testing
+
+Every sprint close ships a founder-facing manual E2E test pass. The
+parent Jira epic
+[**FHS-254 — End-of-sprint demo E2E manual testing**](https://qualicion2.atlassian.net/browse/FHS-254)
+collects one child Task per sprint (e.g. FHS-251 for Sprint 2). The
+child is the demo checklist: every user-visible flow shipped that
+sprint, ticked Pass / Fail / Blocked.
+
+**Trigger:** when a sprint's last code ticket closes — before
+transitioning the sprint complete in the board — create the child
+Task. Don't wait for the user to ask.
+
+**Steps (autonomous, no permission needed):**
+
+1. Create a new **Task** under FHS-254:
+   - Summary: `test: manual E2E test pass — Sprint N (<theme>) close`
+     (e.g. `test: manual E2E test pass — Sprint 3 (Modules & Gating) close`).
+   - Parent: FHS-254.
+   - Sprint: the closing sprint (e.g. 442 for Sprint 3).
+   - Fix Version: the closing sprint's cluster (e.g. `0.3-modules-gating`).
+   - Labels: `manual-test`, `qa`, `sprint-N-close`.
+2. Body is a **tabular checklist**, never prose. Structure:
+   - One section per epic shipped that sprint (e.g. Section A =
+     epic FHS-XXX).
+   - Within each section, a markdown table with columns:
+     `# | Step | Expected outcome | Result | Notes`.
+   - Rows numbered with a section letter (`A1`, `A2`, …).
+   - Plus a **Summary** table at the bottom with `Pass / Fail /
+Blocked` totals + counts of new bug docs filed.
+   - Plus a **Known bugs already filed** table linking
+     `bugs/<slug>.md` files to the row numbers they affect.
+3. Mirror the body to a markdown file at
+   `bugs/manual-e2e-sprint-N-test-pass.md` so the founder can edit
+   it during the demo. Frontmatter: `status: in-jira: FHS-XXX`,
+   `sprint: <id> (Sprint N — <theme>)`, `type: manual-test-pass`.
+4. Append a "Children" bullet to FHS-254's description body (already
+   has the list — just append the new key).
+5. Tell the user the demo sheet is ready + link both the Jira ticket
+   and the local markdown path.
+
+**Definition of done (per child):**
+
+- Every row has Result + Notes.
+- Summary totals filled in.
+- A bug doc filed in `bugs/` for every Fail (with `status: in-jira:
+FHS-XXX` once promoted).
+- Summary commented back on the child Task; transition to Done.
+- Demo doc (`documents/demo/whats-shipped.html`) refreshed if any
+  shipped flow needs revision based on what the test pass found.
+
 ### Decisions log sync
 
 ADRs in [`documents/decisions/`](documents/decisions/) are the canonical record of
