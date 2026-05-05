@@ -391,6 +391,59 @@ FHS-XXX` once promoted).
 - Demo doc (`documents/demo/whats-shipped.html`) refreshed if any
   shipped flow needs revision based on what the test pass found.
 
+### Fixing bugs (workflow)
+
+When picking up a bug from `bugs/<slug>.md` (or any `Bug` Jira
+ticket), follow the same lifecycle as a feature ticket — but with a
+few bug-specific steps front-loaded so the manual-test sheet stays
+in sync. **Always do this before writing any fix code**:
+
+1. **Promote the bug doc to Jira if not already.** If the doc has
+   `status: open`, create the matching FHS Bug ticket: short plain-
+   language title (no `bug:` prefix in summary), one-line layperson
+   summary in bold, 3 short technical bullets, 3 Gherkin acceptance
+   criteria. Update the doc's frontmatter to
+   `status: in-jira: FHS-XXX`.
+2. **Sprint + Fix Version.** Add the bug to the current active
+   sprint and tag with the matching cluster Fix Version
+   (`0.0-bootstrap` etc.).
+3. **Link to the active manual-test child Task.** Use a Jira
+   "Blocks" link from FHS-251 (or the current sprint's child of
+   FHS-254) → the bug ticket. This keeps the manual checks ticket
+   honest about what still needs verifying.
+4. **Transition to In Progress.** The branch-creation Automation
+   covers this for new branches matching `<type>/FHS-XXX-…`, but
+   the bug-fix branch may use a slug-only name (`fix/<slug>`); when
+   the branch name doesn't carry the FHS key, transition manually
+   via the API (`POST /rest/api/3/issue/<KEY>/transitions` with
+   transition id `21`).
+5. **Branch.** `fix/FHS-XXX-short-slug` (so Jira auto-In-Progress
+   fires for free), or `fix/<descriptive-slug>` if step 4 was used.
+6. **Fix.** Smallest viable change; resist refactoring around it.
+7. **Add tests that lock the fix.** A unit test that fails on the
+   pre-fix code and passes on the fixed code is the floor.
+   Integration / E2E only when the bug touches multi-layer
+   behaviour. The test name should describe the bug, not the
+   implementation (e.g. `bar centres on the circle row when labels
+are present`).
+8. **Run code-reviewer + qa-expert in parallel** on the diff —
+   same rule as feature tickets. Action every blocker before PR.
+9. **PR + CI + squash-merge + Jira close.** Same lifecycle as a
+   feature ticket: see "Closing tickets" + "Pull requests" above.
+10. **Update the manual-test sheet.** After merge, edit the
+    relevant row in `bugs/manual-e2e-sprint-N-test-pass.md` (and
+    the FHS-251 / current child Task description) to add a
+    "FIXED in FHS-XXX, re-verify" note in the Notes column for
+    every row that referenced the bug. Flip the bug doc's
+    frontmatter to `status: fixed` and leave it in `bugs/` as a
+    historical record (don't delete — future regressions need
+    context).
+
+**Anti-pattern:** start coding before the bug is in Jira / In
+Progress / linked to FHS-251. The link is what keeps the manual
+test pass sane — without it, fixed bugs leave stale rows in the
+sheet that get re-flagged the next sprint.
+
 ### Decisions log sync
 
 ADRs in [`documents/decisions/`](documents/decisions/) are the canonical record of
