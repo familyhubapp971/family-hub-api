@@ -26,6 +26,7 @@ import { membersRouter } from './routes/members.js';
 import { noticesRouter } from './routes/notices.js';
 import { onboardingRouter } from './routes/onboarding.js';
 import { tasksRouter } from './routes/tasks.js';
+import { publicKidMembersRouter } from './routes/public-kid-members.js';
 import { publicTenantRouter } from './routes/public-tenant.js';
 import { slugAvailableRouter } from './routes/slug-available.js';
 import { captureException } from './sentry.js';
@@ -125,6 +126,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/me', meRouter);
   app.route('/api/public/tenant', publicTenantRouter);
   app.route('/api/public/slug-available', slugAvailableRouter);
+  app.route('/api/public/kid-members', publicKidMembersRouter);
   app.route('/api/auth/kid-pin', kidPinRouter);
   app.route('/api/invitations', invitationsRouter);
   app.route('/api/members', membersRouter);

@@ -32,6 +32,11 @@ const PUBLIC_PATH_PREFIXES = [
   // FHS-236 — kid-PIN login is itself the authentication step; it
   // cannot be behind the auth middleware.
   '/api/auth/kid-pin',
+  // FHS-238 — public kid avatar grid for /t/:slug/kid-login. The kid
+  // hasn't authenticated yet so there's no JWT to verify; the slug in
+  // the URL is the access boundary. Returns only display name + emoji
+  // + member id, never email or PIN data.
+  '/api/public/kid-members',
 ] as const;
 
 declare module 'hono' {
