@@ -66,3 +66,6 @@ tmp/
 # (don't use --scope project — that commits the file, defeating this rule).
 # Setup steps: docs/technical/deployment.md → "Operational handles".
 .mcp.json
+
+# Claude Code session-local scheduled-task lock (regenerated each run)
+.claude/scheduled_tasks.lock
