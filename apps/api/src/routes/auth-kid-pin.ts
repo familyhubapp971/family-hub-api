@@ -67,6 +67,17 @@ export function _resetKidPinBucketsForTests(): void {
   buckets.clear();
 }
 
+/**
+ * FHS-252 — public hook for the members admin endpoint. When an admin
+ * resets a kid's PIN (or clears it entirely), the per-memberId
+ * lockout bucket must be cleared too so a kid who tripped the
+ * 5-attempts cooldown can immediately try again with the new PIN.
+ * Distinct from the test-only helper above which wipes everything.
+ */
+export function resetKidPinBucketForMember(memberId: string): void {
+  buckets.delete(memberId);
+}
+
 function isLocked(bucket: Bucket | undefined, now: number): boolean {
   return !!bucket && bucket.lockedUntil > now;
 }

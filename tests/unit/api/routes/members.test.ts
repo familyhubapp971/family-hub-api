@@ -44,7 +44,13 @@ function buildAppWithSeed(opts: SeedOpts = {}, members: unknown[] = []) {
       return {
         from: () => ({
           where: () => ({
-            limit: () => Promise.resolve(opts.callerMissing ? [] : [{ id: 'caller-member-id' }]),
+            // FHS-252 — role is selected too so the handler can return
+            // it as `callerRole` for the members page to gate admin-
+            // only PIN affordances.
+            limit: () =>
+              Promise.resolve(
+                opts.callerMissing ? [] : [{ id: 'caller-member-id', role: 'admin' }],
+              ),
           }),
         }),
       };
@@ -101,6 +107,10 @@ describe('FHS-108 — GET /api/members', () => {
         avatarEmoji: '👩',
         userId: USER_ID,
         createdAt: baseDate,
+        // FHS-252 — handler now reads is_child + pin_hash to derive
+        // the per-row hasPin boolean. Stub them to safe defaults.
+        isChild: false,
+        pinHash: null,
       },
       {
         id: M2,
@@ -109,6 +119,8 @@ describe('FHS-108 — GET /api/members', () => {
         avatarEmoji: '👧',
         userId: null,
         createdAt: baseDate,
+        isChild: false,
+        pinHash: null,
       },
     ]);
     const res = await app.request('/api/members');
