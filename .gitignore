@@ -38,6 +38,7 @@ coverage/
 playwright-report/
 playwright-report-critical/
 playwright/.cache/
+.playwright-mcp/
 test-results/
 test-results-critical/
 tests/e2e/.features-gen/
