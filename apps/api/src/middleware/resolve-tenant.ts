@@ -100,34 +100,47 @@ export function resolveTenant(opts: ResolveTenantOptions): MiddlewareHandler {
   const baseDomain = opts.baseDomain ?? config.BASE_DOMAIN;
 
   return async (c, next) => {
-    const slug = pickSlug(c, baseDomain);
-
-    if (slug && SLUG_RE.test(slug)) {
+    // Try every candidate slug source in priority order until one
+    // actually resolves to a tenant. The earlier "first non-empty
+    // source wins" behaviour fell apart on Railway-style hosts where
+    // the API's own host (e.g. `api-staging-5500.up.railway.app`) is
+    // a valid slug-shaped string under the shared `.up.railway.app`
+    // suffix: subdomain source picked `api-staging-5500`, lookup
+    // failed, and the SPA-supplied `x-tenant-slug` header was never
+    // consulted — every authenticated tenant call 400'd with
+    // "tenant context required".
+    const candidates = pickSlugCandidates(c, baseDomain);
+    for (const slug of candidates) {
       const tenantId = await opts.lookupTenantId(slug);
       if (tenantId) {
         c.set('tenantId', tenantId);
         c.set('tenantSlug', slug);
-      } else {
-        // Slug parsed cleanly but no matching row — tenant offboarded
-        // or typo. Leave context vars unset; callers that require a
-        // tenant will respond with the appropriate 404. Debug-level so
-        // a bot scanning random `/t/<garbage>/` paths can't fill the
-        // logs.
-        log.debug({ slug }, 'resolveTenant: slug parsed but no matching tenant row');
+        return next();
       }
+    }
+    if (candidates.length > 0) {
+      // Every candidate failed lookup. Debug-only so /t/<garbage>/
+      // probes can't fill the logs.
+      log.debug({ candidates }, 'resolveTenant: no candidate slug matched a tenant row');
     }
 
     await next();
   };
 }
 
-function pickSlug(c: Parameters<MiddlewareHandler>[0], baseDomain: string): string | undefined {
+function pickSlugCandidates(c: Parameters<MiddlewareHandler>[0], baseDomain: string): string[] {
+  // Collect every slug-shaped candidate in priority order. Validate
+  // each against SLUG_RE here so the middleware loop can issue DB
+  // lookups blindly without re-checking. De-dup at the end so a host
+  // header echoing the path prefix doesn't double the lookup cost.
+  const out: string[] = [];
+
   // Source 1 — JWT custom claim app_metadata.tenant_slug.
   const user = c.get('user');
   if (user?.claims) {
     const meta = user.claims['app_metadata'] as Record<string, unknown> | undefined;
     const fromClaim = typeof meta?.['tenant_slug'] === 'string' ? meta['tenant_slug'] : undefined;
-    if (fromClaim) return fromClaim;
+    if (fromClaim && SLUG_RE.test(fromClaim)) out.push(fromClaim);
   }
 
   // Source 2 — subdomain. Strip an optional port (`:3001`) before
@@ -147,22 +160,20 @@ function pickSlug(c: Parameters<MiddlewareHandler>[0], baseDomain: string): stri
         !RESERVED_SUBDOMAINS.has(candidate) &&
         SLUG_RE.test(candidate)
       ) {
-        return candidate;
+        out.push(candidate);
       }
     }
   }
 
   // Source 3 — `X-Tenant-Slug` request header. Set by the SPA when
   // it's calling a tenant-agnostic API path from inside a /t/:slug/*
-  // route (e.g. POST /api/onboarding/complete from the wizard). The
-  // same SLUG_RE gate at the call site prevents a forged value from
-  // reaching the DB lookup.
+  // route (e.g. POST /api/onboarding/complete from the wizard).
   const headerSlug = c.req.header('x-tenant-slug')?.trim();
-  if (headerSlug) return headerSlug;
+  if (headerSlug && SLUG_RE.test(headerSlug)) out.push(headerSlug);
 
   // Source 4 — path prefix /t/<slug>/...
   const m = PATH_SLUG_RE.exec(c.req.path);
-  if (m && m[1]) return m[1];
+  if (m && m[1] && SLUG_RE.test(m[1])) out.push(m[1]);
 
-  return undefined;
+  return [...new Set(out)];
 }

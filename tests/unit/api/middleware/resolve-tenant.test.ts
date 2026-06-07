@@ -181,5 +181,51 @@ describe('FHS-13 + FHS-249 — resolveTenant', () => {
       const res = await app.request('/t/ghost/dashboard');
       expect(await res.json()).toEqual({ tenantId: undefined, tenantSlug: undefined });
     });
+
+    // Regression — Railway staging exposes the API at
+    // `api-staging-5500.up.railway.app`. With BASE_DOMAIN set to the
+    // shared `up.railway.app` suffix, the subdomain source matches
+    // `api-staging-5500` first, but that slug never exists in the
+    // tenants table. The middleware must fall through to the
+    // x-tenant-slug header (and the path prefix) instead of giving
+    // up. Without this, every authenticated tenant call from the
+    // SPA 400s with "tenant context required".
+    it('falls back to x-tenant-slug header when the subdomain source picks a non-tenant slug', async () => {
+      const { app, lookupTenantId } = makeAppWith({
+        baseDomain: 'up.railway.app',
+        lookups: { khans: 'tenant-uuid-khans' },
+      });
+      const res = await app.request('/api/dashboard/today', {
+        headers: {
+          host: 'api-staging-5500.up.railway.app',
+          'x-tenant-slug': 'khans',
+        },
+      });
+      expect(await res.json()).toEqual({
+        tenantId: 'tenant-uuid-khans',
+        tenantSlug: 'khans',
+      });
+      // Both candidates were tried — subdomain first, then header.
+      expect(lookupTenantId).toHaveBeenCalledWith('api-staging-5500');
+      expect(lookupTenantId).toHaveBeenCalledWith('khans');
+    });
+
+    it('falls back to the path prefix when both the JWT claim and subdomain miss', async () => {
+      const { app } = makeAppWith({
+        baseDomain: 'familyhub.app',
+        lookups: { realfam: 'tenant-uuid-realfam' },
+        seedUser: {
+          id: 'u1',
+          claims: { app_metadata: { tenant_slug: 'old-deleted' } },
+        },
+      });
+      const res = await app.request('/t/realfam/dashboard', {
+        headers: { host: 'ghost.familyhub.app' },
+      });
+      expect(await res.json()).toEqual({
+        tenantId: 'tenant-uuid-realfam',
+        tenantSlug: 'realfam',
+      });
+    });
   });
 });
