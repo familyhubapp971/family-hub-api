@@ -38,7 +38,16 @@ export function corsMiddleware(): MiddlewareHandler {
       return re.test(origin) ? origin : null;
     },
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
+    // x-tenant-slug — every tenant-scoped fetch from the web app sets this
+    // (apps/web/.../OnboardingPage.tsx, MembersPage.tsx, every dashboard
+    // tab panel) and resolveTenantMiddleware reads it. Missing it from
+    // Allow-Headers blocks the OPTIONS preflight on every authenticated
+    // call, with the visible failure landing on whichever endpoint the
+    // user hits first.
+    // x-request-id — surfaced by request-context middleware; harmless to
+    // accept from the client (server overrides anyway) and lets the web
+    // attach a correlation id for support tickets.
+    allowHeaders: ['Content-Type', 'Authorization', 'x-tenant-slug', 'x-request-id'],
     credentials: true,
     maxAge: 600,
   });

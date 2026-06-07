@@ -40,6 +40,30 @@ describe('FHS-170 — security middleware', () => {
 
       expect(res.headers.get('access-control-allow-origin')).toBe('http://localhost:5273');
     });
+
+    // Regression: x-tenant-slug must be in Access-Control-Allow-Headers
+    // or the browser's OPTIONS preflight on every tenant-scoped fetch
+    // fails and the actual request never goes out. Surfaced during
+    // staging manual test on /onboarding/complete: "Request header
+    // field x-tenant-slug is not allowed by Access-Control-Allow-
+    // Headers in preflight response".
+    it('preflight allows the x-tenant-slug + x-request-id headers the web app sends', async () => {
+      const app = buildApp();
+      const res = await app.request('/hello', {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'http://localhost:5273',
+          'Access-Control-Request-Method': 'POST',
+          'Access-Control-Request-Headers':
+            'authorization, content-type, x-tenant-slug, x-request-id',
+        },
+      });
+      const allowed = (res.headers.get('access-control-allow-headers') ?? '').toLowerCase();
+      expect(allowed).toContain('x-tenant-slug');
+      expect(allowed).toContain('x-request-id');
+      expect(allowed).toContain('content-type');
+      expect(allowed).toContain('authorization');
+    });
   });
 
   describe('rate limit (AC #3)', () => {
