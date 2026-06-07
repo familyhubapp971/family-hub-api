@@ -13,7 +13,7 @@ Feature: POST /api/public/tenant (FHS-25)
     Then the response status is 201
     And the response body has a tenant with slug "khan"
     And exactly 1 row exists in tenants with slug "khan"
-    And exactly 1 row exists in members with displayName "Sarah" and role "adult"
+    And exactly 1 row exists in members with displayName "Sarah" and role "admin"
 
   Scenario: Slug already taken — returns 409 and inserts nothing
     Given a tenant exists with slug "khan"

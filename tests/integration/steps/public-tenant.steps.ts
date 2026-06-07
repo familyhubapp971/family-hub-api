@@ -125,9 +125,9 @@ describeFeature(feature, ({ Background, Scenario }) => {
       expect(Number(rows[0]?.count)).toBe(1);
     });
 
-    And('exactly 1 row exists in members with displayName "Sarah" and role "adult"', async () => {
+    And('exactly 1 row exists in members with displayName "Sarah" and role "admin"', async () => {
       const { rows } = await db.execute<{ count: string }>(
-        sql`SELECT COUNT(*)::text AS count FROM members WHERE display_name = ${'Sarah'} AND role = 'adult'`,
+        sql`SELECT COUNT(*)::text AS count FROM members WHERE display_name = ${'Sarah'} AND role = 'admin'`,
       );
       expect(Number(rows[0]?.count)).toBe(1);
     });

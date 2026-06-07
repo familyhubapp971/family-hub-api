@@ -125,13 +125,18 @@ export const publicTenantRouter = new Hono().post('/', async (c) => {
     if (!t) throw new Error('tenants insert returned no row');
     tenant = t;
 
+    // The founder always lands as `admin` — they're the person who
+    // just created the family and they're the only one who can
+    // complete onboarding (onboarding.ts gates Finish on
+    // role === 'admin'). Inviting a second adult later assigns them
+    // role 'adult' by default via invitations.ts.
     const insertedMembers = await db
       .insert(members)
       .values({
         tenantId: tenant.id,
         userId: userRow.id,
         displayName: parsed.data.displayName,
-        role: 'adult',
+        role: 'admin',
       })
       .returning();
     const m = insertedMembers[0];

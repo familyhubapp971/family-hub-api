@@ -77,7 +77,7 @@ function fixedMember(tenantId: string): Member {
     tenantId,
     userId: USER_ID,
     displayName: 'Sarah Khan',
-    role: 'adult',
+    role: 'admin',
     avatarEmoji: null,
     createdAt: new Date('2026-05-02T00:00:00.000Z'),
     updatedAt: new Date('2026-05-02T00:00:00.000Z'),
@@ -203,7 +203,7 @@ describe('FHS-25 — POST /api/public/tenant', () => {
     expect(body.tenant.slug).toBe('khan');
     expect(body.tenant.name).toBe('The Khan Family');
     expect(body.member.displayName).toBe('Sarah Khan');
-    expect(body.member.role).toBe('adult');
+    expect(body.member.role).toBe('admin');
     expect(body.member.tenantId).toBe(tenant.id);
   });
 
