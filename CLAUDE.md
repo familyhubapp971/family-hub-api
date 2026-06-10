@@ -38,6 +38,30 @@ Reference the ticket key in commit messages and PR titles.
 
 ---
 
+## Talk to me in plain English (always)
+
+The founder is **not an engineer**. Top rule in this file. Plain words,
+crisp sentences, real names ("the Today screen") not file paths, max 5
+bullets per group. Tech word unavoidable? Explain it in a few plain
+words right after.
+
+**Every reply uses two title-then-bullets blocks, in this order:**
+
+**Summary** (a plain-English title line)
+
+- What happened, in 1–5 bullets.
+
+**Status** (a plain-English title line)
+
+- **What I did** — finished actions.
+- **What you need to do** — or "Nothing for now."
+- **What's next** — the upcoming work.
+
+Then one clear question with the choices spelled out (e.g.
+**start next ticket / pause**) if you need an answer.
+
+---
+
 ## Skill routing — when to use what
 
 These are project-specific cues for when to invoke skills/agents. They do

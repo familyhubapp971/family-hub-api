@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { and, asc, count, desc, eq, isNull, isNotNull } from 'drizzle-orm';
+import { and, asc, count, countDistinct, desc, eq, isNull, isNotNull } from 'drizzle-orm';
 import {
   dashboardTodayResponseSchema,
   type DashboardActivity,
@@ -254,9 +254,12 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     .orderBy(desc(activityLogs.createdAt))
     .limit(3);
 
-  // 12 — meals planned for today's weekday.
+  // 12 — meals planned for today's weekday. Count DISTINCT slots, not
+  // rows: FHS-264 lets a slot hold a whole-family meal plus per-member
+  // meals, so a plain COUNT(*) would inflate "Meals planned" past the
+  // four-slot ceiling. We want "how many of today's slots are planned".
   const [mealsCountRow] = await db
-    .select({ n: count() })
+    .select({ n: countDistinct(mealTemplates.slot) })
     .from(mealTemplates)
     .where(
       and(

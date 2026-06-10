@@ -43,3 +43,28 @@ Feature: GET + POST /api/meals (FHS-229)
     When the caller GETs /api/meals for tenant "khan"
     Then the response status is 200
     And the response lists 0 meals
+
+  Scenario: A whole-family meal and a member meal can share one slot (FHS-264)
+    Given a member "Ali" exists in tenant "khan"
+    When the caller POSTs a meal "Family toast" for "mon" "breakfast" in tenant "khan"
+    And the caller POSTs a meal "Ali eggs" for "mon" "breakfast" for member "Ali" in tenant "khan"
+    Then re-fetching /api/meals for tenant "khan" lists 2 meals
+
+  Scenario: The recurring flag round-trips (FHS-264)
+    When the caller POSTs a recurring meal "Pancakes" for "sun" "breakfast" in tenant "khan"
+    Then re-fetching /api/meals for tenant "khan" lists 1 meals
+    And the meal "Pancakes" is marked recurring
+
+  Scenario: A meal cannot be assigned to another tenant's member (FHS-264)
+    Given a second tenant "smith" exists with the caller as an admin member
+    And a member "Bob" exists in tenant "smith"
+    When the caller POSTs a meal "Sneaky" for "mon" "lunch" for member "Bob" in tenant "khan"
+    Then the response status is 400
+
+  Scenario: Deleting a member removes their meals but keeps the shared family slot (FHS-264)
+    Given a member "Ali" exists in tenant "khan"
+    And the caller POSTs a meal "Family toast" for "mon" "breakfast" in tenant "khan"
+    And the caller POSTs a meal "Ali eggs" for "mon" "breakfast" for member "Ali" in tenant "khan"
+    When member "Ali" is deleted from tenant "khan"
+    Then re-fetching /api/meals for tenant "khan" lists 1 meals
+    And the response includes "Family toast" for "mon" "breakfast"

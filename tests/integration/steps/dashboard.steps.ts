@@ -372,6 +372,25 @@ describeFeature(feature, ({ Background, Scenario }) => {
           .values({ tenantId, dayOfWeek: dow, slot: 'dinner', name: 'Biryani' });
       });
 
+      // FHS-264 — a per-member meal in the SAME slot as the family meal.
+      // mealsPlanned must still count the slot once (distinct slots), not
+      // tally both rows.
+      And(
+        'the {string} tenant has a member meal in the same slot today',
+        async (_ctx, slug: string) => {
+          const tenantId = tenantIds[slug]!;
+          const todayIso = new Date().toISOString().slice(0, 10);
+          const dow = WEEKDAY_KEYS[new Date(`${todayIso}T00:00:00Z`).getUTCDay()]!;
+          await db.insert(mealTemplates).values({
+            tenantId,
+            dayOfWeek: dow,
+            slot: 'dinner',
+            name: 'Kid pasta',
+            memberId: callerMemberId,
+          });
+        },
+      );
+
       And(
         'the {string} tenant has a recent activity entry {string}',
         async (_ctx, slug: string, action: string) => {

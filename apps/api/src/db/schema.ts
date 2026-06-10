@@ -366,11 +366,17 @@ export const dayOfWeek = pgEnum('day_of_week', ['mon', 'tue', 'wed', 'thu', 'fri
 export const mealSlot = pgEnum('meal_slot', ['breakfast', 'lunch', 'dinner', 'snack']);
 
 /**
- * `meal_templates` (FHS-40) — the family's repeating weekly meal plan.
- * One row per (tenant, day_of_week, slot). Seeded EMPTY at onboarding
- * (the AC says "empty weekly meal template") — the table just exists
- * for the UI to write into. The unique partial index keeps each tenant
- * to one row per slot.
+ * `meal_templates` (FHS-40, expanded FHS-264) — the family's repeating
+ * weekly meal plan. Seeded EMPTY at onboarding — the table just exists
+ * for the UI to write into.
+ *
+ * FHS-264 adds `member_id` (nullable — null means "everyone") and
+ * `recurring` (visual repeat flag). With member_id a single (day, slot)
+ * can now hold several meals: one whole-family meal PLUS one per member.
+ * Uniqueness is split into two partial indexes so the upsert stays
+ * idempotent without depending on Postgres NULLS NOT DISTINCT:
+ *   - at most one whole-family row per (tenant, day, slot)   [member_id IS NULL]
+ *   - at most one row per (tenant, day, slot, member_id)     [member_id IS NOT NULL]
  *
  * Per-week meal logs (e.g. "this Tuesday's lunch was actually pizza")
  * are a separate `week_meals` table when that feature ships.
@@ -386,13 +392,28 @@ export const mealTemplates = pgTable(
     slot: mealSlot('slot').notNull(),
     name: text('name'),
     notes: text('notes'),
+    // FHS-264 — who the meal is for. Null = the whole family. CASCADE on
+    // member delete: a removed member's personal meals are removed too.
+    // (SET NULL would turn a per-member row into a second whole-family row
+    // and could collide with an existing one under the everyone partial
+    // unique index — so the meal goes, not the family's slot.)
+    memberId: uuid('member_id').references(() => members.id, { onDelete: 'cascade' }),
+    // FHS-264 — visual "repeats every week" flag. No scheduling behaviour
+    // yet; the UI just shows a repeat icon.
+    recurring: boolean('recurring').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('meal_templates_tenant_id_idx').on(t.tenantId, t.id),
     index('meal_templates_tenant_created_idx').on(t.tenantId, t.createdAt),
-    uniqueIndex('meal_templates_tenant_day_slot_uniq').on(t.tenantId, t.dayOfWeek, t.slot),
+    index('meal_templates_tenant_member_idx').on(t.tenantId, t.memberId),
+    uniqueIndex('meal_templates_tenant_day_slot_everyone_uniq')
+      .on(t.tenantId, t.dayOfWeek, t.slot)
+      .where(sql`${t.memberId} is null`),
+    uniqueIndex('meal_templates_tenant_day_slot_member_uniq')
+      .on(t.tenantId, t.dayOfWeek, t.slot, t.memberId)
+      .where(sql`${t.memberId} is not null`),
   ],
 );
 

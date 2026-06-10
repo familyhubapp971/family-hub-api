@@ -55,7 +55,14 @@ const resolveTenantFromHeader: MiddlewareHandler = async (c, next) => {
 };
 
 interface MealsResponse {
-  meals: Array<{ id: string; dayOfWeek: string; slot: string; name: string }>;
+  meals: Array<{
+    id: string;
+    dayOfWeek: string;
+    slot: string;
+    name: string;
+    memberId: string | null;
+    recurring: boolean;
+  }>;
 }
 
 describeFeature(feature, ({ Background, Scenario }) => {
@@ -63,6 +70,8 @@ describeFeature(feature, ({ Background, Scenario }) => {
   let app: Hono;
   let token: string;
   const tenantIds: Record<string, string> = {};
+  // FHS-264 — member ids by display name, for per-member meal scenarios.
+  const memberIds: Record<string, string> = {};
 
   Background(({ Given, And }) => {
     Given(
@@ -75,6 +84,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
         await db.execute(sql`DELETE FROM users WHERE id = ${USER_ID}`);
         _resetJwksCacheForTests();
         for (const k of Object.keys(tenantIds)) delete tenantIds[k];
+        for (const k of Object.keys(memberIds)) delete memberIds[k];
       },
     );
 
@@ -142,7 +152,11 @@ describeFeature(feature, ({ Background, Scenario }) => {
     dayOfWeek: string,
     slot: string,
     name: string,
+    opts: { memberId?: string | null; recurring?: boolean } = {},
   ): Promise<Response> {
+    const body: Record<string, unknown> = { dayOfWeek, slot, name };
+    if (opts.memberId !== undefined) body.memberId = opts.memberId;
+    if (opts.recurring !== undefined) body.recurring = opts.recurring;
     return app.request('/api/meals', {
       method: 'POST',
       headers: {
@@ -150,8 +164,16 @@ describeFeature(feature, ({ Background, Scenario }) => {
         'x-test-tenant': tenantIds[slug]!,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ dayOfWeek, slot, name }),
+      body: JSON.stringify(body),
     });
+  }
+
+  async function insertMember(slug: string, name: string): Promise<void> {
+    const [m] = await db
+      .insert(members)
+      .values({ tenantId: tenantIds[slug]!, displayName: name, role: 'child' })
+      .returning();
+    memberIds[name] = m!.id;
   }
 
   Scenario('GET returns an empty list when nothing has been planned', ({ When, Then, And }) => {
@@ -351,4 +373,163 @@ describeFeature(feature, ({ Background, Scenario }) => {
       expect(body.meals).toHaveLength(n);
     });
   });
+
+  Scenario(
+    'A whole-family meal and a member meal can share one slot (FHS-264)',
+    ({ Given, When, And, Then }) => {
+      Given(
+        'a member {string} exists in tenant {string}',
+        async (_ctx, name: string, slug: string) => {
+          await insertMember(slug, name);
+        },
+      );
+
+      When(
+        'the caller POSTs a meal {string} for {string} {string} in tenant {string}',
+        async (_ctx, name: string, day: string, slot: string, slug: string) => {
+          await postMeal(slug, day, slot, name);
+        },
+      );
+
+      And(
+        'the caller POSTs a meal {string} for {string} {string} for member {string} in tenant {string}',
+        async (_ctx, name: string, day: string, slot: string, memberName: string, slug: string) => {
+          await postMeal(slug, day, slot, name, { memberId: memberIds[memberName]! });
+        },
+      );
+
+      Then(
+        're-fetching /api/meals for tenant {string} lists {int} meals',
+        async (_ctx, slug: string, n: number) => {
+          const out = await getMeals(slug);
+          expect(out.res.status).toBe(200);
+          expect(out.body.meals).toHaveLength(n);
+        },
+      );
+    },
+  );
+
+  Scenario('The recurring flag round-trips (FHS-264)', ({ When, Then, And }) => {
+    let body: MealsResponse;
+
+    When(
+      'the caller POSTs a recurring meal {string} for {string} {string} in tenant {string}',
+      async (_ctx, name: string, day: string, slot: string, slug: string) => {
+        await postMeal(slug, day, slot, name, { recurring: true });
+      },
+    );
+
+    Then(
+      're-fetching /api/meals for tenant {string} lists {int} meals',
+      async (_ctx, slug: string, n: number) => {
+        const out = await getMeals(slug);
+        expect(out.res.status).toBe(200);
+        body = out.body;
+        expect(body.meals).toHaveLength(n);
+      },
+    );
+
+    And('the meal {string} is marked recurring', (_ctx, name: string) => {
+      const cell = body.meals.find((m) => m.name === name);
+      expect(cell, `${name} missing`).toBeDefined();
+      expect(cell!.recurring).toBe(true);
+    });
+  });
+
+  Scenario(
+    "A meal cannot be assigned to another tenant's member (FHS-264)",
+    ({ Given, And, When, Then }) => {
+      let res: Response;
+
+      Given(
+        'a second tenant {string} exists with the caller as an admin member',
+        async (_ctx, slug: string) => {
+          const inserted = await db
+            .insert(tenants)
+            .values({ slug, name: `${slug} Family` })
+            .returning();
+          const tenant = inserted[0]!;
+          tenantIds[slug] = tenant.id;
+          await db.insert(members).values({
+            tenantId: tenant.id,
+            userId: USER_ID,
+            displayName: 'Caller',
+            role: 'admin',
+          });
+        },
+      );
+
+      And(
+        'a member {string} exists in tenant {string}',
+        async (_ctx, name: string, slug: string) => {
+          await insertMember(slug, name);
+        },
+      );
+
+      When(
+        'the caller POSTs a meal {string} for {string} {string} for member {string} in tenant {string}',
+        async (_ctx, name: string, day: string, slot: string, memberName: string, slug: string) => {
+          res = await postMeal(slug, day, slot, name, { memberId: memberIds[memberName]! });
+        },
+      );
+
+      Then('the response status is 400', () => {
+        expect(res.status).toBe(400);
+      });
+    },
+  );
+
+  Scenario(
+    'Deleting a member removes their meals but keeps the shared family slot (FHS-264)',
+    ({ Given, And, When, Then }) => {
+      let body: MealsResponse;
+
+      Given(
+        'a member {string} exists in tenant {string}',
+        async (_ctx, name: string, slug: string) => {
+          await insertMember(slug, name);
+        },
+      );
+
+      And(
+        'the caller POSTs a meal {string} for {string} {string} in tenant {string}',
+        async (_ctx, name: string, day: string, slot: string, slug: string) => {
+          await postMeal(slug, day, slot, name);
+        },
+      );
+
+      And(
+        'the caller POSTs a meal {string} for {string} {string} for member {string} in tenant {string}',
+        async (_ctx, name: string, day: string, slot: string, memberName: string, slug: string) => {
+          await postMeal(slug, day, slot, name, { memberId: memberIds[memberName]! });
+        },
+      );
+
+      When('member {string} is deleted from tenant {string}', async (_ctx, name: string) => {
+        // Exercises the FK cascade in real Postgres. If the FK were still
+        // SET NULL, Ali's per-member row would collide with the family row
+        // under the everyone partial unique index and this would throw.
+        await db.execute(sql`DELETE FROM members WHERE id = ${memberIds[name]!}`);
+      });
+
+      Then(
+        're-fetching /api/meals for tenant {string} lists {int} meals',
+        async (_ctx, slug: string, n: number) => {
+          const out = await getMeals(slug);
+          expect(out.res.status).toBe(200);
+          body = out.body;
+          expect(body.meals).toHaveLength(n);
+        },
+      );
+
+      And(
+        'the response includes {string} for {string} {string}',
+        (_ctx, name: string, day: string, slot: string) => {
+          const cell = body.meals.find((m) => m.dayOfWeek === day && m.slot === slot);
+          expect(cell, `${day} ${slot} cell missing`).toBeDefined();
+          expect(cell!.name).toBe(name);
+        },
+      );
+    },
+  );
 });

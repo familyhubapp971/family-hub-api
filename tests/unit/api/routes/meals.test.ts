@@ -31,6 +31,10 @@ interface SeedOpts {
   noTenant?: boolean;
   callerMissing?: boolean;
   callerRole?: string;
+  // FHS-264 — when a POST carries a memberId, the handler validates it
+  // belongs to the tenant. memberMissing simulates a cross-tenant /
+  // unknown member (validation query returns no row).
+  memberMissing?: boolean;
 }
 
 function buildAppWithSeed(
@@ -63,11 +67,12 @@ function buildAppWithSeed(
         }),
       };
     }
-    // 2 — meals list (only fired by GET)
+    // 2 — GET meals list (.orderBy) OR POST member-validation (.limit).
     return {
       from: () => ({
         where: () => ({
           orderBy: () => Promise.resolve(meals),
+          limit: () => Promise.resolve(opts.memberMissing ? [] : [{ id: 'target-member-id' }]),
         }),
       }),
     };
@@ -122,23 +127,50 @@ describe('FHS-229 — GET /api/meals', () => {
     expect(body.meals).toEqual([]);
   });
 
-  it('returns the stored meal cells with day + slot + name', async () => {
+  it('returns the stored meal cells with day + slot + name + memberId + recurring', async () => {
     const M1 = '22222222-2222-4222-8222-222222222222';
+    const MEMBER = '33333333-3333-4333-8333-333333333333';
     const { app } = buildAppWithSeed({}, [
-      { id: M1, dayOfWeek: 'mon', slot: 'breakfast', name: 'Porridge' },
+      {
+        id: M1,
+        dayOfWeek: 'mon',
+        slot: 'breakfast',
+        name: 'Porridge',
+        memberId: null,
+        recurring: true,
+      },
+      {
+        id: M1.replace(/2/g, '4'),
+        dayOfWeek: 'mon',
+        slot: 'breakfast',
+        name: 'Eggs',
+        memberId: MEMBER,
+        recurring: false,
+      },
     ]);
     const res = await app.request('/api/meals');
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      meals: Array<{ id: string; dayOfWeek: string; slot: string; name: string }>;
+      meals: Array<{
+        id: string;
+        dayOfWeek: string;
+        slot: string;
+        name: string;
+        memberId: string | null;
+        recurring: boolean;
+      }>;
     };
-    expect(body.meals).toHaveLength(1);
+    // A whole-family meal and a per-member meal coexist on the same slot.
+    expect(body.meals).toHaveLength(2);
     expect(body.meals[0]).toMatchObject({
       id: M1,
       dayOfWeek: 'mon',
       slot: 'breakfast',
       name: 'Porridge',
+      memberId: null,
+      recurring: true,
     });
+    expect(body.meals[1]).toMatchObject({ name: 'Eggs', memberId: MEMBER, recurring: false });
   });
 });
 
@@ -225,16 +257,77 @@ describe('FHS-229 — POST /api/meals', () => {
     const { app } = buildAppWithSeed(
       {},
       [],
-      [{ id: M1, dayOfWeek: 'mon', slot: 'lunch', name: 'Pasta' }],
+      [
+        {
+          id: M1,
+          dayOfWeek: 'mon',
+          slot: 'lunch',
+          name: 'Pasta',
+          memberId: null,
+          recurring: false,
+        },
+      ],
     );
     const res = await app.request(
       '/api/meals',
       postBody({ dayOfWeek: 'mon', slot: 'lunch', name: '  Pasta  ' }),
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { id: string; name: string };
+    const body = (await res.json()) as {
+      id: string;
+      name: string;
+      memberId: string | null;
+      recurring: boolean;
+    };
     expect(body.name).toBe('Pasta');
+    expect(body.memberId).toBeNull();
+    expect(body.recurring).toBe(false);
     expect(dbMock.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists memberId + recurring and returns them (valid member)', async () => {
+    const M1 = '22222222-2222-4222-8222-222222222222';
+    const MEMBER = '33333333-3333-4333-8333-333333333333';
+    const { app } = buildAppWithSeed(
+      {},
+      [],
+      [
+        {
+          id: M1,
+          dayOfWeek: 'tue',
+          slot: 'dinner',
+          name: 'Curry',
+          memberId: MEMBER,
+          recurring: true,
+        },
+      ],
+    );
+    const res = await app.request(
+      '/api/meals',
+      postBody({
+        dayOfWeek: 'tue',
+        slot: 'dinner',
+        name: 'Curry',
+        memberId: MEMBER,
+        recurring: true,
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { memberId: string | null; recurring: boolean };
+    expect(body.memberId).toBe(MEMBER);
+    expect(body.recurring).toBe(true);
+  });
+
+  it('returns 400 when memberId is not a member of this tenant', async () => {
+    const MEMBER = '99999999-9999-4999-8999-999999999999';
+    const { app } = buildAppWithSeed({ memberMissing: true });
+    const res = await app.request(
+      '/api/meals',
+      postBody({ dayOfWeek: 'mon', slot: 'breakfast', name: 'X', memberId: MEMBER }),
+    );
+    expect(res.status).toBe(400);
+    // No write happened — validation rejected before the upsert.
+    expect(dbMock.insert).not.toHaveBeenCalled();
   });
 
   it('deletes the cell + returns { deleted: true } when name is empty', async () => {

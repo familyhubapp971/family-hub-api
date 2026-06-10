@@ -30,6 +30,7 @@ Feature: GET /api/dashboard/today (FHS-228)
     And the caller has 1 pending task and 1 task completed today in "khan"
     And the "khan" tenant has a savings goal "Hajj fund" with a 300 deposit and a 50 withdrawal
     And the "khan" tenant has a meal planned for today
+    And the "khan" tenant has a member meal in the same slot today
     And the "khan" tenant has a recent activity entry "completed a habit"
     When the caller GETs /api/dashboard/today for tenant "khan"
     Then the response status is 200
