@@ -6,7 +6,20 @@ import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
 import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
 import { dashboardRouter } from '../../../apps/api/src/routes/dashboard.js';
-import { tenants, members, habits, rewards, users } from '../../../apps/api/src/db/schema.js';
+import {
+  tenants,
+  members,
+  habits,
+  rewards,
+  users,
+  tasks,
+  savings,
+  savingsTransactions,
+  activityLogs,
+  weeks,
+  weekActions,
+  mealTemplates,
+} from '../../../apps/api/src/db/schema.js';
 import type { Database } from '../../../apps/api/src/db/client.js';
 import { getTestDb } from '../support/db.js';
 
@@ -64,9 +77,29 @@ const resolveTenantFromHeader: MiddlewareHandler = async (c, next) => {
 interface DashboardResponse {
   date: string;
   greetingName: string;
-  members: Array<{ id: string; displayName: string; role: string; avatarEmoji: string | null }>;
-  counts: { members: number; habits: number; rewards: number };
+  members: Array<{
+    id: string;
+    displayName: string;
+    role: string;
+    avatarEmoji: string | null;
+    habitsDone: number;
+    habitsTotal: number;
+    streak: number;
+    tasksPending: number;
+    statusText: string;
+  }>;
+  counts: {
+    members: number;
+    habits: number;
+    rewards: number;
+    tasksDoneToday: number;
+    mealsPlanned: number;
+  };
+  goals: Array<{ id: string; label: string; progress: number; target: number | null }>;
+  recentActivity: Array<{ id: string; actor: string | null; action: string; timestamp: string }>;
 }
+
+const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 
 describeFeature(feature, ({ Background, Scenario }) => {
   let db: Database;
@@ -238,6 +271,165 @@ describeFeature(feature, ({ Background, Scenario }) => {
     },
   );
 
+  Scenario(
+    'Today screen surfaces per-member stats, goals, and recent activity',
+    ({ Given, And, When, Then }) => {
+      let res: Response;
+      let body: DashboardResponse;
+      let callerMemberId: string;
+      const habitIds: string[] = [];
+
+      Given(
+        'the {string} tenant has {int} starter habits and {int} starter rewards',
+        async (_ctx, slug: string, habitsN: number, rewardsN: number) => {
+          const tenantId = tenantIds[slug]!;
+          for (let i = 0; i < habitsN; i++) {
+            const inserted = await db
+              .insert(habits)
+              .values({ tenantId, name: `Habit ${i + 1}`, cadence: 'daily' })
+              .returning();
+            habitIds.push(inserted[0]!.id);
+          }
+          for (let i = 0; i < rewardsN; i++) {
+            await db.insert(rewards).values({ tenantId, name: `Reward ${i + 1}`, stickerCost: 5 });
+          }
+          const callerRows = await db
+            .select()
+            .from(members)
+            .where(sql`tenant_id = ${tenantId} AND user_id = ${USER_ID}`)
+            .limit(1);
+          callerMemberId = callerRows[0]!.id;
+        },
+      );
+
+      And(
+        'the caller completed both {string} habits in the current week',
+        async (_ctx, slug: string) => {
+          const tenantId = tenantIds[slug]!;
+          const todayIso = new Date().toISOString().slice(0, 10);
+          const inserted = await db
+            .insert(weeks)
+            .values({ tenantId, startDate: todayIso, endDate: todayIso })
+            .returning();
+          const weekId = inserted[0]!.id;
+          for (const habitId of habitIds) {
+            await db
+              .insert(weekActions)
+              .values({ tenantId, weekId, memberId: callerMemberId, habitId, completedCount: 1 });
+          }
+        },
+      );
+
+      And(
+        'the caller has 1 pending task and 1 task completed today in {string}',
+        async (_ctx, slug: string) => {
+          const tenantId = tenantIds[slug]!;
+          await db.insert(tasks).values({ tenantId, memberId: callerMemberId, title: 'Pending' });
+          await db.insert(tasks).values({
+            tenantId,
+            memberId: callerMemberId,
+            title: 'Done today',
+            doneAt: new Date(),
+          });
+        },
+      );
+
+      And(
+        'the {string} tenant has a savings goal {string} with a {int} deposit and a {int} withdrawal',
+        async (_ctx, slug: string, name: string, deposit: number, withdrawal: number) => {
+          const tenantId = tenantIds[slug]!;
+          const inserted = await db
+            .insert(savings)
+            .values({ tenantId, name, targetAmount: '5000.00' })
+            .returning();
+          const savingsId = inserted[0]!.id;
+          const occurredOn = new Date().toISOString().slice(0, 10);
+          await db.insert(savingsTransactions).values({
+            tenantId,
+            savingsId,
+            memberId: callerMemberId,
+            amount: `${deposit}.00`,
+            type: 'deposit',
+            occurredOn,
+          });
+          await db.insert(savingsTransactions).values({
+            tenantId,
+            savingsId,
+            memberId: callerMemberId,
+            amount: `${withdrawal}.00`,
+            type: 'withdrawal',
+            occurredOn,
+          });
+        },
+      );
+
+      And('the {string} tenant has a meal planned for today', async (_ctx, slug: string) => {
+        const tenantId = tenantIds[slug]!;
+        const todayIso = new Date().toISOString().slice(0, 10);
+        const dow = WEEKDAY_KEYS[new Date(`${todayIso}T00:00:00Z`).getUTCDay()]!;
+        await db
+          .insert(mealTemplates)
+          .values({ tenantId, dayOfWeek: dow, slot: 'dinner', name: 'Biryani' });
+      });
+
+      And(
+        'the {string} tenant has a recent activity entry {string}',
+        async (_ctx, slug: string, action: string) => {
+          await db
+            .insert(activityLogs)
+            .values({ tenantId: tenantIds[slug]!, actorMemberId: callerMemberId, action });
+        },
+      );
+
+      When(
+        'the caller GETs /api/dashboard/today for tenant {string}',
+        async (_ctx, slug: string) => {
+          res = await app.request('/api/dashboard/today', {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'x-test-tenant': tenantIds[slug]!,
+            },
+          });
+          body = (await res.json()) as DashboardResponse;
+        },
+      );
+
+      Then('the response status is 200', () => {
+        expect(res.status).toBe(200);
+      });
+
+      And("the caller's member stats show 2 of 2 habits done, streak 1, and 1 task pending", () => {
+        const caller = body.members.find((m) => m.id === callerMemberId)!;
+        expect(caller.habitsDone).toBe(2);
+        expect(caller.habitsTotal).toBe(2);
+        expect(caller.streak).toBe(1);
+        expect(caller.tasksPending).toBe(1);
+      });
+
+      And(
+        'the response snapshot counts include tasksDoneToday {int} and mealsPlanned {int}',
+        (_ctx, done: number, meals: number) => {
+          expect(body.counts.tasksDoneToday).toBe(done);
+          expect(body.counts.mealsPlanned).toBe(meals);
+        },
+      );
+
+      And(
+        'the response goal {string} shows progress {int} and target {int}',
+        (_ctx, label: string, progress: number, target: number) => {
+          const goal = body.goals.find((g) => g.label === label)!;
+          expect(goal.progress).toBe(progress);
+          expect(goal.target).toBe(target);
+        },
+      );
+
+      And('the response recent activity includes {string}', (_ctx, action: string) => {
+        expect(body.recentActivity.find((a) => a.action === action)).toBeDefined();
+      });
+    },
+  );
+
   Scenario('A non-member of the tenant gets 403', ({ Given, When, Then }) => {
     let res: Response;
 
@@ -324,6 +516,50 @@ describeFeature(feature, ({ Background, Scenario }) => {
         },
       );
 
+      And(
+        'the {string} tenant has a savings goal {string} with a {int} deposit',
+        async (_ctx, slug: string, name: string, deposit: number) => {
+          const tenantId = tenantIds[slug]!;
+          const inserted = await db
+            .insert(savings)
+            .values({ tenantId, name, targetAmount: '1000.00' })
+            .returning();
+          await db.insert(savingsTransactions).values({
+            tenantId,
+            savingsId: inserted[0]!.id,
+            amount: `${deposit}.00`,
+            type: 'deposit',
+            occurredOn: new Date().toISOString().slice(0, 10),
+          });
+        },
+      );
+
+      And(
+        'the {string} tenant has a recent activity entry {string}',
+        async (_ctx, slug: string, action: string) => {
+          // actorMemberId null = a system-logged event in the other tenant.
+          await db.insert(activityLogs).values({ tenantId: tenantIds[slug]!, action });
+        },
+      );
+
+      And(
+        'the {string} tenant has 1 task completed today by {string}',
+        async (_ctx, slug: string, memberName: string) => {
+          const tenantId = tenantIds[slug]!;
+          const memberRows = await db
+            .select()
+            .from(members)
+            .where(sql`tenant_id = ${tenantId} AND display_name = ${memberName}`)
+            .limit(1);
+          await db.insert(tasks).values({
+            tenantId,
+            memberId: memberRows[0]!.id,
+            title: 'Done in smith',
+            doneAt: new Date(),
+          });
+        },
+      );
+
       When(
         'the caller GETs /api/dashboard/today for tenant {string}',
         async (_ctx, slug: string) => {
@@ -353,6 +589,22 @@ describeFeature(feature, ({ Background, Scenario }) => {
       And('no member named {string} is in the response', (_ctx, name: string) => {
         expect(body.members.find((m) => m.displayName === name)).toBeUndefined();
       });
+
+      And('the response goals are empty', () => {
+        expect(body.goals).toEqual([]);
+      });
+
+      And('the response recent activity is empty', () => {
+        expect(body.recentActivity).toEqual([]);
+      });
+
+      And(
+        'the response snapshot counts include tasksDoneToday {int} and mealsPlanned {int}',
+        (_ctx, done: number, meals: number) => {
+          expect(body.counts.tasksDoneToday).toBe(done);
+          expect(body.counts.mealsPlanned).toBe(meals);
+        },
+      );
     },
   );
 });
