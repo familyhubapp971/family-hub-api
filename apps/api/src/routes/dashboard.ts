@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { and, asc, count, countDistinct, desc, eq, isNull, isNotNull } from 'drizzle-orm';
+import { and, asc, count, countDistinct, desc, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
 import {
   dashboardTodayResponseSchema,
   type DashboardActivity,
@@ -254,10 +254,10 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     .orderBy(desc(activityLogs.createdAt))
     .limit(3);
 
-  // 12 — meals planned for today's weekday. Count DISTINCT slots, not
-  // rows: FHS-264 lets a slot hold a whole-family meal plus per-member
-  // meals, so a plain COUNT(*) would inflate "Meals planned" past the
-  // four-slot ceiling. We want "how many of today's slots are planned".
+  // 12 — main meals (breakfast/lunch/dinner) planned for today. DISTINCT
+  // slots, not rows: FHS-264 lets a slot hold a whole-family meal plus
+  // per-member meals. Snacks are excluded so the Today's Snapshot reads
+  // "X/3" against the three main meals (FHS-263 exact-match).
   const [mealsCountRow] = await db
     .select({ n: countDistinct(mealTemplates.slot) })
     .from(mealTemplates)
@@ -266,6 +266,7 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
         eq(mealTemplates.tenantId, tenantId),
         eq(mealTemplates.dayOfWeek, weekdayKeyInTimezone(now, tenantRow?.timezone)),
         isNotNull(mealTemplates.name),
+        inArray(mealTemplates.slot, ['breakfast', 'lunch', 'dinner']),
       ),
     );
 
@@ -273,7 +274,17 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
 
   const habitsDoneByMember = new Map<string, Set<string>>();
   const completedWeeksByMember = new Map<string, Set<string>>();
+  // FHS-263 — earned-star balance per member = total habit completions
+  // (any week, any habit, including since-archived ones — stars earned
+  // stay earned). Proxy until a spend/redeem ledger exists.
+  const starBalanceByMember = new Map<string, number>();
   for (const a of actionRows) {
+    if (a.completedCount > 0) {
+      starBalanceByMember.set(
+        a.memberId,
+        (starBalanceByMember.get(a.memberId) ?? 0) + a.completedCount,
+      );
+    }
     if (a.completedCount <= 0 || !activeHabitIds.has(a.habitId)) continue;
     // Streak: which weeks this member had any completion.
     let weeksSet = completedWeeksByMember.get(a.memberId);
@@ -304,6 +315,11 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
       tasksDoneToday += 1;
     }
   }
+  // FHS-263 — "Tasks Done X/Y" denominator: tasks done today plus all
+  // still-open tasks (the actionable set today).
+  let tasksOpen = 0;
+  for (const n of tasksPendingByMember.values()) tasksOpen += n;
+  const tasksTotalToday = tasksDoneToday + tasksOpen;
 
   const responseMembers: DashboardMember[] = memberRows.map((m) => {
     const habitsDone = habitsDoneByMember.get(m.id)?.size ?? 0;
@@ -320,6 +336,7 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
       streak,
       tasksPending,
       statusText: deriveStatusText({ tasksPending, habitsDone, habitsTotal }),
+      starBalance: starBalanceByMember.get(m.id) ?? 0,
     };
   });
 
@@ -352,6 +369,7 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
       habits: habitsTotal,
       rewards: Number(rewardsCountRow?.n ?? 0),
       tasksDoneToday,
+      tasksTotalToday,
       mealsPlanned: Number(mealsCountRow?.n ?? 0),
     },
     goals,

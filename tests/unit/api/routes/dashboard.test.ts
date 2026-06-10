@@ -140,6 +140,7 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
       habits: 0,
       rewards: 0,
       tasksDoneToday: 0,
+      tasksTotalToday: 0,
       mealsPlanned: 0,
     });
     expect(body.goals).toEqual([]);
@@ -225,6 +226,7 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
         streak: 1,
         tasksPending: 1,
         statusText: '1 task left',
+        starBalance: 3, // 1 + 2 habit completions
       });
       expect(iman).toMatchObject({
         habitsDone: 1,
@@ -232,12 +234,14 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
         streak: 1,
         tasksPending: 2,
         statusText: '2 tasks left',
+        starBalance: 1,
       });
       expect(body.counts).toEqual({
         members: 2,
         habits: 2,
         rewards: 3,
         tasksDoneToday: 1,
+        tasksTotalToday: 4,
         mealsPlanned: 2,
       });
       expect(body.goals).toEqual([{ id: G1, label: 'Hajj fund', progress: 250, target: 5000 }]);
@@ -275,9 +279,21 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
       );
       const res = await app.request('/api/dashboard/today');
       const body = (await res.json()) as {
-        members: Array<{ habitsDone: number; habitsTotal: number; streak: number }>;
+        members: Array<{
+          habitsDone: number;
+          habitsTotal: number;
+          streak: number;
+          starBalance: number;
+        }>;
       };
-      expect(body.members[0]).toMatchObject({ habitsDone: 1, habitsTotal: 1, streak: 1 });
+      // habitsDone dedups to 1 active habit, but star balance counts every
+      // completion incl. the archived habit's 5 (earned stars stay): 1+1+5.
+      expect(body.members[0]).toMatchObject({
+        habitsDone: 1,
+        habitsTotal: 1,
+        streak: 1,
+        starBalance: 7,
+      });
     } finally {
       vi.useRealTimers();
     }

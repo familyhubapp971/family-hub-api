@@ -19,6 +19,10 @@ export const dashboardMemberSchema = z.object({
   streak: z.number().int().nonnegative(),
   tasksPending: z.number().int().nonnegative(),
   statusText: z.string(),
+  // FHS-263 exact-match — a kid's earned-star balance for the Family
+  // Goals "Kids' Star Balances" panel. Proxy = total habit completions
+  // until a spend/redeem ledger exists. 0 for adults.
+  starBalance: z.number().int().nonnegative(),
 });
 
 export const dashboardCountsSchema = z.object({
@@ -28,6 +32,9 @@ export const dashboardCountsSchema = z.object({
   // FHS-262 — Today's Snapshot stat row.
   tasksDoneToday: z.number().int().nonnegative(),
   mealsPlanned: z.number().int().nonnegative(),
+  // FHS-263 exact-match — denominator for the "Tasks Done X/Y" tile
+  // (total tasks due/done today, family-wide).
+  tasksTotalToday: z.number().int().nonnegative(),
 });
 
 // A Family Goal — backed by a savings goal. `target` is nullable for
