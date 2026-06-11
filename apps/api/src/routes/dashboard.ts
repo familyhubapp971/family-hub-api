@@ -363,6 +363,7 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
   const response: DashboardTodayResponse = {
     date: today,
     greetingName: deriveGreetingName(userRow.email),
+    callerMemberId: callerRows[0]!.id,
     members: responseMembers,
     counts: {
       members: memberRows.length,

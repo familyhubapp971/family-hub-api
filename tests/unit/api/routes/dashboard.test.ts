@@ -73,7 +73,7 @@ function buildAppWithSeed(opts: SeedOpts = {}, data: SeedData = {}) {
     idx += 1;
     switch (idx) {
       case 1: // caller membership
-        return chain(opts.callerMissing ? [] : [{ id: 'caller-member-id' }]);
+        return chain(opts.callerMissing ? [] : [{ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }]);
       case 2: // members roster
         return chain(data.members ?? []);
       case 3: // active habit ids

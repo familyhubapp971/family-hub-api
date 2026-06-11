@@ -60,6 +60,9 @@ export const dashboardActivitySchema = z.object({
 export const dashboardTodayResponseSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   greetingName: z.string(),
+  // FHS-261 — the caller's own member id, so the web can scope
+  // "my" stats (e.g. the My Tasks tab badge) without a second lookup.
+  callerMemberId: z.string().uuid(),
   members: z.array(dashboardMemberSchema),
   counts: dashboardCountsSchema,
   goals: z.array(dashboardGoalSchema),
