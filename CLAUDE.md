@@ -576,6 +576,24 @@ OK?" is trivial; the cost of letting drift compound is large. Close
 the loop in the Jira ticket's closing comment by listing the surfaces
 touched so the audit trail captures the cascade.
 
+### Design system (packages/ui) — single source of truth
+
+**Any design change updates the design system in the same PR.** When a
+ticket introduces or alters a visual component (badge styles, role
+colour maps, chips, stat tiles, progress bars, avatar discs, form
+shells), the reusable piece lives in `packages/ui` — never copy-pasted
+across pages. Rules:
+
+- New component used (or clearly usable) by 2+ pages → extract to
+  `packages/ui/src/<Name>.tsx`, export from `index.ts`, unit-test it
+  under `tests/unit/ui/`.
+- Shared visual constants (role → colour/label maps, pastel palettes,
+  status chip styles) live in `packages/ui`, not per-page consts.
+- When matching a Magic Patterns design, port the mock's component into
+  the design system first, then consume it from the page.
+- Drift check at PR self-review: if the diff adds a styled block that
+  already exists elsewhere, consolidate before merging.
+
 ### Code style
 
 - TypeScript strict mode everywhere.

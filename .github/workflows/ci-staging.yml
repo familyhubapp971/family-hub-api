@@ -88,6 +88,10 @@ jobs:
       - name: Run e2e (project=${{ matrix.browser }})
         env:
           PROJECT: ${{ matrix.browser }}
+          # FHS-277 — the Playwright webServer boots the api; without
+          # SUPABASE_URL its auth middleware fail-closes and every
+          # signed-in call 401s (locally .env.local supplies it).
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}

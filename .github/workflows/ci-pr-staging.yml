@@ -123,6 +123,9 @@ jobs:
         run: npx playwright install --with-deps chromium
       - run: pnpm test:e2e:critical
         env:
+          # FHS-277 — the api webServer needs the server-side var too,
+          # else auth fail-closes and signed-in @critical flows 401.
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
