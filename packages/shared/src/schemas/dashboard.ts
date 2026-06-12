@@ -23,6 +23,10 @@ export const dashboardMemberSchema = z.object({
   // Goals "Kids' Star Balances" panel. Proxy = total habit completions
   // until a spend/redeem ledger exists. 0 for adults.
   starBalance: z.number().int().nonnegative(),
+  // FHS-273 — true when the member's seat exists but no login is linked
+  // yet (members.user_id IS NULL): renders the "Pending — hasn't signed
+  // up" chip on the dashboard card.
+  pendingSignup: z.boolean(),
 });
 
 export const dashboardCountsSchema = z.object({

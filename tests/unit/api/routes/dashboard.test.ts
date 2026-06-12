@@ -163,8 +163,9 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
         {},
         {
           members: [
-            { id: M1, displayName: 'Sarah', role: 'admin', avatarEmoji: '👩' },
-            { id: M2, displayName: 'Iman', role: 'child', avatarEmoji: null },
+            { id: M1, displayName: 'Sarah', role: 'admin', avatarEmoji: '👩', userId: USER_ID },
+            // Wizard-created child: no linked login yet → pendingSignup.
+            { id: M2, displayName: 'Iman', role: 'child', avatarEmoji: null, userId: null },
           ],
           habitIds: [H1, H2],
           rewardsCount: 3,
@@ -174,12 +175,45 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
             { weekId: WK, memberId: M1, habitId: H2, completedCount: 2 },
             { weekId: WK, memberId: M2, habitId: H1, completedCount: 1 },
           ],
+          // Mirrors the route's createdAt-DESC ordering (the mock returns
+          // rows verbatim): newest first, so 'Call plumber' must win.
           tasks: [
-            { memberId: M1, doneAt: null },
-            { memberId: M2, doneAt: null },
-            { memberId: M2, doneAt: null },
-            { memberId: M1, doneAt: new Date('2026-06-10T09:00:00.000Z') }, // done today
-            { memberId: M1, doneAt: new Date('2026-06-01T09:00:00.000Z') }, // earlier
+            {
+              memberId: M1,
+              doneAt: null,
+              title: 'Call plumber',
+              createdAt: new Date('2026-06-10T07:00:00.000Z'),
+            },
+            {
+              memberId: M1,
+              doneAt: null,
+              title: 'Grocery run & Bills',
+              createdAt: new Date('2026-06-09T08:00:00.000Z'),
+            },
+            {
+              memberId: M2,
+              doneAt: null,
+              title: 'Tidy room',
+              createdAt: new Date('2026-06-09T09:00:00.000Z'),
+            },
+            {
+              memberId: M2,
+              doneAt: null,
+              title: 'Pack bag',
+              createdAt: new Date('2026-06-09T10:00:00.000Z'),
+            },
+            {
+              memberId: M1,
+              doneAt: new Date('2026-06-10T09:00:00.000Z'),
+              title: 'Done one',
+              createdAt: new Date('2026-06-08T09:00:00.000Z'),
+            }, // done today
+            {
+              memberId: M1,
+              doneAt: new Date('2026-06-01T09:00:00.000Z'),
+              title: 'Old one',
+              createdAt: new Date('2026-05-30T09:00:00.000Z'),
+            }, // earlier
           ],
           savings: [{ id: G1, name: 'Hajj fund', targetAmount: '5000.00' }],
           tx: [
@@ -224,9 +258,11 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
         habitsDone: 2,
         habitsTotal: 2,
         streak: 1,
-        tasksPending: 1,
-        statusText: '1 task left',
+        tasksPending: 2,
+        // FHS-273 — adults surface their NEWEST open task, not habit copy.
+        statusText: 'Call plumber',
         starBalance: 3, // 1 + 2 habit completions
+        pendingSignup: false,
       });
       expect(iman).toMatchObject({
         habitsDone: 1,
@@ -235,13 +271,15 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
         tasksPending: 2,
         statusText: '2 tasks left',
         starBalance: 1,
+        // Kids log in by PIN — never flagged as pending signup.
+        pendingSignup: false,
       });
       expect(body.counts).toEqual({
         members: 2,
         habits: 2,
         rewards: 3,
         tasksDoneToday: 1,
-        tasksTotalToday: 4,
+        tasksTotalToday: 5,
         mealsPlanned: 2,
       });
       expect(body.goals).toEqual([{ id: G1, label: 'Hajj fund', progress: 250, target: 5000 }]);

@@ -162,6 +162,8 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
       displayName: members.displayName,
       role: members.role,
       avatarEmoji: members.avatarEmoji,
+      // FHS-273 — null user_id = seat created but signup not completed.
+      userId: members.userId,
     })
     .from(members)
     .where(eq(members.tenantId, tenantId))
@@ -214,11 +216,18 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     .from(weekActions)
     .where(eq(weekActions.tenantId, tenantId));
 
-  // 8 — tasks (pending per member + done-today family count).
+  // 8 — tasks (pending per member + done-today family count + the
+  // latest pending title for the adult card's status box, FHS-273).
   const taskRows = await db
-    .select({ memberId: tasks.memberId, doneAt: tasks.doneAt })
+    .select({
+      memberId: tasks.memberId,
+      doneAt: tasks.doneAt,
+      title: tasks.title,
+      createdAt: tasks.createdAt,
+    })
     .from(tasks)
-    .where(eq(tasks.tenantId, tenantId));
+    .where(eq(tasks.tenantId, tenantId))
+    .orderBy(desc(tasks.createdAt));
 
   // 9 — savings goals.
   const savingsRows = await db
@@ -305,12 +314,18 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
   }
 
   const tasksPendingByMember = new Map<string, number>();
+  // Rows are createdAt-DESC, so the FIRST pending row seen per member is
+  // their newest open task (the adult card's status line, per the mock).
+  const latestPendingTaskByMember = new Map<string, string>();
   let tasksDoneToday = 0;
   for (const t of taskRows) {
     if (t.doneAt === null) {
       // tasks.member_id is NOT NULL; cross-tenant scope is guaranteed by
       // the tenantId filter on the query above.
       tasksPendingByMember.set(t.memberId, (tasksPendingByMember.get(t.memberId) ?? 0) + 1);
+      if (!latestPendingTaskByMember.has(t.memberId)) {
+        latestPendingTaskByMember.set(t.memberId, t.title);
+      }
     } else if (isoDateInTimezone(t.doneAt, tenantRow?.timezone) === today) {
       tasksDoneToday += 1;
     }
@@ -329,14 +344,30 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
       completedWeeksByMember.get(m.id) ?? new Set(),
     );
     const tasksPending = tasksPendingByMember.get(m.id) ?? 0;
+    // FHS-273 — parents don't have habits, they have tasks: their status
+    // line is the newest open task's title (or 'All done'). Kids keep the
+    // habit-aware derivation.
+    const isKid = m.role === 'child' || m.role === 'teen';
+    // Kids log in by PIN, never email signup — pending only applies to
+    // grown-up seats (incl. guests) without a linked login.
+    const pendingSignup = !isKid && m.userId === null;
+    const statusText = isKid
+      ? deriveStatusText({ tasksPending, habitsDone, habitsTotal })
+      : pendingSignup && tasksPending === 0
+        ? 'Awaiting signup'
+        : (latestPendingTaskByMember.get(m.id) ?? 'All done');
     return {
-      ...m,
+      id: m.id,
+      displayName: m.displayName,
+      role: m.role,
+      avatarEmoji: m.avatarEmoji,
       habitsDone,
       habitsTotal,
       streak,
       tasksPending,
-      statusText: deriveStatusText({ tasksPending, habitsDone, habitsTotal }),
+      statusText,
       starBalance: starBalanceByMember.get(m.id) ?? 0,
+      pendingSignup,
     };
   });
 
