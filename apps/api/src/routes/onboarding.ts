@@ -55,7 +55,14 @@ const wizardMemberSchema = z.object({
 export const completeOnboardingRequestSchema = z.object({
   timezone: timezoneSchema,
   currency: currencySchema,
-  members: z.array(wizardMemberSchema).min(1).max(8),
+  // FHS-274 — the founder's own name. Renames the calling admin's member
+  // row so the wizard never inserts a duplicate person for them. Trimmed
+  // BEFORE the min-length check so whitespace-only values 400 instead of
+  // silently skipping the rename.
+  yourName: z.string().trim().min(1).max(80).optional(),
+  // The OTHER family members (the founder is excluded — they already
+  // exist as the admin row). A solo parent can finish with none.
+  members: z.array(wizardMemberSchema).min(0).max(8),
 });
 
 export const completeOnboardingResponseSchema = z.object({
@@ -143,6 +150,9 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
     return c.json({ error: 'tenant not found' }, 404);
   }
   if (current.onboardingCompleted) {
+    // Read-only by design: a duplicate submit (tab refresh race) changes
+    // nothing — including yourName. Renames after onboarding belong to
+    // the members page (FHS-276), not a replayed wizard call.
     return c.json(completeOnboardingResponseSchema.parse(project(current, 0)), 200);
   }
 
@@ -156,14 +166,29 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
   let seedRewardsAdded = 0;
   try {
     await db.transaction(async (tx) => {
+      // FHS-274 — the founder IS the admin row created at family
+      // creation; the wizard renames them rather than duplicating them.
+      const yourName = parsed.data.yourName?.trim();
+      if (yourName) {
+        await tx
+          .update(members)
+          .set({ displayName: yourName, updatedAt: new Date() })
+          .where(and(eq(members.id, caller.id), eq(members.tenantId, tenantId)));
+      }
+
       const newMemberRows = parsed.data.members.map((m) => ({
         tenantId,
         displayName: m.displayName,
         role: m.role,
         avatarEmoji: m.avatarEmoji ?? null,
       }));
-      const inserted = await tx.insert(members).values(newMemberRows).returning({ id: members.id });
-      membersAdded = inserted.length;
+      if (newMemberRows.length > 0) {
+        const inserted = await tx
+          .insert(members)
+          .values(newMemberRows)
+          .returning({ id: members.id });
+        membersAdded = inserted.length;
+      }
 
       const updated = await tx
         .update(tenants)

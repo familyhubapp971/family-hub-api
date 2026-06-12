@@ -162,6 +162,8 @@ describeFeature(feature, ({ Background, Scenario }) => {
           body: JSON.stringify({
             timezone,
             currency,
+            // FHS-274 — renames the founder's admin row in-place.
+            yourName: 'Sarah',
             members: [
               { displayName: 'Iman', role: 'child', avatarEmoji: '👧' },
               { displayName: 'Yusuf', role: 'adult' },
@@ -183,11 +185,20 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
 
     And('tenant {string} has 3 members in total', async (_ctx, slug: string) => {
-      // 1 admin from Background + 2 from the wizard.
+      // 1 admin from Background (renamed, not duplicated) + 2 from the wizard.
       const { rows } = await db.execute<{ count: string }>(
         sql`SELECT COUNT(*)::text AS count FROM members WHERE tenant_id = ${tenantIds[slug]!}`,
       );
       expect(Number(rows[0]?.count)).toBe(3);
+    });
+
+    And('the {string} admin is renamed to {string}', async (_ctx, slug: string, name: string) => {
+      // FHS-274 — yourName updates the founder's existing admin row.
+      const { rows } = await db.execute<{ display_name: string }>(
+        sql`SELECT display_name FROM members WHERE tenant_id = ${tenantIds[slug]!} AND role = 'admin'`,
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.display_name).toBe(name);
     });
 
     And('tenant {string} still has onboarding_completed = false', async (_ctx, slug: string) => {

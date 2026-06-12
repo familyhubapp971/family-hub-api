@@ -13,6 +13,7 @@ Feature: POST /api/onboarding/complete (FHS-37)
     Then the response status is 200
     And tenant "khan" has onboarding_completed = true
     And tenant "khan" has 3 members in total
+    And the "khan" admin is renamed to "Sarah"
     And tenant "smith" still has onboarding_completed = false
     # FHS-40 — starter content seeded under tenant "khan", and only "khan".
     And tenant "khan" has 5 habits seeded

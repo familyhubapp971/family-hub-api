@@ -240,4 +240,67 @@ describe('FHS-37 — POST /api/onboarding/complete', () => {
     // future reorder doesn't break this test.
     expect(new Set(insertedTables)).toEqual(new Set([members, habits, rewards]));
   });
+
+  it('FHS-274 — whitespace-only yourName is rejected with 400', async () => {
+    const app = buildAppWithSeed({});
+    const res = await app.request('/api/onboarding/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        timezone: 'Asia/Dubai',
+        currency: 'AED',
+        yourName: '   ',
+        members: [],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('FHS-274 — yourName renames the admin; zero others insert nothing', async () => {
+    const updated = fixedTenant();
+    updated.onboardingCompleted = true;
+    const app = buildAppWithSeed({});
+
+    const insertedTables: unknown[] = [];
+    const updatedTables: unknown[] = [];
+    dbMock.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
+      const tx = {
+        insert: (table: unknown) => {
+          insertedTables.push(table);
+          const rowsForTable =
+            table === habits
+              ? [{ id: 'h1' }, { id: 'h2' }, { id: 'h3' }, { id: 'h4' }, { id: 'h5' }]
+              : table === rewards
+                ? [{ id: 'r1' }, { id: 'r2' }, { id: 'r3' }]
+                : [];
+          return { values: () => ({ returning: () => Promise.resolve(rowsForTable) }) };
+        },
+        update: (table: unknown) => {
+          updatedTables.push(table);
+          return {
+            set: () => ({ where: () => ({ returning: () => Promise.resolve([updated]) }) }),
+          };
+        },
+      };
+      await fn(tx);
+    });
+
+    const res = await app.request('/api/onboarding/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        timezone: 'Asia/Dubai',
+        currency: 'AED',
+        yourName: 'Sarah',
+        members: [],
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { membersAdded: number };
+    expect(body.membersAdded).toBe(0);
+    // The admin's own row was renamed; no members insert fired (no
+    // duplicate founder), only the FHS-40 seed inserts.
+    expect(updatedTables).toContain(members);
+    expect(insertedTables).not.toContain(members);
+  });
 });
