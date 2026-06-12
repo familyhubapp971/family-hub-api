@@ -19,7 +19,11 @@ import { dashboardRouter } from './routes/dashboard.js';
 import { eventsRouter } from './routes/events.js';
 import { healthRouter } from './routes/health.js';
 import { helloRouter } from './routes/hello.js';
-import { invitationClaimRouter, invitationsRouter } from './routes/invitations.js';
+import {
+  invitationClaimRouter,
+  invitationResendRouter,
+  invitationsRouter,
+} from './routes/invitations.js';
 import { meRouter } from './routes/me.js';
 import { mealsRouter } from './routes/meals.js';
 import { membersRouter } from './routes/members.js';
@@ -131,6 +135,9 @@ export function buildApp(opts: BuildAppOptions = {}) {
   // FHS-275 — claim must mount BEFORE the generic router so POST
   // /api/invitations/claim doesn't fall through to POST /api/invitations.
   app.route('/api/invitations/claim', invitationClaimRouter);
+  // FHS-276 — resend mounts on the same base path; its ':id/resend'
+  // route shape doesn't collide with the create/list router.
+  app.route('/api/invitations', invitationResendRouter);
   app.route('/api/invitations', invitationsRouter);
   app.route('/api/members', membersRouter);
   app.route('/api/dashboard', dashboardRouter);

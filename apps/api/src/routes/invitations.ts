@@ -37,6 +37,9 @@ const inviteRoleSchema = z.enum(INVITE_ROLE_VALUES);
 export const createInvitationRequestSchema = z.object({
   email: z.string().email('enter a valid email').max(254),
   role: inviteRoleSchema.default('adult'),
+  // FHS-276 — optional: create the member seat now (named card shows as
+  // pending immediately); claim links the login to THIS seat.
+  displayName: z.string().trim().min(1).max(80).optional(),
 });
 
 export const createInvitationResponseSchema = z.object({
@@ -137,6 +140,17 @@ export const invitationsRouter = new Hono().post('/', async (c) => {
   // (pending_invitations_tenant_email_pending_uniq) catches
   // double-invite races at insert time.
   let invitation: PendingInvitation;
+  // FHS-276 — when the caller named the seat, create the member row up
+  // front so the Manage Members grid shows a pending card immediately.
+  let seatMemberId: string | null = null;
+  if (parsed.data.displayName) {
+    const seat = await db
+      .insert(members)
+      .values({ tenantId, displayName: parsed.data.displayName, role })
+      .returning({ id: members.id });
+    seatMemberId = seat[0]?.id ?? null;
+  }
+
   try {
     const inserted = await db
       .insert(pendingInvitations)
@@ -145,6 +159,7 @@ export const invitationsRouter = new Hono().post('/', async (c) => {
         email,
         role,
         invitedBy: caller.id,
+        memberId: seatMemberId,
         status: 'pending',
       })
       .returning();
@@ -254,6 +269,7 @@ export const invitationClaimRouter = new Hono().post('/', async (c) => {
       id: pendingInvitations.id,
       tenantId: pendingInvitations.tenantId,
       memberId: pendingInvitations.memberId,
+      role: pendingInvitations.role,
     })
     .from(pendingInvitations)
     .where(
@@ -265,7 +281,42 @@ export const invitationClaimRouter = new Hono().post('/', async (c) => {
 
   const claimed: Array<{ tenantId: string; slug: string }> = [];
   for (const inv of pending) {
-    if (!inv.memberId) continue; // members-page invites without a seat — FHS-276
+    // FHS-276 — members-page invites carry no pre-created seat: create
+    // the member row at claim time instead (display name from the email
+    // local-part; rename later on Manage Members).
+    if (!inv.memberId) {
+      // Flip the invitation FIRST with a status guard so two concurrent
+      // claims can't both create a member row (only one wins the flip).
+      const flipped = await db
+        .update(pendingInvitations)
+        .set({ status: 'accepted', updatedAt: new Date() })
+        .where(and(eq(pendingInvitations.id, inv.id), eq(pendingInvitations.status, 'pending')))
+        .returning({ id: pendingInvitations.id });
+      if (!flipped[0]) continue;
+      const local = (userRow.email.split('@')[0] ?? '').trim();
+      const display = local ? local.charAt(0).toUpperCase() + local.slice(1) : 'Parent';
+      const created = await db
+        .insert(members)
+        .values({
+          tenantId: inv.tenantId,
+          userId: userRow.id,
+          displayName: display,
+          role: inv.role,
+        })
+        .returning({ id: members.id });
+      if (!created[0]) continue;
+      const trows0 = await db
+        .select({ slug: tenants.slug })
+        .from(tenants)
+        .where(eq(tenants.id, inv.tenantId))
+        .limit(1);
+      if (trows0[0]) claimed.push({ tenantId: inv.tenantId, slug: trows0[0].slug });
+      log.info(
+        { invitationId: inv.id, tenantId: inv.tenantId, memberId: created[0].id },
+        'invitation claimed (seat created)',
+      );
+      continue;
+    }
     // Claim only an unclaimed seat in the invite's own tenant.
     const updatedRows = await db
       .update(members)
@@ -296,4 +347,73 @@ export const invitationClaimRouter = new Hono().post('/', async (c) => {
   }
 
   return c.json({ claimed }, 200);
+});
+
+// FHS-276 — POST /api/invitations/:id/resend.
+//
+// Re-fires the Supabase invite email for a still-pending invitation
+// (typo'd address fixed at the provider, email lost, etc.). Admin or
+// adult caller, same tenant. The invitation row keeps its id/seat link
+// so a later claim still lands on the right member.
+export const invitationResendRouter = new Hono().post('/:id/resend', async (c) => {
+  getAuthenticatedUser(c);
+  const userRow = c.get('userRow');
+  if (!userRow) throw new Error('resend handler reached without userRow');
+  const tenantId = c.get('tenantId');
+  if (!tenantId) {
+    return c.json({ error: 'tenant context required', errorCode: 'TENANT_REQUIRED' }, 400);
+  }
+  const id = c.req.param('id');
+  if (!z.string().uuid().safeParse(id).success) {
+    return c.json({ error: 'invalid invitation id' }, 400);
+  }
+  const db = getDb();
+  const callerRows = await db
+    .select({ id: members.id, role: members.role })
+    .from(members)
+    .where(and(eq(members.tenantId, tenantId), eq(members.userId, userRow.id)))
+    .limit(1);
+  const caller = callerRows[0];
+  if (!caller) {
+    return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
+  }
+  if (caller.role !== 'admin' && caller.role !== 'adult') {
+    return c.json({ error: 'forbidden', detail: 'role not permitted to resend invites' }, 403);
+  }
+  const invRows = await db
+    .select({
+      id: pendingInvitations.id,
+      email: pendingInvitations.email,
+      status: pendingInvitations.status,
+    })
+    .from(pendingInvitations)
+    .where(and(eq(pendingInvitations.tenantId, tenantId), eq(pendingInvitations.id, id)))
+    .limit(1);
+  const inv = invRows[0];
+  if (!inv) return c.json({ error: 'invitation not found' }, 404);
+  if (inv.status !== 'pending') {
+    return c.json({ error: 'invitation is not pending', status: inv.status }, 409);
+  }
+  const baseUrl = config.APP_BASE_URL;
+  if (!baseUrl) {
+    return c.json({ error: 'server misconfigured', detail: 'APP_BASE_URL is required' }, 500);
+  }
+  try {
+    const supabaseUser = await inviteUserByEmail({
+      email: inv.email,
+      redirectTo: `${baseUrl.replace(/\/$/, '')}/auth/callback?invite=${inv.id}`,
+      data: { invite_id: inv.id, tenant_id: tenantId },
+    });
+    await db
+      .update(pendingInvitations)
+      .set({ supabaseInviteId: supabaseUser.id, updatedAt: new Date() })
+      .where(eq(pendingInvitations.id, inv.id));
+  } catch (err) {
+    log.error(
+      { err: err instanceof Error ? err.message : String(err), invitationId: inv.id, tenantId },
+      'invite resend failed',
+    );
+    return c.json({ error: 'invitation could not be resent' }, 502);
+  }
+  return c.json({ resent: true }, 200);
 });

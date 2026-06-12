@@ -113,6 +113,13 @@
       "when": 1781270210163,
       "tag": "0015_goofy_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1781271564772,
+      "tag": "0016_spooky_iron_lad",
+      "breakpoints": true
     }
   ]
 }

@@ -55,11 +55,19 @@ function buildAppWithSeed(opts: SeedOpts = {}, members: unknown[] = []) {
         }),
       };
     }
+    if (selectCallIdx === 2) {
+      return {
+        from: () => ({
+          where: () => ({
+            orderBy: () => Promise.resolve(members),
+          }),
+        }),
+      };
+    }
+    // 3rd select — FHS-276 pending invites (none in these fixtures).
     return {
       from: () => ({
-        where: () => ({
-          orderBy: () => Promise.resolve(members),
-        }),
+        where: () => Promise.resolve([]),
       }),
     };
   });

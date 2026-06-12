@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { and, asc, eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { getDb } from '../db/client.js';
-import { members } from '../db/schema.js';
+import { members, pendingInvitations } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 import { KID_PIN_BCRYPT_COST, resetKidPinBucketForMember } from './auth-kid-pin.js';
 
@@ -33,6 +33,12 @@ export const memberItemSchema = z.object({
   // "Set kid PIN" vs "Reset PIN" without leaking the hash itself.
   isChild: z.boolean(),
   hasPin: z.boolean(),
+  // FHS-276 — kid card badge ("Child (6)"); null when not collected.
+  age: z.number().int().nullable(),
+  // FHS-276 — latest pending invite for an unclaimed seat, so the page
+  // can show the email + a Resend button.
+  inviteEmail: z.string().nullable(),
+  inviteId: z.string().uuid().nullable(),
 });
 
 export const listMembersResponseSchema = z.object({
@@ -90,14 +96,31 @@ export const membersRouter = new Hono().get('/', async (c) => {
       createdAt: members.createdAt,
       isChild: members.isChild,
       pinHash: members.pinHash,
+      age: members.age,
     })
     .from(members)
     .where(eq(members.tenantId, tenantId))
     .orderBy(asc(members.createdAt));
 
+  // FHS-276 — pending invites keyed by member seat (for unclaimed rows).
+  const inviteRows = await db
+    .select({
+      id: pendingInvitations.id,
+      memberId: pendingInvitations.memberId,
+      email: pendingInvitations.email,
+    })
+    .from(pendingInvitations)
+    .where(
+      and(eq(pendingInvitations.tenantId, tenantId), eq(pendingInvitations.status, 'pending')),
+    );
+  const inviteByMember = new Map(
+    inviteRows.filter((r) => r.memberId).map((r) => [r.memberId as string, r]),
+  );
+
   const response: ListMembersResponse = {
     members: rows.map((r) => {
       const status: MemberStatus = r.userId ? 'active' : 'unclaimed';
+      const invite = r.userId ? undefined : inviteByMember.get(r.id);
       return {
         id: r.id,
         displayName: r.displayName,
@@ -107,6 +130,9 @@ export const membersRouter = new Hono().get('/', async (c) => {
         createdAt: r.createdAt.toISOString(),
         isChild: r.isChild,
         hasPin: r.pinHash !== null,
+        age: r.age ?? null,
+        inviteEmail: invite?.email ?? null,
+        inviteId: invite?.id ?? null,
       };
     }),
     callerRole,
@@ -307,4 +333,213 @@ membersRouter.delete('/:id/pin', async (c) => {
     },
   };
   return c.json(setMemberPinResponseSchema.parse(response));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FHS-276 — Manage Members mutations.
+//
+// POST   /api/members        — add a child/teen seat (name + optional age).
+// PATCH  /api/members/:id    — rename, and/or toggle admin on parent rows.
+// DELETE /api/members/:id    — remove a member (their content cascades).
+//
+// All three are admin-only (managing the family roster is an admin job;
+// adults can still invite via onboarding/invitations). The last admin
+// can never be demoted or removed — a family must always have one.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const memberIdParamsSchema = z.object({ id: z.string().uuid('member id must be a UUID') });
+
+const addChildBodySchema = z.object({
+  displayName: z.string().trim().min(1).max(80),
+  role: z.enum(['child', 'teen']).default('child'),
+  age: z.number().int().min(1).max(25).optional(),
+  avatarEmoji: z.string().min(1).max(8).optional(),
+});
+
+const patchMemberBodySchema = z
+  .object({
+    displayName: z.string().trim().min(1).max(80).optional(),
+    // Only the admin↔adult toggle is allowed here; kid roles are fixed
+    // at creation and PIN flags have their own endpoints.
+    role: z.enum(['admin', 'adult']).optional(),
+  })
+  .refine((b) => b.displayName !== undefined || b.role !== undefined, {
+    message: 'nothing to update',
+  });
+
+async function loadAdminCaller(
+  db: ReturnType<typeof getDb>,
+  tenantId: string,
+  userId: string,
+): Promise<{ id: string; role: string } | null> {
+  const rows = await db
+    .select({ id: members.id, role: members.role })
+    .from(members)
+    .where(and(eq(members.tenantId, tenantId), eq(members.userId, userId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+async function countAdmins(db: ReturnType<typeof getDb>, tenantId: string): Promise<number> {
+  const rows = await db
+    .select({ id: members.id })
+    .from(members)
+    .where(and(eq(members.tenantId, tenantId), eq(members.role, 'admin')));
+  return rows.length;
+}
+
+membersRouter.post('/', async (c) => {
+  getAuthenticatedUser(c);
+  const userRow = c.get('userRow');
+  if (!userRow) throw new Error('members POST reached without userRow');
+  const tenantId = c.get('tenantId');
+  if (!tenantId) {
+    return c.json({ error: 'tenant context required', errorCode: 'TENANT_REQUIRED' }, 400);
+  }
+  const db = getDb();
+  const caller = await loadAdminCaller(db, tenantId, userRow.id);
+  if (!caller) {
+    return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
+  }
+  if (caller.role !== 'admin') {
+    return c.json({ error: 'forbidden', detail: 'only admins can add members' }, 403);
+  }
+  const parsed = addChildBodySchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json(
+      {
+        error: 'invalid request',
+        issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+      },
+      400,
+    );
+  }
+  const inserted = await db
+    .insert(members)
+    .values({
+      tenantId,
+      displayName: parsed.data.displayName,
+      role: parsed.data.role,
+      age: parsed.data.age ?? null,
+      avatarEmoji: parsed.data.avatarEmoji ?? null,
+      isChild: true,
+    })
+    .returning({ id: members.id, displayName: members.displayName, role: members.role });
+  return c.json({ member: inserted[0] }, 201);
+});
+
+membersRouter.patch('/:id', async (c) => {
+  getAuthenticatedUser(c);
+  const userRow = c.get('userRow');
+  if (!userRow) throw new Error('members PATCH reached without userRow');
+  const tenantId = c.get('tenantId');
+  if (!tenantId) {
+    return c.json({ error: 'tenant context required', errorCode: 'TENANT_REQUIRED' }, 400);
+  }
+  const params = memberIdParamsSchema.safeParse(c.req.param());
+  if (!params.success) return c.json({ error: 'invalid member id' }, 400);
+  const db = getDb();
+  const caller = await loadAdminCaller(db, tenantId, userRow.id);
+  if (!caller) {
+    return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
+  }
+  if (caller.role !== 'admin') {
+    return c.json({ error: 'forbidden', detail: 'only admins can edit members' }, 403);
+  }
+  const parsed = patchMemberBodySchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json(
+      {
+        error: 'invalid request',
+        issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+      },
+      400,
+    );
+  }
+  const targetRows = await db
+    .select({ id: members.id, role: members.role })
+    .from(members)
+    .where(and(eq(members.tenantId, tenantId), eq(members.id, params.data.id)))
+    .limit(1);
+  const target = targetRows[0];
+  if (!target) return c.json({ error: 'member not found' }, 404);
+
+  if (parsed.data.role !== undefined) {
+    // Admin toggle is parents-only: the target must already be adult/admin.
+    if (target.role !== 'admin' && target.role !== 'adult') {
+      return c.json(
+        { error: 'forbidden', detail: 'only parents can be made or removed as admin' },
+        400,
+      );
+    }
+    // An admin can't demote THEMSELF — another admin must do it, so a
+    // mis-tap can't lock the family's owner out of management.
+    if (target.id === caller.id && target.role === 'admin' && parsed.data.role === 'adult') {
+      return c.json(
+        { error: 'forbidden', detail: 'ask another admin to remove your admin access' },
+        400,
+      );
+    }
+    // Never demote the last admin.
+    if (target.role === 'admin' && parsed.data.role === 'adult') {
+      const admins = await countAdmins(db, tenantId);
+      if (admins <= 1) {
+        return c.json(
+          { error: 'forbidden', detail: 'a family must always have at least one admin' },
+          400,
+        );
+      }
+    }
+  }
+
+  const updated = await db
+    .update(members)
+    .set({
+      ...(parsed.data.displayName !== undefined ? { displayName: parsed.data.displayName } : {}),
+      ...(parsed.data.role !== undefined ? { role: parsed.data.role } : {}),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(members.tenantId, tenantId), eq(members.id, params.data.id)))
+    .returning({ id: members.id, displayName: members.displayName, role: members.role });
+  return c.json({ member: updated[0] }, 200);
+});
+
+membersRouter.delete('/:id', async (c) => {
+  getAuthenticatedUser(c);
+  const userRow = c.get('userRow');
+  if (!userRow) throw new Error('members DELETE reached without userRow');
+  const tenantId = c.get('tenantId');
+  if (!tenantId) {
+    return c.json({ error: 'tenant context required', errorCode: 'TENANT_REQUIRED' }, 400);
+  }
+  const params = memberIdParamsSchema.safeParse(c.req.param());
+  if (!params.success) return c.json({ error: 'invalid member id' }, 400);
+  const db = getDb();
+  const caller = await loadAdminCaller(db, tenantId, userRow.id);
+  if (!caller) {
+    return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
+  }
+  if (caller.role !== 'admin') {
+    return c.json({ error: 'forbidden', detail: 'only admins can remove members' }, 403);
+  }
+  const targetRows = await db
+    .select({ id: members.id, role: members.role })
+    .from(members)
+    .where(and(eq(members.tenantId, tenantId), eq(members.id, params.data.id)))
+    .limit(1);
+  const target = targetRows[0];
+  if (!target) return c.json({ error: 'member not found' }, 404);
+  if (target.role === 'admin') {
+    const admins = await countAdmins(db, tenantId);
+    if (admins <= 1) {
+      return c.json(
+        { error: 'forbidden', detail: 'a family must always have at least one admin' },
+        400,
+      );
+    }
+  }
+  await db
+    .delete(members)
+    .where(and(eq(members.tenantId, tenantId), eq(members.id, params.data.id)));
+  return c.json({ deleted: true }, 200);
 });

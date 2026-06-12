@@ -172,6 +172,10 @@ export const members = pgTable(
     // role enum is about permissions, this flag is about auth flow.
     pinHash: text('pin_hash'),
     isChild: boolean('is_child').notNull().default(false),
+    // FHS-276 — optional age (years) shown on kid cards ("Child (6)").
+    // Collected by the Manage Members "Add a Child" form; not a birthday,
+    // so it goes stale — fine for v1 display purposes.
+    age: integer('age'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
