@@ -64,6 +64,9 @@ interface EventsResponse {
     title: string;
     notes: string | null;
     memberId: string | null;
+    type: 'school' | 'home';
+    location: string | null;
+    wear: string | null;
   }>;
 }
 
@@ -142,7 +145,12 @@ describeFeature(feature, ({ Background, Scenario }) => {
     return { res, body };
   }
 
-  async function postEvent(slug: string, title: string, date: string) {
+  async function postEvent(
+    slug: string,
+    title: string,
+    date: string,
+    extras: { type?: string; location?: string; wear?: string } = {},
+  ) {
     return app.request('/api/events', {
       method: 'POST',
       headers: {
@@ -150,7 +158,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
         'x-test-tenant': tenantIds[slug]!,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ date, title }),
+      body: JSON.stringify({ date, title, ...extras }),
     });
   }
 
@@ -317,4 +325,71 @@ describeFeature(feature, ({ Background, Scenario }) => {
       });
     },
   );
+
+  Scenario('type, location and wear round-trip (FHS-265)', ({ When, Then, And }) => {
+    let postRes: Response;
+    let body: EventsResponse;
+
+    When(
+      'the caller POSTs a school event {string} on {string} at {string} wearing {string} in tenant {string}',
+      async (_ctx, title: string, date: string, location: string, wear: string, slug: string) => {
+        postRes = await postEvent(slug, title, date, { type: 'school', location, wear });
+      },
+    );
+
+    Then('the POST response status is 201', () => {
+      expect(postRes.status).toBe(201);
+    });
+
+    And(
+      're-fetching events for week {string} in tenant {string} lists {int} events',
+      async (_ctx, weekStart: string, slug: string, n: number) => {
+        const out = await getEvents(slug, weekStart);
+        expect(out.res.status).toBe(200);
+        body = out.body;
+        expect(body.events).toHaveLength(n);
+      },
+    );
+
+    And(
+      'the {string} event has type {string}, location {string} and wear {string}',
+      (_ctx, title: string, type: string, location: string, wear: string) => {
+        const event = body.events.find((e) => e.title === title);
+        expect(event, `${title} missing`).toBeDefined();
+        expect(event).toMatchObject({ type, location, wear });
+      },
+    );
+  });
+
+  Scenario('type defaults to home when omitted (FHS-265)', ({ When, Then, And }) => {
+    let postRes: Response;
+    let body: EventsResponse;
+
+    When(
+      'the caller POSTs an event {string} on {string} in tenant {string}',
+      async (_ctx, title: string, date: string, slug: string) => {
+        postRes = await postEvent(slug, title, date);
+      },
+    );
+
+    Then('the POST response status is 201', () => {
+      expect(postRes.status).toBe(201);
+    });
+
+    And(
+      're-fetching events for week {string} in tenant {string} lists {int} events',
+      async (_ctx, weekStart: string, slug: string, n: number) => {
+        const out = await getEvents(slug, weekStart);
+        expect(out.res.status).toBe(200);
+        body = out.body;
+        expect(body.events).toHaveLength(n);
+      },
+    );
+
+    And('the {string} event has type {string}', (_ctx, title: string, type: string) => {
+      const event = body.events.find((e) => e.title === title);
+      expect(event, `${title} missing`).toBeDefined();
+      expect(event!.type).toBe(type);
+    });
+  });
 });

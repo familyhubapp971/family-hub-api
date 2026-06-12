@@ -149,15 +149,29 @@ describe('FHS-230 — GET /api/events', () => {
         title: 'Swim lesson',
         notes: null,
         memberId: null,
+        type: 'school',
+        location: 'Leisure Centre',
+        wear: 'Swimsuit and towel',
       },
     ]);
     const res = await app.request('/api/events?weekStart=2026-05-04');
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { events: Array<{ title: string; startTime: string }> };
+    const body = (await res.json()) as {
+      events: Array<{
+        title: string;
+        startTime: string;
+        type: string;
+        location: string | null;
+        wear: string | null;
+      }>;
+    };
     expect(body.events).toHaveLength(1);
     expect(body.events[0]).toMatchObject({
       title: 'Swim lesson',
       startTime: '09:00',
+      type: 'school',
+      location: 'Leisure Centre',
+      wear: 'Swimsuit and towel',
     });
   });
 });
@@ -245,7 +259,7 @@ describe('FHS-230 — POST /api/events', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 201 with the created event when valid', async () => {
+  it('returns 201 with the created event when valid (type defaults to home)', async () => {
     const E1 = '22222222-2222-4222-8222-222222222222';
     const app = buildAppWithSeed(
       {},
@@ -259,6 +273,9 @@ describe('FHS-230 — POST /api/events', () => {
           title: 'Swim lesson',
           notes: null,
           memberId: null,
+          type: 'home',
+          location: null,
+          wear: null,
         },
       ],
     );
@@ -267,9 +284,58 @@ describe('FHS-230 — POST /api/events', () => {
       postBody({ date: '2026-05-04', title: 'Swim lesson', startTime: '09:00' }),
     );
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { id: string; title: string };
+    const body = (await res.json()) as { id: string; title: string; type: string };
     expect(body.id).toBe(E1);
     expect(body.title).toBe('Swim lesson');
+    expect(body.type).toBe('home');
     expect(dbMock.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it('round-trips type/location/wear (FHS-265)', async () => {
+    const E1 = '22222222-2222-4222-8222-222222222222';
+    const app = buildAppWithSeed(
+      {},
+      [],
+      [
+        {
+          id: E1,
+          date: '2026-05-04',
+          startTime: null,
+          endTime: null,
+          title: 'PE Day',
+          notes: null,
+          memberId: null,
+          type: 'school',
+          location: 'School gym',
+          wear: 'PE kit',
+        },
+      ],
+    );
+    const res = await app.request(
+      '/api/events',
+      postBody({
+        date: '2026-05-04',
+        title: 'PE Day',
+        type: 'school',
+        location: 'School gym',
+        wear: 'PE kit',
+      }),
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      type: string;
+      location: string | null;
+      wear: string | null;
+    };
+    expect(body).toMatchObject({ type: 'school', location: 'School gym', wear: 'PE kit' });
+  });
+
+  it('rejects an unknown type with 400', async () => {
+    const app = buildAppWithSeed({});
+    const res = await app.request(
+      '/api/events',
+      postBody({ date: '2026-05-04', title: 'X', type: 'work' }),
+    );
+    expect(res.status).toBe(400);
   });
 });

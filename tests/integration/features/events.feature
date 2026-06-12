@@ -35,3 +35,15 @@ Feature: GET + POST /api/events (FHS-230)
     And the response includes 1 events
     And the response includes a "Family dinner" event
     And the response excludes a "Pasta night" event
+
+  Scenario: type, location and wear round-trip (FHS-265)
+    When the caller POSTs a school event "PE Day" on "2026-05-05" at "School gym" wearing "PE kit" in tenant "khan"
+    Then the POST response status is 201
+    And re-fetching events for week "2026-05-04" in tenant "khan" lists 1 events
+    And the "PE Day" event has type "school", location "School gym" and wear "PE kit"
+
+  Scenario: type defaults to home when omitted (FHS-265)
+    When the caller POSTs an event "Dentist" on "2026-05-05" in tenant "khan"
+    Then the POST response status is 201
+    And re-fetching events for week "2026-05-04" in tenant "khan" lists 1 events
+    And the "Dentist" event has type "home"

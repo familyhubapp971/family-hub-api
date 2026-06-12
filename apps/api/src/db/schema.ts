@@ -421,12 +421,21 @@ export type MealTemplate = typeof mealTemplates.$inferSelect;
 export type NewMealTemplate = typeof mealTemplates.$inferInsert;
 
 /**
- * `events` (FHS-230) — calendar entries on the family Calendar tab.
- * One row per event. `date` is a calendar day (no time zone); the
- * optional `start_time` / `end_time` are HH:MM strings interpreted
- * in the tenant's IANA timezone. `member_id` links the event to a
- * specific family member when set (e.g. "Iman's swimming") and is
- * nullable for whole-family events.
+ * Calendar split (FHS-265) — School vs Home activities render under
+ * separate sub-tabs on the Calendar screen.
+ */
+export const eventType = pgEnum('event_type', ['school', 'home']);
+
+/**
+ * `events` (FHS-230, expanded FHS-265) — calendar entries on the family
+ * Calendar tab. One row per event. `date` is a calendar day (no time
+ * zone); the optional `start_time` / `end_time` are HH:MM strings
+ * interpreted in the tenant's IANA timezone. `member_id` links the
+ * event to a specific family member when set (e.g. "Iman's swimming")
+ * and is nullable for whole-family events.
+ *
+ * FHS-265 adds `type` (school | home sub-tab), `location` ("where")
+ * and `wear` ("what to wear") — both free text, both optional.
  *
  * Recurring events (weekly, monthly) are deferred — they'll need a
  * separate `event_rules` table when shipped.
@@ -444,6 +453,9 @@ export const events = pgTable(
     title: text('title').notNull(),
     notes: text('notes'),
     memberId: uuid('member_id').references(() => members.id, { onDelete: 'set null' }),
+    type: eventType('type').notNull().default('home'),
+    location: text('location'),
+    wear: text('wear'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

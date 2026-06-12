@@ -17,6 +17,8 @@ import { getAuthenticatedUser } from '../middleware/auth.js';
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+export const eventTypeValues = ['school', 'home'] as const;
+
 export const eventItemSchema = z.object({
   id: z.string().uuid(),
   date: z.string().regex(ISO_DATE),
@@ -25,6 +27,10 @@ export const eventItemSchema = z.object({
   title: z.string(),
   notes: z.string().nullable(),
   memberId: z.string().uuid().nullable(),
+  // FHS-265 — School/Home sub-tab + "where" + "what to wear".
+  type: z.enum(eventTypeValues),
+  location: z.string().nullable(),
+  wear: z.string().nullable(),
 });
 
 export const listEventsResponseSchema = z.object({
@@ -46,6 +52,9 @@ const createEventRequestSchema = z
     endTime: z.string().regex(HHMM).nullish(),
     memberId: z.string().uuid().nullish(),
     notes: z.string().max(1000).nullish(),
+    type: z.enum(eventTypeValues).default('home'),
+    location: z.string().trim().max(120).nullish(),
+    wear: z.string().trim().max(120).nullish(),
   })
   .refine((d) => !d.endTime || !!d.startTime, {
     message: 'endTime requires startTime',
@@ -123,6 +132,9 @@ export const eventsRouter = new Hono()
         title: events.title,
         notes: events.notes,
         memberId: events.memberId,
+        type: events.type,
+        location: events.location,
+        wear: events.wear,
       })
       .from(events)
       .where(
@@ -140,6 +152,9 @@ export const eventsRouter = new Hono()
         title: r.title,
         notes: r.notes,
         memberId: r.memberId,
+        type: r.type as (typeof eventTypeValues)[number],
+        location: r.location,
+        wear: r.wear,
       })),
     };
     return c.json(listEventsResponseSchema.parse(response));
@@ -204,6 +219,9 @@ export const eventsRouter = new Hono()
         endTime: parsed.data.endTime ?? null,
         memberId: parsed.data.memberId ?? null,
         notes: parsed.data.notes ?? null,
+        type: parsed.data.type,
+        location: parsed.data.location ?? null,
+        wear: parsed.data.wear ?? null,
       })
       .returning({
         id: events.id,
@@ -213,6 +231,9 @@ export const eventsRouter = new Hono()
         title: events.title,
         notes: events.notes,
         memberId: events.memberId,
+        type: events.type,
+        location: events.location,
+        wear: events.wear,
       });
 
     if (!row) {
