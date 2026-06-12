@@ -19,7 +19,7 @@ import { dashboardRouter } from './routes/dashboard.js';
 import { eventsRouter } from './routes/events.js';
 import { healthRouter } from './routes/health.js';
 import { helloRouter } from './routes/hello.js';
-import { invitationsRouter } from './routes/invitations.js';
+import { invitationClaimRouter, invitationsRouter } from './routes/invitations.js';
 import { meRouter } from './routes/me.js';
 import { mealsRouter } from './routes/meals.js';
 import { membersRouter } from './routes/members.js';
@@ -128,6 +128,9 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/public/slug-available', slugAvailableRouter);
   app.route('/api/public/kid-members', publicKidMembersRouter);
   app.route('/api/auth/kid-pin', kidPinRouter);
+  // FHS-275 — claim must mount BEFORE the generic router so POST
+  // /api/invitations/claim doesn't fall through to POST /api/invitations.
+  app.route('/api/invitations/claim', invitationClaimRouter);
   app.route('/api/invitations', invitationsRouter);
   app.route('/api/members', membersRouter);
   app.route('/api/dashboard', dashboardRouter);

@@ -241,6 +241,51 @@ describe('FHS-37 — POST /api/onboarding/complete', () => {
     expect(new Set(insertedTables)).toEqual(new Set([members, habits, rewards]));
   });
 
+  it('FHS-275 — invite email on a non-adult member is rejected with 400', async () => {
+    const app = buildAppWithSeed({});
+    const res = await app.request('/api/onboarding/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        timezone: 'Asia/Dubai',
+        currency: 'AED',
+        members: [{ displayName: 'Iman', role: 'child', email: 'iman@example.com' }],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('FHS-275 — duplicate invite emails in one submit are rejected with 400', async () => {
+    const app = buildAppWithSeed({});
+    const res = await app.request('/api/onboarding/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        timezone: 'Asia/Dubai',
+        currency: 'AED',
+        members: [
+          { displayName: 'Yusuf', role: 'adult', email: 'same@example.com' },
+          { displayName: 'Aisha', role: 'adult', email: 'SAME@example.com' },
+        ],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("FHS-275 — inviting the founder's own email is rejected with 400", async () => {
+    const app = buildAppWithSeed({});
+    const res = await app.request('/api/onboarding/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        timezone: 'Asia/Dubai',
+        currency: 'AED',
+        members: [{ displayName: 'Me Again', role: 'adult', email: USER_EMAIL.toUpperCase() }],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('FHS-274 — whitespace-only yourName is rejected with 400', async () => {
     const app = buildAppWithSeed({});
     const res = await app.request('/api/onboarding/complete', {

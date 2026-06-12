@@ -231,6 +231,10 @@ export const pendingInvitations = pgTable(
     // Opaque id returned by Supabase admin invite — used by FHS-93/96
     // for revoke + token-expiry checks.
     supabaseInviteId: text('supabase_invite_id'),
+    // FHS-275 — the unclaimed member seat this invite belongs to. On
+    // first sign-in the claim flow sets members.user_id on THIS row so
+    // the invitee becomes the person the wizard created (no duplicate).
+    memberId: uuid('member_id').references(() => members.id, { onDelete: 'cascade' }),
     status: invitationStatus('status').notNull().default('pending'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -2,7 +2,9 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
-import { members, memberRole, tenants, type Tenant } from '../db/schema.js';
+import { members, memberRole, pendingInvitations, tenants, type Tenant } from '../db/schema.js';
+import { inviteUserByEmail } from '../lib/supabase-admin.js';
+import { config } from '../config.js';
 import { seedTenantDefaults } from '../db/seed-tenant-defaults.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 import { createLogger } from '../logger.js';
@@ -46,24 +48,42 @@ const currencySchema = z.string().regex(/^[A-Z]{3}$/, 'currency must be a 3-lett
 // the user picks per added member.
 const wizardMemberRoleSchema = z.enum(memberRole.enumValues);
 
-const wizardMemberSchema = z.object({
-  displayName: z.string().min(1).max(80),
-  role: wizardMemberRoleSchema,
-  avatarEmoji: z.string().min(1).max(8).optional(),
-});
+const wizardMemberSchema = z
+  .object({
+    displayName: z.string().min(1).max(80),
+    role: wizardMemberRoleSchema,
+    avatarEmoji: z.string().min(1).max(8).optional(),
+    // FHS-275 — optional invite email; adults only (kids use PIN login).
+    email: z.string().trim().email().max(255).optional(),
+  })
+  .refine((m) => m.email === undefined || m.role === 'adult', {
+    message: 'invite email is only allowed on adult members',
+    path: ['email'],
+  });
 
-export const completeOnboardingRequestSchema = z.object({
-  timezone: timezoneSchema,
-  currency: currencySchema,
-  // FHS-274 — the founder's own name. Renames the calling admin's member
-  // row so the wizard never inserts a duplicate person for them. Trimmed
-  // BEFORE the min-length check so whitespace-only values 400 instead of
-  // silently skipping the rename.
-  yourName: z.string().trim().min(1).max(80).optional(),
-  // The OTHER family members (the founder is excluded — they already
-  // exist as the admin row). A solo parent can finish with none.
-  members: z.array(wizardMemberSchema).min(0).max(8),
-});
+export const completeOnboardingRequestSchema = z
+  .object({
+    timezone: timezoneSchema,
+    currency: currencySchema,
+    // FHS-274 — the founder's own name. Renames the calling admin's member
+    // row so the wizard never inserts a duplicate person for them. Trimmed
+    // BEFORE the min-length check so whitespace-only values 400 instead of
+    // silently skipping the rename.
+    yourName: z.string().trim().min(1).max(80).optional(),
+    // The OTHER family members (the founder is excluded — they already
+    // exist as the admin row). A solo parent can finish with none.
+    members: z.array(wizardMemberSchema).min(0).max(8),
+  })
+  .refine(
+    (b) => {
+      const emails = b.members.flatMap((m) => (m.email ? [m.email.toLowerCase()] : []));
+      return new Set(emails).size === emails.length;
+    },
+    {
+      message: 'each invite email can only be used once',
+      path: ['members'],
+    },
+  );
 
 export const completeOnboardingResponseSchema = z.object({
   tenant: z.object({
@@ -73,11 +93,17 @@ export const completeOnboardingResponseSchema = z.object({
     onboardingCompleted: z.literal(true),
   }),
   membersAdded: z.number().int().nonnegative(),
+  // FHS-275 — how many adult invites were emailed on Finish.
+  invitesSent: z.number().int().nonnegative(),
 });
 
 export type CompleteOnboardingResponse = z.infer<typeof completeOnboardingResponseSchema>;
 
-function project(tenant: Tenant, membersAdded: number): CompleteOnboardingResponse {
+function project(
+  tenant: Tenant,
+  membersAdded: number,
+  invitesSent: number,
+): CompleteOnboardingResponse {
   return {
     tenant: {
       id: tenant.id,
@@ -86,6 +112,7 @@ function project(tenant: Tenant, membersAdded: number): CompleteOnboardingRespon
       onboardingCompleted: true,
     },
     membersAdded,
+    invitesSent,
   };
 }
 
@@ -140,6 +167,19 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
     );
   }
 
+  // FHS-275 — the founder can't invite themselves; their login is
+  // already linked to the admin seat.
+  if (
+    parsed.data.members.some(
+      (m) => m.email && m.email.toLowerCase() === userRow.email.toLowerCase(),
+    )
+  ) {
+    return c.json(
+      { error: 'invalid request', detail: "you can't invite your own email — that's you" },
+      400,
+    );
+  }
+
   // Idempotency: if the flag is already true, return 200 with the
   // current tenant without re-inserting members. The wizard's final
   // submit can race with a tab refresh; a second click shouldn't
@@ -153,7 +193,7 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
     // Read-only by design: a duplicate submit (tab refresh race) changes
     // nothing — including yourName. Renames after onboarding belong to
     // the members page (FHS-276), not a replayed wizard call.
-    return c.json(completeOnboardingResponseSchema.parse(project(current, 0)), 200);
+    return c.json(completeOnboardingResponseSchema.parse(project(current, 0, 0)), 200);
   }
 
   // Single transaction: members insert + tenant update + starter
@@ -162,6 +202,7 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
   // half-onboarded state.
   let updatedTenant: Tenant | undefined;
   let membersAdded = 0;
+  const inviteTargets: Array<{ memberId: string; email: string }> = [];
   let seedHabitsAdded = 0;
   let seedRewardsAdded = 0;
   try {
@@ -188,6 +229,12 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
           .values(newMemberRows)
           .returning({ id: members.id });
         membersAdded = inserted.length;
+        // RETURNING preserves input order for a single INSERT, so index
+        // i maps the created seat back to its wizard row (for invites).
+        inserted.forEach((row, i) => {
+          const email = parsed.data.members[i]?.email;
+          if (email) inviteTargets.push({ memberId: row.id, email });
+        });
       }
 
       const updated = await tx
@@ -227,10 +274,63 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
     throw new Error('onboarding transaction completed without setting updatedTenant');
   }
 
+  // FHS-275 — best-effort invite emails AFTER the commit: a failed email
+  // must not roll back the family. Each invite is linked to its member
+  // seat; the claim flow (POST /api/invitations/claim) sets user_id on
+  // that seat at the invitee's first sign-in. Failures are marked
+  // expired so Manage Members (FHS-276) can resend.
+  let invitesSent = 0;
+  const baseUrl = config.APP_BASE_URL;
+  for (const target of inviteTargets) {
+    if (!baseUrl) {
+      log.error({ tenantId }, 'APP_BASE_URL not configured — skipping onboarding invites');
+      break;
+    }
+    let inviteId: string | null = null;
+    try {
+      const ins = await db
+        .insert(pendingInvitations)
+        .values({
+          tenantId,
+          email: target.email,
+          role: 'adult',
+          invitedBy: caller.id,
+          memberId: target.memberId,
+          status: 'pending',
+        })
+        .returning({ id: pendingInvitations.id });
+      inviteId = ins[0]?.id ?? null;
+      if (!inviteId) throw new Error('pending_invitations insert returned no row');
+      const supabaseUser = await inviteUserByEmail({
+        email: target.email,
+        redirectTo: `${baseUrl.replace(/\/$/, '')}/auth/callback?invite=${inviteId}`,
+        data: { invite_id: inviteId, tenant_id: tenantId, role: 'adult' },
+      });
+      await db
+        .update(pendingInvitations)
+        .set({ supabaseInviteId: supabaseUser.id, updatedAt: new Date() })
+        .where(eq(pendingInvitations.id, inviteId));
+      invitesSent += 1;
+    } catch (err) {
+      if (inviteId) {
+        await db
+          .update(pendingInvitations)
+          .set({ status: 'expired', updatedAt: new Date() })
+          .where(eq(pendingInvitations.id, inviteId))
+          .catch(() => undefined);
+      }
+      log.error(
+        { err: err instanceof Error ? err.message : String(err), tenantId, email: target.email },
+        'onboarding invite failed (family still created)',
+      );
+    }
+  }
+
   log.info(
     {
       tenantId,
       membersAdded,
+      invitesSent,
       seedHabitsAdded,
       seedRewardsAdded,
       timezone: parsed.data.timezone,
@@ -239,5 +339,8 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
     'onboarding completed',
   );
 
-  return c.json(completeOnboardingResponseSchema.parse(project(updatedTenant, membersAdded)), 200);
+  return c.json(
+    completeOnboardingResponseSchema.parse(project(updatedTenant, membersAdded, invitesSent)),
+    200,
+  );
 });

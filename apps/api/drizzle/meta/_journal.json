@@ -106,6 +106,13 @@
       "when": 1781201284910,
       "tag": "0014_damp_karnak",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1781270210163,
+      "tag": "0015_goofy_warlock",
+      "breakpoints": true
     }
   ]
 }

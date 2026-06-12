@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { config } from '../config.js';
 import { getDb } from '../db/client.js';
-import { members, pendingInvitations, type PendingInvitation } from '../db/schema.js';
+import { members, pendingInvitations, tenants, type PendingInvitation } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 import { inviteUserByEmail, SupabaseAdminError } from '../lib/supabase-admin.js';
 import { createLogger } from '../logger.js';
@@ -232,4 +232,68 @@ export const invitationsRouter = new Hono().post('/', async (c) => {
   );
 
   return c.json(createInvitationResponseSchema.parse(project(invitation)), 201);
+});
+
+// FHS-275 — POST /api/invitations/claim.
+//
+// Called by the web app right after sign-in when the user has no
+// membership yet. Finds pending invitations addressed to the caller's
+// email that are linked to an unclaimed member seat (member_id set,
+// members.user_id null), links the seat to the caller, flips the
+// invitation to accepted, and returns the claimed tenants' slugs so
+// the client can land on the right family dashboard. No tenant header
+// required — the invitation rows themselves carry the tenant scope.
+export const invitationClaimRouter = new Hono().post('/', async (c) => {
+  getAuthenticatedUser(c);
+  const userRow = c.get('userRow');
+  if (!userRow) throw new Error('claim handler reached without userRow');
+  const db = getDb();
+
+  const pending = await db
+    .select({
+      id: pendingInvitations.id,
+      tenantId: pendingInvitations.tenantId,
+      memberId: pendingInvitations.memberId,
+    })
+    .from(pendingInvitations)
+    .where(
+      and(
+        eq(pendingInvitations.status, 'pending'),
+        sql`lower(${pendingInvitations.email}) = lower(${userRow.email})`,
+      ),
+    );
+
+  const claimed: Array<{ tenantId: string; slug: string }> = [];
+  for (const inv of pending) {
+    if (!inv.memberId) continue; // members-page invites without a seat — FHS-276
+    // Claim only an unclaimed seat in the invite's own tenant.
+    const updatedRows = await db
+      .update(members)
+      .set({ userId: userRow.id, updatedAt: new Date() })
+      .where(
+        and(
+          eq(members.id, inv.memberId),
+          eq(members.tenantId, inv.tenantId),
+          isNull(members.userId),
+        ),
+      )
+      .returning({ id: members.id });
+    if (updatedRows.length === 0) continue; // seat gone or already claimed
+    await db
+      .update(pendingInvitations)
+      .set({ status: 'accepted', updatedAt: new Date() })
+      .where(eq(pendingInvitations.id, inv.id));
+    const trows = await db
+      .select({ slug: tenants.slug })
+      .from(tenants)
+      .where(eq(tenants.id, inv.tenantId))
+      .limit(1);
+    if (trows[0]) claimed.push({ tenantId: inv.tenantId, slug: trows[0].slug });
+    log.info(
+      { invitationId: inv.id, tenantId: inv.tenantId, memberId: inv.memberId },
+      'invitation claimed',
+    );
+  }
+
+  return c.json({ claimed }, 200);
 });
