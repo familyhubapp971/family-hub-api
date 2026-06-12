@@ -457,7 +457,7 @@ membersRouter.patch('/:id', async (c) => {
     );
   }
   const targetRows = await db
-    .select({ id: members.id, role: members.role })
+    .select({ id: members.id, role: members.role, userId: members.userId })
     .from(members)
     .where(and(eq(members.tenantId, tenantId), eq(members.id, params.data.id)))
     .limit(1);
@@ -469,6 +469,14 @@ membersRouter.patch('/:id', async (c) => {
     if (target.role !== 'admin' && target.role !== 'adult') {
       return c.json(
         { error: 'forbidden', detail: 'only parents can be made or removed as admin' },
+        400,
+      );
+    }
+    // FHS-278 — no admin rights before a real login is attached: a
+    // pending (unclaimed) seat can't be promoted.
+    if (parsed.data.role === 'admin' && target.userId === null) {
+      return c.json(
+        { error: 'forbidden', detail: "they haven't signed up yet — admin comes after they join" },
         400,
       );
     }

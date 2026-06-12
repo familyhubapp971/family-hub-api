@@ -38,7 +38,7 @@ function chain(rows: unknown): unknown {
 
 interface SeedOpts {
   callerRole?: string;
-  target?: { id: string; role: string } | null;
+  target?: { id: string; role: string; userId?: string | null } | null;
   adminRows?: number; // how many admins countAdmins sees
 }
 
@@ -107,8 +107,8 @@ describe('FHS-276 — members roster mutations', () => {
     expect(dbMock.insert).not.toHaveBeenCalled();
   });
 
-  it('PATCH promotes a parent to admin → 200', async () => {
-    const app = buildApp({ target: { id: TARGET_ID, role: 'adult' } });
+  it('PATCH promotes a signed-up parent to admin → 200', async () => {
+    const app = buildApp({ target: { id: TARGET_ID, role: 'adult', userId: 'u-linked' } });
     const res = await app.request(`/api/members/${TARGET_ID}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -116,6 +116,17 @@ describe('FHS-276 — members roster mutations', () => {
     });
     expect(res.status).toBe(200);
     expect(dbMock.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('PATCH refuses to promote a pending (unclaimed) seat → 400 (FHS-278)', async () => {
+    const app = buildApp({ target: { id: TARGET_ID, role: 'adult', userId: null } });
+    const res = await app.request(`/api/members/${TARGET_ID}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'admin' }),
+    });
+    expect(res.status).toBe(400);
+    expect(dbMock.update).not.toHaveBeenCalled();
   });
 
   it('PATCH rejects an admin toggle on a kid → 400', async () => {
