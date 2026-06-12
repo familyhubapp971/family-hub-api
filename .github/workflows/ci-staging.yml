@@ -78,6 +78,11 @@ jobs:
             mobile-chrome) npx playwright install --with-deps chromium ;;
             *) npx playwright install --with-deps "$BROWSER" ;;
           esac
+      - name: Apply DB migrations for the e2e api
+        # FHS-277 — the api the tests boot ran against an EMPTY service
+        # postgres (no step ever created the schema), so every DB-backed
+        # authed route 500'd. Same migrations the integration tier applies.
+        run: pnpm --filter @familyhub/api exec drizzle-kit migrate
       - name: Generate BDD specs from .feature files
         # bddgen converts tests/e2e/features/*.feature into runnable
         # .spec.js files under tests/e2e/.features-gen/. Without it,
