@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { and, desc, eq } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { members, notices } from '../db/schema.js';
+import { alias } from 'drizzle-orm/pg-core';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 
 // FHS-232 — GET / POST / DELETE /api/notices.
@@ -11,6 +12,8 @@ import { getAuthenticatedUser } from '../middleware/auth.js';
 // optionally pinned. Pinned notes float to the top, rest is
 // reverse-chronological. POST and DELETE are admin/adult only.
 
+const authorMembers = alias(members, 'author_members');
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const noticeItemSchema = z.object({
@@ -18,6 +21,9 @@ export const noticeItemSchema = z.object({
   body: z.string(),
   pinned: z.boolean(),
   authorMemberId: z.string().uuid().nullable(),
+  // FHS-266 — post-it card fields: who posted it + an optional emoji.
+  authorName: z.string().nullable(),
+  icon: z.string().nullable(),
   createdAt: z.string().datetime(),
 });
 
@@ -30,6 +36,9 @@ export type ListNoticesResponse = z.infer<typeof listNoticesResponseSchema>;
 const createNoticeRequestSchema = z.object({
   body: z.string().trim().min(1, 'body is required').max(2000),
   pinned: z.boolean().optional(),
+  // A single emoji / short glyph. Length-capped, not strictly validated
+  // as an emoji — the UI offers a fixed palette.
+  icon: z.string().trim().min(1).max(8).optional(),
 });
 
 const WRITE_ROLES = new Set(['admin', 'adult']);
@@ -38,9 +47,9 @@ async function loadCallerMember(
   db: ReturnType<typeof getDb>,
   tenantId: string,
   userId: string,
-): Promise<{ id: string; role: string } | null> {
+): Promise<{ id: string; role: string; name: string } | null> {
   const rows = await db
-    .select({ id: members.id, role: members.role })
+    .select({ id: members.id, role: members.role, name: members.displayName })
     .from(members)
     .where(and(eq(members.tenantId, tenantId), eq(members.userId, userId)))
     .limit(1);
@@ -52,6 +61,8 @@ function rowToItem(r: {
   body: string;
   pinned: boolean;
   authorMemberId: string | null;
+  authorName?: string | null;
+  icon: string | null;
   createdAt: Date;
 }) {
   return {
@@ -59,9 +70,14 @@ function rowToItem(r: {
     body: r.body,
     pinned: r.pinned,
     authorMemberId: r.authorMemberId,
+    authorName: r.authorName ?? null,
+    icon: r.icon,
     createdAt: r.createdAt.toISOString(),
   };
 }
+
+// Separate alias so the author leftJoin doesn't collide with the caller
+// membership lookup on the same `members` table.
 
 export const noticesRouter = new Hono()
   .get('/', async (c) => {
@@ -84,9 +100,15 @@ export const noticesRouter = new Hono()
         body: notices.body,
         pinned: notices.pinned,
         authorMemberId: notices.authorMemberId,
+        authorName: authorMembers.displayName,
+        icon: notices.icon,
         createdAt: notices.createdAt,
       })
       .from(notices)
+      .leftJoin(
+        authorMembers,
+        and(eq(notices.authorMemberId, authorMembers.id), eq(authorMembers.tenantId, tenantId)),
+      )
       .where(eq(notices.tenantId, tenantId))
       .orderBy(desc(notices.pinned), desc(notices.createdAt));
     return c.json(listNoticesResponseSchema.parse({ notices: rows.map(rowToItem) }));
@@ -124,6 +146,7 @@ export const noticesRouter = new Hono()
         tenantId,
         body: parsed.data.body,
         pinned: parsed.data.pinned ?? false,
+        icon: parsed.data.icon ?? null,
         authorMemberId: caller.id,
       })
       .returning({
@@ -131,10 +154,11 @@ export const noticesRouter = new Hono()
         body: notices.body,
         pinned: notices.pinned,
         authorMemberId: notices.authorMemberId,
+        icon: notices.icon,
         createdAt: notices.createdAt,
       });
     if (!row) return c.json({ error: 'insert failed', errorCode: 'NOTICE_INSERT_NO_ROW' }, 500);
-    return c.json(noticeItemSchema.parse(rowToItem(row)), 201);
+    return c.json(noticeItemSchema.parse(rowToItem({ ...row, authorName: caller.name })), 201);
   })
   .delete('/:id', async (c) => {
     getAuthenticatedUser(c);

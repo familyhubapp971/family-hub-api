@@ -527,6 +527,8 @@ export const notices = pgTable(
       .references(() => tenants.id, { onDelete: 'cascade' }),
     body: text('body').notNull(),
     pinned: boolean('pinned').notNull().default(false),
+    // FHS-266 — optional single-emoji icon shown on the post-it card.
+    icon: text('icon'),
     authorMemberId: uuid('author_member_id').references(() => members.id, {
       onDelete: 'set null',
     }),

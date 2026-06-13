@@ -23,6 +23,12 @@ Feature: GET / POST / DELETE /api/notices (FHS-232)
     Then the POST response status is 201
     And re-fetching /api/notices for tenant "khan" lists 1 notices
 
+  Scenario: POST stores the chosen icon and stamps the author name (FHS-266)
+    When the caller POSTs a notice "Pizza Friday" with icon "🍕" in tenant "khan"
+    Then the POST response status is 201
+    And the created notice icon is "🍕"
+    And the created notice author name is "Caller"
+
   Scenario: A child member cannot post a notice
     Given the caller's role in "khan" is "child"
     When the caller POSTs a notice "Sneaky" pinned "false" in tenant "khan"

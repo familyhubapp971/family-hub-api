@@ -55,7 +55,7 @@ function buildAppWithSeed(
               Promise.resolve(
                 opts.callerMissing
                   ? []
-                  : [{ id: 'caller-member-id', role: opts.callerRole ?? 'admin' }],
+                  : [{ id: 'caller-member-id', role: opts.callerRole ?? 'admin', name: 'Sarah' }],
               ),
           }),
         }),
@@ -63,6 +63,9 @@ function buildAppWithSeed(
     }
     return {
       from: () => ({
+        leftJoin: () => ({
+          where: () => ({ orderBy: () => Promise.resolve(listRows) }),
+        }),
         where: () => ({ orderBy: () => Promise.resolve(listRows) }),
       }),
     };
@@ -112,7 +115,15 @@ describe('FHS-232 — GET /api/notices', () => {
     const N1 = '22222222-2222-4222-8222-222222222222';
     const created = new Date('2026-05-03T10:00:00.000Z');
     const app = buildAppWithSeed({}, [
-      { id: N1, body: 'Pizza Friday', pinned: true, authorMemberId: null, createdAt: created },
+      {
+        id: N1,
+        body: 'Pizza Friday',
+        pinned: true,
+        authorMemberId: null,
+        authorName: null,
+        icon: '🍕',
+        createdAt: created,
+      },
     ]);
     const res = await app.request('/api/notices');
     expect(res.status).toBe(200);
@@ -169,6 +180,7 @@ describe('FHS-232 — POST /api/notices', () => {
           body: 'Pizza Friday',
           pinned: false,
           authorMemberId: '44444444-4444-4444-8444-444444444444',
+          icon: null,
           createdAt: created,
         },
       ],
@@ -192,6 +204,7 @@ describe('FHS-232 — POST /api/notices', () => {
           body: 'Trip on Sat',
           pinned: true,
           authorMemberId: '44444444-4444-4444-8444-444444444444',
+          icon: null,
           createdAt: created,
         },
       ],

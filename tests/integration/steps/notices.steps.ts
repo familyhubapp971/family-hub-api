@@ -54,8 +54,16 @@ const resolveTenantFromHeader: MiddlewareHandler = async (c, next) => {
   await next();
 };
 
+interface NoticeItem {
+  id: string;
+  body: string;
+  pinned: boolean;
+  authorName: string | null;
+  icon: string | null;
+  createdAt: string;
+}
 interface ListResponse {
-  notices: Array<{ id: string; body: string; pinned: boolean; createdAt: string }>;
+  notices: NoticeItem[];
 }
 
 describeFeature(feature, ({ Background, Scenario }) => {
@@ -141,6 +149,18 @@ describeFeature(feature, ({ Background, Scenario }) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ body: noticeBody, pinned }),
+    });
+  }
+
+  async function postNoticeWithIcon(slug: string, noticeBody: string, icon: string) {
+    return app.request('/api/notices', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-test-tenant': tenantIds[slug]!,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ body: noticeBody, pinned: false, icon }),
     });
   }
 
@@ -239,6 +259,34 @@ describeFeature(feature, ({ Background, Scenario }) => {
       },
     );
   });
+
+  Scenario(
+    'POST stores the chosen icon and stamps the author name (FHS-266)',
+    ({ When, Then, And }) => {
+      let postRes: Response;
+      let created: NoticeItem;
+
+      When(
+        'the caller POSTs a notice {string} with icon {string} in tenant {string}',
+        async (_ctx, b: string, icon: string, slug: string) => {
+          postRes = await postNoticeWithIcon(slug, b, icon);
+          created = (await postRes.json()) as NoticeItem;
+        },
+      );
+
+      Then('the POST response status is 201', () => {
+        expect(postRes.status).toBe(201);
+      });
+
+      And('the created notice icon is {string}', (_ctx, icon: string) => {
+        expect(created.icon).toBe(icon);
+      });
+
+      And('the created notice author name is {string}', (_ctx, name: string) => {
+        expect(created.authorName).toBe(name);
+      });
+    },
+  );
 
   Scenario('A child member cannot post a notice', ({ Given, When, Then }) => {
     let postRes: Response;
