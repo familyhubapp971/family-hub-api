@@ -5,6 +5,7 @@ import { createLogger } from './logger.js';
 import { getDb } from './db/client.js';
 import { getOrCreateUser } from './lib/user-mirror.js';
 import { authMiddleware, type AuthMiddlewareOptions } from './middleware/auth.js';
+import { rejectKidTokens } from './middleware/kid-auth.js';
 import { corsMiddleware } from './middleware/cors-allowlist.js';
 import { rateLimit } from './middleware/rate-limit.js';
 import { requestContext } from './middleware/request-context.js';
@@ -24,6 +25,7 @@ import {
   invitationResendRouter,
   invitationsRouter,
 } from './routes/invitations.js';
+import { kidRouter } from './routes/kid.js';
 import { meRouter } from './routes/me.js';
 import { mealsRouter } from './routes/meals.js';
 import { membersRouter } from './routes/members.js';
@@ -97,6 +99,11 @@ export function buildApp(opts: BuildAppOptions = {}) {
     userMirrorSync: (claims) => getOrCreateUser(getDb(), claims),
     ...(opts.auth ?? {}),
   };
+  // FHS-257 — reject a kid (HS256) token presented to a parent route with
+  // an explicit 403 KID_ON_PARENT_ROUTE, before the parent ES256 auth
+  // would 401 it. Skips /api/kid (where kid tokens belong) internally.
+  app.use('*', rejectKidTokens);
+
   app.use('*', authMiddleware(authOpts));
 
   // Tenant resolution runs AFTER auth so the JWT-claim source can use
@@ -132,6 +139,9 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/public/slug-available', slugAvailableRouter);
   app.route('/api/public/kid-members', publicKidMembersRouter);
   app.route('/api/auth/kid-pin', kidPinRouter);
+  // FHS-257 — kid-scoped routes; skip parent auth (see PUBLIC_PATH_PREFIXES)
+  // and verify the HS256 kid JWT inside the router instead.
+  app.route('/api/kid', kidRouter);
   // FHS-275 — claim must mount BEFORE the generic router so POST
   // /api/invitations/claim doesn't fall through to POST /api/invitations.
   app.route('/api/invitations/claim', invitationClaimRouter);

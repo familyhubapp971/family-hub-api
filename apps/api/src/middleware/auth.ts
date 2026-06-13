@@ -37,6 +37,10 @@ const PUBLIC_PATH_PREFIXES = [
   // the URL is the access boundary. Returns only display name + emoji
   // + member id, never email or PIN data.
   '/api/public/kid-members',
+  // FHS-257 — kid-scoped routes run their own HS256 kid-JWT middleware
+  // (kidAuthMiddleware + requireKidAuth). They must skip the parent
+  // ES256/JWKS auth, which would 401 a kid token before it reaches them.
+  '/api/kid',
 ] as const;
 
 declare module 'hono' {
