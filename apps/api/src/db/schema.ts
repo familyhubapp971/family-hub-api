@@ -427,6 +427,59 @@ export type RewardRedemption = typeof rewardRedemptions.$inferSelect;
 export type NewRewardRedemption = typeof rewardRedemptions.$inferInsert;
 
 /**
+ * `journal_entries` (FHS-270) — a child's private text journal. Readable
+ * by the child (their own) and the tenant admin who opens their world;
+ * scoped by (tenant_id, member_id). Newest-first in the UI.
+ */
+export const journalEntries = pgTable(
+  'journal_entries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('journal_entries_tenant_member_created_idx').on(t.tenantId, t.memberId, t.createdAt),
+  ],
+);
+
+export type JournalEntry = typeof journalEntries.$inferSelect;
+export type NewJournalEntry = typeof journalEntries.$inferInsert;
+
+/**
+ * `learn_progress` (FHS-270) — per-subject progress (0–100) for a child's
+ * Learn cards. One row per (member, subject); the actual learning content
+ * is a separate epic — this just backs the progress bars.
+ */
+export const learnProgress = pgTable(
+  'learn_progress',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    subject: text('subject').notNull(),
+    progress: integer('progress').notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('learn_progress_unique_idx').on(t.tenantId, t.memberId, t.subject)],
+);
+
+export type LearnProgress = typeof learnProgress.$inferSelect;
+export type NewLearnProgress = typeof learnProgress.$inferInsert;
+
+/**
  * Day of the week — Mon-first to align with `weeks.start_date` (also
  * Monday-anchored across the schema).
  */
@@ -861,6 +914,8 @@ export const TENANT_SCOPED_TABLES = [
   rewards,
   habitLogs,
   rewardRedemptions,
+  journalEntries,
+  learnProgress,
   mealTemplates,
   events,
   assignments,

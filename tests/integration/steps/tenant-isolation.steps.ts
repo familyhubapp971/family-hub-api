@@ -22,6 +22,8 @@ import {
   events,
   habits,
   habitLogs,
+  journalEntries,
+  learnProgress,
   investments,
   mealTemplates,
   members,
@@ -54,6 +56,8 @@ const ALL_SCHEMA_TABLES = [
   rewards,
   habitLogs,
   rewardRedemptions,
+  journalEntries,
+  learnProgress,
   mealTemplates,
   events,
   weekActions,
@@ -211,6 +215,25 @@ async function seedRow(
       });
       break;
     }
+    case 'journal_entries': {
+      // FHS-270 — needs member to already exist for this tenant.
+      await db.insert(journalEntries).values({
+        tenantId,
+        memberId: ctx.memberId!,
+        body: `journal-${tenantId.slice(0, 4)}`,
+      });
+      break;
+    }
+    case 'learn_progress': {
+      // FHS-270 — needs member to already exist for this tenant.
+      await db.insert(learnProgress).values({
+        tenantId,
+        memberId: ctx.memberId!,
+        subject: 'Maths',
+        progress: 10,
+      });
+      break;
+    }
     case 'week_actions': {
       // Requires member + week + habit to already exist for this tenant.
       await db.insert(weekActions).values({
@@ -299,6 +322,8 @@ async function seedAllTablesForTenant(db: Database, tenantId: string): Promise<v
     'tasks', // needs members (member_id NOT NULL FK)
     'habit_logs', // needs habit + member
     'reward_redemptions', // needs reward + member
+    'journal_entries', // needs member
+    'learn_progress', // needs member
     'savings',
     'week_actions', // needs member + week + habit
     'savings_transactions', // needs savings
