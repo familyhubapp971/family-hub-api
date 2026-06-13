@@ -33,6 +33,12 @@ import {
   rewardRedemptions,
   savings,
   savingsTransactions,
+  mwWeeks,
+  habitStickers,
+  mwSavings,
+  mwSavingsTransactions,
+  mwInvestments,
+  mwWeekActions,
   tasks,
   tenants,
   weekActions,
@@ -64,6 +70,12 @@ const ALL_SCHEMA_TABLES = [
   savings,
   savingsTransactions,
   investments,
+  mwWeeks,
+  habitStickers,
+  mwSavings,
+  mwSavingsTransactions,
+  mwInvestments,
+  mwWeekActions,
   appSettings,
   activityLogs,
 ];
@@ -91,6 +103,7 @@ async function seedRow(
     habitId?: string;
     rewardId?: string;
     savingsId?: string;
+    mwWeekId?: string;
   },
 ): Promise<void> {
   const name = getTableConfig(table).name;
@@ -234,6 +247,78 @@ async function seedRow(
       });
       break;
     }
+    case 'mw_weeks': {
+      // FHS-291 — My World week; needs member.
+      const [r] = await db
+        .insert(mwWeeks)
+        .values({
+          tenantId,
+          memberId: ctx.memberId!,
+          weekNumber: 1,
+          year: 2026,
+          startDate: '2026-01-05',
+        })
+        .returning();
+      ctx.mwWeekId = r!.id;
+      break;
+    }
+    case 'habit_stickers': {
+      // FHS-291 — needs member + habit + mw_week.
+      await db.insert(habitStickers).values({
+        tenantId,
+        memberId: ctx.memberId!,
+        habitId: ctx.habitId!,
+        weekId: ctx.mwWeekId!,
+        day: 0,
+        sticker: 'gold-star',
+        stickerValue: 1,
+      });
+      break;
+    }
+    case 'mw_savings': {
+      // FHS-291 — one row per member.
+      await db.insert(mwSavings).values({
+        tenantId,
+        memberId: ctx.memberId!,
+        savedStickers: 5,
+      });
+      break;
+    }
+    case 'mw_savings_transactions': {
+      // FHS-291 — needs member.
+      await db.insert(mwSavingsTransactions).values({
+        tenantId,
+        memberId: ctx.memberId!,
+        transactionType: 'stickers',
+        amount: '5',
+        stickerCount: 5,
+      });
+      break;
+    }
+    case 'mw_investments': {
+      // FHS-291 — needs member + habit + mw_week.
+      await db.insert(mwInvestments).values({
+        tenantId,
+        memberId: ctx.memberId!,
+        habitId: ctx.habitId!,
+        weekId: ctx.mwWeekId!,
+        investedAmount: '5',
+        investedStickers: 10,
+        originalInvestedStickers: 10,
+      });
+      break;
+    }
+    case 'mw_week_actions': {
+      // FHS-291 — needs member + mw_week.
+      await db.insert(mwWeekActions).values({
+        tenantId,
+        memberId: ctx.memberId!,
+        weekId: ctx.mwWeekId!,
+        actionType: 'save',
+        stickersUsed: 5,
+      });
+      break;
+    }
     case 'week_actions': {
       // Requires member + week + habit to already exist for this tenant.
       await db.insert(weekActions).values({
@@ -304,6 +389,7 @@ async function seedAllTablesForTenant(db: Database, tenantId: string): Promise<v
     habitId?: string;
     rewardId?: string;
     savingsId?: string;
+    mwWeekId?: string;
   } = {};
 
   // Insert in dependency order. TENANT_SCOPED_TABLES is declared in schema.ts
@@ -324,6 +410,12 @@ async function seedAllTablesForTenant(db: Database, tenantId: string): Promise<v
     'reward_redemptions', // needs reward + member
     'journal_entries', // needs member
     'learn_progress', // needs member
+    'mw_weeks', // needs member
+    'habit_stickers', // needs member + habit + mw_week
+    'mw_savings', // needs member
+    'mw_savings_transactions', // needs member
+    'mw_investments', // needs member + habit + mw_week
+    'mw_week_actions', // needs member + mw_week
     'savings',
     'week_actions', // needs member + week + habit
     'savings_transactions', // needs savings

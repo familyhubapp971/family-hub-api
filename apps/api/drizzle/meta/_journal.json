@@ -141,6 +141,13 @@
       "when": 1781363552288,
       "tag": "0019_tan_nightcrawler",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781394136671,
+      "tag": "0020_parallel_tarantula",
+      "breakpoints": true
     }
   ]
 }

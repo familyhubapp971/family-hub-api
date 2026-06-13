@@ -312,6 +312,10 @@ export const habits = pgTable(
     cadence: habitCadence('cadence').notNull().default('daily'),
     targetCount: integer('target_count').notNull().default(1),
     color: text('color').notNull().default('#facc15'),
+    // FHS-291 — My World economy: an emoji/lucide key for the habit card,
+    // and a bonus flag (bonus habits earn stickerValue 5 instead of 1).
+    icon: text('icon'),
+    isBonus: boolean('is_bonus').notNull().default(false),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -900,6 +904,246 @@ export const activityLogs = pgTable(
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type NewActivityLog = typeof activityLogs.$inferInsert;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// My World economy (FHS-290 epic) — ported from legacy family-hub, scoped
+// per (tenant, member) so each child has their own sticker economy. New
+// `mw_`-prefixed tables intentionally sit alongside the generic family
+// `weeks`/`savings`/`investments` stubs (different semantics). 1 sticker =
+// 0.5 AED; bonus habits earn stickerValue 5. See ADR 0014.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Sticker type a child places on a habit day. */
+export const stickerType = pgEnum('sticker_type', ['gold-star', 'heart', 'magic', 'trophy']);
+
+/**
+ * `mw_weeks` — a child's trackable week (Monday-anchored ISO week). One
+ * open (non-finalized) week per child at a time; closing it creates the
+ * next. Carried/retrieved columns record investment maturity + savings
+ * withdrawals applied during the week; `closure_snapshot` is a JSON audit.
+ */
+export const mwWeeks = pgTable(
+  'mw_weeks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    weekNumber: integer('week_number').notNull(),
+    year: integer('year').notNull(),
+    startDate: date('start_date').notNull(),
+    isFinalized: boolean('is_finalized').notNull().default(false),
+    carriedOverStickers: integer('carried_over_stickers').notNull().default(0),
+    carriedOverCash: numeric('carried_over_cash', { precision: 12, scale: 2 })
+      .notNull()
+      .default('0'),
+    retrievedStickers: integer('retrieved_stickers').notNull().default(0),
+    retrievedCash: numeric('retrieved_cash', { precision: 12, scale: 2 }).notNull().default('0'),
+    closureSnapshot: jsonb('closure_snapshot'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('mw_weeks_member_week_unique').on(t.tenantId, t.memberId, t.year, t.weekNumber),
+    index('mw_weeks_member_idx').on(t.tenantId, t.memberId),
+  ],
+);
+export type MwWeek = typeof mwWeeks.$inferSelect;
+export type NewMwWeek = typeof mwWeeks.$inferInsert;
+
+/**
+ * `habit_stickers` — one sticker placed on a (habit, day) within a week.
+ * Replaces the lightweight FHS-268 `habit_logs` tick: each row carries a
+ * sticker TYPE + value (5 for bonus habits, else 1) and an `is_allocated`
+ * flag set true once the sticker is spent (claim/save/invest).
+ */
+export const habitStickers = pgTable(
+  'habit_stickers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    habitId: uuid('habit_id')
+      .notNull()
+      .references(() => habits.id, { onDelete: 'cascade' }),
+    weekId: uuid('week_id')
+      .notNull()
+      .references(() => mwWeeks.id, { onDelete: 'cascade' }),
+    day: integer('day').notNull(), // 0 = Monday … 6 = Sunday
+    sticker: stickerType('sticker').notNull(),
+    stickerValue: integer('sticker_value').notNull().default(1),
+    isAllocated: boolean('is_allocated').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('habit_stickers_unique').on(t.tenantId, t.habitId, t.weekId, t.day),
+    index('habit_stickers_member_week_idx').on(t.tenantId, t.memberId, t.weekId),
+  ],
+);
+export type HabitSticker = typeof habitStickers.$inferSelect;
+export type NewHabitSticker = typeof habitStickers.$inferInsert;
+
+/**
+ * `mw_savings` — a child's saved-sticker + saved-cash balance (one row
+ * per child). The legacy singleton (id=1) becomes one row per member.
+ */
+export const mwSavings = pgTable(
+  'mw_savings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    savedStickers: integer('saved_stickers').notNull().default(0),
+    savedCash: numeric('saved_cash', { precision: 12, scale: 2 }).notNull().default('0'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('mw_savings_member_unique').on(t.tenantId, t.memberId)],
+);
+export type MwSavings = typeof mwSavings.$inferSelect;
+export type NewMwSavings = typeof mwSavings.$inferInsert;
+
+/** A My World savings movement: stickers banked, or cash in/out. */
+export const mwSavingsTxType = pgEnum('mw_savings_tx_type', ['stickers', 'cash']);
+
+/**
+ * `mw_savings_transactions` — ledger of saves/cashouts for a child.
+ * `mw_transaction_stickers` links a save to the specific habit_stickers it
+ * banked, so a reversal knows which to un-allocate.
+ */
+export const mwSavingsTransactions = pgTable(
+  'mw_savings_transactions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    transactionType: mwSavingsTxType('transaction_type').notNull(),
+    amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+    stickerCount: integer('sticker_count').notNull().default(0),
+    isReversed: boolean('is_reversed').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('mw_savings_tx_member_idx').on(t.tenantId, t.memberId)],
+);
+export type MwSavingsTransaction = typeof mwSavingsTransactions.$inferSelect;
+export type NewMwSavingsTransaction = typeof mwSavingsTransactions.$inferInsert;
+
+/** Junction: which habit_stickers a save transaction banked. */
+export const mwTransactionStickers = pgTable(
+  'mw_transaction_stickers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    transactionId: uuid('transaction_id')
+      .notNull()
+      .references(() => mwSavingsTransactions.id, { onDelete: 'cascade' }),
+    stickerId: uuid('sticker_id')
+      .notNull()
+      .references(() => habitStickers.id, { onDelete: 'cascade' }),
+  },
+  (t) => [index('mw_transaction_stickers_tx_idx').on(t.transactionId)],
+);
+export type MwTransactionSticker = typeof mwTransactionStickers.$inferSelect;
+export type NewMwTransactionSticker = typeof mwTransactionStickers.$inferInsert;
+
+/**
+ * `mw_investments` — a child investing stickers in a habit. Grows +5 per
+ * completed day and −2 per missed day (min 10 to invest, one active per
+ * habit). Matured value auto-returns to savings on week close unless
+ * continued. `original_invested_stickers` keeps the first principal across
+ * rollovers for journey tracking.
+ */
+export const mwInvestments = pgTable(
+  'mw_investments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    habitId: uuid('habit_id')
+      .notNull()
+      .references(() => habits.id, { onDelete: 'cascade' }),
+    weekId: uuid('week_id')
+      .notNull()
+      .references(() => mwWeeks.id, { onDelete: 'cascade' }),
+    investedAmount: numeric('invested_amount', { precision: 12, scale: 2 }).notNull(),
+    investedStickers: integer('invested_stickers').notNull(),
+    originalInvestedStickers: integer('original_invested_stickers').notNull(),
+    currentValue: numeric('current_value', { precision: 12, scale: 2 }).notNull().default('0'),
+    daysCompleted: integer('days_completed').notNull().default(0),
+    daysMissed: integer('days_missed').notNull().default(0),
+    isActive: boolean('is_active').notNull().default(true),
+    isResolved: boolean('is_resolved').notNull().default(false),
+    finalReturn: numeric('final_return', { precision: 12, scale: 2 }).notNull().default('0'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('mw_investments_member_idx').on(t.tenantId, t.memberId),
+    index('mw_investments_active_idx').on(t.tenantId, t.memberId, t.isActive),
+  ],
+);
+export type MwInvestment = typeof mwInvestments.$inferSelect;
+export type NewMwInvestment = typeof mwInvestments.$inferInsert;
+
+/** Action recorded against a My World week (audit of the close-week flow). */
+export const mwWeekActionType = pgEnum('mw_week_action_type', [
+  'claim',
+  'cashout',
+  'save',
+  'invest',
+  'withdraw',
+  'auto_save',
+  'invest_continue',
+]);
+
+/**
+ * `mw_week_actions` — append-only audit of what a child did with their
+ * stickers in a week (claim a reward, cash out, save, invest, withdraw,
+ * plus the auto-save / invest-continue entries written at close).
+ */
+export const mwWeekActions = pgTable(
+  'mw_week_actions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    weekId: uuid('week_id')
+      .notNull()
+      .references(() => mwWeeks.id, { onDelete: 'cascade' }),
+    actionType: mwWeekActionType('action_type').notNull(),
+    stickersUsed: integer('stickers_used'),
+    cashAmount: numeric('cash_amount', { precision: 12, scale: 2 }),
+    rewardName: text('reward_name'),
+    habitId: uuid('habit_id').references(() => habits.id, { onDelete: 'set null' }),
+    habitName: text('habit_name'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('mw_week_actions_week_idx').on(t.tenantId, t.weekId)],
+);
+export type MwWeekAction = typeof mwWeekActions.$inferSelect;
+export type NewMwWeekAction = typeof mwWeekActions.$inferInsert;
+
 /**
  * Registry of every tenant-scoped table. Drives the cross-tenant leak
  * audit (FHS-6) and any future cross-cutting tooling that needs to walk
@@ -925,6 +1169,12 @@ export const TENANT_SCOPED_TABLES = [
   savings,
   savingsTransactions,
   investments,
+  mwWeeks,
+  habitStickers,
+  mwSavings,
+  mwSavingsTransactions,
+  mwInvestments,
+  mwWeekActions,
   appSettings,
   activityLogs,
 ] as const;
