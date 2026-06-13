@@ -18,6 +18,8 @@ import { assignmentsRouter } from './routes/assignments.js';
 import { kidPinRouter } from './routes/auth-kid-pin.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { eventsRouter } from './routes/events.js';
+import { habitsRouter } from './routes/habits.js';
+import { rewardsRouter } from './routes/rewards.js';
 import { healthRouter } from './routes/health.js';
 import { helloRouter } from './routes/hello.js';
 import {
@@ -156,6 +158,8 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/assignments', assignmentsRouter);
   app.route('/api/notices', noticesRouter);
   app.route('/api/tasks', tasksRouter);
+  app.route('/api/habits', habitsRouter);
+  app.route('/api/rewards', rewardsRouter);
   app.route('/api/onboarding', onboardingRouter);
 
   app.notFound((c) => c.json({ error: 'not found' }, 404));

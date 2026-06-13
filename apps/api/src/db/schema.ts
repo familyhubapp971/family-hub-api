@@ -361,6 +361,72 @@ export type Reward = typeof rewards.$inferSelect;
 export type NewReward = typeof rewards.$inferInsert;
 
 /**
+ * `habit_logs` (FHS-268) — one row per habit a member completed on a
+ * given day. Each row is worth one sticker; a member's sticker balance
+ * is `count(habit_logs) - sum(reward_redemptions.sticker_cost)`.
+ *
+ * The unique key makes the kid habit-tracker toggle idempotent: ticking
+ * the same (habit, member, day) twice is a no-op insert, un-ticking is a
+ * delete on the same key.
+ */
+export const habitLogs = pgTable(
+  'habit_logs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    habitId: uuid('habit_id')
+      .notNull()
+      .references(() => habits.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    logDate: date('log_date').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('habit_logs_unique_idx').on(t.tenantId, t.habitId, t.memberId, t.logDate),
+    index('habit_logs_tenant_member_date_idx').on(t.tenantId, t.memberId, t.logDate),
+  ],
+);
+
+export type HabitLog = typeof habitLogs.$inferSelect;
+export type NewHabitLog = typeof habitLogs.$inferInsert;
+
+/**
+ * `reward_redemptions` (FHS-268) — a member spending stickers on a
+ * reward. `sticker_cost` snapshots the reward's cost at redemption time
+ * so later edits to the reward don't rewrite history. Balance maths reads
+ * this sum against the member's `habit_logs` count.
+ */
+export const rewardRedemptions = pgTable(
+  'reward_redemptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    rewardId: uuid('reward_id')
+      .notNull()
+      .references(() => rewards.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    stickerCost: integer('sticker_cost').notNull(),
+    redeemedAt: timestamp('redeemed_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('reward_redemptions_tenant_member_idx').on(t.tenantId, t.memberId),
+    index('reward_redemptions_tenant_reward_idx').on(t.tenantId, t.rewardId),
+  ],
+);
+
+export type RewardRedemption = typeof rewardRedemptions.$inferSelect;
+export type NewRewardRedemption = typeof rewardRedemptions.$inferInsert;
+
+/**
  * Day of the week — Mon-first to align with `weeks.start_date` (also
  * Monday-anchored across the schema).
  */
@@ -793,6 +859,8 @@ export const TENANT_SCOPED_TABLES = [
   weeks,
   habits,
   rewards,
+  habitLogs,
+  rewardRedemptions,
   mealTemplates,
   events,
   assignments,

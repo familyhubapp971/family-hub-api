@@ -21,12 +21,14 @@ import {
   assignments,
   events,
   habits,
+  habitLogs,
   investments,
   mealTemplates,
   members,
   notices,
   pendingInvitations,
   rewards,
+  rewardRedemptions,
   savings,
   savingsTransactions,
   tasks,
@@ -50,6 +52,8 @@ const ALL_SCHEMA_TABLES = [
   weeks,
   habits,
   rewards,
+  habitLogs,
+  rewardRedemptions,
   mealTemplates,
   events,
   weekActions,
@@ -81,6 +85,7 @@ async function seedRow(
     memberId?: string;
     weekId?: string;
     habitId?: string;
+    rewardId?: string;
     savingsId?: string;
   },
 ): Promise<void> {
@@ -109,11 +114,15 @@ async function seedRow(
     }
     case 'rewards': {
       // FHS-40 — one reward per tenant. Independent of habits/weeks.
-      await db.insert(rewards).values({
-        tenantId,
-        name: `reward-${tenantId.slice(0, 4)}`,
-        stickerCost: 5,
-      });
+      const [r] = await db
+        .insert(rewards)
+        .values({
+          tenantId,
+          name: `reward-${tenantId.slice(0, 4)}`,
+          stickerCost: 5,
+        })
+        .returning();
+      ctx.rewardId = r!.id;
       break;
     }
     case 'meal_templates': {
@@ -180,6 +189,26 @@ async function seedRow(
         .values({ tenantId, name: `habit-${tenantId.slice(0, 4)}` })
         .returning();
       ctx.habitId = r!.id;
+      break;
+    }
+    case 'habit_logs': {
+      // FHS-268 — needs habit + member to already exist for this tenant.
+      await db.insert(habitLogs).values({
+        tenantId,
+        habitId: ctx.habitId!,
+        memberId: ctx.memberId!,
+        logDate: '2026-01-06',
+      });
+      break;
+    }
+    case 'reward_redemptions': {
+      // FHS-268 — needs reward + member to already exist for this tenant.
+      await db.insert(rewardRedemptions).values({
+        tenantId,
+        rewardId: ctx.rewardId!,
+        memberId: ctx.memberId!,
+        stickerCost: 5,
+      });
       break;
     }
     case 'week_actions': {
@@ -250,6 +279,7 @@ async function seedAllTablesForTenant(db: Database, tenantId: string): Promise<v
     memberId?: string;
     weekId?: string;
     habitId?: string;
+    rewardId?: string;
     savingsId?: string;
   } = {};
 
@@ -267,6 +297,8 @@ async function seedAllTablesForTenant(db: Database, tenantId: string): Promise<v
     'assignments', // tenant-only — member_id FK is nullable, no need to seed it
     'notices', // tenant-only — author_member_id FK is nullable
     'tasks', // needs members (member_id NOT NULL FK)
+    'habit_logs', // needs habit + member
+    'reward_redemptions', // needs reward + member
     'savings',
     'week_actions', // needs member + week + habit
     'savings_transactions', // needs savings
