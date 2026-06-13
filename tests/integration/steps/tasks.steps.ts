@@ -55,7 +55,14 @@ const resolveTenantFromHeader: MiddlewareHandler = async (c, next) => {
 };
 
 interface ListResponse {
-  tasks: Array<{ id: string; title: string; done: boolean; doneAt: string | null }>;
+  tasks: Array<{
+    id: string;
+    title: string;
+    memberId: string;
+    done: boolean;
+    doneAt: string | null;
+  }>;
+  callerMemberId: string;
 }
 
 describeFeature(feature, ({ Background, Scenario }) => {
@@ -205,7 +212,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   }
 
   Scenario(
-    "GET returns only the caller's tasks (not other members')",
+    "GET returns the whole family's tasks (caller + other members)",
     ({ Given, And, When, Then }) => {
       let res: Response;
       let body: ListResponse;
@@ -238,8 +245,22 @@ describeFeature(feature, ({ Background, Scenario }) => {
         expect(body.tasks).toHaveLength(n);
       });
 
-      And('the first task title is {string}', (_ctx, title: string) => {
-        expect(body.tasks[0]?.title).toBe(title);
+      And(
+        'the response contains tasks titled {string} and {string}',
+        (_ctx, a: string, b: string) => {
+          const titles = body.tasks.map((t) => t.title);
+          expect(titles).toContain(a);
+          expect(titles).toContain(b);
+        },
+      );
+
+      And("the response callerMemberId is the caller's member", async () => {
+        const callerRows = await db
+          .select({ id: members.id })
+          .from(members)
+          .where(sql`tenant_id = ${tenantIds['khan']!} AND user_id = ${USER_ID}`)
+          .limit(1);
+        expect(body.callerMemberId).toBe(callerRows[0]!.id);
       });
     },
   );

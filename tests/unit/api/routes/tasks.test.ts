@@ -4,9 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { tasksRouter } from '../../../../apps/api/src/routes/tasks.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-233 — GET / POST / PATCH / DELETE /api/tasks. Per-member private
-// to-do list — no role gate (kids can create + toggle + delete their
-// own tasks), but every WHERE includes member_id == caller.id.
+// FHS-233 / FHS-267 — GET / POST / PATCH / DELETE /api/tasks. Shared-to-
+// see, private-to-edit family board (ADR 0013): GET returns every
+// member's tasks (each tagged with memberId) plus callerMemberId;
+// POST/PATCH/DELETE stay owner-scoped (member_id == caller.id).
 
 const dbMock = {
   select: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock('../../../../apps/api/src/db/client.js', () => ({
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '00000000-0000-4000-8000-000000000777';
 const CALLER_MEMBER_ID = '44444444-4444-4444-8444-444444444444';
+const OTHER_MEMBER_ID = '55555555-5555-4555-8555-555555555555';
 const USER_EMAIL = 'sarah@example.com';
 const FIXED_USER: User = {
   id: USER_ID,
@@ -101,31 +103,48 @@ describe('FHS-233 — GET /api/tasks', () => {
     expect(res.status).toBe(403);
   });
 
-  it('returns 200 with empty list when none exist', async () => {
+  it('returns 200 with empty list + callerMemberId when none exist', async () => {
     const res = await buildAppWithSeed({}, []).request('/api/tasks');
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { tasks: unknown[] };
+    const body = (await res.json()) as { tasks: unknown[]; callerMemberId: string };
     expect(body.tasks).toEqual([]);
+    expect(body.callerMemberId).toBe(CALLER_MEMBER_ID);
   });
 
-  it('maps doneAt to done flag', async () => {
+  it('returns every member’s tasks (family-wide read) with memberId on each', async () => {
     const T1 = '22222222-2222-4222-8222-222222222222';
     const T2 = '33333333-3333-4333-8333-333333333333';
     const doneTime = new Date('2026-05-03T10:00:00.000Z');
     const res = await buildAppWithSeed({}, [
-      { id: T1, title: 'Buy milk', dueDate: '2026-05-05', doneAt: null },
-      { id: T2, title: 'Email school', dueDate: null, doneAt: doneTime },
+      {
+        id: T1,
+        title: 'Buy milk',
+        dueDate: '2026-05-05',
+        memberId: CALLER_MEMBER_ID,
+        doneAt: null,
+      },
+      {
+        id: T2,
+        title: 'Renew passport',
+        dueDate: null,
+        memberId: OTHER_MEMBER_ID,
+        doneAt: doneTime,
+      },
     ]).request('/api/tasks');
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      tasks: Array<{ id: string; done: boolean; doneAt: string | null }>;
+      tasks: Array<{ id: string; memberId: string; done: boolean; doneAt: string | null }>;
+      callerMemberId: string;
     };
-    expect(body.tasks[0]).toMatchObject({ id: T1, done: false, doneAt: null });
+    // Includes another member's task — the defining FHS-267 change.
+    expect(body.tasks[0]).toMatchObject({ id: T1, memberId: CALLER_MEMBER_ID, done: false });
     expect(body.tasks[1]).toMatchObject({
       id: T2,
+      memberId: OTHER_MEMBER_ID,
       done: true,
       doneAt: doneTime.toISOString(),
     });
+    expect(body.callerMemberId).toBe(CALLER_MEMBER_ID);
   });
 });
 
@@ -156,11 +175,12 @@ describe('FHS-233 — POST /api/tasks', () => {
     const res = await buildAppWithSeed(
       {},
       [],
-      [{ id: T1, title: 'Buy milk', dueDate: null, doneAt: null }],
+      [{ id: T1, title: 'Buy milk', dueDate: null, memberId: CALLER_MEMBER_ID, doneAt: null }],
     ).request('/api/tasks', postBody({ title: 'Buy milk' }));
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { id: string; done: boolean };
+    const body = (await res.json()) as { id: string; memberId: string; done: boolean };
     expect(body.id).toBe(T1);
+    expect(body.memberId).toBe(CALLER_MEMBER_ID);
     expect(body.done).toBe(false);
   });
 });
@@ -197,7 +217,7 @@ describe('FHS-233 — PATCH /api/tasks/:id', () => {
       {},
       [],
       [],
-      [{ id: T1, title: 'Buy milk', dueDate: null, doneAt: doneTime }],
+      [{ id: T1, title: 'Buy milk', dueDate: null, memberId: CALLER_MEMBER_ID, doneAt: doneTime }],
     ).request(`/api/tasks/${T1}`, patchBody({ done: true }));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { done: boolean; doneAt: string };

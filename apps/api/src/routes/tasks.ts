@@ -1,16 +1,18 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { members, tasks } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 
-// FHS-233 — GET / POST / PATCH / DELETE /api/tasks.
+// FHS-233 / FHS-267 — GET / POST / PATCH / DELETE /api/tasks.
 //
-// Per-member personal to-do list (NOT family-wide; that's
-// /api/assignments). Tasks are private to the assigned member; only
-// that member can see / mutate them. Children/teens included — kids
-// manage their own to-dos here.
+// The Tasks tab is a shared-to-see, private-to-edit family board
+// (ADR 0013). GET returns every task in the tenant tagged with its
+// memberId so the UI can render a column per person; POST/PATCH/DELETE
+// stay owner-scoped — a member can see another's column but can only
+// mutate their own tasks. (Distinct from /api/assignments, the
+// family homework surface.)
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -19,12 +21,14 @@ export const taskItemSchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
   dueDate: z.string().regex(ISO_DATE).nullable(),
+  memberId: z.string().uuid(),
   done: z.boolean(),
   doneAt: z.string().datetime().nullable(),
 });
 
 export const listTasksResponseSchema = z.object({
   tasks: z.array(taskItemSchema),
+  callerMemberId: z.string().uuid(),
 });
 
 export type ListTasksResponse = z.infer<typeof listTasksResponseSchema>;
@@ -51,11 +55,18 @@ async function loadCallerMember(
   return rows[0] ?? null;
 }
 
-function rowToItem(r: { id: string; title: string; dueDate: string | null; doneAt: Date | null }) {
+function rowToItem(r: {
+  id: string;
+  title: string;
+  dueDate: string | null;
+  memberId: string;
+  doneAt: Date | null;
+}) {
   return {
     id: r.id,
     title: r.title,
     dueDate: r.dueDate,
+    memberId: r.memberId,
     done: r.doneAt !== null,
     doneAt: r.doneAt ? r.doneAt.toISOString() : null,
   };
@@ -75,17 +86,22 @@ export const tasksRouter = new Hono()
     if (!caller) {
       return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
     }
+    // Family-wide read (ADR 0013): every member's tasks, grouped by
+    // member then newest-first, so the UI renders a column per person.
     const rows = await db
       .select({
         id: tasks.id,
         title: tasks.title,
         dueDate: tasks.dueDate,
+        memberId: tasks.memberId,
         doneAt: tasks.doneAt,
       })
       .from(tasks)
-      .where(and(eq(tasks.tenantId, tenantId), eq(tasks.memberId, caller.id)))
-      .orderBy(desc(tasks.createdAt));
-    return c.json(listTasksResponseSchema.parse({ tasks: rows.map(rowToItem) }));
+      .where(eq(tasks.tenantId, tenantId))
+      .orderBy(asc(tasks.memberId), desc(tasks.createdAt));
+    return c.json(
+      listTasksResponseSchema.parse({ tasks: rows.map(rowToItem), callerMemberId: caller.id }),
+    );
   })
   .post('/', async (c) => {
     getAuthenticatedUser(c);
@@ -123,6 +139,7 @@ export const tasksRouter = new Hono()
         id: tasks.id,
         title: tasks.title,
         dueDate: tasks.dueDate,
+        memberId: tasks.memberId,
         doneAt: tasks.doneAt,
       });
     if (!row) return c.json({ error: 'insert failed', errorCode: 'TASK_INSERT_NO_ROW' }, 500);
@@ -167,6 +184,7 @@ export const tasksRouter = new Hono()
         id: tasks.id,
         title: tasks.title,
         dueDate: tasks.dueDate,
+        memberId: tasks.memberId,
         doneAt: tasks.doneAt,
       });
     if (!row) {

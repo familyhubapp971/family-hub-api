@@ -1,21 +1,22 @@
-Feature: GET / POST / PATCH / DELETE /api/tasks (FHS-233)
-  Real Postgres on :5433 — verifies the per-member private to-do
-  list. The defining contract: a member only ever sees / mutates
-  their OWN tasks, even if another tenant member's task id is
-  guessed.
+Feature: GET / POST / PATCH / DELETE /api/tasks (FHS-233, FHS-267)
+  Real Postgres on :5433 — verifies the shared family task board
+  (ADR 0013): family-wide read, owner-scoped write. A member SEES every
+  family member's tasks but can only MUTATE their own, even if another
+  member's task id is guessed.
 
   Background:
     Given the test Postgres has clean tenants, members, tasks, and users tables
     And a users mirror row exists for the test caller
     And a tenant "khan" exists with the caller as an admin member
 
-  Scenario: GET returns only the caller's tasks (not other members')
+  Scenario: GET returns the whole family's tasks (caller + other members)
     Given the caller has a task "Buy milk" due "2026-05-10" in tenant "khan"
     And the "khan" tenant has another adult "Bilal" with a task "Renew passport"
     When the caller GETs /api/tasks for tenant "khan"
     Then the GET response status is 200
-    And the response includes 1 tasks
-    And the first task title is "Buy milk"
+    And the response includes 2 tasks
+    And the response contains tasks titled "Buy milk" and "Renew passport"
+    And the response callerMemberId is the caller's member
 
   Scenario: POST creates a task assigned to the caller; GET returns it
     When the caller POSTs a task "Call doctor" due "2026-05-08" in tenant "khan"
