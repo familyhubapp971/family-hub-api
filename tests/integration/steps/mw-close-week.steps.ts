@@ -8,7 +8,7 @@ import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/m
 import { habitsRouter } from '../../../apps/api/src/routes/habits.js';
 import { mwWeeksRouter } from '../../../apps/api/src/routes/mw-weeks.js';
 import { mwFinancialRouter } from '../../../apps/api/src/routes/mw-financial.js';
-import { tenants, members, habits, users } from '../../../apps/api/src/db/schema.js';
+import { tenants, members, habits, mwWeeks, users } from '../../../apps/api/src/db/schema.js';
 import type { Database } from '../../../apps/api/src/db/client.js';
 import { getTestDb } from '../support/db.js';
 
@@ -375,6 +375,33 @@ describeFeature(feature, ({ Background, Scenario }) => {
     Then('the finalize response status is {int}', (_c, n: number) =>
       expect(lastFinalize.status).toBe(n),
     );
+  });
+
+  Scenario('No new week opens while an earlier week is still open', ({ Given, When, Then }) => {
+    let currentWeek: { weekNumber: number; year: number };
+    Given('{string} has an earlier open week from 2020', async (_c, m: string) => {
+      await db.insert(mwWeeks).values({
+        tenantId: tenantIds['khan']!,
+        memberId: memberIds[m]!,
+        weekNumber: 1,
+        year: 2020,
+        startDate: '2020-01-06',
+        isFinalized: false,
+      });
+    });
+    When('the caller checks the current week for {string}', async (_c, m: string) => {
+      const res = await app.request(`/api/mw/weeks/current?memberId=${memberIds[m]!}`, {
+        headers: headers('khan'),
+      });
+      const body = (await res.json()) as { week: { weekNumber: number; year: number } };
+      currentWeek = body.week;
+    });
+    Then('the current week is the 2020 week', () => {
+      // The calendar week is 2026, but an earlier (2020) week is still open, so
+      // get-or-create must return THAT week rather than opening a new one.
+      expect(currentWeek.year).toBe(2020);
+      expect(currentWeek.weekNumber).toBe(1);
+    });
   });
 
   Scenario('A caller cannot finalize across members', ({ Given, When, Then }) => {

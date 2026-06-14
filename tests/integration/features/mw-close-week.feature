@@ -41,6 +41,11 @@ Feature: My World — Close Week / finalize (FHS-297)
     And the caller closes the current week for "Ali"
     Then the finalize response status is 409
 
+  Scenario: No new week opens while an earlier week is still open
+    Given "Ali" has an earlier open week from 2020
+    When the caller checks the current week for "Ali"
+    Then the current week is the 2020 week
+
   Scenario: A caller cannot finalize across members
     Given the "khan" tenant has a child member "Bilal"
     When the caller closes "Ali" current week using "Bilal" as the member

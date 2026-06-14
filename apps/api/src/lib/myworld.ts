@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { habitStickers, mwSavings, mwWeeks, tenants, type MwWeek } from '../db/schema.js';
 
@@ -81,6 +81,25 @@ export async function getOrCreateCurrentWeek(
     )
     .limit(1);
   if (existing[0]) return existing[0];
+  // Close weeks in order (ported from legacy): if the child has an earlier
+  // still-open week, DON'T create the new ISO week — stay on the oldest open
+  // one. Otherwise a calendar rollover would strand the open week and its
+  // active investment (new stickers land in a fresh week while the investment
+  // keeps pointing at the old one → it shows 0/7 done). The next week is
+  // created by finalize when the child actually closes.
+  const open = await db
+    .select()
+    .from(mwWeeks)
+    .where(
+      and(
+        eq(mwWeeks.tenantId, tenantId),
+        eq(mwWeeks.memberId, memberId),
+        eq(mwWeeks.isFinalized, false),
+      ),
+    )
+    .orderBy(asc(mwWeeks.year), asc(mwWeeks.weekNumber))
+    .limit(1);
+  if (open[0]) return open[0];
   const [created] = await db
     .insert(mwWeeks)
     .values({ tenantId, memberId, weekNumber, year, startDate: isoDate(monday) })
