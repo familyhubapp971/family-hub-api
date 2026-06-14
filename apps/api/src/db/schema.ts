@@ -983,7 +983,9 @@ export const habitStickers = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('habit_stickers_unique').on(t.tenantId, t.habitId, t.weekId, t.day),
+    // member_id is part of the key: two children in one family can share a
+    // habit and each hold their own sticker on the same (week, day).
+    uniqueIndex('habit_stickers_unique').on(t.tenantId, t.memberId, t.habitId, t.weekId, t.day),
     index('habit_stickers_member_week_idx').on(t.tenantId, t.memberId, t.weekId),
   ],
 );

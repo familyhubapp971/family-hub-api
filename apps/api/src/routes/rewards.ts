@@ -1,18 +1,19 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, asc, count, eq, isNull, sql, sum } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql, sum } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
-import { rewards, rewardRedemptions, habitLogs, members } from '../db/schema.js';
+import { rewards, rewardRedemptions, habitStickers, members } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
+import { stickerBalance } from '../lib/myworld.js';
 
-// FHS-268 — GET /api/rewards, POST /api/rewards/:id/redeem.
+// FHS-268 / FHS-292 — GET /api/rewards, POST /api/rewards/:id/redeem.
 //
 // The kid Rewards Shop. GET returns the family's (non-archived) rewards
 // plus the chosen member's sticker balance; POST spends stickers on a
 // reward and records the redemption. Balance =
-//   count(habit_logs for member) − sum(reward_redemptions.sticker_cost).
-// Accessed by a parent viewing a child's world (standard parent auth);
-// memberId is passed explicitly and validated against the tenant.
+//   sum(habit_stickers.sticker_value) − sum(reward_redemptions.sticker_cost),
+// shared with the habits route via lib/myworld.ts. Accessed by a parent
+// viewing a child's world; memberId is validated against the tenant.
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -61,31 +62,6 @@ async function memberInTenant(
     .where(and(eq(members.tenantId, tenantId), eq(members.id, memberId)))
     .limit(1);
   return rows.length > 0;
-}
-
-// Sticker balance: one sticker per logged habit day, minus what's been
-// spent on rewards. Postgres SUM(numeric) comes back as a string, so
-// coerce; COUNT comes back typed as a number from drizzle.
-async function stickerBalance(
-  db: ReturnType<typeof getDb>,
-  tenantId: string,
-  memberId: string,
-): Promise<number> {
-  const [earnedRow, spentRow] = await Promise.all([
-    db
-      .select({ c: count() })
-      .from(habitLogs)
-      .where(and(eq(habitLogs.tenantId, tenantId), eq(habitLogs.memberId, memberId))),
-    db
-      .select({ s: sum(rewardRedemptions.stickerCost) })
-      .from(rewardRedemptions)
-      .where(
-        and(eq(rewardRedemptions.tenantId, tenantId), eq(rewardRedemptions.memberId, memberId)),
-      ),
-  ]);
-  const earned = earnedRow[0]?.c ?? 0;
-  const spent = Number(spentRow[0]?.s ?? 0);
-  return earned - spent;
 }
 
 export const rewardsRouter = new Hono()
@@ -184,10 +160,13 @@ export const rewardsRouter = new Hono()
       );
       const [earnedRow, spentRow] = await Promise.all([
         tx
-          .select({ c: count() })
-          .from(habitLogs)
+          .select({ s: sum(habitStickers.stickerValue) })
+          .from(habitStickers)
           .where(
-            and(eq(habitLogs.tenantId, tenantId), eq(habitLogs.memberId, parsed.data.memberId)),
+            and(
+              eq(habitStickers.tenantId, tenantId),
+              eq(habitStickers.memberId, parsed.data.memberId),
+            ),
           ),
         tx
           .select({ s: sum(rewardRedemptions.stickerCost) })
@@ -199,7 +178,7 @@ export const rewardsRouter = new Hono()
             ),
           ),
       ]);
-      const balance = (earnedRow[0]?.c ?? 0) - Number(spentRow[0]?.s ?? 0);
+      const balance = Number(earnedRow[0]?.s ?? 0) - Number(spentRow[0]?.s ?? 0);
       if (balance < reward.stickerCost) {
         return { ok: false as const, balance };
       }

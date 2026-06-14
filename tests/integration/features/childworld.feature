@@ -1,7 +1,7 @@
-Feature: ChildWorld habits + rewards sticker economy (FHS-268)
-  Real Postgres on :5433 — verifies the kid sticker economy: logging a
-  habit earns a sticker, redeeming a reward spends stickers, the balance
-  maths is count(habit_logs) - sum(redemptions), and everything is
+Feature: ChildWorld habits + sticker economy (FHS-292)
+  Real Postgres on :5433 — verifies the kid sticker economy: placing a
+  typed sticker on a habit day earns its value, redeeming a reward spends
+  the balance (earned sticker values - redemptions), and everything is
   tenant-scoped.
 
   Background:
@@ -12,42 +12,55 @@ Feature: ChildWorld habits + rewards sticker economy (FHS-268)
     And the "khan" tenant has a habit "Brush teeth"
     And the "khan" tenant has a reward "Ice cream" costing 2 stickers
 
-  Scenario: Logging a habit earns a sticker; the balance reflects it
-    When the caller logs "Brush teeth" for "Ali" on "2026-06-08"
-    Then the log response status is 200
+  Scenario: Placing a sticker earns it; the balance reflects it
+    When the caller places a sticker on "Brush teeth" day 0 for "Ali"
+    Then the sticker response status is 200
     And "Ali" has a sticker balance of 1 in tenant "khan"
 
-  Scenario: Un-logging a habit removes the sticker
-    Given the caller logs "Brush teeth" for "Ali" on "2026-06-08"
-    When the caller un-logs "Brush teeth" for "Ali" on "2026-06-08"
-    Then the log response status is 200
+  Scenario: Removing a sticker drops the balance
+    Given the caller places a sticker on "Brush teeth" day 0 for "Ali"
+    When the caller removes the sticker on "Brush teeth" day 0 for "Ali"
+    Then the sticker response status is 204
     And "Ali" has a sticker balance of 0 in tenant "khan"
 
   Scenario: Redeeming a reward spends stickers
-    Given the caller logs "Brush teeth" for "Ali" on "2026-06-08"
-    And the caller logs "Brush teeth" for "Ali" on "2026-06-09"
+    Given the caller places a sticker on "Brush teeth" day 0 for "Ali"
+    And the caller also places a sticker on "Brush teeth" day 1 for "Ali"
     When the caller redeems "Ice cream" for "Ali" in tenant "khan"
     Then the redeem response status is 201
     And "Ali" has a sticker balance of 0 in tenant "khan"
 
   Scenario: Redeeming without enough stickers is rejected
-    Given the caller logs "Brush teeth" for "Ali" on "2026-06-08"
+    Given the caller places a sticker on "Brush teeth" day 0 for "Ali"
     When the caller redeems "Ice cream" for "Ali" in tenant "khan"
     Then the redeem response status is 409
 
   Scenario: Two concurrent redeems with exactly enough stickers can't double-spend
-    Given the caller logs "Brush teeth" for "Ali" on "2026-06-08"
-    And the caller logs "Brush teeth" for "Ali" on "2026-06-09"
+    Given the caller places a sticker on "Brush teeth" day 0 for "Ali"
+    And the caller also places a sticker on "Brush teeth" day 1 for "Ali"
     When the caller fires two redeems of "Ice cream" for "Ali" at once in tenant "khan"
     Then exactly one redeem succeeds and one is rejected
     And "Ali" has a sticker balance of 0 in tenant "khan"
 
-  Scenario: Tenant isolation — another tenant's habit logs never count
+  Scenario: Two children share a habit but keep their own stickers
+    Given the "khan" tenant has a child member "Bilal"
+    And the caller places a sticker on "Brush teeth" day 0 for "Ali"
+    And the caller also places a sticker on "Brush teeth" day 0 for "Bilal"
+    Then "Ali" has a sticker balance of 1 in tenant "khan"
+    And "Bilal" has a sticker balance of 1 in tenant "khan"
+
+  Scenario: Bonus habit earns 5 stickers per day
+    Given the "khan" tenant has a bonus habit "Help out"
+    When the caller places a sticker on "Help out" day 0 for "Ali"
+    Then the sticker response status is 200
+    And "Ali" has a sticker balance of 5 in tenant "khan"
+
+  Scenario: Tenant isolation — another tenant's stickers never count
     Given a second tenant "smith" exists with the caller as an admin member
     And the "smith" tenant has a child member "Sam"
     And the "smith" tenant has a habit "Read book"
-    And the caller logs "Read book" for "Sam" on "2026-06-08" in tenant "smith"
-    When the caller GETs habits for "Ali" week "2026-06-08" in tenant "khan"
+    And the caller places a sticker on "Read book" day 0 for "Sam" in tenant "smith"
+    When the caller GETs habits for "Ali" in tenant "khan"
     Then the habits response status is 200
     And the habits response has 1 habits
-    And the habits response has 0 logs
+    And the habits response has 0 stickers

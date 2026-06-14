@@ -69,17 +69,35 @@ describeFeature(feature, ({ Background, Scenario }) => {
     return { Authorization: `Bearer ${token}`, 'x-test-tenant': tenantIds[slug]! };
   }
 
-  async function logHabit(
-    slug: string,
-    habitName: string,
-    memberName: string,
-    date: string,
-    done = true,
-  ) {
-    return app.request(`/api/habits/${habitIds[habitName]!}/log`, {
-      method: 'PATCH',
+  const weekCache: Record<string, string> = {};
+
+  async function currentWeekId(slug: string, memberName: string): Promise<string> {
+    const cacheKey = `${slug}:${memberName}`;
+    if (weekCache[cacheKey]) return weekCache[cacheKey]!;
+    const res = await app.request(`/api/habits?memberId=${memberIds[memberName]!}`, {
+      method: 'GET',
+      headers: headers(slug),
+    });
+    const body = (await res.json()) as { week: { id: string } };
+    weekCache[cacheKey] = body.week.id;
+    return body.week.id;
+  }
+
+  async function placeSticker(slug: string, habitName: string, memberName: string, day: number) {
+    const weekId = await currentWeekId(slug, memberName);
+    return app.request(`/api/habits/${habitIds[habitName]!}/stickers`, {
+      method: 'POST',
       headers: { ...headers(slug), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ memberId: memberIds[memberName]!, date, done }),
+      body: JSON.stringify({ memberId: memberIds[memberName]!, weekId, day, sticker: 'gold-star' }),
+    });
+  }
+
+  async function removeSticker(slug: string, habitName: string, memberName: string, day: number) {
+    const weekId = await currentWeekId(slug, memberName);
+    return app.request(`/api/habits/${habitIds[habitName]!}/stickers`, {
+      method: 'DELETE',
+      headers: { ...headers(slug), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memberId: memberIds[memberName]!, weekId, day }),
     });
   }
 
@@ -106,8 +124,11 @@ describeFeature(feature, ({ Background, Scenario }) => {
     memberIds[name] = row!.id;
   }
 
-  async function seedHabit(slug: string, name: string) {
-    const [row] = await db.insert(habits).values({ tenantId: tenantIds[slug]!, name }).returning();
+  async function seedHabit(slug: string, name: string, isBonus = false) {
+    const [row] = await db
+      .insert(habits)
+      .values({ tenantId: tenantIds[slug]!, name, isBonus })
+      .returning();
     habitIds[name] = row!.id;
   }
 
@@ -135,7 +156,8 @@ describeFeature(feature, ({ Background, Scenario }) => {
       'the test Postgres has clean tenants, members, habits, rewards, and ledger tables',
       async () => {
         db = getTestDb() as unknown as Database;
-        await db.execute(sql`TRUNCATE TABLE habit_logs RESTART IDENTITY CASCADE`);
+        await db.execute(sql`TRUNCATE TABLE habit_stickers RESTART IDENTITY CASCADE`);
+        await db.execute(sql`TRUNCATE TABLE mw_weeks RESTART IDENTITY CASCADE`);
         await db.execute(sql`TRUNCATE TABLE reward_redemptions RESTART IDENTITY CASCADE`);
         await db.execute(sql`TRUNCATE TABLE habits RESTART IDENTITY CASCADE`);
         await db.execute(sql`TRUNCATE TABLE rewards RESTART IDENTITY CASCADE`);
@@ -143,7 +165,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
         await db.execute(sql`TRUNCATE TABLE tenants RESTART IDENTITY CASCADE`);
         await db.execute(sql`DELETE FROM users WHERE id = ${USER_ID}`);
         _resetJwksCacheForTests();
-        for (const m of [tenantIds, memberIds, habitIds, rewardIds]) {
+        for (const m of [tenantIds, memberIds, habitIds, rewardIds, weekCache]) {
           for (const k of Object.keys(m)) delete m[k];
         }
       },
@@ -197,15 +219,15 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  Scenario('Logging a habit earns a sticker; the balance reflects it', ({ When, Then, And }) => {
+  Scenario('Placing a sticker earns it; the balance reflects it', ({ When, Then, And }) => {
     let res: Response;
     When(
-      'the caller logs {string} for {string} on {string}',
-      async (_c, h: string, m: string, d: string) => {
-        res = await logHabit('khan', h, m, d);
+      'the caller places a sticker on {string} day {int} for {string}',
+      async (_c, h: string, day: number, m: string) => {
+        res = await placeSticker('khan', h, m, day);
       },
     );
-    Then('the log response status is 200', () => expect(res.status).toBe(200));
+    Then('the sticker response status is {int}', (_c, n: number) => expect(res.status).toBe(n));
     And(
       '{string} has a sticker balance of {int} in tenant {string}',
       async (_c, m: string, n: number) => {
@@ -214,21 +236,21 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  Scenario('Un-logging a habit removes the sticker', ({ Given, When, Then, And }) => {
+  Scenario('Removing a sticker drops the balance', ({ Given, When, Then, And }) => {
     let res: Response;
     Given(
-      'the caller logs {string} for {string} on {string}',
-      async (_c, h: string, m: string, d: string) => {
-        await logHabit('khan', h, m, d);
+      'the caller places a sticker on {string} day {int} for {string}',
+      async (_c, h: string, day: number, m: string) => {
+        await placeSticker('khan', h, m, day);
       },
     );
     When(
-      'the caller un-logs {string} for {string} on {string}',
-      async (_c, h: string, m: string, d: string) => {
-        res = await logHabit('khan', h, m, d, false);
+      'the caller removes the sticker on {string} day {int} for {string}',
+      async (_c, h: string, day: number, m: string) => {
+        res = await removeSticker('khan', h, m, day);
       },
     );
-    Then('the log response status is 200', () => expect(res.status).toBe(200));
+    Then('the sticker response status is {int}', (_c, n: number) => expect(res.status).toBe(n));
     And(
       '{string} has a sticker balance of {int} in tenant {string}',
       async (_c, m: string, n: number) => {
@@ -240,15 +262,15 @@ describeFeature(feature, ({ Background, Scenario }) => {
   Scenario('Redeeming a reward spends stickers', ({ Given, And, When, Then }) => {
     let res: Response;
     Given(
-      'the caller logs {string} for {string} on {string}',
-      async (_c, h: string, m: string, d: string) => {
-        await logHabit('khan', h, m, d);
+      'the caller places a sticker on {string} day {int} for {string}',
+      async (_c, h: string, day: number, m: string) => {
+        await placeSticker('khan', h, m, day);
       },
     );
     And(
-      'the caller logs {string} for {string} on {string}',
-      async (_c, h: string, m: string, d: string) => {
-        await logHabit('khan', h, m, d);
+      'the caller also places a sticker on {string} day {int} for {string}',
+      async (_c, h: string, day: number, m: string) => {
+        await placeSticker('khan', h, m, day);
       },
     );
     When(
@@ -273,9 +295,9 @@ describeFeature(feature, ({ Background, Scenario }) => {
   Scenario('Redeeming without enough stickers is rejected', ({ Given, When, Then }) => {
     let res: Response;
     Given(
-      'the caller logs {string} for {string} on {string}',
-      async (_c, h: string, m: string, d: string) => {
-        await logHabit('khan', h, m, d);
+      'the caller places a sticker on {string} day {int} for {string}',
+      async (_c, h: string, day: number, m: string) => {
+        await placeSticker('khan', h, m, day);
       },
     );
     When(
@@ -296,15 +318,15 @@ describeFeature(feature, ({ Background, Scenario }) => {
     ({ Given, And, When, Then }) => {
       let statuses: number[] = [];
       Given(
-        'the caller logs {string} for {string} on {string}',
-        async (_c, h: string, m: string, d: string) => {
-          await logHabit('khan', h, m, d);
+        'the caller places a sticker on {string} day {int} for {string}',
+        async (_c, h: string, day: number, m: string) => {
+          await placeSticker('khan', h, m, day);
         },
       );
       And(
-        'the caller logs {string} for {string} on {string}',
-        async (_c, h: string, m: string, d: string) => {
-          await logHabit('khan', h, m, d);
+        'the caller also places a sticker on {string} day {int} for {string}',
+        async (_c, h: string, day: number, m: string) => {
+          await placeSticker('khan', h, m, day);
         },
       );
       When(
@@ -333,11 +355,67 @@ describeFeature(feature, ({ Background, Scenario }) => {
     },
   );
 
+  Scenario('Two children share a habit but keep their own stickers', ({ Given, And, Then }) => {
+    Given(
+      'the {string} tenant has a child member {string}',
+      async (_c, slug: string, name: string) => {
+        await seedChild(slug, name);
+      },
+    );
+    And(
+      'the caller places a sticker on {string} day {int} for {string}',
+      async (_c, h: string, day: number, m: string) => {
+        await placeSticker('khan', h, m, day);
+      },
+    );
+    And(
+      'the caller also places a sticker on {string} day {int} for {string}',
+      async (_c, h: string, day: number, m: string) => {
+        await placeSticker('khan', h, m, day);
+      },
+    );
+    Then(
+      '{string} has a sticker balance of {int} in tenant {string}',
+      async (_c, m: string, n: number) => {
+        expect(await getBalance('khan', m)).toBe(n);
+      },
+    );
+    And(
+      '{string} has a sticker balance of {int} in tenant {string}',
+      async (_c, m: string, n: number) => {
+        expect(await getBalance('khan', m)).toBe(n);
+      },
+    );
+  });
+
+  Scenario('Bonus habit earns 5 stickers per day', ({ Given, When, Then, And }) => {
+    let res: Response;
+    Given(
+      'the {string} tenant has a bonus habit {string}',
+      async (_c, slug: string, name: string) => {
+        await seedHabit(slug, name, true);
+      },
+    );
+    When(
+      'the caller places a sticker on {string} day {int} for {string}',
+      async (_c, h: string, day: number, m: string) => {
+        res = await placeSticker('khan', h, m, day);
+      },
+    );
+    Then('the sticker response status is {int}', (_c, n: number) => expect(res.status).toBe(n));
+    And(
+      '{string} has a sticker balance of {int} in tenant {string}',
+      async (_c, m: string, n: number) => {
+        expect(await getBalance('khan', m)).toBe(n);
+      },
+    );
+  });
+
   Scenario(
-    "Tenant isolation — another tenant's habit logs never count",
+    "Tenant isolation — another tenant's stickers never count",
     ({ Given, And, When, Then }) => {
       let res: Response;
-      let body: { habits: unknown[]; logs: unknown[] };
+      let body: { habits: unknown[]; stickers: unknown[] };
       Given(
         'a second tenant {string} exists with the caller as an admin member',
         async (_c, slug: string) => {
@@ -354,27 +432,27 @@ describeFeature(feature, ({ Background, Scenario }) => {
         await seedHabit(slug, name);
       });
       And(
-        'the caller logs {string} for {string} on {string} in tenant {string}',
-        async (_c, h: string, m: string, d: string, slug: string) => {
-          await logHabit(slug, h, m, d);
+        'the caller places a sticker on {string} day {int} for {string} in tenant {string}',
+        async (_c, h: string, day: number, m: string, slug: string) => {
+          await placeSticker(slug, h, m, day);
         },
       );
       When(
-        'the caller GETs habits for {string} week {string} in tenant {string}',
-        async (_c, m: string, week: string, slug: string) => {
-          res = await app.request(`/api/habits?memberId=${memberIds[m]!}&weekStart=${week}`, {
+        'the caller GETs habits for {string} in tenant {string}',
+        async (_c, m: string, slug: string) => {
+          res = await app.request(`/api/habits?memberId=${memberIds[m]!}`, {
             method: 'GET',
             headers: headers(slug),
           });
-          body = (await res.json()) as { habits: unknown[]; logs: unknown[] };
+          body = (await res.json()) as { habits: unknown[]; stickers: unknown[] };
         },
       );
       Then('the habits response status is 200', () => expect(res.status).toBe(200));
       And('the habits response has {int} habits', (_c, n: number) =>
         expect(body.habits).toHaveLength(n),
       );
-      And('the habits response has {int} logs', (_c, n: number) =>
-        expect(body.logs).toHaveLength(n),
+      And('the habits response has {int} stickers', (_c, n: number) =>
+        expect(body.stickers).toHaveLength(n),
       );
     },
   );

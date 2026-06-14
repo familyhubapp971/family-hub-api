@@ -4,17 +4,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { habitsRouter } from '../../../../apps/api/src/routes/habits.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-268 — validation + tenant guards for /api/habits. The DB-dependent
-// behaviour (logs, balance maths) is covered by the real-Postgres
-// integration test (childworld.feature).
+// FHS-292 — auth/tenant/role guards for /api/habits (sticker model). The
+// DB-backed behaviour (sticker placement, balance, week creation) is
+// covered by the myworld integration tests.
 
-const dbMock = { select: vi.fn(), insert: vi.fn(), delete: vi.fn() };
+const dbMock = { select: vi.fn(), insert: vi.fn(), update: vi.fn(), delete: vi.fn() };
 vi.mock('../../../../apps/api/src/db/client.js', () => ({ getDb: () => dbMock }));
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '00000000-0000-4000-8000-000000000777';
 const MEMBER_ID = '44444444-4444-4444-8444-444444444444';
-const HABIT_ID = '22222222-2222-4222-8222-222222222222';
+const HABIT_ID = '55555555-5555-4555-8555-555555555555';
+const WEEK_ID = '66666666-6666-4666-8666-666666666666';
 const FIXED_USER: User = {
   id: USER_ID,
   email: 's@e.com',
@@ -22,8 +23,6 @@ const FIXED_USER: User = {
   updatedAt: new Date('2026-05-01T00:00:00.000Z'),
 };
 
-// Queue of results for the `.select().from().where().limit()` member
-// existence checks, consumed in order (callerIsMember, then memberInTenant).
 function buildApp(opts: { noTenant?: boolean; memberChecks?: unknown[][] } = {}) {
   const seed: MiddlewareHandler = async (c, next) => {
     c.set('user', { id: USER_ID, email: 's@e.com', claims: {} });
@@ -41,75 +40,108 @@ function buildApp(opts: { noTenant?: boolean; memberChecks?: unknown[][] } = {})
   return app;
 }
 
+const json = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
+
 beforeEach(() => {
   dbMock.select.mockReset();
   dbMock.insert.mockReset();
+  dbMock.update.mockReset();
   dbMock.delete.mockReset();
 });
 
-describe('FHS-268 — GET /api/habits guards', () => {
+describe('FHS-292 — GET /api/habits guards', () => {
   it('400 when no tenant context', async () => {
-    const res = await buildApp({ noTenant: true }).request(
-      `/api/habits?memberId=${MEMBER_ID}&weekStart=2026-06-08`,
+    const res = await buildApp({ noTenant: true }).request(`/api/habits?memberId=${MEMBER_ID}`);
+    expect(res.status).toBe(400);
+  });
+  it('400 when memberId is missing', async () => {
+    const res = await buildApp().request('/api/habits');
+    expect(res.status).toBe(400);
+  });
+  it('403 when the caller is not a member', async () => {
+    const res = await buildApp({ memberChecks: [[]] }).request(`/api/habits?memberId=${MEMBER_ID}`);
+    expect(res.status).toBe(403);
+  });
+  it('404 when the target member is not in the tenant', async () => {
+    const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }], []] }).request(
+      `/api/habits?memberId=${MEMBER_ID}`,
+    );
+    expect(res.status).toBe(404);
+  });
+  it('403 when a non-parent caller targets another member', async () => {
+    const res = await buildApp({
+      memberChecks: [[{ id: 'caller', role: 'teen' }], [{ id: MEMBER_ID }]],
+    }).request(`/api/habits?memberId=${MEMBER_ID}`);
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('FHS-292 — POST /api/habits guards', () => {
+  it('400 on an empty name', async () => {
+    const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }]] }).request(
+      '/api/habits',
+      json('POST', { memberId: MEMBER_ID, name: '   ' }),
     );
     expect(res.status).toBe(400);
   });
-
-  it('400 when memberId is missing', async () => {
-    const res = await buildApp().request('/api/habits?weekStart=2026-06-08');
-    expect(res.status).toBe(400);
-  });
-
-  it('400 when weekStart is malformed', async () => {
-    const res = await buildApp().request(`/api/habits?memberId=${MEMBER_ID}&weekStart=last-monday`);
-    expect(res.status).toBe(400);
-  });
-
-  it('403 when the caller is not a member of the tenant', async () => {
+  it('403 when the caller is not a member', async () => {
     const res = await buildApp({ memberChecks: [[]] }).request(
-      `/api/habits?memberId=${MEMBER_ID}&weekStart=2026-06-08`,
+      '/api/habits',
+      json('POST', { memberId: MEMBER_ID, name: 'Read' }),
     );
     expect(res.status).toBe(403);
   });
-
-  it('404 when the target member is not in the tenant', async () => {
-    const res = await buildApp({ memberChecks: [[{ id: 'caller' }], []] }).request(
-      `/api/habits?memberId=${MEMBER_ID}&weekStart=2026-06-08`,
+  it('404 when the target member is absent', async () => {
+    const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }], []] }).request(
+      '/api/habits',
+      json('POST', { memberId: MEMBER_ID, name: 'Read' }),
     );
     expect(res.status).toBe(404);
   });
 });
 
-describe('FHS-268 — PATCH /api/habits/:id/log guards', () => {
-  function patch(id: string, body: unknown): RequestInit {
-    return {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    };
-  }
-
-  it('400 for a malformed habit id', async () => {
-    const res = await buildApp().request(
-      '/api/habits/not-a-uuid/log',
-      patch('x', { memberId: MEMBER_ID, date: '2026-06-08', done: true }),
+describe('FHS-292 — sticker placement guards', () => {
+  it('400 on an out-of-range day', async () => {
+    const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }]] }).request(
+      `/api/habits/${HABIT_ID}/stickers`,
+      json('POST', { memberId: MEMBER_ID, weekId: WEEK_ID, day: 9, sticker: 'gold-star' }),
     );
     expect(res.status).toBe(400);
   });
-
-  it('400 when the body is invalid', async () => {
-    const res = await buildApp().request(
-      `/api/habits/${HABIT_ID}/log`,
-      patch(HABIT_ID, { memberId: MEMBER_ID }),
+  it('400 on an unknown sticker type', async () => {
+    const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }]] }).request(
+      `/api/habits/${HABIT_ID}/stickers`,
+      json('POST', { memberId: MEMBER_ID, weekId: WEEK_ID, day: 0, sticker: 'diamond' }),
     );
     expect(res.status).toBe(400);
   });
+  it('403 when a non-parent caller targets another member', async () => {
+    const res = await buildApp({
+      memberChecks: [[{ id: 'caller', role: 'teen' }], [{ id: MEMBER_ID }]],
+    }).request(
+      `/api/habits/${HABIT_ID}/stickers`,
+      json('POST', { memberId: MEMBER_ID, weekId: WEEK_ID, day: 0, sticker: 'gold-star' }),
+    );
+    expect(res.status).toBe(403);
+  });
+});
 
+describe('FHS-292 — DELETE /api/habits/:id guards', () => {
+  it('400 on a non-UUID id', async () => {
+    const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }]] }).request(
+      '/api/habits/not-a-uuid',
+      { method: 'DELETE' },
+    );
+    expect(res.status).toBe(400);
+  });
   it('403 when the caller is not a member', async () => {
-    const res = await buildApp({ memberChecks: [[]] }).request(
-      `/api/habits/${HABIT_ID}/log`,
-      patch(HABIT_ID, { memberId: MEMBER_ID, date: '2026-06-08', done: true }),
-    );
+    const res = await buildApp({ memberChecks: [[]] }).request(`/api/habits/${HABIT_ID}`, {
+      method: 'DELETE',
+    });
     expect(res.status).toBe(403);
   });
 });
