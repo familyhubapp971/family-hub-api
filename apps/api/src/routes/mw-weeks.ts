@@ -1,10 +1,28 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, count, eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
-import { habitStickers, members, mwWeeks } from '../db/schema.js';
+import {
+  habits,
+  habitStickers,
+  members,
+  mwInvestments,
+  mwSavings,
+  mwSavingsTransactions,
+  mwTransactionStickers,
+  mwWeekActions,
+  mwWeeks,
+} from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
-import { getOrCreateCurrentWeek, STICKER_TO_AED } from '../lib/myworld.js';
+import {
+  getOrCreateCurrentWeek,
+  getOrCreateSavings,
+  investmentValue,
+  isoWeek,
+  mondayOf,
+  STICKER_TO_AED,
+  STICKER_TO_CASH,
+} from '../lib/myworld.js';
 
 // FHS-293 — My World weeks list / current / stats endpoints.
 //
@@ -217,5 +235,426 @@ export const mwWeeksRouter = new Hono()
       unallocatedStickers,
       allocatedStickers,
       cashValue: unallocatedStickers * STICKER_TO_AED,
+    });
+  })
+
+  // POST /:id/finalize — close a week (faithful port of the legacy flow).
+  //
+  // On close, all per (tenant, member) and inside one advisory-locked tx:
+  //   1. snapshot the week (audit) before any mutation,
+  //   2. auto-save this week's unallocated stickers from NON-invested habits
+  //      into savings (invested-habit stickers are consumed by the investment),
+  //   3. resolve active investments not in `continueInvestmentIds` — their
+  //      matured value (sticker-first: max(0, principal + done*5 − missed*2))
+  //      is returned to saved cash,
+  //   4. mark the week finalized + store the closure snapshot,
+  //   5. create the next ISO week,
+  //   6. carry continued investments into the next week (matured value becomes
+  //      the new principal; day counters reset; the original stake is kept).
+  .post('/:id/finalize', async (c) => {
+    getAuthenticatedUser(c);
+    const userRow = c.get('userRow');
+    if (!userRow) throw new Error('mw-weeks finalize reached without userRow');
+    const tenantId = c.get('tenantId') as string | undefined;
+    if (!tenantId) {
+      return c.json({ error: 'tenant context required', errorCode: 'TENANT_REQUIRED' }, 400);
+    }
+    const body = (await c.req.json().catch(() => null)) as unknown;
+    const parsed = z
+      .object({
+        memberId: z.string().uuid(),
+        continueInvestmentIds: z.array(z.string().uuid()).optional(),
+      })
+      .safeParse(body);
+    if (!parsed.success) return badRequest(c, parsed.error);
+    const { memberId } = parsed.data;
+    const continueIds = parsed.data.continueInvestmentIds ?? [];
+    const continueSet = new Set(continueIds);
+
+    const db = getDb();
+    const caller = await loadCaller(db, tenantId, userRow.id);
+    if (!caller) return c.json({ error: 'forbidden', detail: 'caller is not a member' }, 403);
+    if (!(await memberInTenant(db, tenantId, memberId))) {
+      return c.json({ error: 'not found', detail: 'member not found in this tenant' }, 404);
+    }
+    if (!canManage(caller, memberId)) {
+      return c.json({ error: 'forbidden', detail: 'not allowed for this member' }, 403);
+    }
+
+    const weekId = c.req.param('id');
+    const now = new Date();
+
+    const outcome = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${memberId}`}, 0))`,
+      );
+
+      // ── Load + guard the week (scoped to this child) ───────────────────────
+      const [week] = await tx
+        .select()
+        .from(mwWeeks)
+        .where(
+          and(
+            eq(mwWeeks.id, weekId),
+            eq(mwWeeks.tenantId, tenantId),
+            eq(mwWeeks.memberId, memberId),
+          ),
+        )
+        .limit(1);
+      if (!week) return { ok: false as const, code: 'NOT_FOUND' as const };
+      if (week.isFinalized) return { ok: false as const, code: 'ALREADY' as const };
+
+      // No earlier open week may exist (close them in order).
+      const [earlier] = await tx
+        .select({ weekNumber: mwWeeks.weekNumber, year: mwWeeks.year })
+        .from(mwWeeks)
+        .where(
+          and(
+            eq(mwWeeks.tenantId, tenantId),
+            eq(mwWeeks.memberId, memberId),
+            eq(mwWeeks.isFinalized, false),
+            sql`(${mwWeeks.year} < ${week.year} OR (${mwWeeks.year} = ${week.year} AND ${mwWeeks.weekNumber} < ${week.weekNumber}))`,
+          ),
+        )
+        .orderBy(asc(mwWeeks.year), asc(mwWeeks.weekNumber))
+        .limit(1);
+      if (earlier) {
+        return { ok: false as const, code: 'EARLIER_OPEN' as const, earlier };
+      }
+
+      // Can't finalize a week that hasn't started yet.
+      const cur = isoWeek(now);
+      if (week.year > cur.year || (week.year === cur.year && week.weekNumber > cur.weekNumber)) {
+        return { ok: false as const, code: 'FUTURE' as const, week };
+      }
+
+      // ── 1. Snapshot BEFORE mutations (audit) ───────────────────────────────
+      const snapStickers = await tx
+        .select({
+          id: habitStickers.id,
+          habitId: habitStickers.habitId,
+          day: habitStickers.day,
+          stickerValue: habitStickers.stickerValue,
+          isAllocated: habitStickers.isAllocated,
+        })
+        .from(habitStickers)
+        .where(
+          and(
+            eq(habitStickers.tenantId, tenantId),
+            eq(habitStickers.memberId, memberId),
+            eq(habitStickers.weekId, weekId),
+          ),
+        );
+      const savingsBefore = await getOrCreateSavings(tx, tenantId, memberId);
+      const activeInvestments = await tx
+        .select()
+        .from(mwInvestments)
+        .where(
+          and(
+            eq(mwInvestments.tenantId, tenantId),
+            eq(mwInvestments.memberId, memberId),
+            eq(mwInvestments.isActive, true),
+          ),
+        );
+
+      // continueInvestmentIds must all be active investments for this child.
+      const activeIds = new Set(activeInvestments.map((i) => i.id));
+      for (const id of continueIds) {
+        if (!activeIds.has(id)) {
+          return { ok: false as const, code: 'BAD_CONTINUE' as const, id };
+        }
+      }
+
+      const totalStickerValue = snapStickers.reduce((s, r) => s + (r.stickerValue ?? 1), 0);
+      const unallocatedValue = snapStickers
+        .filter((s) => !s.isAllocated)
+        .reduce((s, r) => s + (r.stickerValue ?? 1), 0);
+      const closureSnapshot = {
+        capturedAt: now.toISOString(),
+        week: {
+          id: weekId,
+          weekNumber: week.weekNumber,
+          year: week.year,
+          startDate: week.startDate,
+        },
+        stickers: {
+          total: snapStickers.length,
+          totalValue: totalStickerValue,
+          unallocatedValue,
+          allocatedValue: totalStickerValue - unallocatedValue,
+        },
+        savings: { savedStickers: savingsBefore.savedStickers, savedCash: savingsBefore.savedCash },
+        investments: activeInvestments.map((inv) => ({
+          id: inv.id,
+          habitId: inv.habitId,
+          investedStickers: inv.investedStickers,
+          currentValue: Number(inv.currentValue),
+        })),
+      };
+
+      // ── 2. Auto-save unallocated stickers from non-invested habits ─────────
+      const allUnalloc = snapStickers.filter((s) => !s.isAllocated);
+      const investedHabitIds = new Set(activeInvestments.map((i) => i.habitId));
+      const toSave = allUnalloc.filter((s) => !investedHabitIds.has(s.habitId));
+      const stickerValue = toSave.reduce((s, r) => s + (r.stickerValue ?? 1), 0);
+
+      if (allUnalloc.length > 0) {
+        // Every unallocated sticker is now spent (invested ones are consumed
+        // by the investment; the rest are banked).
+        await tx
+          .update(habitStickers)
+          .set({ isAllocated: true })
+          .where(
+            and(
+              eq(habitStickers.tenantId, tenantId),
+              eq(habitStickers.memberId, memberId),
+              eq(habitStickers.weekId, weekId),
+              eq(habitStickers.isAllocated, false),
+            ),
+          );
+      }
+      if (stickerValue > 0) {
+        const [txn] = await tx
+          .insert(mwSavingsTransactions)
+          .values({
+            tenantId,
+            memberId,
+            transactionType: 'stickers',
+            amount: String(stickerValue),
+            stickerCount: stickerValue,
+          })
+          .returning({ id: mwSavingsTransactions.id });
+        if (toSave.length > 0 && txn) {
+          await tx
+            .insert(mwTransactionStickers)
+            .values(toSave.map((s) => ({ transactionId: txn.id, stickerId: s.id })));
+        }
+        await tx
+          .update(mwSavings)
+          .set({
+            savedStickers: sql`${mwSavings.savedStickers} + ${stickerValue}`,
+            updatedAt: now,
+          })
+          .where(and(eq(mwSavings.tenantId, tenantId), eq(mwSavings.memberId, memberId)));
+        await tx.insert(mwWeekActions).values({
+          tenantId,
+          memberId,
+          weekId,
+          actionType: 'auto_save',
+          stickersUsed: stickerValue,
+          cashAmount: String(stickerValue * STICKER_TO_CASH),
+        });
+      }
+
+      // ── 3+4. Mark finalized (a closed week is a "closed book": all 7 days
+      // are past) and store the snapshot. ────────────────────────────────────
+      await tx
+        .update(mwWeeks)
+        .set({ isFinalized: true, closureSnapshot, updatedAt: now })
+        .where(
+          and(
+            eq(mwWeeks.id, weekId),
+            eq(mwWeeks.tenantId, tenantId),
+            eq(mwWeeks.memberId, memberId),
+          ),
+        );
+
+      // ── Resolve / queue-continue active investments ────────────────────────
+      type Cont = { id: string; habitId: string; valueStickers: number; valueCash: number };
+      const toContinue: Cont[] = [];
+      let investmentReturns = 0;
+
+      for (const inv of activeInvestments) {
+        // Recompute the matured value from THIS week's habit performance.
+        const [cRow] = await tx
+          .select({ n: count() })
+          .from(habitStickers)
+          .where(
+            and(
+              eq(habitStickers.tenantId, tenantId),
+              eq(habitStickers.memberId, memberId),
+              eq(habitStickers.habitId, inv.habitId),
+              eq(habitStickers.weekId, weekId),
+            ),
+          );
+        const completedDays = Math.min(cRow?.n ?? 0, 7);
+        const missedDays = 7 - completedDays;
+        const { currentValueStickers, currentValueCash } = investmentValue({
+          investedStickers: inv.investedStickers,
+          completedDays,
+          missedDays,
+        });
+
+        if (continueSet.has(inv.id)) {
+          toContinue.push({
+            id: inv.id,
+            habitId: inv.habitId,
+            valueStickers: currentValueStickers,
+            valueCash: currentValueCash,
+          });
+        } else {
+          await tx
+            .update(mwInvestments)
+            .set({
+              isActive: false,
+              isResolved: true,
+              currentValue: String(currentValueCash),
+              finalReturn: String(currentValueCash),
+            })
+            .where(
+              and(
+                eq(mwInvestments.id, inv.id),
+                eq(mwInvestments.tenantId, tenantId),
+                eq(mwInvestments.memberId, memberId),
+              ),
+            );
+          investmentReturns += currentValueCash;
+        }
+      }
+
+      if (investmentReturns > 0) {
+        await tx
+          .update(mwSavings)
+          .set({
+            savedCash: sql`${mwSavings.savedCash} + ${investmentReturns}`,
+            updatedAt: now,
+          })
+          .where(and(eq(mwSavings.tenantId, tenantId), eq(mwSavings.memberId, memberId)));
+      }
+
+      // ── 5. Create the next ISO week ────────────────────────────────────────
+      const [sy, sm, sd] = week.startDate.split('-').map((x) => Number.parseInt(x, 10));
+      const nextMonday = mondayOf(new Date(Date.UTC(sy!, sm! - 1, sd! + 7)));
+      const { weekNumber: nextWeekNumber, year: nextYear } = isoWeek(nextMonday);
+      const nextStartDate = nextMonday.toISOString().slice(0, 10);
+
+      const [existingNext] = await tx
+        .select()
+        .from(mwWeeks)
+        .where(
+          and(
+            eq(mwWeeks.tenantId, tenantId),
+            eq(mwWeeks.memberId, memberId),
+            eq(mwWeeks.year, nextYear),
+            eq(mwWeeks.weekNumber, nextWeekNumber),
+          ),
+        )
+        .limit(1);
+
+      let nextWeek = existingNext;
+      if (!nextWeek) {
+        const [created] = await tx
+          .insert(mwWeeks)
+          .values({
+            tenantId,
+            memberId,
+            weekNumber: nextWeekNumber,
+            year: nextYear,
+            startDate: nextStartDate,
+            carriedOverStickers: stickerValue,
+          })
+          .onConflictDoNothing()
+          .returning();
+        nextWeek = created ?? existingNext;
+      } else {
+        const [updated] = await tx
+          .update(mwWeeks)
+          .set({ carriedOverStickers: stickerValue, updatedAt: now })
+          .where(
+            and(
+              eq(mwWeeks.id, nextWeek.id),
+              eq(mwWeeks.tenantId, tenantId),
+              eq(mwWeeks.memberId, memberId),
+            ),
+          )
+          .returning();
+        nextWeek = updated ?? nextWeek;
+      }
+      if (!nextWeek) throw new Error('finalize: failed to create or read the next week');
+
+      // ── 6. Carry continued investments into the next week ──────────────────
+      let continuedInvestments = 0;
+      for (const cont of toContinue) {
+        await tx
+          .update(mwInvestments)
+          .set({
+            weekId: nextWeek.id,
+            investedAmount: String(cont.valueCash),
+            // matured value becomes the new working principal; the original
+            // stake (original_invested_stickers) is intentionally left as-is.
+            investedStickers: cont.valueStickers,
+            currentValue: String(cont.valueCash),
+            daysCompleted: 0,
+            daysMissed: 0,
+          })
+          .where(
+            and(
+              eq(mwInvestments.id, cont.id),
+              eq(mwInvestments.tenantId, tenantId),
+              eq(mwInvestments.memberId, memberId),
+            ),
+          );
+        const [habitRow] = await tx
+          .select({ name: habits.name })
+          .from(habits)
+          .where(eq(habits.id, cont.habitId))
+          .limit(1);
+        await tx.insert(mwWeekActions).values({
+          tenantId,
+          memberId,
+          weekId,
+          actionType: 'invest_continue',
+          stickersUsed: cont.valueStickers,
+          cashAmount: String(cont.valueCash),
+          habitId: cont.habitId,
+          habitName: habitRow?.name ?? null,
+        });
+        continuedInvestments += 1;
+      }
+
+      return {
+        ok: true as const,
+        stickersAutoSaved: stickerValue,
+        investmentReturns,
+        continuedInvestments,
+        nextWeekId: nextWeek.id,
+        nextWeekNumber: nextWeek.weekNumber,
+        nextWeekYear: nextWeek.year,
+      };
+    });
+
+    if (!outcome.ok) {
+      switch (outcome.code) {
+        case 'NOT_FOUND':
+          return c.json({ error: 'not found', detail: 'week not found for this member' }, 404);
+        case 'ALREADY':
+          return c.json({ error: 'conflict', detail: 'week already finalized' }, 409);
+        case 'EARLIER_OPEN':
+          return c.json(
+            {
+              error: 'conflict',
+              detail: `close earlier week ${outcome.earlier.weekNumber}/${outcome.earlier.year} first`,
+            },
+            409,
+          );
+        case 'FUTURE':
+          return c.json({ error: 'conflict', detail: 'week has not started yet' }, 409);
+        case 'BAD_CONTINUE':
+          return c.json(
+            { error: 'invalid request', detail: `investment ${outcome.id} is not active` },
+            400,
+          );
+      }
+      return c.json({ error: 'finalize failed' }, 500);
+    }
+
+    return c.json({
+      finalized: true,
+      stickersAutoSaved: outcome.stickersAutoSaved,
+      investmentReturns: outcome.investmentReturns,
+      continuedInvestments: outcome.continuedInvestments,
+      nextWeekId: outcome.nextWeekId,
+      nextWeekNumber: outcome.nextWeekNumber,
+      nextWeekYear: outcome.nextWeekYear,
     });
   });
