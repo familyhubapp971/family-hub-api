@@ -66,6 +66,9 @@ const updateSchema = z.object({
   color: z.string().trim().max(40).optional(),
   isBonus: z.boolean().optional(),
 });
+const deleteSchema = z.object({
+  memberId: z.string().uuid(),
+});
 const placeStickerSchema = z.object({
   memberId: z.string().uuid(),
   weekId: z.string().uuid(),
@@ -169,7 +172,13 @@ export const habitsRouter = new Hono()
           isBonus: habits.isBonus,
         })
         .from(habits)
-        .where(and(eq(habits.tenantId, tenantId), isNull(habits.archivedAt)))
+        .where(
+          and(
+            eq(habits.tenantId, tenantId),
+            eq(habits.memberId, memberId),
+            isNull(habits.archivedAt),
+          ),
+        )
         .orderBy(asc(habits.createdAt)),
       db
         .select({
@@ -212,11 +221,11 @@ export const habitsRouter = new Hono()
     const { db, tenantId, parsed } = await parseBody(c, ctx, createSchema);
     if ('res' in parsed) return parsed.res;
     const { memberId, name, icon, color, isBonus } = parsed.data;
-    void memberId;
     const [row] = await db
       .insert(habits)
       .values({
         tenantId,
+        memberId,
         name,
         icon: icon ?? null,
         color: color ?? '#facc15',
@@ -235,17 +244,21 @@ export const habitsRouter = new Hono()
     }
     const { db, tenantId, parsed } = await parseBody(c, ctx, updateSchema);
     if ('res' in parsed) return parsed.res;
+    const { memberId } = parsed.data;
     const patch: Record<string, unknown> = { updatedAt: new Date() };
     if (parsed.data.name !== undefined) patch.name = parsed.data.name;
     if (parsed.data.icon !== undefined) patch.icon = parsed.data.icon;
     if (parsed.data.color !== undefined) patch.color = parsed.data.color;
     if (parsed.data.isBonus !== undefined) patch.isBonus = parsed.data.isBonus;
+    // FIX 2: scope to memberId so a caller cannot edit another child's habit.
     const [row] = await db
       .update(habits)
       .set(patch)
-      .where(and(eq(habits.tenantId, tenantId), eq(habits.id, habitId)))
+      .where(
+        and(eq(habits.tenantId, tenantId), eq(habits.memberId, memberId), eq(habits.id, habitId)),
+      )
       .returning();
-    if (!row) return c.json({ error: 'not found', detail: 'habit not found in this tenant' }, 404);
+    if (!row) return c.json({ error: 'not found', detail: 'habit not found for this member' }, 404);
     return c.json(toHabit(row));
   })
   // Delete a habit (its stickers cascade).
@@ -256,12 +269,18 @@ export const habitsRouter = new Hono()
     if (!UUID_RE.test(habitId)) {
       return c.json({ error: 'invalid id', detail: 'habit id must be a UUID' }, 400);
     }
-    const deleted = await ctx.db
+    // FIX 2: parse memberId from body so the DELETE is scoped to that member.
+    const { db, tenantId, parsed } = await parseBody(c, ctx, deleteSchema);
+    if ('res' in parsed) return parsed.res;
+    const { memberId } = parsed.data;
+    const deleted = await db
       .delete(habits)
-      .where(and(eq(habits.tenantId, ctx.tenantId), eq(habits.id, habitId)))
+      .where(
+        and(eq(habits.tenantId, tenantId), eq(habits.memberId, memberId), eq(habits.id, habitId)),
+      )
       .returning({ id: habits.id });
     if (deleted.length === 0) {
-      return c.json({ error: 'not found', detail: 'habit not found in this tenant' }, 404);
+      return c.json({ error: 'not found', detail: 'habit not found for this member' }, 404);
     }
     return c.body(null, 204);
   })
@@ -276,14 +295,18 @@ export const habitsRouter = new Hono()
     const { db, tenantId, parsed } = await parseBody(c, ctx, placeStickerSchema);
     if ('res' in parsed) return parsed.res;
     const { memberId, weekId, day, sticker } = parsed.data;
+    // Scope the habit lookup to this member so a caller cannot place a sticker
+    // on another child's habit and credit it to this member's balance.
     const habitRows = await db
       .select({ id: habits.id, isBonus: habits.isBonus })
       .from(habits)
-      .where(and(eq(habits.tenantId, tenantId), eq(habits.id, habitId)))
+      .where(
+        and(eq(habits.tenantId, tenantId), eq(habits.memberId, memberId), eq(habits.id, habitId)),
+      )
       .limit(1);
     const habit = habitRows[0];
     if (!habit)
-      return c.json({ error: 'not found', detail: 'habit not found in this tenant' }, 404);
+      return c.json({ error: 'not found', detail: 'habit not found for this member' }, 404);
     const stickerValue = habit.isBonus ? 5 : 1;
     await db
       .insert(habitStickers)

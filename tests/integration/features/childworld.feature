@@ -42,12 +42,14 @@ Feature: ChildWorld habits + sticker economy (FHS-292)
     Then exactly one redeem succeeds and one is rejected
     And "Ali" has a sticker balance of 0 in tenant "khan"
 
-  Scenario: Two children share a habit but keep their own stickers
+  Scenario: Each child earns on their own habit; cross-child placement is rejected
     Given the "khan" tenant has a child member "Bilal"
+    And the "khan" tenant has a habit "Tidy room"
     And the caller places a sticker on "Brush teeth" day 0 for "Ali"
-    And the caller also places a sticker on "Brush teeth" day 0 for "Bilal"
+    And the caller also places a sticker on "Tidy room" day 0 for "Bilal"
     Then "Ali" has a sticker balance of 1 in tenant "khan"
     And "Bilal" has a sticker balance of 1 in tenant "khan"
+    And placing a sticker on "Brush teeth" day 1 for "Bilal" is rejected with 404
 
   Scenario: Bonus habit earns 5 stickers per day
     Given the "khan" tenant has a bonus habit "Help out"
@@ -64,3 +66,10 @@ Feature: ChildWorld habits + sticker economy (FHS-292)
     Then the habits response status is 200
     And the habits response has 1 habits
     And the habits response has 0 stickers
+
+  Scenario: Each child sees only their own habits (multi-child)
+    Given the "khan" tenant has a child member "Bilal"
+    And the "khan" tenant has a habit "Read book"
+    When the caller GETs habits for "Ali" in tenant "khan"
+    Then the habits response status is 200
+    And the habits response has 1 habits

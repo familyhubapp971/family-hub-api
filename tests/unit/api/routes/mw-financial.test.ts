@@ -115,3 +115,89 @@ describe('FHS-295 — POST save / cashout guards', () => {
     expect(res.status).toBe(403);
   });
 });
+
+// FHS-296 — investment route guards
+describe('FHS-296 — GET /api/mw/financial/investments guards', () => {
+  it('400 when memberId is missing', async () => {
+    const res = await buildApp().request('/api/mw/financial/investments');
+    expect(res.status).toBe(400);
+  });
+  it('400 when no tenant context', async () => {
+    const res = await buildApp({ noTenant: true }).request(
+      `/api/mw/financial/investments?memberId=${MEMBER_ID}`,
+    );
+    expect(res.status).toBe(400);
+  });
+  it('403 when the caller is not a member', async () => {
+    const res = await buildApp({ memberChecks: [[]] }).request(
+      `/api/mw/financial/investments?memberId=${MEMBER_ID}`,
+    );
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('FHS-296 — POST /api/mw/financial/investments guards', () => {
+  it('400 when stickerCount is below 10', async () => {
+    const res = await buildApp().request(
+      '/api/mw/financial/investments',
+      json({
+        memberId: MEMBER_ID,
+        habitId: '22222222-2222-4222-8222-222222222222',
+        stickerCount: 5,
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+  it('400 when stickerCount is missing', async () => {
+    const res = await buildApp().request(
+      '/api/mw/financial/investments',
+      json({ memberId: MEMBER_ID, habitId: '22222222-2222-4222-8222-222222222222' }),
+    );
+    expect(res.status).toBe(400);
+  });
+  it('403 when the caller is not a member', async () => {
+    const res = await buildApp({ memberChecks: [[]] }).request(
+      '/api/mw/financial/investments',
+      json({
+        memberId: MEMBER_ID,
+        habitId: '22222222-2222-4222-8222-222222222222',
+        stickerCount: 10,
+      }),
+    );
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('FHS-296 — POST /api/mw/financial/investments/:id/withdraw guards', () => {
+  it('403 when the caller is not a member', async () => {
+    const res = await buildApp({ memberChecks: [[]] }).request(
+      '/api/mw/financial/investments/33333333-3333-4333-8333-333333333333/withdraw',
+      json({ memberId: MEMBER_ID }),
+    );
+    expect(res.status).toBe(403);
+  });
+});
+
+// FIX 1 — invest in another child's habit returns 404
+describe('FHS-296 — FIX 1: habit must belong to the requesting member', () => {
+  it('404 when the habit exists in the tenant but belongs to a different child', async () => {
+    // Queue: [callerRow], [memberExistsRow], habit lookup returns [] (not found for this member)
+    const res = await buildApp({
+      memberChecks: [
+        [{ id: 'admin-member-id', role: 'admin' }], // loadCaller
+        [{ id: MEMBER_ID }], // memberInTenant
+        [], // habit lookup scoped to memberId → empty
+      ],
+    }).request(
+      '/api/mw/financial/investments',
+      json({
+        memberId: MEMBER_ID,
+        habitId: '22222222-2222-4222-8222-222222222222',
+        stickerCount: 10,
+      }),
+    );
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.detail).toMatch(/member/);
+  });
+});

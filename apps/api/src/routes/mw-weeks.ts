@@ -63,8 +63,8 @@ function badRequest(c: any, error: z.ZodError) {
  * `?memberId=<uuid>` as a query parameter. Returns the resolved context or an
  * early Response to return immediately.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function guardQuery(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   c: any,
 ): Promise<
   | { db: Db; tenantId: string; memberId: string; caller: { id: string; role: string } }

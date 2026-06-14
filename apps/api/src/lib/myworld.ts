@@ -137,6 +137,42 @@ export function cashAsStickers(savedCash: number): number {
   return Math.floor(savedCash / STICKER_TO_CASH);
 }
 
+// ── Investments (FHS-296) — sticker-first grow model ─────────────────────────
+// currentValueStickers = max(0, investedStickers + completedDays*5 - missedDays*2)
+export const INVEST_DAILY_GAIN = 5;
+export const INVEST_DAILY_PENALTY = 2;
+export const INVEST_MIN_STICKERS = 10;
+
+/** How many days of a week have fully elapsed (0..7), per the legacy rule. */
+export function elapsedDaysForWeek(
+  week: { isFinalized: boolean; startDate: string },
+  now: Date = new Date(),
+): number {
+  if (week.isFinalized) return 7;
+  const [y, m, d] = week.startDate.split('-').map((s) => Number.parseInt(s, 10));
+  const start = new Date(Date.UTC(y!, m! - 1, d!));
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 7); // exclusive next Monday
+  if (now >= end) return 7;
+  if (now < start) return 0;
+  return (now.getUTCDay() + 6) % 7; // Mon=0..Sun=6
+}
+
+/** Sticker-first investment value from completed/missed days. */
+export function investmentValue(params: {
+  investedStickers: number;
+  completedDays: number;
+  missedDays: number;
+}): { currentValueStickers: number; currentValueCash: number } {
+  const currentValueStickers = Math.max(
+    0,
+    params.investedStickers +
+      params.completedDays * INVEST_DAILY_GAIN -
+      params.missedDays * INVEST_DAILY_PENALTY,
+  );
+  return { currentValueStickers, currentValueCash: currentValueStickers * STICKER_TO_CASH };
+}
+
 /**
  * Spendable sticker balance = stickers earned this/any week but not yet
  * allocated (spent/saved/invested) + stickers banked in savings + saved

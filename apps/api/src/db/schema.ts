@@ -307,6 +307,10 @@ export const habits = pgTable(
     tenantId: uuid('tenant_id')
       .notNull()
       .references(() => tenants.id, { onDelete: 'cascade' }),
+    // FHS-296 — My World is per-child: a habit belongs to one child so
+    // each child's world shows their own habits (nullable only for the
+    // legacy family-finance scaffold rows; My World always sets it).
+    memberId: uuid('member_id').references(() => members.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     description: text('description'),
     cadence: habitCadence('cadence').notNull().default('daily'),
@@ -322,6 +326,7 @@ export const habits = pgTable(
   },
   (t) => [
     index('habits_tenant_id_idx').on(t.tenantId, t.id),
+    index('habits_tenant_member_idx').on(t.tenantId, t.memberId),
     index('habits_tenant_created_idx').on(t.tenantId, t.createdAt),
   ],
 );
