@@ -1,10 +1,23 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, asc, eq, isNull, sql, sum } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
-import { rewards, rewardRedemptions, habitStickers, members } from '../db/schema.js';
+import {
+  rewards,
+  rewardRedemptions,
+  habitStickers,
+  mwSavings,
+  mwWeekActions,
+  members,
+} from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
-import { stickerBalance } from '../lib/myworld.js';
+import {
+  STICKER_TO_CASH,
+  cashAsStickers,
+  getOrCreateCurrentWeek,
+  getOrCreateSavings,
+  stickerBalance,
+} from '../lib/myworld.js';
 
 // FHS-268 / FHS-292 — GET /api/rewards, POST /api/rewards/:id/redeem.
 //
@@ -139,7 +152,7 @@ export const rewardsRouter = new Hono()
       return c.json({ error: 'not found', detail: 'member not found in this tenant' }, 404);
     }
     const rewardRows = await db
-      .select({ id: rewards.id, stickerCost: rewards.stickerCost })
+      .select({ id: rewards.id, stickerCost: rewards.stickerCost, name: rewards.name })
       .from(rewards)
       .where(
         and(eq(rewards.tenantId, tenantId), eq(rewards.id, rewardId), isNull(rewards.archivedAt)),
@@ -149,56 +162,96 @@ export const rewardsRouter = new Hono()
     if (!reward) {
       return c.json({ error: 'not found', detail: 'reward not found in this tenant' }, 404);
     }
-    // Serialize redemptions per (tenant, member) inside a transaction with
-    // a Postgres advisory lock so two concurrent redeems can't both pass
-    // the balance check and double-spend (TOCTOU). The lock is held for
-    // the transaction; a second redeem waits, then re-reads the now-lower
-    // balance and 409s.
+    const memberId = parsed.data.memberId;
+    const cost = reward.stickerCost;
+    // Claim (ported from legacy): serialize per (tenant, member) with an
+    // advisory lock, then spend in order — banked stickers, then saved cash,
+    // then this week's unallocated stickers (marked allocated). Records a
+    // 'claim' week_action. A concurrent claim waits, re-reads, and 409s.
+    const week = await getOrCreateCurrentWeek(db, tenantId, memberId);
     const outcome = await db.transaction(async (tx) => {
       await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${parsed.data.memberId}`}, 0))`,
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${memberId}`}, 0))`,
       );
-      const [earnedRow, spentRow] = await Promise.all([
-        tx
-          .select({ s: sum(habitStickers.stickerValue) })
-          .from(habitStickers)
+      const savings = await getOrCreateSavings(tx, tenantId, memberId);
+      const unallocated = await tx
+        .select({
+          id: habitStickers.id,
+          value: habitStickers.stickerValue,
+        })
+        .from(habitStickers)
+        .where(
+          and(
+            eq(habitStickers.tenantId, tenantId),
+            eq(habitStickers.memberId, memberId),
+            eq(habitStickers.isAllocated, false),
+          ),
+        )
+        .orderBy(asc(habitStickers.stickerValue));
+      const weekValue = unallocated.reduce((s, r) => s + r.value, 0);
+      const cashStk = cashAsStickers(savings.savedCash);
+      const balance = savings.savedStickers + cashStk + weekValue;
+      if (balance < cost) return { ok: false as const, balance };
+
+      let need = cost;
+      const fromSavedStickers = Math.min(need, savings.savedStickers);
+      need -= fromSavedStickers;
+      const fromSavedCash = Math.min(need, cashStk);
+      need -= fromSavedCash;
+      // Remainder from this week's stickers — mark rows allocated until
+      // their cumulative value covers `need` (smallest first).
+      const toAllocate: string[] = [];
+      let covered = 0;
+      for (const r of unallocated) {
+        if (covered >= need) break;
+        toAllocate.push(r.id);
+        covered += r.value;
+      }
+      if (toAllocate.length > 0) {
+        await tx
+          .update(habitStickers)
+          .set({ isAllocated: true })
           .where(
             and(
               eq(habitStickers.tenantId, tenantId),
-              eq(habitStickers.memberId, parsed.data.memberId),
+              eq(habitStickers.memberId, memberId),
+              inArray(habitStickers.id, toAllocate),
             ),
-          ),
-        tx
-          .select({ s: sum(rewardRedemptions.stickerCost) })
-          .from(rewardRedemptions)
-          .where(
-            and(
-              eq(rewardRedemptions.tenantId, tenantId),
-              eq(rewardRedemptions.memberId, parsed.data.memberId),
-            ),
-          ),
-      ]);
-      const balance = Number(earnedRow[0]?.s ?? 0) - Number(spentRow[0]?.s ?? 0);
-      if (balance < reward.stickerCost) {
-        return { ok: false as const, balance };
+          );
       }
-      const [redemption] = await tx
-        .insert(rewardRedemptions)
+      if (fromSavedStickers > 0 || fromSavedCash > 0) {
+        await tx
+          .update(mwSavings)
+          .set({
+            savedStickers: sql`${mwSavings.savedStickers} - ${fromSavedStickers}`,
+            savedCash: sql`${mwSavings.savedCash} - ${fromSavedCash * STICKER_TO_CASH}`,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(mwSavings.tenantId, tenantId), eq(mwSavings.memberId, memberId)));
+      }
+      const [action] = await tx
+        .insert(mwWeekActions)
         .values({
           tenantId,
-          rewardId,
-          memberId: parsed.data.memberId,
-          stickerCost: reward.stickerCost,
+          memberId,
+          weekId: week.id,
+          actionType: 'claim',
+          stickersUsed: cost,
+          rewardName: reward.name,
         })
-        .returning({ id: rewardRedemptions.id });
-      return { ok: true as const, balance: balance - reward.stickerCost, id: redemption!.id };
+        .returning({ id: mwWeekActions.id });
+      // History (kept for audit; balance no longer reads this table).
+      await tx
+        .insert(rewardRedemptions)
+        .values({ tenantId, rewardId, memberId, stickerCost: cost });
+      return { ok: true as const, balance: balance - cost, id: action!.id };
     });
     if (!outcome.ok) {
       return c.json(
         {
           error: 'insufficient stickers',
           errorCode: 'INSUFFICIENT_STICKERS',
-          detail: `needs ${reward.stickerCost}, has ${outcome.balance}`,
+          detail: `needs ${cost}, has ${outcome.balance}`,
         },
         409,
       );

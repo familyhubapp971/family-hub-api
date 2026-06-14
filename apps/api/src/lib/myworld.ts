@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
-import { habitStickers, mwWeeks, rewardRedemptions, tenants, type MwWeek } from '../db/schema.js';
+import { habitStickers, mwSavings, mwWeeks, tenants, type MwWeek } from '../db/schema.js';
 
 // FHS-290 — shared My World economy helpers.
 //
@@ -15,7 +15,11 @@ export const STICKER_TO_CASH = 0.5;
 /** @deprecated use STICKER_TO_CASH — kept for any older import. */
 export const STICKER_TO_AED = STICKER_TO_CASH;
 
-type Db = ReturnType<typeof getDb>;
+// Accept either the pool db or a transaction handle (helpers are called
+// from inside db.transaction(...) in the claim/save/invest flows).
+type Db =
+  | ReturnType<typeof getDb>
+  | Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0];
 
 /** The family's ISO-4217 currency (chosen at registration; default USD). */
 export async function getTenantCurrency(db: Db, tenantId: string): Promise<string> {
@@ -101,24 +105,57 @@ export async function getOrCreateCurrentWeek(
   return reread[0];
 }
 
+/** A child's banked savings (read-only; {0,0} if no row yet). */
+export async function getSavings(
+  db: Db,
+  tenantId: string,
+  memberId: string,
+): Promise<{ savedStickers: number; savedCash: number }> {
+  const rows = await db
+    .select({ savedStickers: mwSavings.savedStickers, savedCash: mwSavings.savedCash })
+    .from(mwSavings)
+    .where(and(eq(mwSavings.tenantId, tenantId), eq(mwSavings.memberId, memberId)))
+    .limit(1);
+  return {
+    savedStickers: rows[0]?.savedStickers ?? 0,
+    savedCash: Number(rows[0]?.savedCash ?? 0),
+  };
+}
+
+/** The child's savings row, creating it (0/0) if absent — for writes. */
+export async function getOrCreateSavings(
+  db: Db,
+  tenantId: string,
+  memberId: string,
+): Promise<{ savedStickers: number; savedCash: number }> {
+  await db.insert(mwSavings).values({ tenantId, memberId }).onConflictDoNothing();
+  return getSavings(db, tenantId, memberId);
+}
+
+/** Cash savings expressed as whole sticker-equivalents. */
+export function cashAsStickers(savedCash: number): number {
+  return Math.floor(savedCash / STICKER_TO_CASH);
+}
+
 /**
- * Spendable sticker balance = stickers earned (sum of sticker values
- * across the child's habit days) minus stickers spent on rewards. The
- * savings / cash split + per-sticker allocation lands in FHS-294/295; for
- * now this single source keeps the habits + rewards routes consistent.
+ * Spendable sticker balance = stickers earned this/any week but not yet
+ * allocated (spent/saved/invested) + stickers banked in savings + saved
+ * cash expressed as stickers. Marking a sticker `is_allocated` (claim,
+ * save, invest) removes it from this balance. (Ported from legacy.)
  */
 export async function stickerBalance(db: Db, tenantId: string, memberId: string): Promise<number> {
-  const [earnedRow, spentRow] = await Promise.all([
+  const [unallocRow, savings] = await Promise.all([
     db
       .select({ s: sql<string>`coalesce(sum(${habitStickers.stickerValue}), 0)` })
       .from(habitStickers)
-      .where(and(eq(habitStickers.tenantId, tenantId), eq(habitStickers.memberId, memberId))),
-    db
-      .select({ s: sql<string>`coalesce(sum(${rewardRedemptions.stickerCost}), 0)` })
-      .from(rewardRedemptions)
       .where(
-        and(eq(rewardRedemptions.tenantId, tenantId), eq(rewardRedemptions.memberId, memberId)),
+        and(
+          eq(habitStickers.tenantId, tenantId),
+          eq(habitStickers.memberId, memberId),
+          eq(habitStickers.isAllocated, false),
+        ),
       ),
+    getSavings(db, tenantId, memberId),
   ]);
-  return Number(earnedRow[0]?.s ?? 0) - Number(spentRow[0]?.s ?? 0);
+  return Number(unallocRow[0]?.s ?? 0) + savings.savedStickers + cashAsStickers(savings.savedCash);
 }
