@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
-import { habitStickers, mwWeeks, rewardRedemptions, type MwWeek } from '../db/schema.js';
+import { habitStickers, mwWeeks, rewardRedemptions, tenants, type MwWeek } from '../db/schema.js';
 
 // FHS-290 — shared My World economy helpers.
 //
@@ -8,9 +8,24 @@ import { habitStickers, mwWeeks, rewardRedemptions, type MwWeek } from '../db/sc
 // savings + stickers earned-but-unallocated in their weeks. Weeks are
 // Monday-anchored ISO weeks; one open (non-finalized) week per child.
 
-export const STICKER_TO_AED = 0.5;
+// One sticker is worth this much in the family's chosen currency. The rate
+// is a fixed economy constant (ported from legacy); only the currency the
+// amount is shown in varies per family (set at registration).
+export const STICKER_TO_CASH = 0.5;
+/** @deprecated use STICKER_TO_CASH — kept for any older import. */
+export const STICKER_TO_AED = STICKER_TO_CASH;
 
 type Db = ReturnType<typeof getDb>;
+
+/** The family's ISO-4217 currency (chosen at registration; default USD). */
+export async function getTenantCurrency(db: Db, tenantId: string): Promise<string> {
+  const rows = await db
+    .select({ currency: tenants.currency })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1);
+  return rows[0]?.currency ?? 'USD';
+}
 
 /** UTC Monday of the week containing `d`. */
 export function mondayOf(d: Date): Date {

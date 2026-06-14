@@ -4,7 +4,7 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { habits, habitStickers, members, mwWeeks } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
-import { getOrCreateCurrentWeek, stickerBalance } from '../lib/myworld.js';
+import { getOrCreateCurrentWeek, getTenantCurrency, stickerBalance } from '../lib/myworld.js';
 
 // FHS-292 — habits CRUD + weekly typed-sticker grid (My World).
 //
@@ -46,6 +46,9 @@ export const listHabitsResponseSchema = z.object({
   stickers: z.array(stickerItemSchema),
   week: weekItemSchema,
   balance: z.number().int(),
+  // The family's currency (chosen at registration) — drives the cash
+  // labels in My World (stickers convert at a fixed 0.5 per sticker).
+  currency: z.string(),
 });
 
 const memberQuerySchema = z.object({ memberId: z.string().uuid() });
@@ -155,7 +158,7 @@ export const habitsRouter = new Hono()
     } else {
       week = await getOrCreateCurrentWeek(db, tenantId, memberId);
     }
-    const [habitRows, stickerRows, balance] = await Promise.all([
+    const [habitRows, stickerRows, balance, currency] = await Promise.all([
       db
         .select({
           id: habits.id,
@@ -184,6 +187,7 @@ export const habitsRouter = new Hono()
           ),
         ),
       stickerBalance(db, tenantId, memberId),
+      getTenantCurrency(db, tenantId),
     ]);
     return c.json(
       listHabitsResponseSchema.parse({
@@ -197,6 +201,7 @@ export const habitsRouter = new Hono()
           isFinalized: week.isFinalized,
         },
         balance,
+        currency,
       }),
     );
   })
