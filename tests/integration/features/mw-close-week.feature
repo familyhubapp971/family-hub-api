@@ -41,6 +41,12 @@ Feature: My World — Close Week / finalize (FHS-297)
     And the caller closes the current week for "Ali"
     Then the finalize response status is 409
 
+  Scenario: An investment's value reflects every completed day, not just elapsed ones
+    Given the caller completes all 7 days of "Help out" for "Ali"
+    And the caller invests 10 stickers in "Help out" for "Ali"
+    When the caller opens investments for "Ali"
+    Then "Ali" first investment is worth 45 stickers
+
   Scenario: No new week opens while an earlier week is still open
     Given "Ali" has an earlier open week from 2020
     When the caller checks the current week for "Ali"

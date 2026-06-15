@@ -311,8 +311,11 @@ export const mwFinancialRouter = new Hono()
               eq(habitStickers.weekId, inv.weekId),
             ),
           );
-        // FIX 6: cap to elapsed so future-day stickers don't inflate gains early.
-        const completedDays = Math.min(completedRow?.n ?? 0, elapsed);
+        // completedDays = every sticker placed on the habit this week (the kid
+        // gets credit the moment they mark a day), matching legacy. Only the
+        // MISSED penalty uses elapsed days. Capping completed by elapsed made
+        // the value freeze (e.g. on Monday elapsed=0 → no change ever).
+        const completedDays = completedRow?.n ?? 0;
 
         // Stickers placed only on days that have already fully passed.
         const [pastRow] = await db
@@ -633,8 +636,9 @@ export const mwFinancialRouter = new Hono()
             eq(habitStickers.weekId, inv.weekId),
           ),
         );
-      // Cap to elapsed so future-day stickers don't pre-inflate value.
-      const completedDays = Math.min(completedRow?.n ?? 0, elapsed);
+      // completedDays = every sticker placed this week (legacy); only the
+      // missed penalty below uses elapsed days.
+      const completedDays = completedRow?.n ?? 0;
 
       const [pastRow] = await tx
         .select({ n: count() })

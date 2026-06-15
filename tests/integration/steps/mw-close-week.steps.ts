@@ -377,6 +377,38 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
+  Scenario(
+    "An investment's value reflects every completed day, not just elapsed ones",
+    ({ Given, And, When, Then }) => {
+      let invValue: number;
+      Given(
+        'the caller completes all 7 days of {string} for {string}',
+        async (_c, h: string, m: string) => {
+          for (let day = 0; day < 7; day++) await placeSticker(h, m, day);
+        },
+      );
+      And(
+        'the caller invests {int} stickers in {string} for {string}',
+        async (_c, n: number, h: string, m: string) => {
+          const res = await invest(h, m, n);
+          expect(res.status).toBe(201);
+        },
+      );
+      When('the caller opens investments for {string}', async (_c, m: string) => {
+        const res = await app.request(`/api/mw/financial/investments?memberId=${memberIds[m]!}`, {
+          headers: headers('khan'),
+        });
+        const body = (await res.json()) as { investments: { currentValueStickers: number }[] };
+        invValue = body.investments[0]?.currentValueStickers ?? -1;
+      });
+      Then('{string} first investment is worth {int} stickers', (_c, _m: string, n: number) => {
+        // 10 invested + 7 completed*5 - 0 missed = 45, on ANY weekday (the value
+        // must NOT be capped by elapsed days — that froze it, e.g. 10 on Monday).
+        expect(invValue).toBe(n);
+      });
+    },
+  );
+
   Scenario('No new week opens while an earlier week is still open', ({ Given, When, Then }) => {
     let currentWeek: { weekNumber: number; year: number };
     Given('{string} has an earlier open week from 2020', async (_c, m: string) => {

@@ -329,6 +329,12 @@ An epic's status always mirrors the state of its children:
   chase epic closure — same logic as the post-merge ticket close,
   one level up.
 - If an epic is already at the target status, skip — don't re-transition.
+- **Post-launch bugs are the exception.** Every bug hangs off its
+  feature epic (see "Fixing bugs"), so a Done epic will accrue bug
+  children after it ships. Those do **not** reopen the epic — once an
+  epic is Done it stays Done; the bug is tracked under it purely for
+  traceability. Only an _open story/task_ child (real remaining
+  feature scope) moves a Done epic back to In Progress.
 
 After any epic transition, **refresh the Confluence "FHS — Epics &
 Tickets" page** per the Confluence-refresh step in the "Closing
@@ -428,9 +434,24 @@ in sync. **Always do this before writing any fix code**:
    summary in bold, 3 short technical bullets, 3 Gherkin acceptance
    criteria. Update the doc's frontmatter to
    `status: in-jira: FHS-XXX`.
-2. **Sprint + Fix Version.** Add the bug to the current active
+2. **Sprint + Fix Version + Epic.** Add the bug to the current active
    sprint and tag with the matching cluster Fix Version
-   (`0.0-bootstrap` etc.).
+   (`0.0-bootstrap` etc.). **Set the bug's parent to the feature's
+   epic** — the epic that delivered the feature the bug lives in
+   (e.g. a My World bug → parent `FHS-290`). Every bug must hang off
+   its feature epic for traceability:
+
+   ```bash
+   curl -s -u "$EMAIL:$JIRA_API_TOKEN" -X PUT \
+     "$URL/rest/api/3/issue/FHS-XXX" -H "Content-Type: application/json" \
+     -d '{"fields":{"parent":{"key":"FHS-<epic>"}}}'   # 204 = linked
+   ```
+
+   If you can't identify the feature epic, ask before filing the bug —
+   don't leave it parentless. (A post-launch bug on an already-Done
+   epic does NOT reopen the epic — see "Epic status follows its
+   children".)
+
 3. **Link to the active manual-test child Task.** Use a Jira
    "Blocks" link from FHS-251 (or the current sprint's child of
    FHS-254) → the bug ticket. This keeps the manual checks ticket
