@@ -636,6 +636,14 @@ across pages. Rules:
 
 ### Responsive design (mobile / tablet / desktop)
 
+> **NON-NEGOTIABLE — applies to EVERYTHING built, every PR, no exceptions.**
+> Any new or changed UI (page, panel, dialog, card, table, form) must be
+> mobile- **and** tablet-friendly before it ships — not just "good on a
+> laptop". This is a merge gate: the responsive sweep below is required, and
+> the PR self-review must state it was done. When in doubt, build mobile-first
+> and scale up. If a layout can't be made to work on a phone, raise it before
+> coding, don't ship a desktop-only screen.
+
 Every page and component **must** look and work correctly across **three
 viewports**:
 
