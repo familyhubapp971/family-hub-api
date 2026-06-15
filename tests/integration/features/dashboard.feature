@@ -34,10 +34,19 @@ Feature: GET /api/dashboard/today (FHS-228)
     And the "khan" tenant has a recent activity entry "completed a habit"
     When the caller GETs /api/dashboard/today for tenant "khan"
     Then the response status is 200
-    And the caller's member stats show 2 of 2 habits done, streak 1, and 1 task pending
+    And the caller's member stats show 0 of 0 habits done and 1 task pending
     And the response snapshot counts include tasksDoneToday 1 and mealsPlanned 1
     And the response goal "Hajj fund" shows progress 250 and target 5000
     And the response recent activity includes "completed a habit"
+
+  Scenario: FHS-306 — My World sticker earns habitsDone and mw_week_action appears in activity
+    Given the "khan" tenant has a child member "Iman" with no linked user
+    And "Iman" has an open mw_week with 1 sticker placed in "khan"
+    And the "khan" tenant has a mw_week_action "claim" for "Iman" with reward "Ice cream"
+    When the caller GETs /api/dashboard/today for tenant "khan"
+    Then the response status is 200
+    And the member "Iman" shows habitsDone 1 and starBalance at least 1
+    And the recent activity includes a "claimed Ice cream" entry for "Iman"
 
   Scenario: A non-member of the tenant gets 403
     Given a second tenant "smith" exists with no caller membership

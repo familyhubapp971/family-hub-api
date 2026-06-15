@@ -17,8 +17,10 @@ import {
   savingsTransactions,
   activityLogs,
   weeks,
-  weekActions,
   mealTemplates,
+  mwWeeks,
+  habitStickers,
+  mwWeekActions,
 } from '../../../apps/api/src/db/schema.js';
 import type { Database } from '../../../apps/api/src/db/client.js';
 import { getTestDb } from '../support/db.js';
@@ -112,6 +114,9 @@ describeFeature(feature, ({ Background, Scenario }) => {
       'the test Postgres has clean tenants, members, habits, rewards, and users tables',
       async () => {
         db = getTestDb() as unknown as Database;
+        await db.execute(sql`TRUNCATE TABLE mw_week_actions RESTART IDENTITY CASCADE`);
+        await db.execute(sql`TRUNCATE TABLE habit_stickers RESTART IDENTITY CASCADE`);
+        await db.execute(sql`TRUNCATE TABLE mw_weeks RESTART IDENTITY CASCADE`);
         await db.execute(sql`TRUNCATE TABLE habits RESTART IDENTITY CASCADE`);
         await db.execute(sql`TRUNCATE TABLE rewards RESTART IDENTITY CASCADE`);
         await db.execute(sql`TRUNCATE TABLE members RESTART IDENTITY CASCADE`);
@@ -306,16 +311,53 @@ describeFeature(feature, ({ Background, Scenario }) => {
         'the caller completed both {string} habits in the current week',
         async (_ctx, slug: string) => {
           const tenantId = tenantIds[slug]!;
+          // FHS-306 — habit progress now comes from My World tables:
+          // mw_weeks (the child's open week) + habit_stickers (one per habit/day).
+          // We still insert a legacy `weeks` row so the streak calendar has data.
           const todayIso = new Date().toISOString().slice(0, 10);
-          const inserted = await db
+          await db
             .insert(weeks)
             .values({ tenantId, startDate: todayIso, endDate: todayIso })
+            .onConflictDoNothing();
+          // Create an mw_weeks row for the caller as if they're a kid member.
+          const now = new Date();
+          const weekNum = Math.ceil(
+            (now.getTime() - new Date(now.getUTCFullYear(), 0, 1).getTime()) / (7 * 86400000),
+          );
+          const mwWeekInserted = await db
+            .insert(mwWeeks)
+            .values({
+              tenantId,
+              memberId: callerMemberId,
+              weekNumber: weekNum,
+              year: now.getUTCFullYear(),
+              startDate: todayIso,
+            })
+            .onConflictDoNothing()
             .returning();
-          const weekId = inserted[0]!.id;
+          const mwWeekId = mwWeekInserted[0]?.id;
+          if (mwWeekId) {
+            for (const habitId of habitIds) {
+              await db
+                .insert(habitStickers)
+                .values({
+                  tenantId,
+                  memberId: callerMemberId,
+                  habitId,
+                  weekId: mwWeekId,
+                  day: 0, // Monday
+                  sticker: 'gold-star',
+                  stickerValue: 1,
+                })
+                .onConflictDoNothing();
+            }
+          }
+          // Also wire habits.member_id so per-kid habitsTotal works.
           for (const habitId of habitIds) {
             await db
-              .insert(weekActions)
-              .values({ tenantId, weekId, memberId: callerMemberId, habitId, completedCount: 1 });
+              .update(habits)
+              .set({ memberId: callerMemberId })
+              .where(sql`id = ${habitId} AND tenant_id = ${tenantId}`);
           }
         },
       );
@@ -418,11 +460,12 @@ describeFeature(feature, ({ Background, Scenario }) => {
         expect(res.status).toBe(200);
       });
 
-      And("the caller's member stats show 2 of 2 habits done, streak 1, and 1 task pending", () => {
+      And("the caller's member stats show 0 of 0 habits done and 1 task pending", () => {
+        // FHS-306 — the caller is an admin-role member; habits/stickers are
+        // per-kid (My World). Admins always surface habitsDone=0, habitsTotal=0.
         const caller = body.members.find((m) => m.id === callerMemberId)!;
-        expect(caller.habitsDone).toBe(2);
-        expect(caller.habitsTotal).toBe(2);
-        expect(caller.streak).toBe(1);
+        expect(caller.habitsDone).toBe(0);
+        expect(caller.habitsTotal).toBe(0);
         expect(caller.tasksPending).toBe(1);
       });
 
@@ -446,6 +489,147 @@ describeFeature(feature, ({ Background, Scenario }) => {
       And('the response recent activity includes {string}', (_ctx, action: string) => {
         expect(body.recentActivity.find((a) => a.action === action)).toBeDefined();
       });
+    },
+  );
+
+  Scenario(
+    'FHS-306 — My World sticker earns habitsDone and mw_week_action appears in activity',
+    ({ Given, And, When, Then }) => {
+      let res: Response;
+      let body: DashboardResponse;
+
+      Given(
+        'the {string} tenant has a child member {string} with no linked user',
+        async (_ctx, slug: string, name: string) => {
+          await db.insert(members).values({
+            tenantId: tenantIds[slug]!,
+            userId: null,
+            displayName: name,
+            role: 'child',
+          });
+        },
+      );
+
+      And(
+        '{string} has an open mw_week with 1 sticker placed in {string}',
+        async (_ctx, memberName: string, slug: string) => {
+          const tenantId = tenantIds[slug]!;
+          const memberRows = await db
+            .select()
+            .from(members)
+            .where(sql`tenant_id = ${tenantId} AND display_name = ${memberName}`)
+            .limit(1);
+          const memberId = memberRows[0]!.id;
+
+          // Insert a habit owned by this child.
+          const habitInserted = await db
+            .insert(habits)
+            .values({ tenantId, memberId, name: 'Morning routine', cadence: 'daily' })
+            .returning();
+          const habitId = habitInserted[0]!.id;
+
+          // Insert an mw_week row (open, not finalized).
+          const todayIso = new Date().toISOString().slice(0, 10);
+          const now = new Date();
+          const weekNum = Math.ceil(
+            (now.getTime() - new Date(now.getUTCFullYear(), 0, 1).getTime()) / (7 * 86400000),
+          );
+          const mwWeekInserted = await db
+            .insert(mwWeeks)
+            .values({
+              tenantId,
+              memberId,
+              weekNumber: weekNum,
+              year: now.getUTCFullYear(),
+              startDate: todayIso,
+            })
+            .onConflictDoNothing()
+            .returning();
+          const mwWeekId = mwWeekInserted[0]!.id;
+
+          // Place one sticker on day 0 (Monday).
+          await db.insert(habitStickers).values({
+            tenantId,
+            memberId,
+            habitId,
+            weekId: mwWeekId,
+            day: 0,
+            sticker: 'gold-star',
+            stickerValue: 1,
+          });
+        },
+      );
+
+      And(
+        'the {string} tenant has a mw_week_action {string} for {string} with reward {string}',
+        async (_ctx, slug: string, actionType: string, memberName: string, rewardName: string) => {
+          const tenantId = tenantIds[slug]!;
+          const memberRows = await db
+            .select()
+            .from(members)
+            .where(sql`tenant_id = ${tenantId} AND display_name = ${memberName}`)
+            .limit(1);
+          const memberId = memberRows[0]!.id;
+          const weekRows = await db
+            .select()
+            .from(mwWeeks)
+            .where(sql`tenant_id = ${tenantId} AND member_id = ${memberId}`)
+            .limit(1);
+          const weekId = weekRows[0]!.id;
+          await db.insert(mwWeekActions).values({
+            tenantId,
+            memberId,
+            weekId,
+            actionType: actionType as
+              | 'claim'
+              | 'cashout'
+              | 'save'
+              | 'invest'
+              | 'withdraw'
+              | 'auto_save'
+              | 'invest_continue',
+            rewardName,
+          });
+        },
+      );
+
+      When(
+        'the caller GETs /api/dashboard/today for tenant {string}',
+        async (_ctx, slug: string) => {
+          res = await app.request('/api/dashboard/today', {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'x-test-tenant': tenantIds[slug]!,
+            },
+          });
+          body = (await res.json()) as DashboardResponse;
+        },
+      );
+
+      Then('the response status is 200', () => {
+        expect(res.status).toBe(200);
+      });
+
+      And(
+        'the member {string} shows habitsDone {int} and starBalance at least {int}',
+        (_ctx, memberName: string, habitsDone: number, minBalance: number) => {
+          const m = body.members.find((x) => x.displayName === memberName)!;
+          expect(m, `member ${memberName} not found`).toBeDefined();
+          expect(m.habitsDone).toBe(habitsDone);
+          expect(m.starBalance).toBeGreaterThanOrEqual(minBalance);
+        },
+      );
+
+      And(
+        'the recent activity includes a {string} entry for {string}',
+        (_ctx, action: string, actorName: string) => {
+          const entry = body.recentActivity.find(
+            (a) => a.action === action && a.actor === actorName,
+          );
+          expect(entry, `activity "${action}" by "${actorName}" not found`).toBeDefined();
+        },
+      );
     },
   );
 

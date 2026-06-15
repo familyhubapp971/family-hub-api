@@ -4,17 +4,44 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dashboardRouter } from '../../../../apps/api/src/routes/dashboard.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-228 / FHS-262 — GET /api/dashboard/today. The route fires a fixed
-// sequence of select() calls; we stub the db at the module boundary and
-// return seeded rows for each call in order. The mock is chain-agnostic
-// (from/where/orderBy/leftJoin/limit all return the same thenable) so it
-// tolerates each query's differing builder shape. Derivation logic is
+// FHS-228 / FHS-262 / FHS-306 — GET /api/dashboard/today.
+//
+// The route fires a fixed sequence of select() calls plus parallel
+// stickerBalance() calls (which each do 2 selects). We stub db at the
+// module boundary and stickerBalance separately. Derivation logic is
 // covered in dashboard-helpers.test.ts; this file covers wiring + shape.
+//
+// FHS-306 changed the query sequence:
+//   1  caller membership
+//   2  members roster
+//   3  active habits (family total for counts.habits)
+//   4  rewards count
+//   5  tenant timezone
+//   6  weeks (legacy — streak calendar)
+//   7  tasks
+//   8  savings
+//   9  savings transactions
+//   10 activityLogs (legacy feed)
+//   11 mw_week_actions (My World feed)
+//   12 meals count (countDistinct slot)
+//   13 kid habitsTotal (habits GROUP BY member_id) — only when kids exist
+//   14 kid current mw_weeks (earliest non-finalized) — only when kids exist
+//   15 kid habit_stickers (countDistinct habit_id per week) — only when open weeks exist
+//   then stickerBalance() per kid (stubbed separately)
 
 const dbMock = { select: vi.fn() };
 vi.mock('../../../../apps/api/src/db/client.js', () => ({
   getDb: () => dbMock,
 }));
+
+// Stub stickerBalance so unit tests don't need to simulate its two inner
+// selects. Default to returning 0; individual tests can override per call.
+vi.mock('../../../../apps/api/src/lib/myworld.js', () => ({
+  stickerBalance: vi.fn().mockResolvedValue(0),
+}));
+
+import { stickerBalance } from '../../../../apps/api/src/lib/myworld.js';
+const stickerBalanceMock = vi.mocked(stickerBalance);
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '00000000-0000-4000-8000-000000000777';
@@ -33,20 +60,34 @@ interface SeedOpts {
 
 interface SeedData {
   members?: Array<Record<string, unknown>>;
+  // active habit rows for the family-level count (counts.habits)
   habitIds?: string[];
   rewardsCount?: number;
   tenantTimezone?: string | null;
   weeks?: Array<{ id: string; startDate: string; endDate: string }>;
-  actions?: Array<{ weekId: string; memberId: string; habitId: string; completedCount: number }>;
-  tasks?: Array<{ memberId: string | null; doneAt: Date | null }>;
+  tasks?: Array<{ memberId: string | null; doneAt: Date | null; title?: string; createdAt?: Date }>;
   savings?: Array<{ id: string; name: string; targetAmount: string | null }>;
   tx?: Array<{ savingsId: string; amount: string; type: 'deposit' | 'withdrawal' }>;
   activity?: Array<{ id: string; action: string; createdAt: Date; actor: string | null }>;
+  mwActions?: Array<{
+    id: string;
+    memberId: string;
+    actionType: string;
+    stickersUsed: number | null;
+    rewardName: string | null;
+    habitName: string | null;
+    createdAt: Date;
+  }>;
   mealsCount?: number;
+  // Per-kid My World data:
+  kidHabitsTotal?: Array<{ memberId: string; n: number }>;
+  kidOpenWeeks?: Array<{ memberId: string; weekId: string; year: number; weekNumber: number }>;
+  kidStickerCounts?: Array<{ memberId: string; weekId: string; n: number }>;
+  stickerBalances?: Map<string, number>;
 }
 
 // A thenable that resolves to `rows` no matter where the builder chain
-// stops (await db.select()...where()/orderBy()/limit()).
+// stops (await db.select()...where()/orderBy()/leftJoin()/limit()/groupBy()).
 function chain(rows: unknown): unknown {
   const obj: Record<string, unknown> = {
     from: () => obj,
@@ -54,6 +95,7 @@ function chain(rows: unknown): unknown {
     orderBy: () => obj,
     leftJoin: () => obj,
     limit: () => obj,
+    groupBy: () => obj,
     then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
       Promise.resolve(rows).then(resolve, reject),
   };
@@ -68,6 +110,11 @@ function buildAppWithSeed(opts: SeedOpts = {}, data: SeedData = {}) {
     await next();
   };
 
+  // Determine whether kids exist (for conditional queries 13-15).
+  const kidMembers = (data.members ?? []).filter((m) => m.role === 'child' || m.role === 'teen');
+  const hasKids = kidMembers.length > 0;
+  const hasOpenWeeks = hasKids && (data.kidOpenWeeks ?? []).length > 0;
+
   let idx = 0;
   dbMock.select.mockImplementation(() => {
     idx += 1;
@@ -76,7 +123,7 @@ function buildAppWithSeed(opts: SeedOpts = {}, data: SeedData = {}) {
         return chain(opts.callerMissing ? [] : [{ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }]);
       case 2: // members roster
         return chain(data.members ?? []);
-      case 3: // active habit ids
+      case 3: // active habit ids (family-level — no member_id filter)
         return chain((data.habitIds ?? []).map((id) => ({ id })));
       case 4: // rewards count
         return chain([{ n: data.rewardsCount ?? 0 }]);
@@ -84,19 +131,43 @@ function buildAppWithSeed(opts: SeedOpts = {}, data: SeedData = {}) {
         return chain([{ timezone: data.tenantTimezone ?? 'UTC' }]);
       case 6: // weeks
         return chain(data.weeks ?? []);
-      case 7: // week actions
-        return chain(data.actions ?? []);
-      case 8: // tasks
+      case 7: // tasks
         return chain(data.tasks ?? []);
-      case 9: // savings
+      case 8: // savings
         return chain(data.savings ?? []);
-      case 10: // savings transactions
+      case 9: // savings transactions
         return chain(data.tx ?? []);
-      case 11: // activity feed
+      case 10: // activityLogs (legacy feed)
         return chain(data.activity ?? []);
-      default: // 12 — meals count
+      case 11: // mw_week_actions (My World feed)
+        return chain(data.mwActions ?? []);
+      case 12: // meals count
         return chain([{ n: data.mealsCount ?? 0 }]);
+      case 13: // kid habitsTotal (GROUP BY member_id) — only when kids exist
+        if (!hasKids) return chain([{ n: 0 }]); // shouldn't be reached, but safe
+        return chain((data.kidHabitsTotal ?? []).map((r) => ({ memberId: r.memberId, n: r.n })));
+      case 14: // kid open mw_weeks — only when kids exist
+        if (!hasKids) return chain([]);
+        return chain(
+          (data.kidOpenWeeks ?? []).map((r) => ({ memberId: r.memberId, weekId: r.weekId })),
+        );
+      case 15: // kid habit_stickers countDistinct — only when open weeks exist
+        if (!hasOpenWeeks) return chain([]);
+        return chain(
+          (data.kidStickerCounts ?? []).map((r) => ({
+            memberId: r.memberId,
+            weekId: r.weekId,
+            n: r.n,
+          })),
+        );
+      default:
+        return chain([]);
     }
+  });
+
+  // Configure stickerBalance per kid.
+  stickerBalanceMock.mockImplementation(async (_db, _tenantId, memberId) => {
+    return data.stickerBalances?.get(memberId) ?? 0;
   });
 
   const app = new Hono();
@@ -107,9 +178,11 @@ function buildAppWithSeed(opts: SeedOpts = {}, data: SeedData = {}) {
 
 beforeEach(() => {
   dbMock.select.mockReset();
+  stickerBalanceMock.mockReset();
+  stickerBalanceMock.mockResolvedValue(0);
 });
 
-describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
+describe('FHS-228 / FHS-262 / FHS-306 — GET /api/dashboard/today', () => {
   it('returns 400 when no tenant is on the request', async () => {
     const app = buildAppWithSeed({ noTenant: true });
     const res = await app.request('/api/dashboard/today');
@@ -149,34 +222,171 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
     expect(body.greetingName).toBe('Sarah');
   });
 
+  it('FHS-306 Fix 1+2: kid with a placed sticker shows habitsDone≥1 and positive starBalance', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-10T12:00:00.000Z'));
+    try {
+      const M_KID = '33333333-3333-4333-8333-333333333333';
+      const WK_MW = 'wwwwwwww-wwww-4www-8www-wwwwwwwwwww1';
+      const app = buildAppWithSeed(
+        {},
+        {
+          members: [
+            { id: M_KID, displayName: 'Iman', role: 'child', avatarEmoji: null, userId: null },
+          ],
+          habitIds: [],
+          kidHabitsTotal: [{ memberId: M_KID, n: 3 }],
+          kidOpenWeeks: [{ memberId: M_KID, weekId: WK_MW, year: 2026, weekNumber: 24 }],
+          kidStickerCounts: [{ memberId: M_KID, weekId: WK_MW, n: 2 }],
+          stickerBalances: new Map([[M_KID, 7]]),
+        },
+      );
+      const res = await app.request('/api/dashboard/today');
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        members: Array<{
+          id: string;
+          habitsDone: number;
+          habitsTotal: number;
+          starBalance: number;
+        }>;
+      };
+      const iman = body.members.find((m) => m.id === M_KID)!;
+      expect(iman.habitsDone).toBe(2);
+      expect(iman.habitsTotal).toBe(3);
+      expect(iman.starBalance).toBe(7);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('FHS-306 Fix 1: kid with no current mw_week shows habitsDone=0', async () => {
+    const M_KID = '33333333-3333-4333-8333-333333333333';
+    const app = buildAppWithSeed(
+      {},
+      {
+        members: [
+          { id: M_KID, displayName: 'Iman', role: 'child', avatarEmoji: null, userId: null },
+        ],
+        kidHabitsTotal: [{ memberId: M_KID, n: 3 }],
+        kidOpenWeeks: [], // no open week
+        stickerBalances: new Map([[M_KID, 0]]),
+      },
+    );
+    const res = await app.request('/api/dashboard/today');
+    const body = (await res.json()) as {
+      members: Array<{ id: string; habitsDone: number; habitsTotal: number }>;
+    };
+    const iman = body.members.find((m) => m.id === M_KID)!;
+    expect(iman.habitsDone).toBe(0);
+    expect(iman.habitsTotal).toBe(3);
+  });
+
+  it('FHS-306 Fix 3: mw_week_action appears in recentActivity with friendly label', async () => {
+    const M_KID = '33333333-3333-4333-8333-333333333333';
+    const MW_ACTION_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    const app = buildAppWithSeed(
+      {},
+      {
+        members: [
+          { id: M_KID, displayName: 'Iman', role: 'child', avatarEmoji: null, userId: null },
+        ],
+        mwActions: [
+          {
+            id: MW_ACTION_ID,
+            memberId: M_KID,
+            actionType: 'claim',
+            stickersUsed: null,
+            rewardName: 'Ice cream',
+            habitName: null,
+            createdAt: new Date('2026-06-10T09:00:00.000Z'),
+          },
+        ],
+      },
+    );
+    const res = await app.request('/api/dashboard/today');
+    const body = (await res.json()) as {
+      recentActivity: Array<{ id: string; actor: string | null; action: string }>;
+    };
+    const mwEntry = body.recentActivity.find((a) => a.id === MW_ACTION_ID)!;
+    expect(mwEntry).toBeDefined();
+    expect(mwEntry.actor).toBe('Iman');
+    expect(mwEntry.action).toBe('claimed Ice cream');
+  });
+
+  it('FHS-306 Fix 3: merges activityLogs + mwActions, sorts desc, takes top 3', async () => {
+    const M = '22222222-2222-4222-8222-222222222222';
+    const app = buildAppWithSeed(
+      {},
+      {
+        members: [{ id: M, displayName: 'Sarah', role: 'admin', avatarEmoji: null, userId: M }],
+        activity: [
+          {
+            id: 'aaaaaaaa-0001-4aaa-8aaa-aaaaaaaaaaaa',
+            action: 'oldest log',
+            createdAt: new Date('2026-06-10T07:00:00.000Z'),
+            actor: 'Sarah',
+          },
+          {
+            id: 'aaaaaaaa-0002-4aaa-8aaa-aaaaaaaaaaaa',
+            action: 'mid log',
+            createdAt: new Date('2026-06-10T09:00:00.000Z'),
+            actor: 'Sarah',
+          },
+        ],
+        mwActions: [
+          {
+            id: 'bbbbbbbb-0001-4bbb-8bbb-bbbbbbbbbbbb',
+            memberId: M,
+            actionType: 'save',
+            stickersUsed: 5,
+            rewardName: null,
+            habitName: null,
+            createdAt: new Date('2026-06-10T11:00:00.000Z'),
+          },
+          {
+            id: 'bbbbbbbb-0002-4bbb-8bbb-bbbbbbbbbbbb',
+            memberId: M,
+            actionType: 'cashout',
+            stickersUsed: 3,
+            rewardName: null,
+            habitName: null,
+            createdAt: new Date('2026-06-10T10:00:00.000Z'),
+          },
+        ],
+      },
+    );
+    const res = await app.request('/api/dashboard/today');
+    const body = (await res.json()) as {
+      recentActivity: Array<{ id: string; action: string }>;
+    };
+    // Sorted desc: bbbbbbbb-0001 (11:00), bbbbbbbb-0002 (10:00), aaaaaaaa-0002 (09:00) — oldest cut.
+    expect(body.recentActivity).toHaveLength(3);
+    expect(body.recentActivity[0]!.id).toBe('bbbbbbbb-0001-4bbb-8bbb-bbbbbbbbbbbb');
+    expect(body.recentActivity[0]!.action).toBe('saved 5⭐');
+    expect(body.recentActivity[1]!.id).toBe('bbbbbbbb-0002-4bbb-8bbb-bbbbbbbbbbbb');
+    expect(body.recentActivity[1]!.action).toBe('cashed out 3⭐');
+    expect(body.recentActivity[2]!.id).toBe('aaaaaaaa-0002-4aaa-8aaa-aaaaaaaaaaaa');
+  });
+
   it('derives per-member stats, snapshot counts, goals and activity', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-10T12:00:00.000Z')); // Wed
     try {
       const M1 = '22222222-2222-4222-8222-222222222222';
       const M2 = '33333333-3333-4333-8333-333333333333';
-      const H1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
-      const H2 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2';
-      const WK = 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1';
+      const WK_MW = 'wwwwwwww-wwww-4www-8www-wwwwwwwwwww1';
       const G1 = 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1';
       const app = buildAppWithSeed(
         {},
         {
           members: [
             { id: M1, displayName: 'Sarah', role: 'admin', avatarEmoji: '👩', userId: USER_ID },
-            // Wizard-created child: no linked login yet → pendingSignup.
             { id: M2, displayName: 'Iman', role: 'child', avatarEmoji: null, userId: null },
           ],
-          habitIds: [H1, H2],
+          habitIds: ['h1', 'h2'], // family-level count = 2 for counts.habits
           rewardsCount: 3,
-          weeks: [{ id: WK, startDate: '2026-06-08', endDate: '2026-06-14' }],
-          actions: [
-            { weekId: WK, memberId: M1, habitId: H1, completedCount: 1 },
-            { weekId: WK, memberId: M1, habitId: H2, completedCount: 2 },
-            { weekId: WK, memberId: M2, habitId: H1, completedCount: 1 },
-          ],
-          // Mirrors the route's createdAt-DESC ordering (the mock returns
-          // rows verbatim): newest first, so 'Call plumber' must win.
+          weeks: [{ id: 'wk1', startDate: '2026-06-08', endDate: '2026-06-14' }],
           tasks: [
             {
               memberId: M1,
@@ -207,13 +417,13 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
               doneAt: new Date('2026-06-10T09:00:00.000Z'),
               title: 'Done one',
               createdAt: new Date('2026-06-08T09:00:00.000Z'),
-            }, // done today
+            },
             {
               memberId: M1,
               doneAt: new Date('2026-06-01T09:00:00.000Z'),
               title: 'Old one',
               createdAt: new Date('2026-05-30T09:00:00.000Z'),
-            }, // earlier
+            },
           ],
           savings: [{ id: G1, name: 'Hajj fund', targetAmount: '5000.00' }],
           tx: [
@@ -229,6 +439,11 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
             },
           ],
           mealsCount: 2,
+          // FHS-306: per-kid My World data for Iman.
+          kidHabitsTotal: [{ memberId: M2, n: 2 }],
+          kidOpenWeeks: [{ memberId: M2, weekId: WK_MW, year: 2026, weekNumber: 24 }],
+          kidStickerCounts: [{ memberId: M2, weekId: WK_MW, n: 1 }],
+          stickerBalances: new Map([[M2, 1]]),
         },
       );
       const res = await app.request('/api/dashboard/today');
@@ -241,6 +456,8 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
           streak: number;
           tasksPending: number;
           statusText: string;
+          starBalance: number;
+          pendingSignup: boolean;
         }>;
         counts: Record<string, number>;
         goals: Array<{ id: string; label: string; progress: number; target: number | null }>;
@@ -255,23 +472,19 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
       const sarah = body.members.find((m) => m.id === M1)!;
       const iman = body.members.find((m) => m.id === M2)!;
       expect(sarah).toMatchObject({
-        habitsDone: 2,
-        habitsTotal: 2,
-        streak: 1,
+        habitsDone: 0, // adults have no My World habits
+        habitsTotal: 0,
         tasksPending: 2,
-        // FHS-273 — adults surface their NEWEST open task, not habit copy.
         statusText: 'Call plumber',
-        starBalance: 3, // 1 + 2 habit completions
+        starBalance: 0,
         pendingSignup: false,
       });
       expect(iman).toMatchObject({
-        habitsDone: 1,
-        habitsTotal: 2,
-        streak: 1,
+        habitsDone: 1, // from habit_stickers via My World
+        habitsTotal: 2, // from habits.member_id
         tasksPending: 2,
         statusText: '2 tasks left',
-        starBalance: 1,
-        // Kids log in by PIN — never flagged as pending signup.
+        starBalance: 1, // from stickerBalance()
         pendingSignup: false,
       });
       expect(body.counts).toEqual({
@@ -294,49 +507,6 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
     }
   });
 
-  it('de-duplicates habit completions and excludes archived-habit completions', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-06-10T12:00:00.000Z'));
-    try {
-      const M1 = '22222222-2222-4222-8222-222222222222';
-      const H1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
-      const H_ARCHIVED = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9';
-      const WK = 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1';
-      const app = buildAppWithSeed(
-        {},
-        {
-          members: [{ id: M1, displayName: 'Sarah', role: 'admin', avatarEmoji: null }],
-          habitIds: [H1], // only H1 is active; H_ARCHIVED is not returned by query 3
-          weeks: [{ id: WK, startDate: '2026-06-08', endDate: '2026-06-14' }],
-          actions: [
-            { weekId: WK, memberId: M1, habitId: H1, completedCount: 1 },
-            { weekId: WK, memberId: M1, habitId: H1, completedCount: 1 }, // duplicate row, same habit
-            { weekId: WK, memberId: M1, habitId: H_ARCHIVED, completedCount: 5 }, // archived → excluded
-          ],
-        },
-      );
-      const res = await app.request('/api/dashboard/today');
-      const body = (await res.json()) as {
-        members: Array<{
-          habitsDone: number;
-          habitsTotal: number;
-          streak: number;
-          starBalance: number;
-        }>;
-      };
-      // habitsDone dedups to 1 active habit, but star balance counts every
-      // completion incl. the archived habit's 5 (earned stars stay): 1+1+5.
-      expect(body.members[0]).toMatchObject({
-        habitsDone: 1,
-        habitsTotal: 1,
-        streak: 1,
-        starBalance: 7,
-      });
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
   it('surfaces a null activity actor as null rather than crashing', async () => {
     const app = buildAppWithSeed(
       {},
@@ -354,7 +524,7 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
             id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee9',
             action: 'family created',
             createdAt: new Date('2026-06-10T08:00:00.000Z'),
-            actor: null, // system event / removed member
+            actor: null,
           },
         ],
       },
@@ -374,7 +544,6 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
 
   it('counts tasksDoneToday against the tenant timezone, not UTC', async () => {
     vi.useFakeTimers();
-    // 20:30 UTC on Jun 10 is 00:30 Jun 11 in Asia/Dubai (+04) — "today" is Jun 11 there.
     vi.setSystemTime(new Date('2026-06-10T20:30:00.000Z'));
     try {
       const app = buildAppWithSeed(
@@ -385,11 +554,11 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
             {
               memberId: '22222222-2222-4222-8222-222222222222',
               doneAt: new Date('2026-06-10T20:30:00.000Z'),
-            }, // Jun 11 Dubai → today
+            },
             {
               memberId: '22222222-2222-4222-8222-222222222222',
               doneAt: new Date('2026-06-10T08:00:00.000Z'),
-            }, // Jun 10 Dubai → not today
+            },
           ],
         },
       );
@@ -413,6 +582,49 @@ describe('FHS-228 / FHS-262 — GET /api/dashboard/today', () => {
       expect(body.date).toBe('2026-05-04');
     } finally {
       vi.useRealTimers();
+    }
+  });
+
+  it('FHS-306 Fix 3: mw_week_actions action labels cover all action types', async () => {
+    const M = '22222222-2222-4222-8222-222222222222';
+    const ACTION_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const mkAction = (
+      actionType: string,
+      extra: Partial<{
+        stickersUsed: number;
+        rewardName: string;
+        habitName: string;
+      }> = {},
+    ) => ({
+      id: ACTION_ID,
+      memberId: M,
+      actionType,
+      stickersUsed: extra.stickersUsed ?? null,
+      rewardName: extra.rewardName ?? null,
+      habitName: extra.habitName ?? null,
+      createdAt: new Date(1000000),
+    });
+    const cases: Array<[string, string, Parameters<typeof mkAction>[1]]> = [
+      ['cashout', 'cashed out 4⭐', { stickersUsed: 4 }],
+      ['save', 'saved 2⭐', { stickersUsed: 2 }],
+      ['invest', 'invested 10⭐ in Reading', { stickersUsed: 10, habitName: 'Reading' }],
+      ['withdraw', 'withdrew from Maths', { habitName: 'Maths' }],
+      ['auto_save', 'auto-saved 3⭐', { stickersUsed: 3 }],
+      ['invest_continue', 'carried over Running', { habitName: 'Running' }],
+    ];
+    for (const [actionType, expected, extra] of cases) {
+      const app = buildAppWithSeed(
+        {},
+        {
+          members: [{ id: M, displayName: 'Iman', role: 'child', avatarEmoji: null, userId: null }],
+          mwActions: [mkAction(actionType, extra)],
+        },
+      );
+      const res = await app.request('/api/dashboard/today');
+      const body = (await res.json()) as {
+        recentActivity: Array<{ action: string }>;
+      };
+      expect(body.recentActivity[0]!.action, `actionType=${actionType}`).toBe(expected);
     }
   });
 });
