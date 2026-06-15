@@ -1223,6 +1223,37 @@ export type ReadingLog = typeof readingLog.$inferSelect;
 export type NewReadingLog = typeof readingLog.$inferInsert;
 
 /**
+ * `world_flags_progress` (Learn Phase 2a) — tracks which country flags a
+ * child has explored. One row per (tenant, member, country code). The
+ * UNIQUE constraint on (tenant_id, member_id, country_code) makes the
+ * explore POST idempotent via onConflictDoNothing.
+ *
+ * TODO (later PRs): add quiz attempts table when timed quizzes land.
+ */
+export const worldFlagsProgress = pgTable(
+  'world_flags_progress',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    // ISO 3166-1 alpha-2 (or alpha-3 for Kosovo) country code.
+    countryCode: text('country_code').notNull(),
+    exploredAt: timestamp('explored_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('world_flags_progress_unique_idx').on(t.tenantId, t.memberId, t.countryCode),
+    index('world_flags_progress_member_idx').on(t.tenantId, t.memberId),
+  ],
+);
+
+export type WorldFlagsProgress = typeof worldFlagsProgress.$inferSelect;
+export type NewWorldFlagsProgress = typeof worldFlagsProgress.$inferInsert;
+
+/**
  * Registry of every tenant-scoped table. Drives the cross-tenant leak
  * audit (FHS-6) and any future cross-cutting tooling that needs to walk
  * all family-scoped tables. ADD NEW TABLES HERE when they land — the
@@ -1256,4 +1287,5 @@ export const TENANT_SCOPED_TABLES = [
   appSettings,
   activityLogs,
   readingLog,
+  worldFlagsProgress,
 ] as const;

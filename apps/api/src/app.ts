@@ -27,6 +27,7 @@ import { rewardsRouter } from './routes/rewards.js';
 import { journalRouter } from './routes/journal.js';
 import { learnRouter } from './routes/learn.js';
 import { readingLogRouter } from './routes/reading-log.js';
+import { worldFlagsRouter } from './routes/world-flags.js';
 import { healthRouter } from './routes/health.js';
 import { helloRouter } from './routes/hello.js';
 import {
@@ -174,6 +175,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/journal', journalRouter);
   app.route('/api/learn', learnRouter);
   app.route('/api/reading-log', readingLogRouter);
+  app.route('/api/world-flags', worldFlagsRouter);
   app.route('/api/onboarding', onboardingRouter);
 
   app.notFound((c) => c.json({ error: 'not found' }, 404));

@@ -30,6 +30,7 @@ import {
   notices,
   pendingInvitations,
   readingLog,
+  worldFlagsProgress,
   rewards,
   rewardRedemptions,
   savings,
@@ -44,6 +45,7 @@ import {
   tenants,
   weekActions,
   weeks,
+  worldFlagsProgress,
   // Global tables — not scoped, used to verify they're NOT in the registry.
   users,
 } from '../../../apps/api/src/db/schema.js';
@@ -66,6 +68,7 @@ const ALL_SCHEMA_TABLES = [
   journalEntries,
   learnProgress,
   readingLog,
+  worldFlagsProgress,
   mealTemplates,
   events,
   weekActions,
@@ -259,6 +262,15 @@ async function seedRow(
       });
       break;
     }
+    case 'world_flags_progress': {
+      // Learn Phase 2a — needs member to already exist for this tenant.
+      await db.insert(worldFlagsProgress).values({
+        tenantId,
+        memberId: ctx.memberId!,
+        countryCode: 'GB',
+      });
+      break;
+    }
     case 'mw_weeks': {
       // FHS-291 — My World week; needs member.
       const [r] = await db
@@ -423,6 +435,7 @@ async function seedAllTablesForTenant(db: Database, tenantId: string): Promise<v
     'journal_entries', // needs member
     'learn_progress', // needs member
     'reading_log', // needs member
+    'world_flags_progress', // needs member
     'mw_weeks', // needs member
     'habit_stickers', // needs member + habit + mw_week
     'mw_savings', // needs member

@@ -176,6 +176,13 @@
       "when": 1781559236064,
       "tag": "0024_worthless_arachne",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1781562034871,
+      "tag": "0025_overjoyed_namora",
+      "breakpoints": true
     }
   ]
 }
