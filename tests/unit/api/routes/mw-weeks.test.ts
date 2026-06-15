@@ -203,3 +203,48 @@ describe('GET /api/mw/weeks/:id/stats', () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ─── GET /:id/actions ──────────────────────────────────────────────────────────
+
+describe('GET /api/mw/weeks/:id/actions', () => {
+  it('coerces numeric cashAmount to a number so the client can format it (FHS-314)', async () => {
+    const res = await buildApp({
+      // loadCaller, memberInTenant, weekRows-belongs-check, actions
+      memberChecks: [
+        [{ id: 'caller-id', role: 'admin' }],
+        [{ id: MEMBER_ID }],
+        [{ id: WEEK_ID }],
+        [
+          {
+            id: 'act-1',
+            actionType: 'invest_continue',
+            stickersUsed: 3,
+            cashAmount: '5.00', // Drizzle numeric → string off the DB
+            rewardName: null,
+            habitId: null,
+            habitName: 'Reading',
+            createdAt: new Date('2026-06-10T00:00:00.000Z'),
+          },
+          {
+            id: 'act-2',
+            actionType: 'save',
+            stickersUsed: 2,
+            cashAmount: null,
+            rewardName: null,
+            habitId: null,
+            habitName: null,
+            createdAt: new Date('2026-06-10T00:00:00.000Z'),
+          },
+        ],
+      ],
+    }).request(`/api/mw/weeks/${WEEK_ID}/actions?memberId=${MEMBER_ID}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      actions: Array<{ cashAmount: number | null }>;
+    };
+    expect(typeof body.actions[0]!.cashAmount).toBe('number');
+    expect(body.actions[0]!.cashAmount).toBe(5);
+    // null cash amounts stay null (not coerced to 0).
+    expect(body.actions[1]!.cashAmount).toBeNull();
+  });
+});

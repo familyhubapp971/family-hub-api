@@ -695,7 +695,14 @@ export const mwWeeksRouter = new Hono()
       )
       .orderBy(desc(mwWeekActions.createdAt));
 
-    return c.json({ actions });
+    // cash_amount is a Drizzle numeric → comes back as a string; coerce to
+    // a number so the client can call .toFixed() on it (FHS-314).
+    return c.json({
+      actions: actions.map((a) => ({
+        ...a,
+        cashAmount: a.cashAmount === null ? null : Number(a.cashAmount),
+      })),
+    });
   })
 
   // PUT /:id/cash — admin-edit of carriedOverCash / retrievedCash on a week.
