@@ -436,9 +436,34 @@ export type RewardRedemption = typeof rewardRedemptions.$inferSelect;
 export type NewRewardRedemption = typeof rewardRedemptions.$inferInsert;
 
 /**
- * `journal_entries` (FHS-270) — a child's private text journal. Readable
- * by the child (their own) and the tenant admin who opens their world;
- * scoped by (tenant_id, member_id). Newest-first in the UI.
+ * Mood values for a journal entry (FHS-270 per-day model).
+ *
+ * Eight named emotional states chosen by the child. Stored as a pgEnum
+ * so invalid values are rejected at the DB level, not just the API edge.
+ */
+export const journalMood = pgEnum('journal_mood', [
+  'happy',
+  'smiling',
+  'excited',
+  'laughing',
+  'surprised',
+  'nervous',
+  'grumpy',
+  'sad',
+]);
+
+/**
+ * `journal_entries` (FHS-270, per-day model) — one row per (tenant, member,
+ * calendar day). Upserted by the child-journal UI so the same day always
+ * collapses to a single row. All content fields are nullable so a partial
+ * save (e.g. mood only) is valid. `quote_index` is set server-side to the
+ * deterministic quote-of-the-day index for that `entry_date`.
+ *
+ * `body` is nullable: legacy rows carried free text, but the per-day model
+ * allows mood / gratitude / creativity answers without any body text.
+ *
+ * Unique index on (tenant_id, member_id, entry_date) enforces one row per
+ * day per child, making the upsert ON CONFLICT target unambiguous.
  */
 export const journalEntries = pgTable(
   'journal_entries',
@@ -450,12 +475,28 @@ export const journalEntries = pgTable(
     memberId: uuid('member_id')
       .notNull()
       .references(() => members.id, { onDelete: 'cascade' }),
-    body: text('body').notNull(),
+    // Calendar day (YYYY-MM-DD). Unique per (tenant, member) — one entry per day.
+    entryDate: date('entry_date').notNull(),
+    // Emotional state for the day.
+    mood: journalMood('mood'),
+    // Up to three gratitude prompts — nullable; filled in any order.
+    gratitude1: text('gratitude1'),
+    gratitude2: text('gratitude2'),
+    gratitude3: text('gratitude3'),
+    // Deterministic quote-of-the-day index (set server-side from entryDate).
+    quoteIndex: integer('quote_index'),
+    // Answers to creativity questions, keyed by question index.
+    // e.g. {"0": "I'd fly!", "3": "Learn everything at once."}
+    creativity: jsonb('creativity').$type<Record<string, string>>().default({}),
+    // Free-text "what happened today" (nullable — per-day model allows
+    // entries with only mood / gratitude / creativity).
+    body: text('body'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('journal_entries_tenant_member_created_idx').on(t.tenantId, t.memberId, t.createdAt),
+    uniqueIndex('journal_entries_tenant_member_date_uniq').on(t.tenantId, t.memberId, t.entryDate),
   ],
 );
 

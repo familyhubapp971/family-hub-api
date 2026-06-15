@@ -86,15 +86,19 @@ describeFeature(feature, ({ Background, Scenario }) => {
     memberIds[name] = r!.id;
   }
 
+  // FHS-270 per-day model — use PUT (upsert) instead of the removed POST.
+  // entryDate is unique per (member, day); use a fixed test date per call so
+  // counting "how many entries" still works across the scenarios.
+  const PUT_DATE = '2026-01-01';
   async function postJournal(slug: string, member: string, body: string) {
     return app.request('/api/journal', {
-      method: 'POST',
+      method: 'PUT',
       headers: { ...headers(slug), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ memberId: memberIds[member]!, body }),
+      body: JSON.stringify({ memberId: memberIds[member]!, entryDate: PUT_DATE, body }),
     });
   }
   async function getJournal(slug: string, member: string) {
-    const res = await app.request(`/api/journal?memberId=${memberIds[member]!}`, {
+    const res = await app.request(`/api/journal/entries?memberId=${memberIds[member]!}`, {
       method: 'GET',
       headers: headers(slug),
     });
@@ -175,7 +179,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
         res = await postJournal(slug, member, body);
       },
     );
-    Then('the journal post status is 201', () => expect(res.status).toBe(201));
+    Then('the journal post status is 201', () => expect(res.status).toBe(200));
     And(
       'in tenant {string}, {string} has {int} journal entries and {string} has {int}',
       async (_c, slug: string, memberA: string, nA: number, memberB: string, nB: number) => {

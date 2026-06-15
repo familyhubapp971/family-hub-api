@@ -229,10 +229,11 @@ async function seedRow(
       break;
     }
     case 'journal_entries': {
-      // FHS-270 — needs member to already exist for this tenant.
+      // FHS-270 per-day model — requires entryDate (unique per member+day).
       await db.insert(journalEntries).values({
         tenantId,
         memberId: ctx.memberId!,
+        entryDate: '2026-06-15',
         body: `journal-${tenantId.slice(0, 4)}`,
       });
       break;
