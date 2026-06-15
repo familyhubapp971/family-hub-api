@@ -169,6 +169,13 @@
       "when": 1781533531153,
       "tag": "0023_motionless_lady_ursula",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1781559236064,
+      "tag": "0024_worthless_arachne",
+      "breakpoints": true
     }
   ]
 }

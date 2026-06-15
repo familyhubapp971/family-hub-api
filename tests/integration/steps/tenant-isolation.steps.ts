@@ -29,6 +29,7 @@ import {
   members,
   notices,
   pendingInvitations,
+  readingLog,
   rewards,
   rewardRedemptions,
   savings,
@@ -64,6 +65,7 @@ const ALL_SCHEMA_TABLES = [
   rewardRedemptions,
   journalEntries,
   learnProgress,
+  readingLog,
   mealTemplates,
   events,
   weekActions,
@@ -248,6 +250,15 @@ async function seedRow(
       });
       break;
     }
+    case 'reading_log': {
+      // Learn Phase 1 — needs member to already exist for this tenant.
+      await db.insert(readingLog).values({
+        tenantId,
+        memberId: ctx.memberId!,
+        title: `book-${tenantId.slice(0, 4)}`,
+      });
+      break;
+    }
     case 'mw_weeks': {
       // FHS-291 — My World week; needs member.
       const [r] = await db
@@ -411,6 +422,7 @@ async function seedAllTablesForTenant(db: Database, tenantId: string): Promise<v
     'reward_redemptions', // needs reward + member
     'journal_entries', // needs member
     'learn_progress', // needs member
+    'reading_log', // needs member
     'mw_weeks', // needs member
     'habit_stickers', // needs member + habit + mw_week
     'mw_savings', // needs member

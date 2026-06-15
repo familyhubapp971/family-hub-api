@@ -26,6 +26,7 @@ import { mwAnalyticsRouter } from './routes/mw-analytics.js';
 import { rewardsRouter } from './routes/rewards.js';
 import { journalRouter } from './routes/journal.js';
 import { learnRouter } from './routes/learn.js';
+import { readingLogRouter } from './routes/reading-log.js';
 import { healthRouter } from './routes/health.js';
 import { helloRouter } from './routes/hello.js';
 import {
@@ -172,6 +173,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/rewards', rewardsRouter);
   app.route('/api/journal', journalRouter);
   app.route('/api/learn', learnRouter);
+  app.route('/api/reading-log', readingLogRouter);
   app.route('/api/onboarding', onboardingRouter);
 
   app.notFound((c) => c.json({ error: 'not found' }, 404));

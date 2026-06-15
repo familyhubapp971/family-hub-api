@@ -13,14 +13,9 @@ import { getAuthenticatedUser } from '../middleware/auth.js';
 // (standard auth); memberId is passed + validated.
 
 // The fixed subject catalogue (matches the Learn card UI).
-export const LEARN_SUBJECTS = [
-  'Maths',
-  'Reading',
-  'World Flags',
-  'Logic',
-  'Science',
-  'Creative',
-] as const;
+// 'Reading' is now the Reading Log feature, not a subject card.
+// 'Creative' dropped — may return in a later epic.
+export const LEARN_SUBJECTS = ['Maths', 'World Flags', 'Logic', 'Science'] as const;
 
 export const learnSubjectSchema = z.object({
   subject: z.string(),

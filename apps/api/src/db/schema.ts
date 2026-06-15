@@ -1193,6 +1193,36 @@ export type MwWeekAction = typeof mwWeekActions.$inferSelect;
 export type NewMwWeekAction = typeof mwWeekActions.$inferInsert;
 
 /**
+ * `reading_log` — a child's personal book list (Learn Phase 1).
+ *
+ * One row per book a child adds. Title is required; author is optional.
+ * `finished` toggles read/unread. Member-scoped and tenant-scoped so each
+ * child has their own list and data never leaks across families.
+ */
+export const readingLog = pgTable(
+  'reading_log',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    // Nullable — author is optional when adding a book.
+    author: text('author'),
+    finished: boolean('finished').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('reading_log_tenant_member_created_idx').on(t.tenantId, t.memberId, t.createdAt)],
+);
+
+export type ReadingLog = typeof readingLog.$inferSelect;
+export type NewReadingLog = typeof readingLog.$inferInsert;
+
+/**
  * Registry of every tenant-scoped table. Drives the cross-tenant leak
  * audit (FHS-6) and any future cross-cutting tooling that needs to walk
  * all family-scoped tables. ADD NEW TABLES HERE when they land — the
@@ -1225,4 +1255,5 @@ export const TENANT_SCOPED_TABLES = [
   mwWeekActions,
   appSettings,
   activityLogs,
+  readingLog,
 ] as const;

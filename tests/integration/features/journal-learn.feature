@@ -17,7 +17,7 @@ Feature: ChildWorld Journal + Learn (FHS-270)
   Scenario: Learn GET returns the full subject catalogue defaulting to zero
     When the caller GETs learn progress for "Ali" in tenant "khan"
     Then the learn response status is 200
-    And the learn response has 6 subjects
+    And the learn response has 4 subjects
     And the "Maths" subject for "Ali" reads 0
 
   Scenario: PATCH learn progress upserts and GET reflects it
