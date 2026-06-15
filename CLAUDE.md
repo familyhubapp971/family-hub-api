@@ -135,6 +135,46 @@ Delegate via the Task tool when a subagent's specialty matches the work.
 
 ---
 
+## Multi-agent orchestration (workflows)
+
+**Spin up multiple agents in parallel for substantial, fan-out-shaped
+work** — either several `Agent` calls in one message, or the `Workflow`
+tool for scripted fan-out → verify → synthesize. The founder has opted
+in: use multi-agent orchestration **by default** on the task types below
+without asking first. Don't fan out trivial or conversational work — a
+single-file lookup or a two-line edit is faster solo.
+
+Use it for:
+
+- **Backlog / codebase audits** — classify many tickets or files in
+  parallel, then verify + synthesize (e.g., the Jira backlog prune).
+- **Code review at PR time** — `code-reviewer` + `qa-expert` in one
+  parallel block (already mandatory — see [Pull requests](#pull-requests)).
+- **Large refactors / migrations / sweeps** — one agent per file or
+  call-site (worktree-isolated if they mutate in parallel), then a
+  verify pass.
+- **Research across many files / surfaces** — parallel readers, each
+  blind to the others, → one synthesized summary.
+- **Any "find everything" task** — fan out finders, dedupe, then
+  adversarially verify each finding before acting.
+
+How to do it well:
+
+- **Scout first, then fan out.** List the work-items inline (the files,
+  tickets, sites) — then parallelise over that list.
+- **Verify before acting.** For anything destructive or outward-facing
+  (closing/cancelling tickets, deleting code, posting), have a second
+  agent skeptically re-check each finding; default to keep/skip when
+  unsure.
+- **Synthesize yourself.** Read the agents' results and make the call —
+  never hand a subagent the final decision.
+- **Keep the human in the loop.** Present the plan and get a yes before
+  executing consequential changes (e.g., cancelling Jira tickets).
+- **Match the model to the job** (Operating Rule G): Sonnet for most
+  classify / review / search agents; Opus only for genuinely hard calls.
+
+---
+
 ## Repo conventions
 
 ### Commits
