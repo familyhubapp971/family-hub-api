@@ -21,6 +21,15 @@ Feature: GET + POST /api/events (FHS-230)
     Then the POST response status is 201
     And re-fetching events for week "2026-05-04" in tenant "khan" lists 1 events
 
+  Scenario: An event can be edited then deleted (FHS-305)
+    Given the caller creates an event "Dentist" on "2026-05-05" in tenant "khan"
+    When the caller edits that event's title to "Doctor" in tenant "khan"
+    Then the edit response status is 200
+    And re-fetching events for week "2026-05-04" in tenant "khan" lists a "Doctor" event
+    When the caller deletes that event in tenant "khan"
+    Then the delete response status is 204
+    And re-fetching events for week "2026-05-04" in tenant "khan" lists 0 events
+
   Scenario: A child member cannot create events
     Given the caller's role in "khan" is "child"
     When the caller POSTs an event "Sneaky" on "2026-05-05" in tenant "khan"

@@ -162,6 +162,64 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   }
 
+  async function putEvent(slug: string, id: string, payload: { date: string; title: string }) {
+    return app.request(`/api/events/${id}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-test-tenant': tenantIds[slug]!,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async function deleteEvent(slug: string, id: string) {
+    return app.request(`/api/events/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}`, 'x-test-tenant': tenantIds[slug]! },
+    });
+  }
+
+  Scenario('An event can be edited then deleted (FHS-305)', ({ Given, When, Then, And }) => {
+    let eventId: string;
+    let editRes: Response;
+    let delRes: Response;
+    Given(
+      'the caller creates an event {string} on {string} in tenant {string}',
+      async (_ctx, title: string, date: string, slug: string) => {
+        const res = await postEvent(slug, title, date);
+        expect(res.status).toBe(201);
+        eventId = ((await res.json()) as { id: string }).id;
+      },
+    );
+    When(
+      "the caller edits that event's title to {string} in tenant {string}",
+      async (_ctx, title: string, slug: string) => {
+        editRes = await putEvent(slug, eventId, { date: '2026-05-05', title });
+      },
+    );
+    Then('the edit response status is 200', () => expect(editRes.status).toBe(200));
+    And(
+      're-fetching events for week {string} in tenant {string} lists a {string} event',
+      async (_ctx, weekStart: string, slug: string, title: string) => {
+        const out = await getEvents(slug, weekStart);
+        expect(out.body.events.some((e) => e.title === title)).toBe(true);
+      },
+    );
+    When('the caller deletes that event in tenant {string}', async (_ctx, slug: string) => {
+      delRes = await deleteEvent(slug, eventId);
+    });
+    Then('the delete response status is 204', () => expect(delRes.status).toBe(204));
+    And(
+      're-fetching events for week {string} in tenant {string} lists {int} events',
+      async (_ctx, weekStart: string, slug: string, n: number) => {
+        const out = await getEvents(slug, weekStart);
+        expect(out.body.events).toHaveLength(n);
+      },
+    );
+  });
+
   Scenario(
     'GET returns events whose date sits in the requested week',
     ({ Given, And, When, Then }) => {
