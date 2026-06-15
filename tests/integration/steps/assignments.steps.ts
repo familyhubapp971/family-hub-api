@@ -171,6 +171,22 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   }
 
+  async function putAssignment(
+    slug: string,
+    id: string,
+    payload: { title: string; dueDate?: string },
+  ) {
+    return app.request(`/api/assignments/${id}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-test-tenant': tenantIds[slug]!,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  }
+
   Scenario('GET returns all assignments ordered by due-date', ({ Given, And, When, Then }) => {
     let res: Response;
     let body: ListResponse;
@@ -288,6 +304,41 @@ describeFeature(feature, ({ Background, Scenario }) => {
     Then('the POST response status is 403', () => {
       expect(postRes.status).toBe(403);
     });
+  });
+
+  Scenario('An assignment can be edited (FHS-310)', ({ Given, When, Then, And }) => {
+    let putRes: Response;
+
+    Given(
+      'the {string} tenant has an assignment {string} due {string}',
+      async (_ctx, slug: string, title: string, dueDate: string) => {
+        const [row] = await db
+          .insert(assignments)
+          .values({ tenantId: tenantIds[slug]!, title, dueDate })
+          .returning();
+        assignmentIds[title] = row!.id;
+      },
+    );
+
+    When(
+      'the caller PUTs the {string} assignment title to {string} in tenant {string}',
+      async (_ctx, originalTitle: string, newTitle: string, slug: string) => {
+        putRes = await putAssignment(slug, assignmentIds[originalTitle]!, { title: newTitle });
+      },
+    );
+
+    Then('the PUT response status is 200', () => {
+      expect(putRes.status).toBe(200);
+    });
+
+    And(
+      're-fetching /api/assignments for tenant {string} shows title {string}',
+      async (_ctx, slug: string, expectedTitle: string) => {
+        const out = await getAssignments(slug);
+        expect(out.res.status).toBe(200);
+        expect(out.body.assignments.some((a) => a.title === expectedTitle)).toBe(true);
+      },
+    );
   });
 
   Scenario(

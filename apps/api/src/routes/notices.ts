@@ -194,4 +194,69 @@ export const noticesRouter = new Hono()
       return c.json({ error: 'not found', detail: 'notice not found in this tenant' }, 404);
     }
     return c.body(null, 204);
+  })
+  // Edit a notice (body/pinned/icon). Admin + adult only; tenant-scoped.
+  // authorMemberId is preserved — editing never reassigns authorship.
+  // Role gate runs before the UUID check, same info-leak shape as DELETE.
+  .put('/:id', async (c) => {
+    getAuthenticatedUser(c);
+    const userRow = c.get('userRow');
+    if (!userRow) throw new Error('notices handler reached without userRow');
+    const tenantId = c.get('tenantId');
+    if (!tenantId) {
+      return c.json({ error: 'tenant context required', errorCode: 'TENANT_REQUIRED' }, 400);
+    }
+    const db = getDb();
+    const caller = await loadCallerMember(db, tenantId, userRow.id);
+    if (!caller) {
+      return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
+    }
+    if (!WRITE_ROLES.has(caller.role)) {
+      return c.json({ error: 'forbidden', detail: 'only admins and adults can edit notices' }, 403);
+    }
+    const id = c.req.param('id');
+    if (!UUID_RE.test(id)) {
+      return c.json({ error: 'invalid id', detail: 'notice id must be a UUID' }, 400);
+    }
+    const body = (await c.req.json().catch(() => null)) as unknown;
+    const parsed = createNoticeRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+    const [row] = await db
+      .update(notices)
+      .set({
+        body: parsed.data.body,
+        pinned: parsed.data.pinned ?? false,
+        icon: parsed.data.icon ?? null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(notices.tenantId, tenantId), eq(notices.id, id)))
+      .returning({
+        id: notices.id,
+        body: notices.body,
+        pinned: notices.pinned,
+        authorMemberId: notices.authorMemberId,
+        icon: notices.icon,
+        createdAt: notices.createdAt,
+      });
+    if (!row) {
+      return c.json({ error: 'not found', detail: 'notice not found in this tenant' }, 404);
+    }
+    let authorName: string | null = null;
+    if (row.authorMemberId) {
+      const [author] = await db
+        .select({ displayName: authorMembers.displayName })
+        .from(authorMembers)
+        .where(and(eq(authorMembers.tenantId, tenantId), eq(authorMembers.id, row.authorMemberId)))
+        .limit(1);
+      authorName = author?.displayName ?? null;
+    }
+    return c.json(noticeItemSchema.parse(rowToItem({ ...row, authorName })), 200);
   });

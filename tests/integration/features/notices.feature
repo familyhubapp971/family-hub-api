@@ -40,6 +40,12 @@ Feature: GET / POST / DELETE /api/notices (FHS-232)
     Then the DELETE response status is 204
     And re-fetching /api/notices for tenant "khan" lists 0 notices
 
+  Scenario: A notice can be edited (FHS-310)
+    Given the "khan" tenant has a notice "Old body" posted at "2026-05-01T10:00:00.000Z"
+    When the caller PUTs the "Old body" notice with body "New body" pinned "true" in tenant "khan"
+    Then the PUT notice response status is 200
+    And re-fetching /api/notices for tenant "khan" shows notice body "New body"
+
   Scenario: Tenant isolation — another tenant's notices never appear
     Given a second tenant "smith" exists with the caller as an admin member
     And the "smith" tenant has a notice "Pasta party" posted at "2026-05-01T10:00:00.000Z"

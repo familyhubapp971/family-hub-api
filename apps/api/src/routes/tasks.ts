@@ -221,4 +221,55 @@ export const tasksRouter = new Hono()
       return c.json({ error: 'not found', detail: 'task not found for this caller' }, 404);
     }
     return c.body(null, 204);
+  })
+  // Edit a task's title/due date. Owner-scoped (a member edits only their
+  // own tasks) — same WHERE as PATCH/DELETE. memberId and completion
+  // (doneAt) are deliberately not editable here.
+  .put('/:id', async (c) => {
+    getAuthenticatedUser(c);
+    const userRow = c.get('userRow');
+    if (!userRow) throw new Error('tasks handler reached without userRow');
+    const tenantId = c.get('tenantId');
+    if (!tenantId) {
+      return c.json({ error: 'tenant context required', errorCode: 'TENANT_REQUIRED' }, 400);
+    }
+    const db = getDb();
+    const caller = await loadCallerMember(db, tenantId, userRow.id);
+    if (!caller) {
+      return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
+    }
+    const id = c.req.param('id');
+    if (!UUID_RE.test(id)) {
+      return c.json({ error: 'invalid id', detail: 'task id must be a UUID' }, 400);
+    }
+    const body = (await c.req.json().catch(() => null)) as unknown;
+    const parsed = createTaskRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+    const [row] = await db
+      .update(tasks)
+      .set({
+        title: parsed.data.title,
+        dueDate: parsed.data.dueDate ?? null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(tasks.tenantId, tenantId), eq(tasks.memberId, caller.id), eq(tasks.id, id)))
+      .returning({
+        id: tasks.id,
+        title: tasks.title,
+        dueDate: tasks.dueDate,
+        memberId: tasks.memberId,
+        doneAt: tasks.doneAt,
+      });
+    if (!row) {
+      return c.json({ error: 'not found', detail: 'task not found for this caller' }, 404);
+    }
+    return c.json(taskItemSchema.parse(rowToItem(row)), 200);
   });

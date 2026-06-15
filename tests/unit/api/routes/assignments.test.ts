@@ -12,6 +12,9 @@ const dbMock = {
   insert: vi.fn(),
   update: vi.fn(),
 };
+// Captures the object passed to the most recent `.update(...).set({...})`
+// so PUT tests can assert which columns are (and are NOT) written.
+let lastUpdateSet: Record<string, unknown> | null = null;
 vi.mock('../../../../apps/api/src/db/client.js', () => ({
   getDb: () => dbMock,
 }));
@@ -91,7 +94,10 @@ function buildAppWithSeed(
   }));
 
   dbMock.update.mockImplementation(() => ({
-    set: () => ({ where: () => ({ returning: () => Promise.resolve(updateReturn) }) }),
+    set: (arg: Record<string, unknown>) => {
+      lastUpdateSet = arg;
+      return { where: () => ({ returning: () => Promise.resolve(updateReturn) }) };
+    },
   }));
 
   const app = new Hono();
@@ -104,6 +110,7 @@ beforeEach(() => {
   dbMock.select.mockReset();
   dbMock.insert.mockReset();
   dbMock.update.mockReset();
+  lastUpdateSet = null;
 });
 
 describe('FHS-231 — GET /api/assignments', () => {
@@ -229,6 +236,93 @@ describe('FHS-231 — POST /api/assignments', () => {
     expect(body.id).toBe(A1);
     expect(body.title).toBe('Spelling');
     expect(body.done).toBe(false);
+  });
+});
+
+describe('FHS-310 — PUT /api/assignments/:id', () => {
+  const A1 = '22222222-2222-4222-8222-222222222222';
+
+  function putBody(body: unknown): RequestInit {
+    return {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    };
+  }
+
+  it('returns 200 with the updated fields when caller is admin', async () => {
+    const doneTime = new Date('2026-05-03T10:00:00.000Z');
+    const app = buildAppWithSeed(
+      {},
+      [],
+      [],
+      [
+        {
+          id: A1,
+          title: 'Spelling revised',
+          notes: 'new note',
+          dueDate: '2026-05-12',
+          memberId: null,
+          doneAt: doneTime,
+        },
+      ],
+    );
+    const res = await app.request(
+      `/api/assignments/${A1}`,
+      putBody({ title: 'Spelling revised', dueDate: '2026-05-12', notes: 'new note' }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { id: string; title: string; dueDate: string };
+    expect(body.id).toBe(A1);
+    expect(body.title).toBe('Spelling revised');
+    expect(body.dueDate).toBe('2026-05-12');
+  });
+
+  it('does not clear doneAt when editing an already-done assignment', async () => {
+    const doneTime = new Date('2026-05-03T10:00:00.000Z');
+    const app = buildAppWithSeed(
+      {},
+      [],
+      [],
+      [
+        {
+          id: A1,
+          title: 'Spelling revised',
+          notes: null,
+          dueDate: null,
+          memberId: null,
+          doneAt: doneTime,
+        },
+      ],
+    );
+    const res = await app.request(`/api/assignments/${A1}`, putBody({ title: 'Spelling revised' }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { done: boolean; doneAt: string };
+    expect(body.done).toBe(true);
+    expect(body.doneAt).toBe(doneTime.toISOString());
+    // The real lock: doneAt must NOT be among the columns the PUT writes,
+    // so editing never un-completes an assignment.
+    expect(lastUpdateSet).not.toBeNull();
+    expect(lastUpdateSet).not.toHaveProperty('doneAt');
+  });
+
+  it('returns 403 when caller role is child', async () => {
+    const app = buildAppWithSeed({ callerRole: 'child' });
+    const res = await app.request(`/api/assignments/${A1}`, putBody({ title: 'X' }));
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 403 when caller role is teen', async () => {
+    const app = buildAppWithSeed({ callerRole: 'teen' });
+    const res = await app.request(`/api/assignments/${A1}`, putBody({ title: 'X' }));
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 404 when assignment id belongs to a different tenant', async () => {
+    // updateReturn is empty — simulates the WHERE tenantId AND id matching nothing.
+    const app = buildAppWithSeed({}, [], [], []);
+    const res = await app.request(`/api/assignments/${A1}`, putBody({ title: 'X' }));
+    expect(res.status).toBe(404);
   });
 });
 

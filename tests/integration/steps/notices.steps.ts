@@ -171,6 +171,22 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   }
 
+  async function putNotice(
+    slug: string,
+    id: string,
+    payload: { body: string; pinned: boolean; icon?: string },
+  ) {
+    return app.request(`/api/notices/${id}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-test-tenant': tenantIds[slug]!,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  }
+
   Scenario(
     'GET orders pinned notices first, then by newest createdAt',
     ({ Given, And, When, Then }) => {
@@ -344,6 +360,50 @@ describeFeature(feature, ({ Background, Scenario }) => {
         const out = await getNotices(slug);
         expect(out.res.status).toBe(200);
         expect(out.body.notices).toHaveLength(n);
+      },
+    );
+  });
+
+  Scenario('A notice can be edited (FHS-310)', ({ Given, When, Then, And }) => {
+    let putRes: Response;
+
+    Given(
+      'the {string} tenant has a notice {string} posted at {string}',
+      async (_ctx, slug: string, b: string, iso: string) => {
+        const [row] = await db
+          .insert(notices)
+          .values({
+            tenantId: tenantIds[slug]!,
+            body: b,
+            pinned: false,
+            createdAt: new Date(iso),
+            updatedAt: new Date(iso),
+          })
+          .returning();
+        noticeIds[b] = row!.id;
+      },
+    );
+
+    When(
+      'the caller PUTs the {string} notice with body {string} pinned {string} in tenant {string}',
+      async (_ctx, originalBody: string, newBody: string, pinnedStr: string, slug: string) => {
+        putRes = await putNotice(slug, noticeIds[originalBody]!, {
+          body: newBody,
+          pinned: pinnedStr === 'true',
+        });
+      },
+    );
+
+    Then('the PUT notice response status is 200', () => {
+      expect(putRes.status).toBe(200);
+    });
+
+    And(
+      're-fetching /api/notices for tenant {string} shows notice body {string}',
+      async (_ctx, slug: string, expectedBody: string) => {
+        const out = await getNotices(slug);
+        expect(out.res.status).toBe(200);
+        expect(out.body.notices.some((n) => n.body === expectedBody)).toBe(true);
       },
     );
   });

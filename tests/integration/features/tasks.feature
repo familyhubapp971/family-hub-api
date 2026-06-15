@@ -35,6 +35,17 @@ Feature: GET / POST / PATCH / DELETE /api/tasks (FHS-233, FHS-267)
     Then the DELETE response status is 404
     And Bilal's task still exists in the database
 
+  Scenario: A task owner can edit their own task (FHS-310)
+    Given the caller has a task "Buy milk" due "2026-05-10" in tenant "khan"
+    When the caller PUTs the "Buy milk" task title to "Buy oat milk" in tenant "khan"
+    Then the PUT task response status is 200
+    And re-fetching /api/tasks for tenant "khan" shows task title "Buy oat milk"
+
+  Scenario: Editing another member's task returns 404 (FHS-310)
+    Given the "khan" tenant has another adult "Bilal" with a task "Renew passport"
+    When the caller PUTs Bilal's task title to "Sneaky edit" in tenant "khan"
+    Then the PUT task response status is 404
+
   Scenario: Tenant isolation — another tenant's tasks never appear
     Given a second tenant "smith" exists with the caller as an admin member
     And the caller has a task "Smith stuff" due "2026-05-08" in tenant "smith"

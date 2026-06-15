@@ -172,6 +172,18 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   }
 
+  async function putTask(slug: string, id: string, payload: { title: string; dueDate?: string }) {
+    return app.request(`/api/tasks/${id}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-test-tenant': tenantIds[slug]!,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  }
+
   // Helper used by several scenarios — seeds a task for the caller's
   // member id (looked up by user_id).
   async function seedCallerTask(slug: string, title: string, dueDate?: string) {
@@ -340,6 +352,59 @@ describeFeature(feature, ({ Background, Scenario }) => {
         .from(tasks)
         .where(sql`id = ${taskIds['Renew passport']!}`);
       expect(rows).toHaveLength(1);
+    });
+  });
+
+  Scenario('A task owner can edit their own task (FHS-310)', ({ Given, When, Then, And }) => {
+    let putRes: Response;
+
+    Given(
+      'the caller has a task {string} due {string} in tenant {string}',
+      async (_ctx, title: string, dueDate: string, slug: string) => {
+        await seedCallerTask(slug, title, dueDate);
+      },
+    );
+
+    When(
+      'the caller PUTs the {string} task title to {string} in tenant {string}',
+      async (_ctx, originalTitle: string, newTitle: string, slug: string) => {
+        putRes = await putTask(slug, taskIds[originalTitle]!, { title: newTitle });
+      },
+    );
+
+    Then('the PUT task response status is 200', () => {
+      expect(putRes.status).toBe(200);
+    });
+
+    And(
+      're-fetching /api/tasks for tenant {string} shows task title {string}',
+      async (_ctx, slug: string, expectedTitle: string) => {
+        const out = await getTasks(slug);
+        expect(out.res.status).toBe(200);
+        expect(out.body.tasks.some((t) => t.title === expectedTitle)).toBe(true);
+      },
+    );
+  });
+
+  Scenario("Editing another member's task returns 404 (FHS-310)", ({ Given, When, Then }) => {
+    let putRes: Response;
+
+    Given(
+      'the {string} tenant has another adult {string} with a task {string}',
+      async (_ctx, slug: string, name: string, title: string) => {
+        await seedOtherMemberTask(slug, name, title);
+      },
+    );
+
+    When(
+      "the caller PUTs Bilal's task title to {string} in tenant {string}",
+      async (_ctx, newTitle: string, slug: string) => {
+        putRes = await putTask(slug, taskIds['Renew passport']!, { title: newTitle });
+      },
+    );
+
+    Then('the PUT task response status is 404', () => {
+      expect(putRes.status).toBe(404);
     });
   });
 

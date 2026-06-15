@@ -222,4 +222,78 @@ export const assignmentsRouter = new Hono()
       return c.json({ error: 'not found', detail: 'assignment not found in this tenant' }, 404);
     }
     return c.json(assignmentItemSchema.parse(rowToItem(row)), 200);
+  })
+  // Edit an assignment's fields (title/notes/dueDate/assignee). Admin +
+  // adult only; tenant-scoped. Completion state (doneAt) is owned by
+  // PATCH and deliberately left untouched here so editing a done
+  // assignment keeps it done.
+  .put('/:id', async (c) => {
+    getAuthenticatedUser(c);
+    const userRow = c.get('userRow');
+    if (!userRow) throw new Error('assignments handler reached without userRow');
+    const tenantId = c.get('tenantId');
+    if (!tenantId) {
+      return c.json({ error: 'tenant context required', errorCode: 'TENANT_REQUIRED' }, 400);
+    }
+    const id = c.req.param('id');
+    if (!UUID_RE.test(id)) {
+      return c.json({ error: 'invalid id', detail: 'assignment id must be a UUID' }, 400);
+    }
+    const db = getDb();
+    const caller = await loadCallerMember(db, tenantId, userRow.id);
+    if (!caller) {
+      return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
+    }
+    if (!WRITE_ROLES.has(caller.role)) {
+      return c.json(
+        { error: 'forbidden', detail: 'only admins and adults can edit assignments' },
+        403,
+      );
+    }
+    const body = (await c.req.json().catch(() => null)) as unknown;
+    const parsed = createAssignmentRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+    if (parsed.data.memberId) {
+      const memberRows = await db
+        .select({ id: members.id })
+        .from(members)
+        .where(and(eq(members.tenantId, tenantId), eq(members.id, parsed.data.memberId)))
+        .limit(1);
+      if (memberRows.length === 0) {
+        return c.json(
+          { error: 'invalid memberId', detail: 'memberId is not a member of this tenant' },
+          400,
+        );
+      }
+    }
+    const [row] = await db
+      .update(assignments)
+      .set({
+        title: parsed.data.title,
+        dueDate: parsed.data.dueDate ?? null,
+        memberId: parsed.data.memberId ?? null,
+        notes: parsed.data.notes ?? null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(assignments.tenantId, tenantId), eq(assignments.id, id)))
+      .returning({
+        id: assignments.id,
+        title: assignments.title,
+        notes: assignments.notes,
+        dueDate: assignments.dueDate,
+        memberId: assignments.memberId,
+        doneAt: assignments.doneAt,
+      });
+    if (!row) {
+      return c.json({ error: 'not found', detail: 'assignment not found in this tenant' }, 404);
+    }
+    return c.json(assignmentItemSchema.parse(rowToItem(row)), 200);
   });

@@ -32,6 +32,12 @@ Feature: GET / POST / PATCH /api/assignments (FHS-231)
     When the caller POSTs an assignment "Reading" due "2026-05-08" in tenant "khan"
     Then the POST response status is 403
 
+  Scenario: An assignment can be edited (FHS-310)
+    Given the "khan" tenant has an assignment "Spelling" due "2026-05-10"
+    When the caller PUTs the "Spelling" assignment title to "Spelling revised" in tenant "khan"
+    Then the PUT response status is 200
+    And re-fetching /api/assignments for tenant "khan" shows title "Spelling revised"
+
   Scenario: Tenant isolation — another tenant's assignments never appear
     Given a second tenant "smith" exists with the caller as an admin member
     And the "smith" tenant has an assignment "Pasta night" due "2026-05-08"

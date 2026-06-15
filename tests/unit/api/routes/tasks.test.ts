@@ -19,6 +19,10 @@ vi.mock('../../../../apps/api/src/db/client.js', () => ({
   getDb: () => dbMock,
 }));
 
+// Captures the object passed to the most recent `.update(...).set({...})`
+// so PUT tests can assert which columns are (and are NOT) written.
+let lastUpdateSet: Record<string, unknown> | null = null;
+
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '00000000-0000-4000-8000-000000000777';
 const CALLER_MEMBER_ID = '44444444-4444-4444-8444-444444444444';
@@ -73,7 +77,10 @@ function buildAppWithSeed(
     values: () => ({ returning: () => Promise.resolve(insertReturn) }),
   }));
   dbMock.update.mockImplementation(() => ({
-    set: () => ({ where: () => ({ returning: () => Promise.resolve(updateReturn) }) }),
+    set: (arg: Record<string, unknown>) => {
+      lastUpdateSet = arg;
+      return { where: () => ({ returning: () => Promise.resolve(updateReturn) }) };
+    },
   }));
   dbMock.delete.mockImplementation(() => ({
     where: () => ({ returning: () => Promise.resolve(deleteReturn) }),
@@ -90,6 +97,7 @@ beforeEach(() => {
   dbMock.insert.mockReset();
   dbMock.update.mockReset();
   dbMock.delete.mockReset();
+  lastUpdateSet = null;
 });
 
 describe('FHS-233 — GET /api/tasks', () => {
@@ -222,6 +230,80 @@ describe('FHS-233 — PATCH /api/tasks/:id', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { done: boolean; doneAt: string };
     expect(body.done).toBe(true);
+  });
+});
+
+describe('FHS-310 — PUT /api/tasks/:id', () => {
+  const T1 = '22222222-2222-4222-8222-222222222222';
+
+  function putBody(body: unknown): RequestInit {
+    return {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    };
+  }
+
+  it("returns 200 with updated title and dueDate for the caller's own task", async () => {
+    const app = buildAppWithSeed(
+      {},
+      [],
+      [],
+      [
+        {
+          id: T1,
+          title: 'Buy oat milk',
+          dueDate: '2026-05-12',
+          memberId: CALLER_MEMBER_ID,
+          doneAt: null,
+        },
+      ],
+    );
+    const res = await app.request(
+      `/api/tasks/${T1}`,
+      putBody({ title: 'Buy oat milk', dueDate: '2026-05-12' }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { id: string; title: string; dueDate: string };
+    expect(body.id).toBe(T1);
+    expect(body.title).toBe('Buy oat milk');
+    expect(body.dueDate).toBe('2026-05-12');
+  });
+
+  it('does not clear doneAt when editing an already-done task', async () => {
+    const doneTime = new Date('2026-05-03T10:00:00.000Z');
+    const app = buildAppWithSeed(
+      {},
+      [],
+      [],
+      [
+        {
+          id: T1,
+          title: 'Buy oat milk',
+          dueDate: null,
+          memberId: CALLER_MEMBER_ID,
+          doneAt: doneTime,
+        },
+      ],
+    );
+    const res = await app.request(`/api/tasks/${T1}`, putBody({ title: 'Buy oat milk' }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { done: boolean; doneAt: string };
+    expect(body.done).toBe(true);
+    expect(body.doneAt).toBe(doneTime.toISOString());
+    // The real lock: PUT writes neither doneAt nor memberId, so editing
+    // never un-completes a task or reassigns ownership.
+    expect(lastUpdateSet).not.toBeNull();
+    expect(lastUpdateSet).not.toHaveProperty('doneAt');
+    expect(lastUpdateSet).not.toHaveProperty('memberId');
+  });
+
+  it("returns 404 when trying to edit another member's task (owner scope)", async () => {
+    // updateReturn is empty — WHERE includes memberId == caller.id, so
+    // another member's task matches nothing.
+    const app = buildAppWithSeed({}, [], [], []);
+    const res = await app.request(`/api/tasks/${T1}`, putBody({ title: 'Sneaky edit' }));
+    expect(res.status).toBe(404);
   });
 });
 
