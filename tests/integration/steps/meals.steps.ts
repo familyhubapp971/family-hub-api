@@ -230,6 +230,41 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
+  Scenario('A snack can be saved and retrieved (FHS-317)', ({ When, Then, And }) => {
+    let postRes: Response;
+    let body: MealsResponse;
+
+    When(
+      'the caller POSTs a meal {string} for {string} {string} in tenant {string}',
+      async (_ctx, name: string, day: string, slot: string, slug: string) => {
+        postRes = await postMeal(slug, day, slot, name);
+      },
+    );
+
+    Then('the POST response status is 200', () => {
+      expect(postRes.status).toBe(200);
+    });
+
+    And(
+      're-fetching /api/meals for tenant {string} lists {int} meals',
+      async (_ctx, slug: string, n: number) => {
+        const out = await getMeals(slug);
+        expect(out.res.status).toBe(200);
+        body = out.body;
+        expect(body.meals).toHaveLength(n);
+      },
+    );
+
+    And(
+      'the response includes {string} for {string} {string}',
+      (_ctx, name: string, day: string, slot: string) => {
+        const cell = body.meals.find((m) => m.dayOfWeek === day && m.slot === slot);
+        expect(cell, `${day} ${slot} cell missing`).toBeDefined();
+        expect(cell!.name).toBe(name);
+      },
+    );
+  });
+
   Scenario('POST upserting the same cell replaces the previous value', ({ When, Then, And }) => {
     let body: MealsResponse;
 

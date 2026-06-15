@@ -50,6 +50,12 @@ Feature: GET + POST /api/meals (FHS-229)
     And the caller POSTs a meal "Ali eggs" for "mon" "breakfast" for member "Ali" in tenant "khan"
     Then re-fetching /api/meals for tenant "khan" lists 2 meals
 
+  Scenario: A snack can be saved and retrieved (FHS-317)
+    When the caller POSTs a meal "Apple slices" for "mon" "snack" in tenant "khan"
+    Then the POST response status is 200
+    And re-fetching /api/meals for tenant "khan" lists 1 meals
+    And the response includes "Apple slices" for "mon" "snack"
+
   Scenario: The recurring flag round-trips (FHS-264)
     When the caller POSTs a recurring meal "Pancakes" for "sun" "breakfast" in tenant "khan"
     Then re-fetching /api/meals for tenant "khan" lists 1 meals
