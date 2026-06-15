@@ -14,6 +14,7 @@ import {
   resolveTenant,
   type ResolveTenantOptions,
 } from './middleware/resolve-tenant.js';
+import { adminRouter } from './routes/admin.js';
 import { assignmentsRouter } from './routes/assignments.js';
 import { kidPinRouter } from './routes/auth-kid-pin.js';
 import { dashboardRouter } from './routes/dashboard.js';
@@ -164,6 +165,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/notices', noticesRouter);
   app.route('/api/tasks', tasksRouter);
   app.route('/api/habits', habitsRouter);
+  app.route('/api/admin', adminRouter);
   app.route('/api/mw/weeks', mwWeeksRouter);
   app.route('/api/mw/financial', mwFinancialRouter);
   app.route('/api/mw/analytics', mwAnalyticsRouter);

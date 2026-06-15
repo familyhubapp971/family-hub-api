@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, asc, count, eq, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import {
   habits,
@@ -54,6 +54,12 @@ async function loadCaller(
 
 function canManage(caller: { id: string; role: string }, memberId: string): boolean {
   return caller.id === memberId || caller.role === 'admin' || caller.role === 'adult';
+}
+
+// Admin-override operations (edit cash, reopen, repair) are NOT self-service —
+// a child must never run them on their own weeks. Require admin/adult.
+function isAdminOrAdult(caller: { role: string }): boolean {
+  return caller.role === 'admin' || caller.role === 'adult';
 }
 
 async function memberInTenant(db: Db, tenantId: string, memberId: string): Promise<boolean> {
@@ -657,4 +663,419 @@ export const mwWeeksRouter = new Hono()
       nextWeekNumber: outcome.nextWeekNumber,
       nextWeekYear: outcome.nextWeekYear,
     });
+  })
+
+  // GET /:id/actions?memberId= — audit log of week actions for a child, newest first.
+  .get('/:id/actions', async (c) => {
+    const ctx = await guardQuery(c);
+    if ('res' in ctx) return ctx.res;
+    const { db, tenantId, memberId } = ctx;
+    const weekId = c.req.param('id');
+
+    const weekRows = await db
+      .select({ id: mwWeeks.id })
+      .from(mwWeeks)
+      .where(
+        and(eq(mwWeeks.id, weekId), eq(mwWeeks.tenantId, tenantId), eq(mwWeeks.memberId, memberId)),
+      )
+      .limit(1);
+    if (!weekRows[0]) {
+      return c.json({ error: 'not found', detail: 'week not found for this member' }, 404);
+    }
+
+    const actions = await db
+      .select()
+      .from(mwWeekActions)
+      .where(
+        and(
+          eq(mwWeekActions.tenantId, tenantId),
+          eq(mwWeekActions.memberId, memberId),
+          eq(mwWeekActions.weekId, weekId),
+        ),
+      )
+      .orderBy(desc(mwWeekActions.createdAt));
+
+    return c.json({ actions });
+  })
+
+  // PUT /:id/cash — admin-edit of carriedOverCash / retrievedCash on a week.
+  .put('/:id/cash', async (c) => {
+    getAuthenticatedUser(c);
+    const userRow = c.get('userRow');
+    if (!userRow) throw new Error('mw-weeks cash reached without userRow');
+    const tenantId = c.get('tenantId') as string | undefined;
+    if (!tenantId) {
+      return c.json({ error: 'tenant context required', errorCode: 'TENANT_REQUIRED' }, 400);
+    }
+    const body = (await c.req.json().catch(() => null)) as unknown;
+    const parsed = z
+      .object({
+        memberId: z.string().uuid(),
+        carriedOverCash: z.number().min(0).optional(),
+        retrievedCash: z.number().min(0).optional(),
+      })
+      .safeParse(body);
+    if (!parsed.success) return badRequest(c, parsed.error);
+    const { memberId, carriedOverCash, retrievedCash } = parsed.data;
+
+    const db = getDb();
+    const caller = await loadCaller(db, tenantId, userRow.id);
+    if (!caller) return c.json({ error: 'forbidden', detail: 'caller is not a member' }, 403);
+    if (!(await memberInTenant(db, tenantId, memberId))) {
+      return c.json({ error: 'not found', detail: 'member not found in this tenant' }, 404);
+    }
+    if (!isAdminOrAdult(caller)) {
+      return c.json({ error: 'forbidden', detail: 'admin or adult role required' }, 403);
+    }
+
+    const weekId = c.req.param('id');
+    const now = new Date();
+    const patch: Record<string, unknown> = { updatedAt: now };
+    if (carriedOverCash !== undefined) patch.carriedOverCash = String(carriedOverCash);
+    if (retrievedCash !== undefined) patch.retrievedCash = String(retrievedCash);
+
+    const [updated] = await db
+      .update(mwWeeks)
+      .set(patch)
+      .where(
+        and(eq(mwWeeks.id, weekId), eq(mwWeeks.tenantId, tenantId), eq(mwWeeks.memberId, memberId)),
+      )
+      .returning();
+
+    if (!updated) {
+      return c.json({ error: 'not found', detail: 'week not found for this member' }, 404);
+    }
+    return c.json({ week: toWeek(updated) });
+  })
+
+  // POST /:id/reopen — reverse a FINALIZED week's economy effects for a child.
+  .post('/:id/reopen', async (c) => {
+    getAuthenticatedUser(c);
+    const userRow = c.get('userRow');
+    if (!userRow) throw new Error('mw-weeks reopen reached without userRow');
+    const tenantId = c.get('tenantId') as string | undefined;
+    if (!tenantId) {
+      return c.json({ error: 'tenant context required', errorCode: 'TENANT_REQUIRED' }, 400);
+    }
+    const body = (await c.req.json().catch(() => null)) as unknown;
+    const parsed = z.object({ memberId: z.string().uuid() }).safeParse(body);
+    if (!parsed.success) return badRequest(c, parsed.error);
+    const { memberId } = parsed.data;
+
+    const db = getDb();
+    const caller = await loadCaller(db, tenantId, userRow.id);
+    if (!caller) return c.json({ error: 'forbidden', detail: 'caller is not a member' }, 403);
+    if (!(await memberInTenant(db, tenantId, memberId))) {
+      return c.json({ error: 'not found', detail: 'member not found in this tenant' }, 404);
+    }
+    if (!isAdminOrAdult(caller)) {
+      return c.json({ error: 'forbidden', detail: 'admin or adult role required' }, 403);
+    }
+
+    const weekId = c.req.param('id');
+
+    const outcome = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${memberId}`}, 0))`,
+      );
+
+      const [week] = await tx
+        .select()
+        .from(mwWeeks)
+        .where(
+          and(
+            eq(mwWeeks.id, weekId),
+            eq(mwWeeks.tenantId, tenantId),
+            eq(mwWeeks.memberId, memberId),
+          ),
+        )
+        .limit(1);
+      if (!week) return { ok: false as const, code: 'NOT_FOUND' as const };
+      if (!week.isFinalized) return { ok: false as const, code: 'NOT_FINALIZED' as const };
+
+      const reversal = await reverseFinalizationEffects(tx, tenantId, memberId, weekId);
+
+      await tx
+        .update(mwWeeks)
+        .set({ isFinalized: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(mwWeeks.id, weekId),
+            eq(mwWeeks.tenantId, tenantId),
+            eq(mwWeeks.memberId, memberId),
+          ),
+        );
+
+      return { ok: true as const, reversal };
+    });
+
+    if (!outcome.ok) {
+      if (outcome.code === 'NOT_FOUND') {
+        return c.json({ error: 'not found', detail: 'week not found for this member' }, 404);
+      }
+      return c.json({ error: 'conflict', detail: 'week is not finalized' }, 409);
+    }
+
+    return c.json({
+      reopened: true,
+      weekId,
+      reversal: outcome.reversal,
+    });
+  })
+
+  // POST /:id/repair — reverse leftover finalization effects on an ACTIVE (non-finalized) week.
+  .post('/:id/repair', async (c) => {
+    getAuthenticatedUser(c);
+    const userRow = c.get('userRow');
+    if (!userRow) throw new Error('mw-weeks repair reached without userRow');
+    const tenantId = c.get('tenantId') as string | undefined;
+    if (!tenantId) {
+      return c.json({ error: 'tenant context required', errorCode: 'TENANT_REQUIRED' }, 400);
+    }
+    const body = (await c.req.json().catch(() => null)) as unknown;
+    const parsed = z.object({ memberId: z.string().uuid() }).safeParse(body);
+    if (!parsed.success) return badRequest(c, parsed.error);
+    const { memberId } = parsed.data;
+
+    const db = getDb();
+    const caller = await loadCaller(db, tenantId, userRow.id);
+    if (!caller) return c.json({ error: 'forbidden', detail: 'caller is not a member' }, 403);
+    if (!(await memberInTenant(db, tenantId, memberId))) {
+      return c.json({ error: 'not found', detail: 'member not found in this tenant' }, 404);
+    }
+    if (!isAdminOrAdult(caller)) {
+      return c.json({ error: 'forbidden', detail: 'admin or adult role required' }, 403);
+    }
+
+    const weekId = c.req.param('id');
+
+    const outcome = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${memberId}`}, 0))`,
+      );
+
+      const [week] = await tx
+        .select()
+        .from(mwWeeks)
+        .where(
+          and(
+            eq(mwWeeks.id, weekId),
+            eq(mwWeeks.tenantId, tenantId),
+            eq(mwWeeks.memberId, memberId),
+          ),
+        )
+        .limit(1);
+      if (!week) return { ok: false as const, code: 'NOT_FOUND' as const };
+      // Repair only applies to non-finalized weeks (reopen handles finalized ones).
+      if (week.isFinalized) return { ok: false as const, code: 'IS_FINALIZED' as const };
+
+      const reversal = await reverseFinalizationEffects(tx, tenantId, memberId, weekId);
+      return { ok: true as const, reversal };
+    });
+
+    if (!outcome.ok) {
+      if (outcome.code === 'NOT_FOUND') {
+        return c.json({ error: 'not found', detail: 'week not found for this member' }, 404);
+      }
+      return c.json({ error: 'conflict', detail: 'week is finalized — use reopen instead' }, 409);
+    }
+
+    return c.json({
+      repaired: true,
+      weekId,
+      reversal: outcome.reversal,
+    });
   });
+
+// ─── Shared reversal helper ───────────────────────────────────────────────────
+//
+// Reverses the economy effects that POST /:id/finalize applied for one child:
+//   1. Find auto_save week-actions for this week → locate their savings-transaction
+//      rows via mw_transaction_stickers → un-allocate those habit_stickers →
+//      subtract from mw_savings.saved_stickers → delete those transaction rows.
+//   2. Find resolved investments in this week → restore them to active, subtract
+//      their finalReturn from mw_savings.saved_cash.
+//   3. Find invest_continue actions → move the continued investment back to this
+//      week (best-effort — may be gone if already resolved).
+//   4. Delete the auto_save / invest_continue week-action rows for this week.
+//
+// Called inside an advisory-locked transaction from both reopen and repair.
+
+type TxHandle = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0];
+
+async function reverseFinalizationEffects(
+  tx: TxHandle,
+  tenantId: string,
+  memberId: string,
+  weekId: string,
+): Promise<{
+  stickersReversed: number;
+  cashReversed: number;
+  investmentsRestored: number;
+}> {
+  let stickersReversed = 0;
+  let cashReversed = 0;
+  let investmentsRestored = 0;
+  const now = new Date();
+
+  // ── 1. Reverse auto-saved stickers ───────────────────────────────────────
+  // Find every mw_savings_transactions row that is linked (via mw_transaction_stickers)
+  // to a habit_sticker in this week AND hasn't been reversed yet.
+  const txRows = await tx
+    .selectDistinct({
+      id: mwSavingsTransactions.id,
+      stickerCount: mwSavingsTransactions.stickerCount,
+    })
+    .from(mwSavingsTransactions)
+    .innerJoin(
+      mwTransactionStickers,
+      eq(mwTransactionStickers.transactionId, mwSavingsTransactions.id),
+    )
+    .innerJoin(habitStickers, eq(habitStickers.id, mwTransactionStickers.stickerId))
+    .where(
+      and(
+        eq(mwSavingsTransactions.tenantId, tenantId),
+        eq(mwSavingsTransactions.memberId, memberId),
+        eq(habitStickers.weekId, weekId),
+        eq(mwSavingsTransactions.isReversed, false),
+      ),
+    );
+
+  for (const { id: txId, stickerCount } of txRows) {
+    // Un-allocate the stickers linked to this transaction.
+    const stickerLinks = await tx
+      .select({ stickerId: mwTransactionStickers.stickerId })
+      .from(mwTransactionStickers)
+      .where(eq(mwTransactionStickers.transactionId, txId));
+
+    if (stickerLinks.length > 0) {
+      const stickerIds = stickerLinks.map((r) => r.stickerId);
+      await tx
+        .update(habitStickers)
+        .set({ isAllocated: false, updatedAt: now })
+        .where(
+          and(
+            eq(habitStickers.tenantId, tenantId),
+            eq(habitStickers.memberId, memberId),
+            inArray(habitStickers.id, stickerIds),
+          ),
+        );
+    }
+
+    // Mark the transaction as reversed (don't delete — keep audit trail).
+    await tx
+      .update(mwSavingsTransactions)
+      .set({ isReversed: true })
+      .where(eq(mwSavingsTransactions.id, txId));
+
+    stickersReversed += stickerCount;
+  }
+
+  if (stickersReversed > 0) {
+    await tx
+      .update(mwSavings)
+      .set({
+        savedStickers: sql`GREATEST(${mwSavings.savedStickers} - ${stickersReversed}, 0)`,
+        updatedAt: now,
+      })
+      .where(and(eq(mwSavings.tenantId, tenantId), eq(mwSavings.memberId, memberId)));
+  }
+
+  // ── 2. Reverse resolved investments (those whose weekId is this week) ─────
+  const resolvedInvs = await tx
+    .select()
+    .from(mwInvestments)
+    .where(
+      and(
+        eq(mwInvestments.tenantId, tenantId),
+        eq(mwInvestments.memberId, memberId),
+        eq(mwInvestments.weekId, weekId),
+        eq(mwInvestments.isResolved, true),
+        eq(mwInvestments.isActive, false),
+      ),
+    );
+
+  let totalCashToReverse = 0;
+  for (const inv of resolvedInvs) {
+    totalCashToReverse += Number(inv.finalReturn ?? 0);
+    await tx
+      .update(mwInvestments)
+      .set({ isActive: true, isResolved: false, finalReturn: '0' })
+      .where(
+        and(
+          eq(mwInvestments.id, inv.id),
+          eq(mwInvestments.tenantId, tenantId),
+          eq(mwInvestments.memberId, memberId),
+        ),
+      );
+  }
+  if (totalCashToReverse > 0) {
+    await tx
+      .update(mwSavings)
+      .set({
+        savedCash: sql`GREATEST(${mwSavings.savedCash} - ${totalCashToReverse}, 0)`,
+        updatedAt: now,
+      })
+      .where(and(eq(mwSavings.tenantId, tenantId), eq(mwSavings.memberId, memberId)));
+    cashReversed = totalCashToReverse;
+    investmentsRestored = resolvedInvs.length;
+  }
+
+  // ── 3. Reverse continued investments (move back to this week) ────────────
+  const continueActions = await tx
+    .select()
+    .from(mwWeekActions)
+    .where(
+      and(
+        eq(mwWeekActions.tenantId, tenantId),
+        eq(mwWeekActions.memberId, memberId),
+        eq(mwWeekActions.weekId, weekId),
+        eq(mwWeekActions.actionType, 'invest_continue'),
+      ),
+    );
+
+  for (const action of continueActions) {
+    if (!action.habitId) continue;
+    // Find the active investment for this habit that is now in a different week.
+    const [movedInv] = await tx
+      .select({ id: mwInvestments.id })
+      .from(mwInvestments)
+      .where(
+        and(
+          eq(mwInvestments.tenantId, tenantId),
+          eq(mwInvestments.memberId, memberId),
+          eq(mwInvestments.habitId, action.habitId),
+          eq(mwInvestments.isActive, true),
+          sql`${mwInvestments.weekId} != ${weekId}`,
+        ),
+      )
+      .limit(1);
+
+    if (movedInv) {
+      await tx
+        .update(mwInvestments)
+        .set({ weekId })
+        .where(
+          and(
+            eq(mwInvestments.id, movedInv.id),
+            eq(mwInvestments.tenantId, tenantId),
+            eq(mwInvestments.memberId, memberId),
+          ),
+        );
+    }
+  }
+
+  // ── 4. Delete the finalization-generated week-action rows ─────────────────
+  await tx
+    .delete(mwWeekActions)
+    .where(
+      and(
+        eq(mwWeekActions.tenantId, tenantId),
+        eq(mwWeekActions.memberId, memberId),
+        eq(mwWeekActions.weekId, weekId),
+        sql`${mwWeekActions.actionType} IN ('auto_save', 'invest_continue')`,
+      ),
+    );
+
+  return { stickersReversed, cashReversed, investmentsRestored };
+}

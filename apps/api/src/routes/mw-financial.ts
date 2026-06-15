@@ -747,6 +747,59 @@ export const mwFinancialRouter = new Hono()
     });
   })
 
+  // PUT /savings/admin-set — overwrite a child's savings balance (admin/adult only).
+  // Used by the Admin Panel to manually correct a child's sticker/cash balance.
+  .put('/savings/admin-set', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as unknown;
+    const parsed = z
+      .object({
+        memberId: z.string().uuid(),
+        savedStickers: z.number().int().min(0),
+        savedCash: z.number().min(0),
+      })
+      .safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+    const { memberId, savedStickers, savedCash } = parsed.data;
+    const g = await guard(c, memberId);
+    if ('res' in g) return g.res;
+    const { db, tenantId } = g;
+
+    // Verify the caller is admin or adult (not just "can manage" which includes self).
+    const userRow = c.get('userRow') as { id: string } | undefined;
+    if (!userRow) throw new Error('financial/admin-set reached without userRow');
+    const callerRow = await db
+      .select({ role: members.role })
+      .from(members)
+      .where(and(eq(members.tenantId, tenantId), eq(members.userId, userRow.id)))
+      .limit(1);
+    const callerRole = callerRow[0]?.role;
+    if (callerRole !== 'admin' && callerRole !== 'adult') {
+      return c.json({ error: 'forbidden', detail: 'admin or adult role required' }, 403);
+    }
+
+    const now = new Date();
+    // Ensure the savings row exists.
+    await getOrCreateSavings(db, tenantId, memberId);
+    const [updated] = await db
+      .update(mwSavings)
+      .set({ savedStickers, savedCash: String(savedCash), updatedAt: now })
+      .where(and(eq(mwSavings.tenantId, tenantId), eq(mwSavings.memberId, memberId)))
+      .returning();
+
+    return c.json({
+      savedStickers: updated?.savedStickers ?? savedStickers,
+      savedCash: Number(updated?.savedCash ?? savedCash),
+    });
+  })
+
   // Cash out from combined savings (cash first, then saved stickers).
   .post('/savings/cashout', async (c) => {
     const body = (await c.req.json().catch(() => null)) as unknown;
