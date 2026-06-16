@@ -70,4 +70,3 @@ tmp/
 
 # Claude Code session-local scheduled-task lock (regenerated each run)
 .claude/scheduled_tasks.lock
-/documents/
