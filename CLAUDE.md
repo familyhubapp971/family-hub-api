@@ -265,6 +265,37 @@ the ticket already say most of this.
 > slice (FHS-179 epic) is complete and validated, after which everything
 > promotes to `main` as one tested batch. Revisit when FHS-198 ships.
 
+### Ticket fields — set on EVERY ticket (all types)
+
+**Rule:** Whenever you create or pick up **any** Jira ticket — Story, Task,
+Bug, Epic, Sub-task — these three fields must be set. Don't leave them
+blank and don't wait to be asked.
+
+1. **Story point estimate** (`customfield_10016`, a number) — always
+   estimate, even Bugs and chores. Use Fibonacci: `1` trivial · `2`
+   small · `3` normal · `5` chunky · `8` large multi-surface · `13`
+   epic-sized (split it). Epics: set the rolled-up total or leave the
+   children to carry it, but the stories/tasks/bugs always get a number.
+2. **Team** (`customfield_10001`) — always **Family Hub SaaS** (team id
+   `b6dcc0ad-3de2-44eb-802b-2804ad35ef3c`). New tickets usually inherit
+   it; if a ticket shows Team = None, set it.
+3. **Labels** (`labels`, array) — at least one **area** label plus the
+   touched **surface(s)**. Areas: `childworld`, `myworld`, `learn`,
+   `meals`, `calendar`, `members`, `auth`, `billing`, `admin`,
+   `tenancy`, `infra`. Surfaces: `frontend`, `backend`, `data`,
+   `tests`, `docs`. Bugs also carry `bug`; manual-test tasks carry
+   `manual-test`, `qa`, `sprint-N-close` (per the demo-testing rule).
+
+Set these alongside the existing required fields (parent epic, Sprint,
+Fix Version per the rules below). Quick backfill pattern (`PUT` the
+issue):
+
+```bash
+curl -s -u "$EMAIL:$JIRA_API_TOKEN" -X PUT \
+  "$URL/rest/api/3/issue/FHS-XXX" -H "Content-Type: application/json" \
+  -d '{"fields":{"customfield_10016":5,"labels":["childworld","frontend"]}}'
+```
+
 ### Branch & PR naming (Jira auto-link)
 
 **Rule:** Every Jira ticket gets its own feature branch. **Never commit

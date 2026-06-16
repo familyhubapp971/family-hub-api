@@ -104,9 +104,30 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   }
 
+  async function postLearnComplete(
+    slug: string,
+    member: string,
+    continent: string,
+    chunkIndex: number,
+  ) {
+    return app.request('/api/world-flags/learn-complete', {
+      method: 'POST',
+      headers: { ...headers(slug), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memberId: memberIds[member]!, continent, chunkIndex }),
+    });
+  }
+
+  async function getLearn(slug: string, member: string) {
+    return app.request(`/api/world-flags/learn?memberId=${memberIds[member]!}`, {
+      method: 'GET',
+      headers: headers(slug),
+    });
+  }
+
   Background(({ Given, And }) => {
     Given('the world-flags test DB is clean', async () => {
       db = getTestDb() as unknown as Database;
+      await db.execute(sql`TRUNCATE TABLE world_flags_learn_progress RESTART IDENTITY CASCADE`);
       await db.execute(sql`TRUNCATE TABLE world_flags_progress RESTART IDENTITY CASCADE`);
       await db.execute(sql`TRUNCATE TABLE members RESTART IDENTITY CASCADE`);
       await db.execute(sql`TRUNCATE TABLE tenants RESTART IDENTITY CASCADE`);
@@ -252,5 +273,88 @@ describeFeature(feature, ({ Background, Scenario }) => {
     Then('the explored list has {int} codes', (_c, n: number) =>
       expect(exploredCodes).toHaveLength(n),
     );
+  });
+
+  // ─── Scenario: Complete a learn-path set and read it back ──────────────────
+
+  Scenario('Complete a learn-path set and read progress back', ({ When, Then, And }) => {
+    let completeRes: Response;
+    let learnRes: Response;
+    let progress: Record<string, number[]> = {};
+
+    When(
+      'the caller completes set {int} of {string} for {string} in {string}',
+      async (_c, chunkIndex: number, continent: string, member: string, slug: string) => {
+        completeRes = await postLearnComplete(slug, member, continent, chunkIndex);
+      },
+    );
+    Then('the learn-complete response status is 200', () => expect(completeRes.status).toBe(200));
+    And('the learn-complete body has completed true', async () => {
+      const body = (await completeRes.json()) as { completed: boolean };
+      expect(body.completed).toBe(true);
+    });
+    When(
+      'the caller gets learn progress for {string} in {string}',
+      async (_c, member: string, slug: string) => {
+        learnRes = await getLearn(slug, member);
+        const body = (await learnRes.json()) as { progress: Record<string, number[]> };
+        progress = body.progress ?? {};
+      },
+    );
+    Then(
+      'the learn progress for {string} contains set {int}',
+      (_c, continent: string, chunkIndex: number) =>
+        expect(progress[continent] ?? []).toContain(chunkIndex),
+    );
+  });
+
+  // ─── Scenario: Completing the same set twice is idempotent ──────────────────
+
+  Scenario('Completing the same set twice is idempotent — one entry', ({ When, Then }) => {
+    let learnRes: Response;
+    let progress: Record<string, number[]> = {};
+
+    When(
+      'the caller completes set {int} of {string} for {string} in {string}',
+      async (_c, chunkIndex: number, continent: string, member: string, slug: string) => {
+        await postLearnComplete(slug, member, continent, chunkIndex);
+        await postLearnComplete(slug, member, continent, chunkIndex);
+      },
+    );
+    When(
+      'the caller gets learn progress for {string} in {string}',
+      async (_c, member: string, slug: string) => {
+        learnRes = await getLearn(slug, member);
+        const body = (await learnRes.json()) as { progress: Record<string, number[]> };
+        progress = body.progress ?? {};
+      },
+    );
+    Then(
+      'the learn progress for {string} has {int} completed set',
+      (_c, continent: string, n: number) => expect(progress[continent] ?? []).toHaveLength(n),
+    );
+  });
+
+  // ─── Scenario: Member isolation for learn progress ─────────────────────────
+
+  Scenario('Member isolation — another child sees no completed sets', ({ When, Then }) => {
+    let learnRes: Response;
+    let progress: Record<string, number[]> = {};
+
+    When(
+      'the caller completes set {int} of {string} for {string} in {string}',
+      async (_c, chunkIndex: number, continent: string, member: string, slug: string) => {
+        await postLearnComplete(slug, member, continent, chunkIndex);
+      },
+    );
+    When(
+      'the caller gets learn progress for {string} in {string}',
+      async (_c, member: string, slug: string) => {
+        learnRes = await getLearn(slug, member);
+        const body = (await learnRes.json()) as { progress: Record<string, number[]> };
+        progress = body.progress ?? {};
+      },
+    );
+    Then('the learn progress is empty', () => expect(Object.keys(progress)).toHaveLength(0));
   });
 });

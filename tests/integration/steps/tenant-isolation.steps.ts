@@ -31,6 +31,7 @@ import {
   pendingInvitations,
   readingLog,
   worldFlagsProgress,
+  worldFlagsLearnProgress,
   rewards,
   rewardRedemptions,
   savings,
@@ -69,6 +70,7 @@ const ALL_SCHEMA_TABLES = [
   learnProgress,
   readingLog,
   worldFlagsProgress,
+  worldFlagsLearnProgress,
   mealTemplates,
   events,
   weekActions,
@@ -271,6 +273,16 @@ async function seedRow(
       });
       break;
     }
+    case 'world_flags_learn_progress': {
+      // Learn Phase 2b — structured learn-path; needs member.
+      await db.insert(worldFlagsLearnProgress).values({
+        tenantId,
+        memberId: ctx.memberId!,
+        continent: 'Africa',
+        chunkIndex: 0,
+      });
+      break;
+    }
     case 'mw_weeks': {
       // FHS-291 — My World week; needs member.
       const [r] = await db
@@ -436,6 +448,7 @@ async function seedAllTablesForTenant(db: Database, tenantId: string): Promise<v
     'learn_progress', // needs member
     'reading_log', // needs member
     'world_flags_progress', // needs member
+    'world_flags_learn_progress', // needs member
     'mw_weeks', // needs member
     'habit_stickers', // needs member + habit + mw_week
     'mw_savings', // needs member

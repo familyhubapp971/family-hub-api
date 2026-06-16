@@ -1254,6 +1254,44 @@ export type WorldFlagsProgress = typeof worldFlagsProgress.$inferSelect;
 export type NewWorldFlagsProgress = typeof worldFlagsProgress.$inferInsert;
 
 /**
+ * `world_flags_learn_progress` (Learn Phase 2b) — tracks completed sets in
+ * the structured World Flags Learn path. Each continent is split into sets
+ * of 5 countries; passing a set's quiz (100% correct) records its
+ * zero-based index here, which unlocks the next set. One row per
+ * (tenant, member, continent, chunk index). The UNIQUE constraint makes
+ * the learn-complete POST idempotent via onConflictDoNothing.
+ */
+export const worldFlagsLearnProgress = pgTable(
+  'world_flags_learn_progress',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    // Continent name, e.g. "Africa" (matches packages/web data/countries CONTINENTS).
+    continent: text('continent').notNull(),
+    // Zero-based index of the completed set of 5 countries within the continent.
+    chunkIndex: integer('chunk_index').notNull(),
+    completedAt: timestamp('completed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('world_flags_learn_progress_unique_idx').on(
+      t.tenantId,
+      t.memberId,
+      t.continent,
+      t.chunkIndex,
+    ),
+    index('world_flags_learn_progress_member_idx').on(t.tenantId, t.memberId),
+  ],
+);
+
+export type WorldFlagsLearnProgress = typeof worldFlagsLearnProgress.$inferSelect;
+export type NewWorldFlagsLearnProgress = typeof worldFlagsLearnProgress.$inferInsert;
+
+/**
  * Registry of every tenant-scoped table. Drives the cross-tenant leak
  * audit (FHS-6) and any future cross-cutting tooling that needs to walk
  * all family-scoped tables. ADD NEW TABLES HERE when they land — the
@@ -1288,4 +1326,5 @@ export const TENANT_SCOPED_TABLES = [
   activityLogs,
   readingLog,
   worldFlagsProgress,
+  worldFlagsLearnProgress,
 ] as const;

@@ -1,6 +1,7 @@
-Feature: World Flags Progress (Learn Phase 2a)
-  Real Postgres on :5433 — verifies the member-scoped world flags explore
-  endpoint: mark a flag explored, list back, idempotency, and tenant isolation.
+Feature: World Flags Progress (Learn Phase 2a + 2b)
+  Real Postgres on :5433 — verifies the member-scoped world flags endpoints:
+  explore (mark/list/idempotency/isolation) and the structured learn path
+  (complete a set, read progress, idempotency, member isolation).
 
   Background:
     Given the world-flags test DB is clean
@@ -28,3 +29,20 @@ Feature: World Flags Progress (Learn Phase 2a)
     When the caller explores country "JP" for "Zara" in "flagfamily"
     When the caller gets explored flags for "Leo" in "flagfamily"
     Then the explored list has 0 codes
+
+  Scenario: Complete a learn-path set and read progress back
+    When the caller completes set 0 of "Africa" for "Zara" in "flagfamily"
+    Then the learn-complete response status is 200
+    And the learn-complete body has completed true
+    When the caller gets learn progress for "Zara" in "flagfamily"
+    Then the learn progress for "Africa" contains set 0
+
+  Scenario: Completing the same set twice is idempotent — one entry
+    When the caller completes set 1 of "Europe" for "Zara" in "flagfamily"
+    When the caller gets learn progress for "Zara" in "flagfamily"
+    Then the learn progress for "Europe" has 1 completed set
+
+  Scenario: Member isolation — another child sees no completed sets
+    When the caller completes set 0 of "Asia" for "Zara" in "flagfamily"
+    When the caller gets learn progress for "Leo" in "flagfamily"
+    Then the learn progress is empty

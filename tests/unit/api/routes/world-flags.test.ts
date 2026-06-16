@@ -267,3 +267,130 @@ describe('POST /api/world-flags/explore guards', () => {
     expect(dbMock.insert).toHaveBeenCalledTimes(2);
   });
 });
+
+// ─── GET /learn guards (Phase 2b) ─────────────────────────────────────────────
+
+describe('GET /api/world-flags/learn guards', () => {
+  it('400 when no tenant context', async () => {
+    const res = await buildApp({ noTenant: true }).request(
+      `/api/world-flags/learn?memberId=${MEMBER_ID}`,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('400 when memberId is not a UUID', async () => {
+    const res = await buildApp().request('/api/world-flags/learn?memberId=nope');
+    expect(res.status).toBe(400);
+  });
+
+  it('403 when caller is not a member', async () => {
+    const res = await buildApp({ selectQueue: [[]] }).request(
+      `/api/world-flags/learn?memberId=${MEMBER_ID}`,
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('404 when target member not in tenant', async () => {
+    const res = await buildApp({
+      selectQueue: [[{ id: MEMBER_ID, role: 'admin' }], []],
+    }).request(`/api/world-flags/learn?memberId=${MEMBER_ID}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('200 and groups completed chunk indices by continent (sorted)', async () => {
+    dbMock.select
+      .mockImplementationOnce(() => ({
+        from: () => ({
+          where: () => ({ limit: () => Promise.resolve([{ id: MEMBER_ID, role: 'admin' }]) }),
+        }),
+      }))
+      .mockImplementationOnce(() => ({
+        from: () => ({ where: () => ({ limit: () => Promise.resolve([{ id: MEMBER_ID }]) }) }),
+      }))
+      .mockImplementationOnce(() => ({
+        from: () => ({
+          where: () =>
+            Promise.resolve([
+              { continent: 'Africa', chunkIndex: 1 },
+              { continent: 'Africa', chunkIndex: 0 },
+              { continent: 'Europe', chunkIndex: 2 },
+            ]),
+        }),
+      }));
+
+    const res = await buildApp().request(`/api/world-flags/learn?memberId=${MEMBER_ID}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { progress: Record<string, number[]> };
+    expect(body.progress.Africa).toEqual([0, 1]);
+    expect(body.progress.Europe).toEqual([2]);
+  });
+});
+
+// ─── POST /learn-complete guards (Phase 2b) ───────────────────────────────────
+
+describe('POST /api/world-flags/learn-complete guards', () => {
+  function post(body: unknown): RequestInit {
+    return {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    };
+  }
+
+  it('400 when chunkIndex is missing', async () => {
+    const res = await buildApp().request(
+      '/api/world-flags/learn-complete',
+      post({ memberId: MEMBER_ID, continent: 'Africa' }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('400 when chunkIndex is negative', async () => {
+    const res = await buildApp().request(
+      '/api/world-flags/learn-complete',
+      post({ memberId: MEMBER_ID, continent: 'Africa', chunkIndex: -1 }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('400 when continent is not one of the six allowed', async () => {
+    const res = await buildApp().request(
+      '/api/world-flags/learn-complete',
+      post({ memberId: MEMBER_ID, continent: 'Atlantis', chunkIndex: 0 }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('403 when a child caller targets another member', async () => {
+    const res = await buildApp({
+      selectQueue: [[{ id: 'other-id', role: 'child' }], [{ id: MEMBER_ID }]],
+    }).request(
+      '/api/world-flags/learn-complete',
+      post({ memberId: MEMBER_ID, continent: 'Africa', chunkIndex: 0 }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('200 and returns { completed: true } on success', async () => {
+    dbMock.select
+      .mockImplementationOnce(() => ({
+        from: () => ({
+          where: () => ({ limit: () => Promise.resolve([{ id: MEMBER_ID, role: 'admin' }]) }),
+        }),
+      }))
+      .mockImplementationOnce(() => ({
+        from: () => ({ where: () => ({ limit: () => Promise.resolve([{ id: MEMBER_ID }]) }) }),
+      }));
+    dbMock.insert.mockImplementation(() => ({
+      values: () => ({ onConflictDoNothing: () => Promise.resolve(undefined) }),
+    }));
+
+    const res = await buildApp().request(
+      '/api/world-flags/learn-complete',
+      post({ memberId: MEMBER_ID, continent: 'Africa', chunkIndex: 0 }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { completed: boolean };
+    expect(body.completed).toBe(true);
+  });
+});
