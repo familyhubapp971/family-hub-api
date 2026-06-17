@@ -57,6 +57,34 @@ function isoDate(d: Date): string {
 }
 
 /**
+ * Calendar ISO date (YYYY-MM-DD, UTC) of `day` within a week, where
+ * `day` is 0=Monday … 6=Sunday and `startDate` is the week's Monday.
+ */
+export function dayDateOf(startDate: string, day: number): string {
+  const [y, m, d] = startDate.split('-').map((s) => Number.parseInt(s, 10));
+  return isoDate(new Date(Date.UTC(y!, m! - 1, d! + day)));
+}
+
+/**
+ * Where a sticker day falls relative to today (UTC). Drives the FHS-335
+ * rule: only an admin may edit a *past* day; *today* and later days in the
+ * current week stay open to a normal user (the legacy "tick the whole week"
+ * behaviour). `now` is injectable for tests. NOTE: "today" is computed in UTC,
+ * matching how the rest of My World anchors weeks — see the timezone follow-up.
+ */
+export function stickerDayRelation(
+  startDate: string,
+  day: number,
+  now: Date = new Date(),
+): 'past' | 'today' | 'future' {
+  const dayDate = dayDateOf(startDate, day);
+  const today = isoDate(now); // ISO date strings compare lexicographically
+  if (dayDate < today) return 'past';
+  if (dayDate > today) return 'future';
+  return 'today';
+}
+
+/**
  * The child's current open week, creating it if none exists. `now` is
  * injectable for tests (defaults to the real clock).
  */

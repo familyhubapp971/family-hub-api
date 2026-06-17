@@ -248,3 +248,33 @@ describe('GET /api/mw/weeks/:id/actions', () => {
     expect(body.actions[1]!.cashAmount).toBeNull();
   });
 });
+
+// FHS-335 — closing, reopening, and repairing a week are admin-only. A normal
+// user (adult) passes membership but is rejected before any economy change.
+describe('FHS-335 — week lifecycle is admin-only', () => {
+  function post(path: string) {
+    return buildApp({
+      memberChecks: [[{ id: 'caller-id', role: 'adult' }], [{ id: MEMBER_ID }]],
+    }).request(`/api/mw/weeks/${WEEK_ID}/${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memberId: MEMBER_ID }),
+    });
+  }
+
+  it('finalize as a normal user → 403 ADMIN_ONLY', async () => {
+    const res = await post('finalize');
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { errorCode: string }).errorCode).toBe('ADMIN_ONLY');
+  });
+  it('reopen as a normal user → 403 ADMIN_ONLY', async () => {
+    const res = await post('reopen');
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { errorCode: string }).errorCode).toBe('ADMIN_ONLY');
+  });
+  it('repair as a normal user → 403 ADMIN_ONLY', async () => {
+    const res = await post('repair');
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { errorCode: string }).errorCode).toBe('ADMIN_ONLY');
+  });
+});

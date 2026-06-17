@@ -747,7 +747,7 @@ export const mwFinancialRouter = new Hono()
     });
   })
 
-  // PUT /savings/admin-set — overwrite a child's savings balance (admin/adult only).
+  // PUT /savings/admin-set — overwrite a child's savings balance (admin only, FHS-335).
   // Used by the Admin Panel to manually correct a child's sticker/cash balance.
   .put('/savings/admin-set', async (c) => {
     const body = (await c.req.json().catch(() => null)) as unknown;
@@ -772,7 +772,8 @@ export const mwFinancialRouter = new Hono()
     if ('res' in g) return g.res;
     const { db, tenantId } = g;
 
-    // Verify the caller is admin or adult (not just "can manage" which includes self).
+    // FHS-335 — manually rewriting a balance is admin-only (not "can manage"
+    // which includes self, and no longer a non-admin adult).
     const userRow = c.get('userRow') as { id: string } | undefined;
     if (!userRow) throw new Error('financial/admin-set reached without userRow');
     const callerRow = await db
@@ -780,9 +781,11 @@ export const mwFinancialRouter = new Hono()
       .from(members)
       .where(and(eq(members.tenantId, tenantId), eq(members.userId, userRow.id)))
       .limit(1);
-    const callerRole = callerRow[0]?.role;
-    if (callerRole !== 'admin' && callerRole !== 'adult') {
-      return c.json({ error: 'forbidden', detail: 'admin or adult role required' }, 403);
+    if (callerRow[0]?.role !== 'admin') {
+      return c.json(
+        { error: 'forbidden', errorCode: 'ADMIN_ONLY', detail: 'admin role required' },
+        403,
+      );
     }
 
     const now = new Date();

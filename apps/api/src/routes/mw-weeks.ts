@@ -56,10 +56,11 @@ function canManage(caller: { id: string; role: string }, memberId: string): bool
   return caller.id === memberId || caller.role === 'admin' || caller.role === 'adult';
 }
 
-// Admin-override operations (edit cash, reopen, repair) are NOT self-service —
-// a child must never run them on their own weeks. Require admin/adult.
-function isAdminOrAdult(caller: { role: string }): boolean {
-  return caller.role === 'admin' || caller.role === 'adult';
+// FHS-335 — sensitive/historical week operations (close, reopen, repair,
+// edit cash) are admin-only. A normal user (adult) keeps everyday actions
+// but can't rewrite a week's economy or history.
+function isAdmin(caller: { role: string }): boolean {
+  return caller.role === 'admin';
 }
 
 async function memberInTenant(db: Db, tenantId: string, memberId: string): Promise<boolean> {
@@ -283,8 +284,11 @@ export const mwWeeksRouter = new Hono()
     if (!(await memberInTenant(db, tenantId, memberId))) {
       return c.json({ error: 'not found', detail: 'member not found in this tenant' }, 404);
     }
-    if (!canManage(caller, memberId)) {
-      return c.json({ error: 'forbidden', detail: 'not allowed for this member' }, 403);
+    if (!isAdmin(caller)) {
+      return c.json(
+        { error: 'forbidden', errorCode: 'ADMIN_ONLY', detail: 'only an admin can close a week' },
+        403,
+      );
     }
 
     const weekId = c.req.param('id');
@@ -731,8 +735,11 @@ export const mwWeeksRouter = new Hono()
     if (!(await memberInTenant(db, tenantId, memberId))) {
       return c.json({ error: 'not found', detail: 'member not found in this tenant' }, 404);
     }
-    if (!isAdminOrAdult(caller)) {
-      return c.json({ error: 'forbidden', detail: 'admin or adult role required' }, 403);
+    if (!isAdmin(caller)) {
+      return c.json(
+        { error: 'forbidden', errorCode: 'ADMIN_ONLY', detail: 'admin role required' },
+        403,
+      );
     }
 
     const weekId = c.req.param('id');
@@ -775,8 +782,11 @@ export const mwWeeksRouter = new Hono()
     if (!(await memberInTenant(db, tenantId, memberId))) {
       return c.json({ error: 'not found', detail: 'member not found in this tenant' }, 404);
     }
-    if (!isAdminOrAdult(caller)) {
-      return c.json({ error: 'forbidden', detail: 'admin or adult role required' }, 403);
+    if (!isAdmin(caller)) {
+      return c.json(
+        { error: 'forbidden', errorCode: 'ADMIN_ONLY', detail: 'admin role required' },
+        403,
+      );
     }
 
     const weekId = c.req.param('id');
@@ -850,8 +860,11 @@ export const mwWeeksRouter = new Hono()
     if (!(await memberInTenant(db, tenantId, memberId))) {
       return c.json({ error: 'not found', detail: 'member not found in this tenant' }, 404);
     }
-    if (!isAdminOrAdult(caller)) {
-      return c.json({ error: 'forbidden', detail: 'admin or adult role required' }, 403);
+    if (!isAdmin(caller)) {
+      return c.json(
+        { error: 'forbidden', errorCode: 'ADMIN_ONLY', detail: 'admin role required' },
+        403,
+      );
     }
 
     const weekId = c.req.param('id');

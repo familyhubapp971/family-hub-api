@@ -1,9 +1,38 @@
 import { describe, expect, it } from 'vitest';
 import {
   cashAsStickers,
+  dayDateOf,
   elapsedDaysForWeek,
   investmentValue,
+  stickerDayRelation,
 } from '../../../../apps/api/src/lib/myworld.js';
+
+// FHS-335 — date helpers behind the "past day is admin-only" rule.
+describe('dayDateOf', () => {
+  it('maps day 0..6 onto Mon..Sun of the week (UTC)', () => {
+    expect(dayDateOf('2026-06-15', 0)).toBe('2026-06-15'); // Monday
+    expect(dayDateOf('2026-06-15', 2)).toBe('2026-06-17'); // Wednesday
+    expect(dayDateOf('2026-06-15', 6)).toBe('2026-06-21'); // Sunday
+  });
+  it('rolls over month boundaries', () => {
+    expect(dayDateOf('2026-06-29', 6)).toBe('2026-07-05');
+  });
+});
+
+describe('stickerDayRelation', () => {
+  const now = new Date('2026-06-17T12:00:00.000Z'); // Wednesday
+  it('classifies a day before today as past', () => {
+    expect(stickerDayRelation('2026-06-15', 0, now)).toBe('past'); // Mon
+    expect(stickerDayRelation('2026-06-15', 1, now)).toBe('past'); // Tue
+  });
+  it('classifies today as today', () => {
+    expect(stickerDayRelation('2026-06-15', 2, now)).toBe('today'); // Wed
+  });
+  it('classifies a later day as future', () => {
+    expect(stickerDayRelation('2026-06-15', 3, now)).toBe('future'); // Thu
+    expect(stickerDayRelation('2026-06-15', 6, now)).toBe('future'); // Sun
+  });
+});
 
 describe('investmentValue (sticker-first grow model)', () => {
   it('returns the principal when no days have passed', () => {

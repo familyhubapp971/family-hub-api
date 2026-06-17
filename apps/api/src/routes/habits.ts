@@ -4,7 +4,12 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { habits, habitStickers, members, mwWeeks } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
-import { getOrCreateCurrentWeek, getTenantCurrency, stickerBalance } from '../lib/myworld.js';
+import {
+  getOrCreateCurrentWeek,
+  getTenantCurrency,
+  stickerBalance,
+  stickerDayRelation,
+} from '../lib/myworld.js';
 
 // FHS-292 — habits CRUD + weekly typed-sticker grid (My World).
 //
@@ -117,6 +122,48 @@ function badRequest(c: any, error: z.ZodError) {
     },
     400,
   );
+}
+
+// FHS-335 — editing a PREVIOUS day's sticker (or any day in a closed/finalized
+// week) is admin-only; that's the leaked legacy privilege we're restoring.
+// Today and the rest of the current week stay open to a normal user — the
+// kids' grid lets a family tick the whole week as it's planned, as before.
+// Loads the week (scoped to tenant+member) to read its Monday + finalized flag.
+async function gateStickerDay(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  c: any,
+  db: ReturnType<typeof getDb>,
+  tenantId: string,
+  memberId: string,
+  weekId: string,
+  day: number,
+  role: string,
+): Promise<{ res: Response } | { ok: true }> {
+  const rows = await db
+    .select({ startDate: mwWeeks.startDate, isFinalized: mwWeeks.isFinalized })
+    .from(mwWeeks)
+    .where(
+      and(eq(mwWeeks.tenantId, tenantId), eq(mwWeeks.memberId, memberId), eq(mwWeeks.id, weekId)),
+    )
+    .limit(1);
+  const week = rows[0];
+  if (!week) {
+    return { res: c.json({ error: 'not found', detail: 'week not found for this member' }, 404) };
+  }
+  const isPastDay = stickerDayRelation(week.startDate, day) === 'past';
+  if ((isPastDay || week.isFinalized) && role !== 'admin') {
+    return {
+      res: c.json(
+        {
+          error: 'forbidden',
+          errorCode: 'ADMIN_ONLY',
+          detail: 'only an admin can change a past day',
+        },
+        403,
+      ),
+    };
+  }
+  return { ok: true };
 }
 
 export const habitsRouter = new Hono()
@@ -295,6 +342,9 @@ export const habitsRouter = new Hono()
     const { db, tenantId, parsed } = await parseBody(c, ctx, placeStickerSchema);
     if ('res' in parsed) return parsed.res;
     const { memberId, weekId, day, sticker } = parsed.data;
+    // FHS-335 — editing a past day (or a closed week) is admin-only; future days blocked.
+    const gate = await gateStickerDay(c, db, tenantId, memberId, weekId, day, ctx.role);
+    if ('res' in gate) return gate.res;
     // Scope the habit lookup to this member so a caller cannot place a sticker
     // on another child's habit and credit it to this member's balance.
     const habitRows = await db
@@ -334,6 +384,9 @@ export const habitsRouter = new Hono()
     const { db, tenantId, parsed } = await parseBody(c, ctx, removeStickerSchema);
     if ('res' in parsed) return parsed.res;
     const { memberId, weekId, day } = parsed.data;
+    // FHS-335 — removing a past day's sticker (or one in a closed week) is admin-only.
+    const gate = await gateStickerDay(c, db, tenantId, memberId, weekId, day, ctx.role);
+    if ('res' in gate) return gate.res;
     await db
       .delete(habitStickers)
       .where(

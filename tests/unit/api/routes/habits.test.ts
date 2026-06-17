@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { habitsRouter } from '../../../../apps/api/src/routes/habits.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
@@ -143,5 +143,111 @@ describe('FHS-292 — DELETE /api/habits/:id guards', () => {
       method: 'DELETE',
     });
     expect(res.status).toBe(403);
+  });
+});
+
+// FHS-335 — editing a PAST-day sticker is admin-only; today and later days in
+// the current week stay open to a normal user (adult). System clock is pinned
+// to Wed 2026-06-17, so the week's Monday is 2026-06-15:
+//   day 0 = Mon (past) · day 2 = Wed (today) · day 3 = Thu (later this week).
+describe('FHS-335 — past-day sticker edits are admin-only', () => {
+  const WEEK = { startDate: '2026-06-15', isFinalized: false };
+  const HABIT = { id: HABIT_ID, isBonus: false };
+  const okInsert = () => ({
+    values: () => ({ onConflictDoUpdate: () => Promise.resolve(undefined) }),
+  });
+  const okDelete = () => ({ where: () => Promise.resolve(undefined) });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-17T12:00:00.000Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  function place(day: number, opts: { role: string; week?: typeof WEEK }) {
+    const app = buildApp({
+      memberChecks: [
+        [{ id: 'caller', role: opts.role }],
+        [{ id: MEMBER_ID }],
+        [opts.week ?? WEEK],
+        [HABIT],
+      ],
+    });
+    dbMock.insert.mockImplementation(okInsert);
+    return app.request(
+      `/api/habits/${HABIT_ID}/stickers`,
+      json('POST', { memberId: MEMBER_ID, weekId: WEEK_ID, day, sticker: 'gold-star' }),
+    );
+  }
+
+  it('a normal user (adult) can place TODAY’s sticker → 200', async () => {
+    expect((await place(2, { role: 'adult' })).status).toBe(200);
+  });
+  it('a normal user (adult) is blocked from a PAST day → 403 ADMIN_ONLY', async () => {
+    const res = await place(0, { role: 'adult' });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { errorCode: string }).errorCode).toBe('ADMIN_ONLY');
+  });
+  it('a child editing their OWN past day is blocked → 403 (the primary case)', async () => {
+    // caller IS the member (self), so canManage passes — the gate must still block.
+    const app = buildApp({
+      memberChecks: [[{ id: MEMBER_ID, role: 'child' }], [{ id: MEMBER_ID }], [WEEK]],
+    });
+    dbMock.insert.mockImplementation(okInsert);
+    const res = await app.request(
+      `/api/habits/${HABIT_ID}/stickers`,
+      json('POST', { memberId: MEMBER_ID, weekId: WEEK_ID, day: 0, sticker: 'gold-star' }),
+    );
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { errorCode: string }).errorCode).toBe('ADMIN_ONLY');
+  });
+  it('a child can still tick their OWN sticker for today → 200', async () => {
+    const app = buildApp({
+      memberChecks: [[{ id: MEMBER_ID, role: 'child' }], [{ id: MEMBER_ID }], [WEEK], [HABIT]],
+    });
+    dbMock.insert.mockImplementation(okInsert);
+    const res = await app.request(
+      `/api/habits/${HABIT_ID}/stickers`,
+      json('POST', { memberId: MEMBER_ID, weekId: WEEK_ID, day: 2, sticker: 'gold-star' }),
+    );
+    expect(res.status).toBe(200);
+  });
+  it('an admin can place a PAST day’s sticker → 200', async () => {
+    expect((await place(0, { role: 'admin' })).status).toBe(200);
+  });
+  it('a later day in the CURRENT week is allowed for a normal user → 200', async () => {
+    // Future-within-the-week stays open (legacy "tick the whole week" behaviour);
+    // only PAST days are admin-only.
+    expect((await place(3, { role: 'adult' })).status).toBe(200);
+  });
+  it('a normal user is blocked from editing a FINALIZED week → 403', async () => {
+    const res = await place(2, {
+      role: 'adult',
+      week: { startDate: '2026-06-15', isFinalized: true },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('removing a PAST-day sticker is admin-only → 403 for a normal user', async () => {
+    const app = buildApp({
+      memberChecks: [[{ id: 'caller', role: 'adult' }], [{ id: MEMBER_ID }], [WEEK]],
+    });
+    dbMock.delete.mockImplementation(okDelete);
+    const res = await app.request(
+      `/api/habits/${HABIT_ID}/stickers`,
+      json('DELETE', { memberId: MEMBER_ID, weekId: WEEK_ID, day: 0 }),
+    );
+    expect(res.status).toBe(403);
+  });
+  it('an admin can remove a PAST-day sticker → 204', async () => {
+    const app = buildApp({
+      memberChecks: [[{ id: 'caller', role: 'admin' }], [{ id: MEMBER_ID }], [WEEK]],
+    });
+    dbMock.delete.mockImplementation(okDelete);
+    const res = await app.request(
+      `/api/habits/${HABIT_ID}/stickers`,
+      json('DELETE', { memberId: MEMBER_ID, weekId: WEEK_ID, day: 0 }),
+    );
+    expect(res.status).toBe(204);
   });
 });

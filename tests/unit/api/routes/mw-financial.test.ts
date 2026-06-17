@@ -201,3 +201,19 @@ describe('FHS-296 — FIX 1: habit must belong to the requesting member', () => 
     expect(body.detail).toMatch(/member/);
   });
 });
+
+// FHS-335 — manually overwriting a balance (Admin Panel) is admin-only.
+// A normal user (adult) passes membership/canManage but is then rejected.
+describe('FHS-335 — balance admin-set is admin-only', () => {
+  it('PUT /savings/admin-set as a normal user → 403 ADMIN_ONLY', async () => {
+    const res = await buildApp({
+      memberChecks: [[{ id: 'caller', role: 'adult' }], [{ id: MEMBER_ID }], [{ role: 'adult' }]],
+    }).request('/api/mw/financial/savings/admin-set', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memberId: MEMBER_ID, savedStickers: 10, savedCash: 5 }),
+    });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { errorCode: string }).errorCode).toBe('ADMIN_ONLY');
+  });
+});
