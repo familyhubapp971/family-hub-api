@@ -2,8 +2,9 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
-import { worldFlagsProgress, worldFlagsLearnProgress, members } from '../db/schema.js';
+import { worldFlagsProgress, worldFlagsLearnProgress } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
+import { loadCaller, canManage, memberInTenant } from '../lib/permissions.js';
 
 // World Flags progress — GET/POST /api/world-flags.
 //
@@ -48,38 +49,6 @@ const learnCompleteBodySchema = z.object({
   // Each continent has at most ~10 sets; cap generously to reject junk.
   chunkIndex: z.number().int().min(0).max(60),
 });
-
-// ─── Auth helpers (same pattern as reading-log) ───────────────────────────────
-
-async function loadCaller(
-  db: ReturnType<typeof getDb>,
-  tenantId: string,
-  userId: string,
-): Promise<{ id: string; role: string } | null> {
-  const rows = await db
-    .select({ id: members.id, role: members.role })
-    .from(members)
-    .where(and(eq(members.tenantId, tenantId), eq(members.userId, userId)))
-    .limit(1);
-  return rows[0] ?? null;
-}
-
-function canManage(caller: { id: string; role: string }, memberId: string): boolean {
-  return caller.id === memberId || caller.role === 'admin' || caller.role === 'adult';
-}
-
-async function memberInTenant(
-  db: ReturnType<typeof getDb>,
-  tenantId: string,
-  memberId: string,
-): Promise<boolean> {
-  const rows = await db
-    .select({ id: members.id })
-    .from(members)
-    .where(and(eq(members.tenantId, tenantId), eq(members.id, memberId)))
-    .limit(1);
-  return rows.length > 0;
-}
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 

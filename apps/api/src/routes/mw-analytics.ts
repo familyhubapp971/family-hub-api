@@ -2,8 +2,9 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
-import { habits, habitStickers, members, mwInvestments, mwWeeks } from '../db/schema.js';
+import { habits, habitStickers, mwInvestments, mwWeeks } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
+import { loadCaller, canManage, memberInTenant } from '../lib/permissions.js';
 
 // FHS-298 — My World analytics (read-only, per child).
 //
@@ -16,34 +17,6 @@ import { getAuthenticatedUser } from '../middleware/auth.js';
 
 const INVESTMENT_MULTIPLIER = 2;
 const memberQuerySchema = z.object({ memberId: z.string().uuid() });
-
-type Db = ReturnType<typeof getDb>;
-
-async function loadCaller(
-  db: Db,
-  tenantId: string,
-  userId: string,
-): Promise<{ id: string; role: string } | null> {
-  const rows = await db
-    .select({ id: members.id, role: members.role })
-    .from(members)
-    .where(and(eq(members.tenantId, tenantId), eq(members.userId, userId)))
-    .limit(1);
-  return rows[0] ?? null;
-}
-
-function canManage(caller: { id: string; role: string }, memberId: string): boolean {
-  return caller.id === memberId || caller.role === 'admin' || caller.role === 'adult';
-}
-
-async function memberInTenant(db: Db, tenantId: string, memberId: string): Promise<boolean> {
-  const rows = await db
-    .select({ id: members.id })
-    .from(members)
-    .where(and(eq(members.tenantId, tenantId), eq(members.id, memberId)))
-    .limit(1);
-  return rows.length > 0;
-}
 
 export const mwAnalyticsRouter = new Hono().get('/', async (c) => {
   getAuthenticatedUser(c);

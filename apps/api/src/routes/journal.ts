@@ -2,8 +2,9 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { and, desc, eq, min } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
-import { journalEntries, members } from '../db/schema.js';
+import { journalEntries } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
+import { loadCaller, canManage, memberInTenant } from '../lib/permissions.js';
 import {
   JOURNAL_QUOTES,
   JOURNAL_CREATIVITY_QUESTIONS,
@@ -111,39 +112,6 @@ const upsertRequestSchema = z.object({
   body: z.string().max(5000).nullish(),
   creativity: z.record(z.string(), z.string()).nullish(),
 });
-
-// ─── Auth helpers (unchanged from original) ───────────────────────────────────
-
-async function loadCaller(
-  db: ReturnType<typeof getDb>,
-  tenantId: string,
-  userId: string,
-): Promise<{ id: string; role: string } | null> {
-  const rows = await db
-    .select({ id: members.id, role: members.role })
-    .from(members)
-    .where(and(eq(members.tenantId, tenantId), eq(members.userId, userId)))
-    .limit(1);
-  return rows[0] ?? null;
-}
-
-// Caller may access a member's journal only if they ARE that member or are admin/adult.
-function canManage(caller: { id: string; role: string }, memberId: string): boolean {
-  return caller.id === memberId || caller.role === 'admin' || caller.role === 'adult';
-}
-
-async function memberInTenant(
-  db: ReturnType<typeof getDb>,
-  tenantId: string,
-  memberId: string,
-): Promise<boolean> {
-  const rows = await db
-    .select({ id: members.id })
-    .from(members)
-    .where(and(eq(members.tenantId, tenantId), eq(members.id, memberId)))
-    .limit(1);
-  return rows.length > 0;
-}
 
 // ─── Response serialiser ──────────────────────────────────────────────────────
 

@@ -11,6 +11,7 @@ import {
   members,
 } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
+import { memberInTenant } from '../lib/permissions.js';
 import {
   STICKER_TO_CASH,
   cashAsStickers,
@@ -60,19 +61,6 @@ async function callerIsMember(
     .select({ id: members.id })
     .from(members)
     .where(and(eq(members.tenantId, tenantId), eq(members.userId, userId)))
-    .limit(1);
-  return rows.length > 0;
-}
-
-async function memberInTenant(
-  db: ReturnType<typeof getDb>,
-  tenantId: string,
-  memberId: string,
-): Promise<boolean> {
-  const rows = await db
-    .select({ id: members.id })
-    .from(members)
-    .where(and(eq(members.tenantId, tenantId), eq(members.id, memberId)))
     .limit(1);
   return rows.length > 0;
 }

@@ -5,7 +5,6 @@ import { getDb } from '../db/client.js';
 import {
   habits,
   habitStickers,
-  members,
   mwInvestments,
   mwSavings,
   mwSavingsTransactions,
@@ -14,6 +13,7 @@ import {
   mwWeeks,
 } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
+import { loadCaller, canManage, isAdmin, memberInTenant } from '../lib/permissions.js';
 import {
   getOrCreateCurrentWeek,
   getOrCreateSavings,
@@ -38,39 +38,6 @@ const memberQuerySchema = z.object({ memberId: z.string().uuid() });
 // ─── shared guards (mirrors habits.ts) ───────────────────────────────────────
 
 type Db = ReturnType<typeof getDb>;
-
-async function loadCaller(
-  db: Db,
-  tenantId: string,
-  userId: string,
-): Promise<{ id: string; role: string } | null> {
-  const rows = await db
-    .select({ id: members.id, role: members.role })
-    .from(members)
-    .where(and(eq(members.tenantId, tenantId), eq(members.userId, userId)))
-    .limit(1);
-  return rows[0] ?? null;
-}
-
-function canManage(caller: { id: string; role: string }, memberId: string): boolean {
-  return caller.id === memberId || caller.role === 'admin' || caller.role === 'adult';
-}
-
-// FHS-335 — sensitive/historical week operations (close, reopen, repair,
-// edit cash) are admin-only. A normal user (adult) keeps everyday actions
-// but can't rewrite a week's economy or history.
-function isAdmin(caller: { role: string }): boolean {
-  return caller.role === 'admin';
-}
-
-async function memberInTenant(db: Db, tenantId: string, memberId: string): Promise<boolean> {
-  const rows = await db
-    .select({ id: members.id })
-    .from(members)
-    .where(and(eq(members.tenantId, tenantId), eq(members.id, memberId)))
-    .limit(1);
-  return rows.length > 0;
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function badRequest(c: any, error: z.ZodError) {

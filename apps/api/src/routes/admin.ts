@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
-import { appSettings, members } from '../db/schema.js';
+import { appSettings } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
+import { loadCaller, isAdminOrAdult } from '../lib/permissions.js';
 
 // FHS-308 — Admin Panel: app_settings endpoints (tenant-scoped key/value config).
 //
@@ -18,25 +19,8 @@ import { getAuthenticatedUser } from '../middleware/auth.js';
 
 type Db = ReturnType<typeof getDb>;
 
-async function loadCaller(
-  db: Db,
-  tenantId: string,
-  userId: string,
-): Promise<{ id: string; role: string } | null> {
-  const rows = await db
-    .select({ id: members.id, role: members.role })
-    .from(members)
-    .where(and(eq(members.tenantId, tenantId), eq(members.userId, userId)))
-    .limit(1);
-  return rows[0] ?? null;
-}
-
-function isAdminOrAdult(caller: { role: string }): boolean {
-  return caller.role === 'admin' || caller.role === 'adult';
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function guardTenant(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   c: any,
 ): Promise<{ db: Db; tenantId: string; caller: { id: string; role: string } } | { res: Response }> {
   getAuthenticatedUser(c);

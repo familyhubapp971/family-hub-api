@@ -2,8 +2,9 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
-import { learnProgress, members } from '../db/schema.js';
+import { learnProgress } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
+import { loadCaller, canManage, memberInTenant } from '../lib/permissions.js';
 
 // FHS-270 — GET /api/learn, PATCH /api/learn/:subject.
 //
@@ -31,38 +32,6 @@ const patchRequestSchema = z.object({
   memberId: z.string().uuid(),
   progress: z.number().int().min(0).max(100),
 });
-
-async function loadCaller(
-  db: ReturnType<typeof getDb>,
-  tenantId: string,
-  userId: string,
-): Promise<{ id: string; role: string } | null> {
-  const rows = await db
-    .select({ id: members.id, role: members.role })
-    .from(members)
-    .where(and(eq(members.tenantId, tenantId), eq(members.userId, userId)))
-    .limit(1);
-  return rows[0] ?? null;
-}
-
-// A caller may read/write a member's learn progress only if they ARE that
-// member or are a parent (admin/adult) — same access model as the journal.
-function canManage(caller: { id: string; role: string }, memberId: string): boolean {
-  return caller.id === memberId || caller.role === 'admin' || caller.role === 'adult';
-}
-
-async function memberInTenant(
-  db: ReturnType<typeof getDb>,
-  tenantId: string,
-  memberId: string,
-): Promise<boolean> {
-  const rows = await db
-    .select({ id: members.id })
-    .from(members)
-    .where(and(eq(members.tenantId, tenantId), eq(members.id, memberId)))
-    .limit(1);
-  return rows.length > 0;
-}
 
 export const learnRouter = new Hono()
   .get('/', async (c) => {
