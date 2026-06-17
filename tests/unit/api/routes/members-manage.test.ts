@@ -107,6 +107,18 @@ describe('FHS-276 — members roster mutations', () => {
     expect(dbMock.insert).not.toHaveBeenCalled();
   });
 
+  it('PATCH role by a non-admin (teen) → 403, no escalation (FHS-336)', async () => {
+    // A teen/child can't change roles — including granting themselves admin.
+    const app = buildApp({ callerRole: 'teen' });
+    const res = await app.request(`/api/members/${TARGET_ID}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'admin' }),
+    });
+    expect(res.status).toBe(403);
+    expect(dbMock.update).not.toHaveBeenCalled();
+  });
+
   it('PATCH promotes a signed-up parent to admin → 200', async () => {
     const app = buildApp({ target: { id: TARGET_ID, role: 'adult', userId: 'u-linked' } });
     const res = await app.request(`/api/members/${TARGET_ID}`, {
