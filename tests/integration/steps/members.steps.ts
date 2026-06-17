@@ -2,7 +2,7 @@ import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber';
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
-import { sql } from 'drizzle-orm';
+import { sql, and, eq } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
 import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
 import { membersRouter } from '../../../apps/api/src/routes/members.js';
@@ -75,6 +75,56 @@ describeFeature(feature, ({ Background, Scenario }) => {
   let app: Hono;
   let token: string;
   const tenantIds: Record<string, string> = {};
+
+  // ─── helpers for the role-management scenarios (FHS-334) ───────────────────
+  async function memberIdByName(slug: string, name: string): Promise<string> {
+    const rows = await db
+      .select({ id: members.id })
+      .from(members)
+      .where(and(eq(members.tenantId, tenantIds[slug]!), eq(members.displayName, name)))
+      .limit(1);
+    return rows[0]!.id;
+  }
+  async function patchRole(slug: string, name: string, role: 'admin' | 'adult'): Promise<Response> {
+    const id = await memberIdByName(slug, name);
+    return app.request(`/api/members/${id}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-test-tenant': tenantIds[slug]!,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ role }),
+    });
+  }
+  async function roleOf(slug: string, name: string): Promise<string> {
+    const rows = await db
+      .select({ role: members.role })
+      .from(members)
+      .where(and(eq(members.tenantId, tenantIds[slug]!), eq(members.displayName, name)))
+      .limit(1);
+    return rows[0]!.role;
+  }
+  async function seedAdult(slug: string, name: string): Promise<void> {
+    await db.execute(
+      sql`INSERT INTO users (id, email) VALUES (${SECOND_USER_ID}, ${SECOND_USER_EMAIL})
+          ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email`,
+    );
+    await db.insert(members).values({
+      tenantId: tenantIds[slug]!,
+      userId: SECOND_USER_ID,
+      displayName: name,
+      role: 'adult',
+    });
+  }
+  async function seedChild(slug: string, name: string): Promise<void> {
+    await db.insert(members).values({
+      tenantId: tenantIds[slug]!,
+      userId: null,
+      displayName: name,
+      role: 'child',
+    });
+  }
 
   Background(({ Given, And }) => {
     Given('the test Postgres has clean tenants, members, and users tables', async () => {
@@ -280,4 +330,85 @@ describeFeature(feature, ({ Background, Scenario }) => {
       });
     },
   );
+
+  Scenario('Admin promotes an adult to admin', ({ Given, When, Then, And }) => {
+    let res: Response;
+
+    Given(
+      'the {string} tenant has an adult member {string} linked to a Supabase user',
+      async (_ctx, slug: string, name: string) => {
+        await seedAdult(slug, name);
+      },
+    );
+    When(
+      'the caller makes {string} an admin in {string}',
+      async (_ctx, name: string, slug: string) => {
+        res = await patchRole(slug, name, 'admin');
+      },
+    );
+    Then('the role-change status is {int}', (_ctx, status: number) =>
+      expect(res.status).toBe(status),
+    );
+    And(
+      'member {string} has role {string} in {string}',
+      async (_ctx, name: string, role: string, slug: string) =>
+        expect(await roleOf(slug, name)).toBe(role),
+    );
+  });
+
+  Scenario('Admin sets an admin back to a normal user', ({ Given, When, Then, And }) => {
+    let res: Response;
+
+    Given(
+      'the {string} tenant has an adult member {string} linked to a Supabase user',
+      async (_ctx, slug: string, name: string) => {
+        await seedAdult(slug, name);
+      },
+    );
+    And(
+      'the caller makes {string} an admin in {string}',
+      async (_ctx, name: string, slug: string) => {
+        await patchRole(slug, name, 'admin');
+      },
+    );
+    When(
+      'the caller makes {string} a normal user in {string}',
+      async (_ctx, name: string, slug: string) => {
+        res = await patchRole(slug, name, 'adult');
+      },
+    );
+    Then('the role-change status is {int}', (_ctx, status: number) =>
+      expect(res.status).toBe(status),
+    );
+    And(
+      'member {string} has role {string} in {string}',
+      async (_ctx, name: string, role: string, slug: string) =>
+        expect(await roleOf(slug, name)).toBe(role),
+    );
+  });
+
+  Scenario('A child can never be made an admin', ({ Given, When, Then, And }) => {
+    let res: Response;
+
+    Given(
+      'the {string} tenant has a child member {string} with no linked user',
+      async (_ctx, slug: string, name: string) => {
+        await seedChild(slug, name);
+      },
+    );
+    When(
+      'the caller tries to make {string} an admin in {string}',
+      async (_ctx, name: string, slug: string) => {
+        res = await patchRole(slug, name, 'admin');
+      },
+    );
+    Then('the role-change status is {int}', (_ctx, status: number) =>
+      expect(res.status).toBe(status),
+    );
+    And(
+      'member {string} has role {string} in {string}',
+      async (_ctx, name: string, role: string, slug: string) =>
+        expect(await roleOf(slug, name)).toBe(role),
+    );
+  });
 });

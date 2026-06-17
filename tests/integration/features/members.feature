@@ -1,7 +1,8 @@
-Feature: GET /api/members (FHS-108)
-  Real Postgres on :5433 — verifies the route returns every member of
-  the resolved tenant with status derived per row, blocks non-members
-  with 403, and never leaks rows across tenants.
+Feature: /api/members (FHS-108, FHS-334)
+  Real Postgres on :5433 — verifies the list route returns every member
+  of the resolved tenant with status derived per row, blocks non-members
+  with 403, and never leaks rows across tenants; and that admins manage
+  the admin↔normal-user role while a child can never be made an admin.
 
   Background:
     Given the test Postgres has clean tenants, members, and users tables
@@ -30,3 +31,22 @@ Feature: GET /api/members (FHS-108)
     When the caller GETs /api/members for tenant "khan"
     Then the response status is 200
     And no member named "Zaid" is in the response
+
+  Scenario: Admin promotes an adult to admin
+    Given the "khan" tenant has an adult member "Bola" linked to a Supabase user
+    When the caller makes "Bola" an admin in "khan"
+    Then the role-change status is 200
+    And member "Bola" has role "admin" in "khan"
+
+  Scenario: Admin sets an admin back to a normal user
+    Given the "khan" tenant has an adult member "Bola" linked to a Supabase user
+    And the caller makes "Bola" an admin in "khan"
+    When the caller makes "Bola" a normal user in "khan"
+    Then the role-change status is 200
+    And member "Bola" has role "adult" in "khan"
+
+  Scenario: A child can never be made an admin
+    Given the "khan" tenant has a child member "Iman" with no linked user
+    When the caller tries to make "Iman" an admin in "khan"
+    Then the role-change status is 400
+    And member "Iman" has role "child" in "khan"
