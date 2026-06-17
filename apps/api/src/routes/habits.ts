@@ -124,6 +124,16 @@ function badRequest(c: any, error: z.ZodError) {
   );
 }
 
+// FHS-342 — managing the habit list (create/update/delete) is admin-only;
+// a normal user can still tick stickers but not reshape the economy.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function adminOnly(c: any) {
+  return c.json(
+    { error: 'forbidden', errorCode: 'ADMIN_ONLY', detail: 'only an admin can manage habits' },
+    403,
+  );
+}
+
 // FHS-335 — editing a PREVIOUS day's sticker (or any day in a closed/finalized
 // week) is admin-only; that's the leaked legacy privilege we're restoring.
 // Today and the rest of the current week stay open to a normal user — the
@@ -265,6 +275,7 @@ export const habitsRouter = new Hono()
   .post('/', async (c) => {
     const ctx = await guard(c);
     if ('res' in ctx) return ctx.res;
+    if (ctx.role !== 'admin') return adminOnly(c); // FHS-342 — managing habits is admin-only
     const { db, tenantId, parsed } = await parseBody(c, ctx, createSchema);
     if ('res' in parsed) return parsed.res;
     const { memberId, name, icon, color, isBonus } = parsed.data;
@@ -285,6 +296,7 @@ export const habitsRouter = new Hono()
   .put('/:id', async (c) => {
     const ctx = await guard(c);
     if ('res' in ctx) return ctx.res;
+    if (ctx.role !== 'admin') return adminOnly(c); // FHS-342 — managing habits is admin-only
     const habitId = c.req.param('id');
     if (!UUID_RE.test(habitId)) {
       return c.json({ error: 'invalid id', detail: 'habit id must be a UUID' }, 400);
@@ -312,6 +324,7 @@ export const habitsRouter = new Hono()
   .delete('/:id', async (c) => {
     const ctx = await guard(c);
     if ('res' in ctx) return ctx.res;
+    if (ctx.role !== 'admin') return adminOnly(c); // FHS-342 — managing habits is admin-only
     const habitId = c.req.param('id');
     if (!UUID_RE.test(habitId)) {
       return c.json({ error: 'invalid id', detail: 'habit id must be a UUID' }, 400);

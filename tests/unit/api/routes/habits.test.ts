@@ -130,6 +130,33 @@ describe('FHS-292 — sticker placement guards', () => {
   });
 });
 
+// FHS-342 — managing the habit list is admin-only. A normal user (adult)
+// passes membership but is rejected before the mutation.
+describe('FHS-342 — habit create/update/delete are admin-only', () => {
+  it('POST a habit as a normal user → 403 ADMIN_ONLY', async () => {
+    const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'adult' }]] }).request(
+      '/api/habits',
+      json('POST', { memberId: MEMBER_ID, name: 'Read' }),
+    );
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { errorCode: string }).errorCode).toBe('ADMIN_ONLY');
+  });
+  it('PUT a habit as a normal user → 403', async () => {
+    const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'adult' }]] }).request(
+      `/api/habits/${HABIT_ID}`,
+      json('PUT', { memberId: MEMBER_ID, name: 'Renamed' }),
+    );
+    expect(res.status).toBe(403);
+  });
+  it('DELETE a habit as a normal user → 403', async () => {
+    const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'adult' }]] }).request(
+      `/api/habits/${HABIT_ID}`,
+      json('DELETE', { memberId: MEMBER_ID }),
+    );
+    expect(res.status).toBe(403);
+  });
+});
+
 describe('FHS-292 — DELETE /api/habits/:id guards', () => {
   it('400 on a non-UUID id', async () => {
     const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }]] }).request(
