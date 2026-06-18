@@ -46,9 +46,23 @@ import { tasksRouter } from './routes/tasks.js';
 import { publicKidMembersRouter } from './routes/public-kid-members.js';
 import { publicTenantRouter } from './routes/public-tenant.js';
 import { slugAvailableRouter } from './routes/slug-available.js';
-import { captureException } from './sentry.js';
+import { captureException, captureMessage } from './sentry.js';
 
 const log = createLogger('app');
+
+// FHS-351 — /api paths that legitimately run without a resolved tenant (pre-
+// tenant signup, the user's own /me, kid routes scoped by the kid JWT, and the
+// cross-tenant invite claim). The RLS observability warning skips these.
+const TENANT_OPTIONAL_API_PREFIXES = [
+  '/api/me',
+  '/api/public/',
+  '/api/auth/',
+  '/api/kid',
+  '/api/invitations/claim',
+];
+function isTenantOptionalPath(path: string): boolean {
+  return TENANT_OPTIONAL_API_PREFIXES.some((p) => path.startsWith(p));
+}
 
 export interface BuildAppOptions {
   /** Test hook — passed straight through to authMiddleware. */
@@ -135,18 +149,44 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.use('*', async (c, next) => {
     const started = Date.now();
     await next();
+    const path = c.req.path;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('user')?.id;
     log.info(
       {
         method: c.req.method,
-        path: c.req.path,
+        path,
         status: c.res.status,
         durationMs: Date.now() - started,
         request_id: c.get('requestId'),
-        tenant_id: c.get('tenantId'),
-        user_id: c.get('user')?.id,
+        tenant_id: tenantId,
+        user_id: userId,
       },
       'request',
     );
+    // FHS-351 — RLS observability. An authenticated /api/* request that ran with
+    // NO tenant context, outside the tenant-optional set, is a signal that RLS
+    // will fail closed (zero rows) once enforced. Surface it loudly (log +
+    // Sentry) so a missing tenant shows up as a debuggable warning, not a silent
+    // empty page. Best-effort: skip 5xx (already captured) and unauthenticated.
+    if (
+      userId &&
+      !tenantId &&
+      path.startsWith('/api/') &&
+      c.res.status < 500 &&
+      !isTenantOptionalPath(path)
+    ) {
+      log.warn(
+        { method: c.req.method, path, request_id: c.get('requestId'), user_id: userId },
+        'tenant-scoped request ran with no tenant context',
+      );
+      captureMessage('tenant-scoped request without tenant context', {
+        path,
+        method: c.req.method,
+        requestId: c.get('requestId'),
+        userId,
+      });
+    }
   });
 
   app.route('/health', healthRouter);

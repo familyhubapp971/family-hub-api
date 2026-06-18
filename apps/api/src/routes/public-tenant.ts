@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { tenants, members, type Tenant, type Member } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
@@ -117,31 +117,42 @@ export const publicTenantRouter = new Hono().post('/', async (c) => {
   let tenant: Tenant;
   let member: Member;
   try {
-    const insertedTenants = await db
-      .insert(tenants)
-      .values({ slug: parsed.data.slug, name: parsed.data.familyName })
-      .returning();
-    const t = insertedTenants[0];
-    if (!t) throw new Error('tenants insert returned no row');
-    tenant = t;
+    // FHS-351 — create the tenant + its founding member atomically, with the
+    // new tenant pinned so the members RLS WITH CHECK passes. On signup there is
+    // no resolved tenant yet (app.current_tenant is the empty sentinel), so
+    // once the app runs as app_runtime the founding members INSERT would be
+    // rejected without this pin. set_config(..., true) is transaction-local and
+    // auto-clears on commit. The transaction also fixes a latent partial-create
+    // (a tenant with no founding member if the second insert failed).
+    const created = await db.transaction(async (tx) => {
+      const insertedTenants = await tx
+        .insert(tenants)
+        .values({ slug: parsed.data.slug, name: parsed.data.familyName })
+        .returning();
+      const t = insertedTenants[0];
+      if (!t) throw new Error('tenants insert returned no row');
+      await tx.execute(sql`select set_config('app.current_tenant', ${t.id}, true)`);
 
-    // The founder always lands as `admin` — they're the person who
-    // just created the family and they're the only one who can
-    // complete onboarding (onboarding.ts gates Finish on
-    // role === 'admin'). Inviting a second adult later assigns them
-    // role 'adult' by default via invitations.ts.
-    const insertedMembers = await db
-      .insert(members)
-      .values({
-        tenantId: tenant.id,
-        userId: userRow.id,
-        displayName: parsed.data.displayName,
-        role: 'admin',
-      })
-      .returning();
-    const m = insertedMembers[0];
-    if (!m) throw new Error('members insert returned no row');
-    member = m;
+      // The founder always lands as `admin` — they're the person who
+      // just created the family and they're the only one who can
+      // complete onboarding (onboarding.ts gates Finish on
+      // role === 'admin'). Inviting a second adult later assigns them
+      // role 'adult' by default via invitations.ts.
+      const insertedMembers = await tx
+        .insert(members)
+        .values({
+          tenantId: t.id,
+          userId: userRow.id,
+          displayName: parsed.data.displayName,
+          role: 'admin',
+        })
+        .returning();
+      const m = insertedMembers[0];
+      if (!m) throw new Error('members insert returned no row');
+      return { tenant: t, member: m };
+    });
+    tenant = created.tenant;
+    member = created.member;
   } catch (err) {
     // Postgres error code 23505 = unique_violation. Lost a slug race.
     const isUniqueViolation =

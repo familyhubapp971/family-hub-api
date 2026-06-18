@@ -15,6 +15,17 @@ const configSchema = z
     CORS_ALLOWED_ORIGINS: z.string().default(''),
     // Token bucket: requests per minute per IP. Set 0 to disable (tests).
     RATE_LIMIT_PER_MINUTE: z.coerce.number().int().nonnegative().default(100),
+    // FHS-351 — when true, the app refuses to boot unless the connected DB role
+    // CANNOT bypass RLS (i.e. it's the non-privileged app_runtime role, not the
+    // owner/superuser). Default off so the pre-flip owner-role deploy keeps
+    // booting; set true in the same deploy that points DATABASE_URL at
+    // app_runtime (the session-mode pooler port). Case-insensitive truthy
+    // (true/1/yes/on) so an operator typing "TRUE" can't silently leave this
+    // security flag off on the exact deploy that needs it.
+    RLS_ENFORCED: z
+      .string()
+      .default('false')
+      .transform((v) => ['true', '1', 'yes', 'on'].includes(v.trim().toLowerCase())),
     // Sentry — empty DSN = silent no-op, fine for dev / when account
     // not yet provisioned. SENTRY_RELEASE is the git SHA, set by CI/Railway.
     SENTRY_DSN_API: z.string().default(''),

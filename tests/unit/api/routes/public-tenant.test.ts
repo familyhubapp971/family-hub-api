@@ -13,7 +13,12 @@ import type { User, Tenant, Member } from '../../../../apps/api/src/db/schema.js
 const dbMock = {
   select: vi.fn(),
   insert: vi.fn(),
+  execute: vi.fn().mockResolvedValue({ rows: [] }),
+  transaction: vi.fn(),
 };
+// FHS-351 — onboarding now wraps tenant+member creation in db.transaction; the
+// tx exposes the same insert chain + execute (for the set_config tenant pin).
+dbMock.transaction.mockImplementation((cb: (tx: typeof dbMock) => unknown) => cb(dbMock));
 vi.mock('../../../../apps/api/src/db/client.js', () => ({
   getDb: () => dbMock,
 }));
@@ -205,6 +210,10 @@ describe('FHS-25 — POST /api/public/tenant', () => {
     expect(body.member.displayName).toBe('Sarah Khan');
     expect(body.member.role).toBe('admin');
     expect(body.member.tenantId).toBe(tenant.id);
+    // FHS-351 — the founding member is created inside a transaction that pins
+    // app.current_tenant (set_config) so the members RLS WITH CHECK passes.
+    expect(dbMock.transaction).toHaveBeenCalledTimes(1);
+    expect(dbMock.execute).toHaveBeenCalled();
   });
 
   it('returns 409 when the insert hits a unique violation (race)', async () => {

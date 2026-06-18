@@ -48,3 +48,16 @@ export function captureException(err: unknown, context?: Record<string, unknown>
   if (!config.SENTRY_DSN_API) return;
   Sentry.captureException(err, context ? { extra: context } : undefined);
 }
+
+/**
+ * Capture a non-exception signal (e.g. a tenant-scoped request that ran with no
+ * tenant context — FHS-351 RLS observability). No-op when Sentry is disabled.
+ */
+export function captureMessage(
+  message: string,
+  context?: Record<string, unknown>,
+  level: 'warning' | 'error' = 'warning',
+): void {
+  if (!config.SENTRY_DSN_API) return;
+  Sentry.captureMessage(message, context ? { level, extra: context } : { level });
+}
