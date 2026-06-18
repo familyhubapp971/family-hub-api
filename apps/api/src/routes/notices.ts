@@ -79,6 +79,36 @@ function rowToItem(r: {
 // Separate alias so the author leftJoin doesn't collide with the caller
 // membership lookup on the same `members` table.
 
+/**
+ * The family noticeboard for a tenant: pinned first, then newest. Shared by the
+ * parent route (GET /api/notices) and the kid route (GET /api/kid/notices,
+ * FHS-355) so both render identical post-it cards from one query.
+ */
+export async function listTenantNotices(
+  db: ReturnType<typeof getDb>,
+  tenantId: string,
+): Promise<ListNoticesResponse['notices']> {
+  // Pinned first (true sorts before false when DESC), then newest first.
+  const rows = await db
+    .select({
+      id: notices.id,
+      body: notices.body,
+      pinned: notices.pinned,
+      authorMemberId: notices.authorMemberId,
+      authorName: authorMembers.displayName,
+      icon: notices.icon,
+      createdAt: notices.createdAt,
+    })
+    .from(notices)
+    .leftJoin(
+      authorMembers,
+      and(eq(notices.authorMemberId, authorMembers.id), eq(authorMembers.tenantId, tenantId)),
+    )
+    .where(eq(notices.tenantId, tenantId))
+    .orderBy(desc(notices.pinned), desc(notices.createdAt));
+  return rows.map(rowToItem);
+}
+
 export const noticesRouter = new Hono()
   .get('/', async (c) => {
     getAuthenticatedUser(c);
@@ -93,25 +123,9 @@ export const noticesRouter = new Hono()
     if (!caller) {
       return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
     }
-    // Pinned first (true sorts before false when DESC), then newest first.
-    const rows = await db
-      .select({
-        id: notices.id,
-        body: notices.body,
-        pinned: notices.pinned,
-        authorMemberId: notices.authorMemberId,
-        authorName: authorMembers.displayName,
-        icon: notices.icon,
-        createdAt: notices.createdAt,
-      })
-      .from(notices)
-      .leftJoin(
-        authorMembers,
-        and(eq(notices.authorMemberId, authorMembers.id), eq(authorMembers.tenantId, tenantId)),
-      )
-      .where(eq(notices.tenantId, tenantId))
-      .orderBy(desc(notices.pinned), desc(notices.createdAt));
-    return c.json(listNoticesResponseSchema.parse({ notices: rows.map(rowToItem) }));
+    return c.json(
+      listNoticesResponseSchema.parse({ notices: await listTenantNotices(db, tenantId) }),
+    );
   })
   .post('/', async (c) => {
     getAuthenticatedUser(c);
