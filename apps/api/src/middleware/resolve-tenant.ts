@@ -76,11 +76,15 @@ declare module 'hono' {
 // typed loosely so this file doesn't need to know whether the caller
 // passed a real Drizzle instance or a transactional one.
 export function makeDbLookup(
-  db: import('../db/client.js').Database,
+  // Lazy getter, not a captured instance — avoids pinning a build-time db.
+  // Tenant resolution runs before any request-scoped client and queries the
+  // global `tenants` registry (not RLS-scoped), so this resolves to the root
+  // pool; the getter just keeps it from going stale if the pool is recreated.
+  getDb: () => import('../db/client.js').Database,
 ): (slug: string) => Promise<string | undefined> {
   return async (slug) => {
     try {
-      const rows = await db
+      const rows = await getDb()
         .select({ id: tenants.id })
         .from(tenants)
         .where(eq(tenants.slug, slug))
