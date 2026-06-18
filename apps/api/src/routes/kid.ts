@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { kidAuthMiddleware, requireKidAuth, getKidAuth } from '../middleware/kid-auth.js';
 import { getDb } from '../db/client.js';
+import { habits } from '../db/schema.js';
 import { listTenantNotices, listNoticesResponseSchema } from './notices.js';
 import { listTasksForMember, setTaskDoneForMember, taskItemSchema } from './tasks.js';
 
@@ -9,6 +11,17 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export const kidTasksResponseSchema = z.object({ tasks: z.array(taskItemSchema) });
 const kidTaskPatchSchema = z.object({ done: z.boolean() });
+
+export const kidTodayResponseSchema = z.object({
+  habits: z.array(
+    z.object({
+      id: z.string().uuid(),
+      name: z.string(),
+      icon: z.string().nullable(),
+      color: z.string(),
+    }),
+  ),
+});
 
 // FHS-257 / FHS-355 — kid-scoped API surface.
 //
@@ -74,4 +87,26 @@ export const kidRouter = new Hono()
       return c.json({ error: 'not found', detail: 'no such task for this kid' }, 404);
     }
     return c.json({ ok: true });
+  })
+  // FHS-355 — the kid's "Today": their own active habits (member-scoped). A
+  // read-only at-a-glance list; full sticker interaction is a follow-up.
+  .get('/today', async (c) => {
+    const kid = getKidAuth(c);
+    const rows = await getDb()
+      .select({
+        id: habits.id,
+        name: habits.name,
+        icon: habits.icon,
+        color: habits.color,
+      })
+      .from(habits)
+      .where(
+        and(
+          eq(habits.tenantId, kid.tenantId),
+          eq(habits.memberId, kid.memberId),
+          isNull(habits.archivedAt),
+        ),
+      )
+      .orderBy(asc(habits.createdAt));
+    return c.json(kidTodayResponseSchema.parse({ habits: rows }));
   });
