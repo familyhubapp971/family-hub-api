@@ -27,3 +27,15 @@ Feature: POST /api/invitations (FHS-91)
     When the inviter POSTs an invitation for "invitee@example.com" as "adult" in tenant "smith"
     Then the response status is 201
     And exactly 2 rows exist in pending_invitations with email "invitee@example.com" and status "pending"
+
+  Scenario: A failed invite rolls back the seat — no ghost member (FHS-352)
+    When the Supabase invite fails and the inviter POSTs a named invitation for "Ghost Seat" at "ghost@example.com"
+    Then the response status is 502
+    And no member seat remains named "Ghost Seat"
+    And no pending invitation remains for "ghost@example.com"
+
+  Scenario: Inviting an already-registered email returns a clear 409 (FHS-352)
+    When Supabase rejects the invite as already-registered and the inviter POSTs a named invitation for "Existing Person" at "exists@example.com"
+    Then the response status is 409
+    And the error detail mentions "already has a Family Hub account"
+    And no member seat remains named "Existing Person"

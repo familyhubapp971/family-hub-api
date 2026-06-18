@@ -5,7 +5,11 @@ import { config } from '../config.js';
 import { getDb } from '../db/client.js';
 import { members, pendingInvitations, tenants, type PendingInvitation } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
-import { inviteUserByEmail, SupabaseAdminError } from '../lib/supabase-admin.js';
+import {
+  inviteUserByEmail,
+  isEmailAlreadyRegisteredError,
+  SupabaseAdminError,
+} from '../lib/supabase-admin.js';
 import { createLogger } from '../logger.js';
 
 // FHS-91 — POST /api/invitations.
@@ -214,13 +218,44 @@ export const invitationsRouter = new Hono().post('/', async (c) => {
       .where(eq(pendingInvitations.id, invitation.id));
     invitation = { ...invitation, supabaseInviteId: supabaseUser.id };
   } catch (err) {
-    // Mark pending row as expired so the operator can retry without
-    // tripping the partial-unique index. Don't delete — we want the
-    // audit trail of attempted invites.
-    await db
-      .update(pendingInvitations)
-      .set({ status: 'expired', updatedAt: new Date() })
-      .where(eq(pendingInvitations.id, invitation.id));
+    // FHS-352 — roll back the failed attempt so it never leaves a ghost
+    // "pending" member on the dashboard. When a named seat was created, delete
+    // it: `pending_invitations.member_id` is ON DELETE CASCADE, so that one
+    // delete also removes the linked invitation (the brand-new, unclaimed seat
+    // is safe to drop). With no seat, just expire the pending row (kept for the
+    // audit trail; lets a retry create a fresh one). Wrapped so a cleanup
+    // failure can't mask the original error.
+    try {
+      if (seatMemberId) {
+        await db.delete(members).where(eq(members.id, seatMemberId));
+      } else {
+        await db
+          .update(pendingInvitations)
+          .set({ status: 'expired', updatedAt: new Date() })
+          .where(eq(pendingInvitations.id, invitation.id));
+      }
+    } catch (cleanupErr) {
+      log.error(
+        { err: cleanupErr, seatMemberId, invitationId: invitation.id, tenantId },
+        'invite rollback cleanup failed',
+      );
+    }
+
+    // The email already has a Family Hub account — Supabase admin invite rejects
+    // it. Surface a clear, actionable 409 instead of a confusing 502.
+    if (isEmailAlreadyRegisteredError(err)) {
+      log.info({ tenantId, email }, 'invite skipped — email already registered');
+      return c.json(
+        {
+          error: 'email already registered',
+          field: 'email',
+          email,
+          detail:
+            'That email already has a Family Hub account. Ask them to sign in — they can join this family from their invites.',
+        },
+        409,
+      );
+    }
 
     const status =
       err instanceof SupabaseAdminError ? `supabase ${err.status}` : 'admin call failed';
@@ -230,12 +265,12 @@ export const invitationsRouter = new Hono().post('/', async (c) => {
         invitationId: invitation.id,
         tenantId,
       },
-      `invite send failed (${status}); marked expired`,
+      `invite send failed (${status}); rolled back seat + expired row`,
     );
     return c.json(
       {
         error: 'invitation could not be sent',
-        detail: 'Supabase admin invite failed; row marked expired',
+        detail: "We couldn't send the invite right now. Please try again in a moment.",
       },
       502,
     );

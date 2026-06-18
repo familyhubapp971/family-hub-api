@@ -55,6 +55,23 @@ export class SupabaseAdminError extends Error {
   }
 }
 
+/**
+ * True when a Supabase admin-invite failure means the email already has an auth
+ * account. The invite endpoint returns 422 for an existing user; we also match
+ * the body markers in case the status code shifts across Supabase versions.
+ * (FHS-352 — used to turn a confusing 502 into a clear "already registered".)
+ */
+export function isEmailAlreadyRegisteredError(err: unknown): boolean {
+  if (!(err instanceof SupabaseAdminError)) return false;
+  if (err.status === 422) return true;
+  const snippet = err.responseSnippet.toLowerCase();
+  return (
+    snippet.includes('already been registered') ||
+    snippet.includes('email_exists') ||
+    snippet.includes('already registered')
+  );
+}
+
 function requireConfig(): { url: string; key: string } {
   if (!config.SUPABASE_URL) {
     throw new Error('SUPABASE_URL is required for the Supabase admin client');

@@ -7,6 +7,9 @@ import { expect, vi } from 'vitest';
 import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
 import { invitationsRouter } from '../../../apps/api/src/routes/invitations.js';
 import { tenants, members, users } from '../../../apps/api/src/db/schema.js';
+// The supabase-admin module is mocked below (spreads ...actual), so this is the
+// real SupabaseAdminError class — `instanceof` matches what the handler sees.
+import { SupabaseAdminError } from '../../../apps/api/src/lib/supabase-admin.js';
 import type { Database } from '../../../apps/api/src/db/client.js';
 import { getTestDb } from '../support/db.js';
 
@@ -327,4 +330,85 @@ describeFeature(feature, ({ Background, Scenario }) => {
       },
     );
   });
+
+  Scenario(
+    'A failed invite rolls back the seat — no ghost member (FHS-352)',
+    ({ When, Then, And }) => {
+      let res: Response;
+      When(
+        'the Supabase invite fails and the inviter POSTs a named invitation for {string} at {string}',
+        async (_ctx, displayName: string, email: string) => {
+          inviteUserByEmail.mockRejectedValueOnce(new Error('supabase down'));
+          res = await app.request('/api/invitations', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'x-test-tenant': tenantIds['khan']!,
+            },
+            body: JSON.stringify({ email, role: 'adult', displayName }),
+          });
+        },
+      );
+      Then('the response status is 502', () => {
+        expect(res.status).toBe(502);
+      });
+      And('no member seat remains named {string}', async (_ctx, displayName: string) => {
+        const { rows } = await db.execute<{ count: string }>(
+          sql`SELECT COUNT(*)::text AS count FROM members WHERE display_name = ${displayName}`,
+        );
+        expect(Number(rows[0]?.count)).toBe(0);
+      });
+      And('no pending invitation remains for {string}', async (_ctx, email: string) => {
+        // The seat delete cascades to pending_invitations (member_id FK), so the
+        // whole failed attempt is gone.
+        const { rows } = await db.execute<{ count: string }>(
+          sql`SELECT COUNT(*)::text AS count FROM pending_invitations WHERE email = ${email}`,
+        );
+        expect(Number(rows[0]?.count)).toBe(0);
+      });
+    },
+  );
+
+  Scenario(
+    'Inviting an already-registered email returns a clear 409 (FHS-352)',
+    ({ When, Then, And }) => {
+      let res: Response;
+      let bodyJson: { detail?: string; error?: string };
+      When(
+        'Supabase rejects the invite as already-registered and the inviter POSTs a named invitation for {string} at {string}',
+        async (_ctx, displayName: string, email: string) => {
+          inviteUserByEmail.mockRejectedValueOnce(
+            new SupabaseAdminError(
+              'Supabase admin invite failed: 422',
+              422,
+              '{"code":"email_exists"}',
+            ),
+          );
+          res = await app.request('/api/invitations', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'x-test-tenant': tenantIds['khan']!,
+            },
+            body: JSON.stringify({ email, role: 'adult', displayName }),
+          });
+          bodyJson = (await res.json()) as { detail?: string; error?: string };
+        },
+      );
+      Then('the response status is 409', () => {
+        expect(res.status).toBe(409);
+      });
+      And('the error detail mentions {string}', (_ctx, substr: string) => {
+        expect(bodyJson.detail ?? '').toContain(substr);
+      });
+      And('no member seat remains named {string}', async (_ctx, displayName: string) => {
+        const { rows } = await db.execute<{ count: string }>(
+          sql`SELECT COUNT(*)::text AS count FROM members WHERE display_name = ${displayName}`,
+        );
+        expect(Number(rows[0]?.count)).toBe(0);
+      });
+    },
+  );
 });
