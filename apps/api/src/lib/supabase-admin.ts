@@ -93,7 +93,11 @@ export async function inviteUserByEmail(
   opts: SupabaseInviteUserOptions,
 ): Promise<SupabaseInvitedUser> {
   const { url, key } = requireConfig();
-  const res = await fetch(`${url}/auth/v1/admin/invite`, {
+  // GoTrue's admin invite endpoint is `/auth/v1/invite` — NOT `/auth/v1/admin/invite`,
+  // which 404s (that 404 is why invites never sent; FHS-352). `redirect_to` is a
+  // query parameter here, not a body field.
+  const inviteUrl = `${url}/auth/v1/invite?redirect_to=${encodeURIComponent(opts.redirectTo)}`;
+  const res = await fetch(inviteUrl, {
     method: 'POST',
     headers: {
       apikey: key,
@@ -103,7 +107,6 @@ export async function inviteUserByEmail(
     body: JSON.stringify({
       email: opts.email,
       data: opts.data ?? {},
-      redirect_to: opts.redirectTo,
     }),
   });
 
