@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { appSettings } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
-import { loadCaller, isAdminOrAdult } from '../lib/permissions.js';
+import { loadCaller, isAdmin } from '../lib/permissions.js';
 
 // FHS-308 — Admin Panel: app_settings endpoints (tenant-scoped key/value config).
 //
@@ -57,14 +57,17 @@ export const adminRouter = new Hono()
     return c.json(map);
   })
 
-  // PUT /api/admin/settings/:key — upsert a setting value; admin/adult only.
+  // PUT /api/admin/settings/:key — upsert a setting value; admin-only (FHS-343).
   .put('/settings/:key', async (c) => {
     const ctx = await guardTenant(c);
     if ('res' in ctx) return ctx.res;
     const { db, tenantId, caller } = ctx;
 
-    if (!isAdminOrAdult(caller)) {
-      return c.json({ error: 'forbidden', detail: 'admin or adult role required' }, 403);
+    if (!isAdmin(caller)) {
+      return c.json(
+        { error: 'forbidden', errorCode: 'ADMIN_ONLY', detail: 'admin role required' },
+        403,
+      );
     }
 
     const key = c.req.param('key');
