@@ -54,14 +54,29 @@ export function getDb(): Database {
   return als.getStore()?.db ?? getRootDb();
 }
 
+// The empty sentinel for "no tenant". RLS policies read the GUC with
+// `NULLIF(current_setting('app.current_tenant', true), '')::uuid`, so both an
+// UNSET GUC and this empty value resolve to NULL → every row comparison fails
+// → zero rows / rejected writes (fail closed). We never cast '' to uuid.
+const TENANT_GUC = 'app.current_tenant';
+
 /**
  * Run `fn` with a dedicated pooled connection bound to the request via
- * AsyncLocalStorage. The connection is always released afterwards. Nested
- * calls reuse the outer request's connection (no double checkout).
+ * AsyncLocalStorage, with the per-request tenant pinned on that connection
+ * (FHS-346). The connection is always released afterwards, and the tenant GUC
+ * is ALWAYS reset to the empty sentinel before release so a reused connection
+ * can never carry the previous request's tenant. Nested calls reuse the outer
+ * request's connection + tenant (no double checkout, no re-pin).
+ *
+ * @param opts.tenantId resolved tenant uuid, or undefined for public /
+ *   tenant-less requests (pinned as the empty sentinel — never a stale value).
  */
-export async function runWithRequestDb<T>(fn: () => Promise<T>): Promise<T> {
+export async function runWithRequestDb<T>(
+  fn: () => Promise<T>,
+  opts: { tenantId?: string | undefined } = {},
+): Promise<T> {
   // Already inside a request scope — reuse it; the outer call owns the
-  // connection and its release. Not a leak.
+  // connection, its tenant GUC, and its release. Not a leak.
   if (als.getStore()) return fn();
   let client: pg.PoolClient;
   try {
@@ -76,10 +91,23 @@ export async function runWithRequestDb<T>(fn: () => Promise<T>): Promise<T> {
     return fn();
   }
   try {
+    // Pin the tenant for THIS connection's session. set_config(..., false) is
+    // session-local (not transaction-local), so it covers our many
+    // non-transactional queries. Empty sentinel for tenant-less requests.
+    await client.query(`select set_config('${TENANT_GUC}', $1, false)`, [opts.tenantId ?? '']);
     const db = drizzle(client, { schema });
     return await als.run({ db }, fn);
   } finally {
-    client.release();
+    // Guaranteed reset BEFORE the connection returns to the pool. If the
+    // reset itself fails, discard the connection (release(err)) rather than
+    // risk it re-entering the pool still carrying a real tenant.
+    try {
+      await client.query(`select set_config('${TENANT_GUC}', '', false)`);
+      client.release();
+    } catch (resetErr) {
+      log.error({ err: resetErr }, 'request-db: failed to reset tenant GUC; discarding connection');
+      client.release(resetErr as Error);
+    }
   }
 }
 
