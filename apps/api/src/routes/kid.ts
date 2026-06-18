@@ -3,6 +3,12 @@ import { z } from 'zod';
 import { kidAuthMiddleware, requireKidAuth, getKidAuth } from '../middleware/kid-auth.js';
 import { getDb } from '../db/client.js';
 import { listTenantNotices, listNoticesResponseSchema } from './notices.js';
+import { listTasksForMember, setTaskDoneForMember, taskItemSchema } from './tasks.js';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const kidTasksResponseSchema = z.object({ tasks: z.array(taskItemSchema) });
+const kidTaskPatchSchema = z.object({ done: z.boolean() });
 
 // FHS-257 / FHS-355 — kid-scoped API surface.
 //
@@ -32,4 +38,40 @@ export const kidRouter = new Hono()
     const kid = getKidAuth(c);
     const notices = await listTenantNotices(getDb(), kid.tenantId);
     return c.json(listNoticesResponseSchema.parse({ notices }));
+  })
+  // FHS-355 — the kid's OWN tasks (member-scoped from the kid token).
+  .get('/tasks', async (c) => {
+    const kid = getKidAuth(c);
+    const tasks = await listTasksForMember(getDb(), kid.tenantId, kid.memberId);
+    return c.json(kidTasksResponseSchema.parse({ tasks }));
+  })
+  // FHS-355 — tick/untick one of the kid's OWN tasks. The member+tenant guard in
+  // setTaskDoneForMember means a kid can never touch another member's task.
+  .patch('/tasks/:id', async (c) => {
+    const kid = getKidAuth(c);
+    const id = c.req.param('id');
+    if (!UUID_RE.test(id)) {
+      return c.json({ error: 'invalid id', detail: 'task id must be a UUID' }, 400);
+    }
+    const parsed = kidTaskPatchSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+    const ok = await setTaskDoneForMember(
+      getDb(),
+      kid.tenantId,
+      kid.memberId,
+      id,
+      parsed.data.done,
+    );
+    if (!ok) {
+      return c.json({ error: 'not found', detail: 'no such task for this kid' }, 404);
+    }
+    return c.json({ ok: true });
   });

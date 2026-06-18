@@ -72,6 +72,44 @@ function rowToItem(r: {
   };
 }
 
+// FHS-355 — the kid's OWN tasks, newest first. Shared by the kid route
+// (GET /api/kid/tasks). Member-scoped so a kid only ever sees their own.
+export async function listTasksForMember(
+  db: ReturnType<typeof getDb>,
+  tenantId: string,
+  memberId: string,
+) {
+  const rows = await db
+    .select({
+      id: tasks.id,
+      title: tasks.title,
+      dueDate: tasks.dueDate,
+      memberId: tasks.memberId,
+      doneAt: tasks.doneAt,
+    })
+    .from(tasks)
+    .where(and(eq(tasks.tenantId, tenantId), eq(tasks.memberId, memberId)))
+    .orderBy(desc(tasks.createdAt));
+  return rows.map(rowToItem);
+}
+
+// FHS-355 — tick/untick one of the member's OWN tasks. Returns false if no task
+// matched (wrong id, other member, or other tenant) so the caller can 404.
+export async function setTaskDoneForMember(
+  db: ReturnType<typeof getDb>,
+  tenantId: string,
+  memberId: string,
+  taskId: string,
+  done: boolean,
+): Promise<boolean> {
+  const updated = await db
+    .update(tasks)
+    .set({ doneAt: done ? new Date() : null, updatedAt: new Date() })
+    .where(and(eq(tasks.tenantId, tenantId), eq(tasks.id, taskId), eq(tasks.memberId, memberId)))
+    .returning({ id: tasks.id });
+  return updated.length > 0;
+}
+
 export const tasksRouter = new Hono()
   .get('/', async (c) => {
     getAuthenticatedUser(c);
