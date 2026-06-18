@@ -204,6 +204,13 @@
       "when": 1781780778900,
       "tag": "0028_rls_tenant_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1781780778950,
+      "tag": "0029_users_self_rls",
+      "breakpoints": true
     }
   ]
 }

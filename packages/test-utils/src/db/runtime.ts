@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 
 // FHS-348/350 — a SECOND test pool that logs in as the limited `app_runtime`
 // role (no BYPASSRLS), so RLS proof tests see exactly what production will once
@@ -31,6 +32,38 @@ export async function closeRuntimeTestPool(): Promise<void> {
   if (_pool) {
     await _pool.end();
     _pool = undefined;
+  }
+}
+
+/**
+ * A Drizzle instance over the app_runtime pool — for exercising real query
+ * helpers (e.g. getOrCreateUser) under RLS as the limited role, not the
+ * superuser. No schema is bound; pass `sql` / table objects as the caller needs.
+ */
+export function runtimeTestDb() {
+  return drizzle(runtimeTestPool());
+}
+
+/**
+ * Run `fn` on an app_runtime connection with `app.current_user` pinned to
+ * `userId` — or cleared (null) for the "no user context → fail closed" case.
+ * Mirror of {@link asRuntimeTenant} for the global users table policy (FHS-349).
+ */
+export async function asRuntimeUser<T>(
+  userId: string | null,
+  fn: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await runtimeTestPool().connect();
+  try {
+    await client.query("select set_config('app.current_user', $1, false)", [userId ?? '']);
+    return await fn(client);
+  } finally {
+    try {
+      await client.query("select set_config('app.current_user', '', false)");
+      client.release();
+    } catch (resetErr) {
+      client.release(resetErr as Error);
+    }
   }
 }
 

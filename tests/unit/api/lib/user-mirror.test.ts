@@ -18,6 +18,8 @@ interface UpsertChain {
   values: ReturnType<typeof vi.fn>;
   onConflictDoUpdate: ReturnType<typeof vi.fn>;
   returning: ReturnType<typeof vi.fn>;
+  // FHS-349 — set_config('app.current_user', …) inside the mirror transaction.
+  execute: ReturnType<typeof vi.fn>;
 }
 
 function buildMockDb(returningRows: User[]): { db: Database; chain: UpsertChain } {
@@ -26,14 +28,20 @@ function buildMockDb(returningRows: User[]): { db: Database; chain: UpsertChain 
     values: vi.fn(),
     onConflictDoUpdate: vi.fn(),
     returning: vi.fn().mockResolvedValue(returningRows),
+    execute: vi.fn().mockResolvedValue(undefined),
   };
-  // Build the chain bottom-up so `db.insert(...).values(...).onConflictDoUpdate(...).returning()`
+  // Build the chain bottom-up so `tx.insert(...).values(...).onConflictDoUpdate(...).returning()`
   // walks through every spy and lands on the resolved rows.
   chain.onConflictDoUpdate.mockReturnValue({ returning: chain.returning });
   chain.values.mockReturnValue({ onConflictDoUpdate: chain.onConflictDoUpdate });
   chain.insert.mockReturnValue({ values: chain.values });
 
-  const db = { insert: chain.insert } as unknown as Database;
+  // FHS-349 — getOrCreateUser now runs inside db.transaction(tx => …); the tx
+  // exposes the same insert chain plus execute() for the set_config GUC pin.
+  const tx = { insert: chain.insert, execute: chain.execute };
+  const db = {
+    transaction: vi.fn(async (cb: (tx: unknown) => Promise<User>) => cb(tx)),
+  } as unknown as Database;
   return { db, chain };
 }
 
@@ -51,6 +59,9 @@ describe('FHS-192 — getOrCreateUser (unit)', () => {
     const result = await getOrCreateUser(db, { id: ROW.id, email: ROW.email });
 
     expect(result).toEqual(ROW);
+    // FHS-349 — pins app.current_user (set_config) before the upsert so the
+    // users RLS self-isolation policy permits it under the app_runtime role.
+    expect(chain.execute).toHaveBeenCalledTimes(1);
     // Single insert call — warm and cold paths share the SQL statement.
     expect(chain.insert).toHaveBeenCalledTimes(1);
     expect(chain.values).toHaveBeenCalledWith({ id: ROW.id, email: ROW.email });
