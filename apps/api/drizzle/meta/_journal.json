@@ -197,6 +197,13 @@
       "when": 1781780778854,
       "tag": "0027_app_runtime_role",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1781780778900,
+      "tag": "0028_rls_tenant_policies",
+      "breakpoints": true
     }
   ]
 }

@@ -78,7 +78,26 @@ export async function setup(): Promise<void> {
     throw new Error('[integration] SELECT NOW() returned no row');
   }
   await applyMigrations(client);
+  await ensureRuntimeRolePassword(client);
   await client.end();
+}
+
+// FHS-348/350 — give the app_runtime role (created by migration 0027) a
+// password so the RLS proof tests can log in AS that limited, non-BYPASSRLS
+// role. The default getTestDb() connects as the superuser (fh_test), which
+// bypasses RLS and so can't prove isolation. Test-only; staging provisions this
+// out of band (FHS-351). No-op if the role isn't present.
+async function ensureRuntimeRolePassword(client: pg.Client): Promise<void> {
+  const { rows } = await client.query("SELECT 1 FROM pg_roles WHERE rolname = 'app_runtime'");
+  if (rows.length === 0) return;
+  const pw = process.env['DATABASE_URL_TEST_RUNTIME_PASSWORD'] ?? 'app_runtime';
+  // ALTER ROLE ... PASSWORD takes no bind parameter (it's DDL), so the value is
+  // interpolated. Restrict it to a safe charset so a hostile env var can't
+  // inject SQL into the test bootstrap.
+  if (!/^[A-Za-z0-9_-]+$/.test(pw)) {
+    throw new Error('DATABASE_URL_TEST_RUNTIME_PASSWORD must match [A-Za-z0-9_-]+');
+  }
+  await client.query(`ALTER ROLE app_runtime WITH LOGIN PASSWORD '${pw}'`);
 }
 
 export async function teardown(): Promise<void> {
