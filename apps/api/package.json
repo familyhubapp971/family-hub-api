@@ -10,6 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "openapi:generate": "tsx scripts/generate-openapi.ts",
+    "openapi:check": "tsx scripts/check-openapi.ts",
     "db:generate": "node --env-file=../../.env.local node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file=../../.env.local node_modules/drizzle-kit/bin.cjs migrate",
     "db:push": "node --env-file=../../.env.local node_modules/drizzle-kit/bin.cjs push",
@@ -19,6 +21,7 @@
   "dependencies": {
     "@familyhub/shared": "workspace:*",
     "@hono/node-server": "1.13.7",
+    "@hono/swagger-ui": "^0.6.1",
     "@hono/zod-validator": "0.4.1",
     "@sentry/node": "^8.55.2",
     "bcryptjs": "^3.0.3",
@@ -27,7 +30,8 @@
     "jose": "^5.10.0",
     "pg": "8.13.1",
     "pino": "9.5.0",
-    "zod": "3.23.8"
+    "zod": "3.23.8",
+    "zod-to-json-schema": "^3.23.5"
   },
   "devDependencies": {
     "@types/node": "20.16.11",

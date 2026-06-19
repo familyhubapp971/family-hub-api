@@ -49,6 +49,9 @@ jobs:
       - name: Typecheck (all workspaces)
         run: pnpm -r typecheck
 
+      - name: OpenAPI spec is up to date (FHS-356)
+        run: pnpm -F api openapi:check
+
       - name: Unit tests with coverage
         run: pnpm test:coverage
 

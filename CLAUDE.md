@@ -1083,32 +1083,37 @@ Per-package `vitest.config.ts` files (`apps/api`, `apps/web`,
 
 The rule (apply to every API ticket, every time):
 
-- **Single source of truth:** the Hono API publishes its OpenAPI 3.1 spec at
-  `apps/api/openapi.yaml`, generated from the Zod request/response schemas
-  (via `@hono/zod-openapi`), and serves a human-browsable **Swagger UI** in
-  non-prod.
-- **No untyped routes.** Every endpoint has a Zod schema for its request +
-  response and is registered with the OpenAPI app. A plain `new Hono()` route
-  with no registered schema is not allowed to ship.
-- **Regenerate + commit in the same PR.** After changing any schema or route,
-  run `pnpm -F api openapi:generate` and commit the resulting `openapi.yaml`
+- **Single source of truth:** the spec at `apps/api/openapi.json` is
+  **generated from the live Hono route table** (FHS-356), so EVERY mounted
+  endpoint is documented automatically — a new/removed route shows up in the
+  regenerated spec with no manual list to maintain. A human-browsable **Swagger
+  UI** is served at **`/docs`** (raw spec at **`/openapi.json`**). Secure by
+  default: ON in dev/test/staging, **OFF in production** unless
+  `API_DOCS_ENABLED=true` is set (staging sets it explicitly).
+- **Enrich the contract.** Path + method coverage is automatic; the
+  request/response **shape** comes from the handlers' own Zod schemas via the
+  registry at `apps/api/src/openapi/registry.ts`. When you add or change an
+  endpoint, add/extend its entry there (summary + request + response schema)
+  so the docs show the real contract, not just the path.
+- **Regenerate + commit in the same PR.** After any route or schema change run
+  `pnpm -F api openapi:generate` and commit the updated `apps/api/openapi.json`
   so the diff is reviewable. The PR self-review must confirm the spec was
-  regenerated (or state explicitly that the API surface was untouched).
+  regenerated (or state the API surface was untouched).
 - **Breaking changes** (removed/renamed fields, changed types, removed
   endpoints, changed status codes) bump the API version in the spec and add a
   `breaking` label on the PR.
-- **CI gate:** a check fails the build if `openapi.yaml` is stale relative to
-  the registered routes (regenerate-and-diff), so drift can't merge.
+- **CI gate (enforced):** the `typecheck` job runs `pnpm -F api openapi:check`,
+  which regenerates the spec and fails if `openapi.json` is stale — so drift
+  cannot merge.
 - **Pre-merge checklist** (below) and the **change-impact** table both list the
   spec — touching the API means touching the spec, full stop.
 
-> **Current state (as of this writing): the tooling above is NOT yet wired** —
-> there is no `apps/api/openapi.yaml`, no `openapi:generate` script, no
-> `@hono/zod-openapi` dependency, and routes are plain `new Hono()` with Zod
-> used only for runtime validation. Standing up the generator + Swagger UI +
-> the CI staleness gate, and backfilling every existing endpoint into the spec,
-> is tracked as its own ticket. Until that lands, this section is the **target
-> contract**; once it lands, the rule above is enforced on every PR.
+> **Status: wired (FHS-356).** Generator (`openapi:generate`), staleness gate
+> (`openapi:check` in CI), Swagger UI at `/docs`, and a registry enriching the
+> core endpoints are all live; every endpoint is covered at the path/method
+> level. Remaining work is incremental: enrich the request/response schemas of
+> the non-core endpoints in the registry over time (each is a small, additive
+> change — the path itself is already documented).
 
 This section will grow as the API matures — auth schemes, pagination
 convention, error envelope, rate-limit headers, etc.
@@ -1171,7 +1176,7 @@ mirrors this list):
 - [ ] **Types:** TypeScript strict, no new `any`, schemas validate at boundaries
 - [ ] **Multi-tenancy:** queries respect `tenant_id` / RLS; no `bypassrls`
 - [ ] **Secrets:** nothing in git that should be in `.env.local` or Railway env
-- [ ] **OpenAPI/Swagger:** EVERY new/changed/removed endpoint is in `apps/api/openapi.yaml`; spec regenerated + committed in this PR (or "API surface untouched" stated). Documenting the API in Swagger is mandatory, not deferrable.
+- [ ] **OpenAPI/Swagger:** EVERY new/changed/removed endpoint is in `apps/api/openapi.json` (run `pnpm -F api openapi:generate`, commit the diff; CI's `openapi:check` enforces it). Enrich its request/response schema in `apps/api/src/openapi/registry.ts`. Mandatory, not deferrable.
 - [ ] **Docs:** `documents/features/` or `documents/technical/` updated; ADR added in `documents/decisions/` if a decision was made
 - [ ] **Migrations:** Drizzle migration committed; rollback path noted in PR body
 - [ ] **Observability:** new failure modes have logs/metrics; alerts updated if SLO-relevant

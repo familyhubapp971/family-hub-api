@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
+import { swaggerUI } from '@hono/swagger-ui';
 import { config } from './config.js';
+import { buildOpenApiSpec } from './openapi/build-spec.js';
 import { createLogger } from './logger.js';
 import { getDb } from './db/client.js';
 import { getOrCreateUser } from './lib/user-mirror.js';
@@ -77,6 +79,18 @@ export interface BuildAppOptions {
 
 export function buildApp(opts: BuildAppOptions = {}) {
   const app = new Hono();
+
+  // FHS-356 — API docs, mounted FIRST so they bypass auth/tenant middleware and
+  // the no-script CSP (Swagger UI needs to run JS). The spec is built lazily on
+  // first request — by then every route below is mounted, so it covers them all.
+  if (config.API_DOCS_ENABLED) {
+    let cachedSpec: ReturnType<typeof buildOpenApiSpec> | null = null;
+    app.get('/openapi.json', (c) => {
+      cachedSpec ??= buildOpenApiSpec(app);
+      return c.json(cachedSpec);
+    });
+    app.get('/docs', swaggerUI({ url: '/openapi.json' }));
+  }
 
   // Security headers on every response. HSTS preload-eligible (1y +
   // includeSubDomains). CSP here is a defence-in-depth no-script policy

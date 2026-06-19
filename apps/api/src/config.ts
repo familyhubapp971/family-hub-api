@@ -26,6 +26,16 @@ const configSchema = z
       .string()
       .default('false')
       .transform((v) => ['true', '1', 'yes', 'on'].includes(v.trim().toLowerCase())),
+    // FHS-356 — serve the OpenAPI spec (/openapi.json) + Swagger UI (/docs).
+    // Secure-by-default: OFF in production, ON elsewhere (dev/test/staging),
+    // unless API_DOCS_ENABLED is set explicitly. The derived default lives in
+    // the final transform below.
+    API_DOCS_ENABLED: z
+      .string()
+      .optional()
+      .transform((v) =>
+        v === undefined ? undefined : ['true', '1', 'yes', 'on'].includes(v.trim().toLowerCase()),
+      ),
     // Sentry — empty DSN = silent no-op, fine for dev / when account
     // not yet provisioned. SENTRY_RELEASE is the git SHA, set by CI/Railway.
     SENTRY_DSN_API: z.string().default(''),
@@ -119,6 +129,10 @@ const configSchema = z
             throw new Error('unreachable: production DATABASE_URL checked in superRefine');
           })()
         : 'postgres://localhost:5432/familyhub_dev'),
+    // FHS-356 — docs off in production by default; on in dev/test/staging.
+    // Staging explicitly sets API_DOCS_ENABLED=true so it shows even if it runs
+    // with NODE_ENV=production.
+    API_DOCS_ENABLED: cfg.API_DOCS_ENABLED ?? cfg.NODE_ENV !== 'production',
   }));
 
 export type Config = z.infer<typeof configSchema>;
