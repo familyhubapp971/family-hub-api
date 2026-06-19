@@ -8,19 +8,17 @@ import {
 import { meRouter, meResponseSchema } from '../../../../apps/api/src/routes/me.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// /api/me now joins members → tenants for the FHS-37 onboarding gate;
-// stub getDb so the route uses our handcrafted chain instead of opening
-// a real pool.
-const dbMock = { select: vi.fn() };
+// /api/me reads the user's memberships across families via the
+// app_user_memberships SECURITY DEFINER function (FHS-354), executed as raw SQL.
+// Stub getDb so the route uses our mock instead of opening a real pool.
+const dbMock = { execute: vi.fn() };
 vi.mock('../../../../apps/api/src/db/client.js', () => ({
   getDb: () => dbMock,
 }));
 
 beforeEach(() => {
   // Default: user belongs to no tenants. Individual tests override.
-  dbMock.select.mockReturnValue({
-    from: () => ({ innerJoin: () => ({ where: () => Promise.resolve([]) }) }),
-  });
+  dbMock.execute.mockResolvedValue({ rows: [] });
 });
 
 const ISSUER = 'https://test.supabase.local/auth/v1';

@@ -1,8 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
-import { members, tenants } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 
 // FHS-194 — Protected GET /api/me.
@@ -47,31 +46,31 @@ export const meRouter = new Hono().get('/', async (c) => {
     throw new Error('me handler reached without userRow on context');
   }
 
-  // Pull the user's tenants via members → tenants join. One round-trip,
-  // returns the slugs + onboarding flag the wizard needs for its gate.
+  // Pull the user's tenants across families. This is a deliberately
+  // cross-tenant read (a user can belong to several families), so it goes
+  // through the SECURITY DEFINER function app_user_memberships (FHS-354) rather
+  // than a direct members→tenants join — under RLS (app_runtime) a direct join
+  // would return zero rows because there's no single tenant context here.
   const db = getDb();
-  const tenantRows = await db
-    .select({
-      id: tenants.id,
-      slug: tenants.slug,
-      name: tenants.name,
-      onboardingCompleted: tenants.onboardingCompleted,
-      role: members.role,
-    })
-    .from(members)
-    .innerJoin(tenants, eq(members.tenantId, tenants.id))
-    .where(eq(members.userId, row.id));
+  const { rows: tenantRows } = await db.execute<{
+    tenant_id: string;
+    slug: string;
+    name: string;
+    onboarding_completed: boolean;
+    role: string;
+  }>(sql`select tenant_id, slug, name, onboarding_completed, role
+         from app_user_memberships(${row.id})`);
 
   const response: MeResponse = {
     id: row.id,
     email: row.email,
     createdAt: row.createdAt.toISOString(),
     tenants: tenantRows.map((t) => ({
-      id: t.id,
+      id: t.tenant_id,
       slug: t.slug,
       name: t.name,
       role: t.role,
-      onboardingCompleted: t.onboardingCompleted,
+      onboardingCompleted: t.onboarding_completed,
     })),
   };
   return c.json(meResponseSchema.parse(response));
