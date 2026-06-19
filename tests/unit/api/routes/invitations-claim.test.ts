@@ -9,9 +9,10 @@ import type { User } from '../../../../apps/api/src/db/schema.js';
 // for the first time; pending invitations addressed to their email
 // link their login to the wizard-created member seat.
 
-const dbMock = { select: vi.fn(), update: vi.fn(), insert: vi.fn() };
+const dbMock = { select: vi.fn(), update: vi.fn(), insert: vi.fn(), execute: vi.fn() };
 vi.mock('../../../../apps/api/src/db/client.js', () => ({
   getDb: () => dbMock,
+  pinRequestTenant: async () => {},
 }));
 
 const USER_ID = '00000000-0000-4000-8000-000000000888';
@@ -43,11 +44,10 @@ function buildApp(opts: {
   invites?: unknown[];
   memberClaimRows?: unknown[]; // what update(members).returning resolves to
 }) {
-  dbMock.select.mockImplementation(() => {
-    // 1st select = pending invitations; later selects = tenant slug.
-    if (dbMock.select.mock.calls.length === 1) return chain(opts.invites ?? []);
-    return chain([{ slug: 'khans' }]);
-  });
+  // Pending invitations now come from app_claimable_invitations via db.execute
+  // (FHS-354); selects below are only the tenant-slug lookups.
+  dbMock.execute.mockResolvedValue({ rows: opts.invites ?? [] });
+  dbMock.select.mockImplementation(() => chain([{ slug: 'khans' }]));
   const updatedTables: unknown[] = [];
   dbMock.update.mockImplementation((table: unknown) => {
     updatedTables.push(table);
@@ -76,12 +76,13 @@ beforeEach(() => {
   dbMock.select.mockReset();
   dbMock.update.mockReset();
   dbMock.insert.mockReset();
+  dbMock.execute.mockReset();
 });
 
 describe('FHS-275 — POST /api/invitations/claim', () => {
   it('claims a linked seat: sets user_id, flips status, returns the slug', async () => {
     const { app, updatedTables } = buildApp({
-      invites: [{ id: INVITE_ID, tenantId: TENANT_ID, memberId: MEMBER_ID }],
+      invites: [{ id: INVITE_ID, tenant_id: TENANT_ID, member_id: MEMBER_ID }],
       memberClaimRows: [{ id: MEMBER_ID }],
     });
     const res = await app.request('/api/invitations/claim', { method: 'POST' });
@@ -102,7 +103,7 @@ describe('FHS-275 — POST /api/invitations/claim', () => {
 
   it('skips an invite whose seat is already claimed (update matches 0 rows)', async () => {
     const { app, updatedTables } = buildApp({
-      invites: [{ id: INVITE_ID, tenantId: TENANT_ID, memberId: MEMBER_ID }],
+      invites: [{ id: INVITE_ID, tenant_id: TENANT_ID, member_id: MEMBER_ID }],
       memberClaimRows: [], // seat already has a user_id → WHERE matches nothing
     });
     const res = await app.request('/api/invitations/claim', { method: 'POST' });
@@ -115,7 +116,7 @@ describe('FHS-275 — POST /api/invitations/claim', () => {
 
   it('creates a member seat for a seatless invite (members-page invites, FHS-276)', async () => {
     const { app, updatedTables, insertedTables } = buildApp({
-      invites: [{ id: INVITE_ID, tenantId: TENANT_ID, memberId: null, role: 'adult' }],
+      invites: [{ id: INVITE_ID, tenant_id: TENANT_ID, member_id: null, role: 'adult' }],
     });
     const res = await app.request('/api/invitations/claim', { method: 'POST' });
     expect(res.status).toBe(200);

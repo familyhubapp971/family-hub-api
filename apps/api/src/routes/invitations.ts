@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { config } from '../config.js';
-import { getDb } from '../db/client.js';
+import { getDb, pinRequestTenant } from '../db/client.js';
 import { members, pendingInvitations, tenants, type PendingInvitation } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 import {
@@ -299,23 +299,31 @@ export const invitationClaimRouter = new Hono().post('/', async (c) => {
   if (!userRow) throw new Error('claim handler reached without userRow');
   const db = getDb();
 
-  const pending = await db
-    .select({
-      id: pendingInvitations.id,
-      tenantId: pendingInvitations.tenantId,
-      memberId: pendingInvitations.memberId,
-      role: pendingInvitations.role,
-    })
-    .from(pendingInvitations)
-    .where(
-      and(
-        eq(pendingInvitations.status, 'pending'),
-        sql`lower(${pendingInvitations.email}) = lower(${userRow.email})`,
-      ),
-    );
+  // FHS-354 — a deliberately cross-tenant read (find every family that invited
+  // this email; the claimer has no membership yet). Goes through the SECURITY
+  // DEFINER function so it works once the app runs as app_runtime — a plain
+  // pending_invitations read would return zero rows under RLS with no tenant
+  // pinned.
+  const { rows: pending } = await db.execute<{
+    id: string;
+    tenant_id: string;
+    member_id: string | null;
+    role: (typeof INVITE_ROLE_VALUES)[number];
+  }>(sql`select id, tenant_id, member_id, role
+         from app_claimable_invitations(${userRow.email})`);
 
   const claimed: Array<{ tenantId: string; slug: string }> = [];
-  for (const inv of pending) {
+  for (const row of pending) {
+    const inv = {
+      id: row.id,
+      tenantId: row.tenant_id,
+      memberId: row.member_id,
+      role: row.role,
+    };
+    // FHS-354 — pin this invite's tenant so the writes below (flip the
+    // invitation, create/link the member — both RLS-scoped) pass once the app
+    // runs as app_runtime. Each iteration re-pins its own tenant.
+    await pinRequestTenant(inv.tenantId);
     // FHS-276 — members-page invites carry no pre-created seat: create
     // the member row at claim time instead (display name from the email
     // local-part; rename later on Manage Members).
