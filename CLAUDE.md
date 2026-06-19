@@ -1071,17 +1071,44 @@ Per-package `vitest.config.ts` files (`apps/api`, `apps/web`,
 
 ---
 
-## API contracts (OpenAPI)
+## API contracts (OpenAPI / Swagger) — NON-NEGOTIABLE
 
-- The Hono API publishes its OpenAPI 3.1 spec at `apps/api/openapi.yaml`
-  (generated from Zod schemas via `@hono/zod-openapi`).
-- Every new endpoint must have a Zod schema for request + response and be
-  registered with the OpenAPI app — no untyped routes.
-- Run `pnpm -F api openapi:generate` after changing schemas; commit the
-  resulting `openapi.yaml` so consumers (frontend, docs, mobile) get a
-  reviewable diff.
-- Breaking changes (removed fields, changed types, removed endpoints) bump
-  the API version in the spec and trigger a "breaking" label on the PR.
+> **Every API endpoint MUST be documented in the OpenAPI/Swagger spec, and the
+> spec MUST be updated in the SAME PR as any change to the API surface.** This is
+> a merge gate, not a nice-to-have. A new/changed/removed route, request shape,
+> response shape, status code, header, or error envelope that isn't reflected in
+> the committed spec is an incomplete PR. "I'll document it later" is the
+> anti-pattern this rule exists to kill — the spec is how the frontend, mobile,
+> and any future consumer know what the API does without reading the handler.
+
+The rule (apply to every API ticket, every time):
+
+- **Single source of truth:** the Hono API publishes its OpenAPI 3.1 spec at
+  `apps/api/openapi.yaml`, generated from the Zod request/response schemas
+  (via `@hono/zod-openapi`), and serves a human-browsable **Swagger UI** in
+  non-prod.
+- **No untyped routes.** Every endpoint has a Zod schema for its request +
+  response and is registered with the OpenAPI app. A plain `new Hono()` route
+  with no registered schema is not allowed to ship.
+- **Regenerate + commit in the same PR.** After changing any schema or route,
+  run `pnpm -F api openapi:generate` and commit the resulting `openapi.yaml`
+  so the diff is reviewable. The PR self-review must confirm the spec was
+  regenerated (or state explicitly that the API surface was untouched).
+- **Breaking changes** (removed/renamed fields, changed types, removed
+  endpoints, changed status codes) bump the API version in the spec and add a
+  `breaking` label on the PR.
+- **CI gate:** a check fails the build if `openapi.yaml` is stale relative to
+  the registered routes (regenerate-and-diff), so drift can't merge.
+- **Pre-merge checklist** (below) and the **change-impact** table both list the
+  spec — touching the API means touching the spec, full stop.
+
+> **Current state (as of this writing): the tooling above is NOT yet wired** —
+> there is no `apps/api/openapi.yaml`, no `openapi:generate` script, no
+> `@hono/zod-openapi` dependency, and routes are plain `new Hono()` with Zod
+> used only for runtime validation. Standing up the generator + Swagger UI +
+> the CI staleness gate, and backfilling every existing endpoint into the spec,
+> is tracked as its own ticket. Until that lands, this section is the **target
+> contract**; once it lands, the rule above is enforced on every PR.
 
 This section will grow as the API matures — auth schemes, pagination
 convention, error envelope, rate-limit headers, etc.
@@ -1144,7 +1171,7 @@ mirrors this list):
 - [ ] **Types:** TypeScript strict, no new `any`, schemas validate at boundaries
 - [ ] **Multi-tenancy:** queries respect `tenant_id` / RLS; no `bypassrls`
 - [ ] **Secrets:** nothing in git that should be in `.env.local` or Railway env
-- [ ] **OpenAPI:** spec regenerated and committed if API surface changed
+- [ ] **OpenAPI/Swagger:** EVERY new/changed/removed endpoint is in `apps/api/openapi.yaml`; spec regenerated + committed in this PR (or "API surface untouched" stated). Documenting the API in Swagger is mandatory, not deferrable.
 - [ ] **Docs:** `documents/features/` or `documents/technical/` updated; ADR added in `documents/decisions/` if a decision was made
 - [ ] **Migrations:** Drizzle migration committed; rollback path noted in PR body
 - [ ] **Observability:** new failure modes have logs/metrics; alerts updated if SLO-relevant
