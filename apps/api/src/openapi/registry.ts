@@ -28,6 +28,11 @@ import { publicKidMembersResponseSchema } from '../routes/public-kid-members.js'
 import { kidPinRequestSchema, kidPinResponseSchema } from '../routes/auth-kid-pin.js';
 import { listMembersResponseSchema, setMemberPinResponseSchema } from '../routes/members.js';
 import { listTasksResponseSchema } from '../routes/tasks.js';
+import {
+  lessonQuestionsResponseSchema,
+  lessonAnswerResponseSchema,
+  answerRequestSchema,
+} from '../routes/learn.js';
 
 export interface RouteMeta {
   summary?: string;
@@ -103,4 +108,15 @@ export const routeMeta: Record<string, RouteMeta> = {
   // Notices / tasks.
   'GET /api/notices': { summary: 'The family noticeboard', response: listNoticesResponseSchema },
   'GET /api/tasks': { summary: 'List tasks', response: listTasksResponseSchema },
+
+  // Learn — interactive lessons (FHS-283).
+  'GET /api/learn/{subject}/questions': {
+    summary: "Questions for a subject's lesson + the child's stats",
+    response: lessonQuestionsResponseSchema,
+  },
+  'POST /api/learn/{subject}/answer': {
+    summary: 'Grade one answer and update streak/score/progress',
+    request: answerRequestSchema,
+    response: lessonAnswerResponseSchema,
+  },
 };

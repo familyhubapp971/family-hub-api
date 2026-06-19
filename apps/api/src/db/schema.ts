@@ -520,6 +520,12 @@ export const learnProgress = pgTable(
       .references(() => members.id, { onDelete: 'cascade' }),
     subject: text('subject').notNull(),
     progress: integer('progress').notNull().default(0),
+    // FHS-283 — interactive lesson stats, updated as the child answers questions.
+    currentStreak: integer('current_streak').notNull().default(0),
+    bestStreak: integer('best_streak').notNull().default(0),
+    totalCorrect: integer('total_correct').notNull().default(0),
+    totalAnswered: integer('total_answered').notNull().default(0),
+    certificateAt: timestamp('certificate_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -1171,6 +1171,245 @@
         }
       }
     },
+    "/api/learn/{subject}/answer": {
+      "post": {
+        "tags": [
+          "learn"
+        ],
+        "summary": "Grade one answer and update streak/score/progress",
+        "operationId": "post_api_learn_subject_answer",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "questionId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "choiceIndex": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "memberId",
+                  "questionId",
+                  "choiceIndex"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "correct": {
+                      "type": "boolean"
+                    },
+                    "answerIndex": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "progress": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "score": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "streak": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "best": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "answered": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "certificate": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "progress",
+                        "score",
+                        "streak",
+                        "best",
+                        "answered",
+                        "certificate"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "correct",
+                    "answerIndex",
+                    "stats"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/learn/{subject}/questions": {
+      "get": {
+        "tags": [
+          "learn"
+        ],
+        "summary": "Questions for a subject's lesson + the child's stats",
+        "operationId": "get_api_learn_subject_questions",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subject": {
+                      "type": "string"
+                    },
+                    "difficulty": {
+                      "type": "string",
+                      "enum": [
+                        "easy",
+                        "medium",
+                        "hard"
+                      ]
+                    },
+                    "questions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": "string"
+                          },
+                          "choices": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "prompt",
+                          "choices"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "progress": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "score": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "streak": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "best": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "answered": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "certificate": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "progress",
+                        "score",
+                        "streak",
+                        "best",
+                        "answered",
+                        "certificate"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "subject",
+                    "difficulty",
+                    "questions",
+                    "stats"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "tags": [
