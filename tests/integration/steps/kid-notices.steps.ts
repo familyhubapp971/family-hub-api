@@ -19,6 +19,8 @@ import { getTestDb } from '../support/db.js';
 // invitations.steps.ts.
 vi.mock('../../../apps/api/src/db/client.js', () => ({
   getDb: () => getTestDb(),
+  // FHS-354 — pin is a no-op here (tests run as the superuser, which bypasses RLS).
+  pinRequestTenant: async () => {},
 }));
 import { config } from '../../../apps/api/src/config.js';
 import { kidRouter } from '../../../apps/api/src/routes/kid.js';

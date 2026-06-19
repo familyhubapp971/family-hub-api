@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { sql } from 'drizzle-orm';
 import pg from 'pg';
 import { config } from '../config.js';
 import { createLogger } from '../logger.js';
@@ -109,6 +110,18 @@ export async function runWithRequestDb<T>(
       client.release(resetErr as Error);
     }
   }
+}
+
+/**
+ * Pin a specific tenant on THIS request's connection (FHS-354), for routes that
+ * learn their tenant from somewhere other than resolveTenant — the kid token,
+ * or a public slug lookup. Their reads/writes then pass RLS once the app runs
+ * as app_runtime. Safe before the flip (no policy reads the GUC yet). The reset
+ * is handled by runWithRequestDb's finally; this only ever runs inside an
+ * /api/* request, so getDb() is the dedicated request connection.
+ */
+export async function pinRequestTenant(tenantId: string): Promise<void> {
+  await getDb().execute(sql`select set_config('${sql.raw(TENANT_GUC)}', ${tenantId}, false)`);
 }
 
 export async function closeDb(): Promise<void> {

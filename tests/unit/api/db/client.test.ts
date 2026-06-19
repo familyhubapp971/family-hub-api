@@ -33,7 +33,11 @@ vi.mock('pg', () => {
           released.count += 1;
           releaseArgs.calls.push(arg);
         },
-        query(text: string, params?: unknown[]) {
+        query(a: string | { text: string; values?: unknown[] }, b?: unknown[]) {
+          // pg is called either as (text, params) by runWithRequestDb or as a
+          // query-config object by drizzle's execute() — handle both.
+          const text = typeof a === 'string' ? a : a.text;
+          const params = typeof a === 'string' ? b : (a.values ?? b);
           // Record set_config('app.current_tenant', $1|'', false) calls. The
           // entry call binds $1 (the tenant); the reset call inlines ''.
           const m = /set_config\('([^']+)',\s*(\$1|'')/.exec(text);
@@ -55,7 +59,12 @@ vi.mock('pg', () => {
   return { default: { Pool: FakePool } };
 });
 
-import { getDb, getRootDb, runWithRequestDb } from '../../../../apps/api/src/db/client.js';
+import {
+  getDb,
+  getRootDb,
+  runWithRequestDb,
+  pinRequestTenant,
+} from '../../../../apps/api/src/db/client.js';
 
 const tick = () => new Promise((r) => setTimeout(r, 5));
 
@@ -186,6 +195,14 @@ describe('FHS-346 — per-request tenant GUC (set + guaranteed reset)', () => {
     // Released with an Error arg → pg destroys the client instead of pooling it.
     expect(releaseArgs.calls).toHaveLength(1);
     expect(releaseArgs.calls[0]).toBeInstanceOf(Error);
+  });
+
+  it('pinRequestTenant sets app.current_tenant to the given tenant on the request connection', async () => {
+    await runWithRequestDb(async () => {
+      await pinRequestTenant('tenant-x');
+    });
+    // FHS-354 — kid/public routes re-pin their own tenant mid-request.
+    expect(guc.calls).toContainEqual(['app.current_tenant', 'tenant-x']);
   });
 
   it('does not re-pin the tenant for a nested call (outer owns the GUC)', async () => {

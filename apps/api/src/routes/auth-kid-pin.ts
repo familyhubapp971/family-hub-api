@@ -4,7 +4,7 @@ import { and, eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { SignJWT } from 'jose';
 import { config } from '../config.js';
-import { getDb } from '../db/client.js';
+import { getDb, pinRequestTenant } from '../db/client.js';
 import { members, tenants } from '../db/schema.js';
 
 // FHS-236 — POST /api/auth/kid-pin.
@@ -176,6 +176,10 @@ export const kidPinRouter = new Hono().post('/', async (c) => {
     .from(tenants)
     .where(eq(tenants.slug, parsed.data.tenantSlug))
     .limit(1);
+
+  // FHS-354 — pin the resolved tenant so the members read passes RLS once the
+  // app runs as app_runtime (the slug is the boundary on this public route).
+  if (tenantRow) await pinRequestTenant(tenantRow.id);
 
   const [memberRow] = tenantRow
     ? await db

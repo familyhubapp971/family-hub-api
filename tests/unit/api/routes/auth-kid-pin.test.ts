@@ -11,6 +11,7 @@ import {
 const dbMock = { select: vi.fn() };
 vi.mock('../../../../apps/api/src/db/client.js', () => ({
   getDb: () => dbMock,
+  pinRequestTenant: async () => {},
 }));
 
 vi.mock('../../../../apps/api/src/config.js', async () => {

@@ -23,6 +23,7 @@ import { getTestDb } from '../support/db.js';
 
 vi.mock('../../../apps/api/src/db/client.js', () => ({
   getDb: () => getTestDb(),
+  pinRequestTenant: async () => {},
 }));
 
 vi.mock('../../../apps/api/src/config.js', async () => {

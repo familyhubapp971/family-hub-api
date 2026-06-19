@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { kidAuthMiddleware, requireKidAuth, getKidAuth } from '../middleware/kid-auth.js';
-import { getDb } from '../db/client.js';
+import { getDb, pinRequestTenant } from '../db/client.js';
 import { habits } from '../db/schema.js';
 import { listTenantNotices, listNoticesResponseSchema } from './notices.js';
 import { listTasksForMember, setTaskDoneForMember, taskItemSchema } from './tasks.js';
@@ -42,19 +42,23 @@ export const kidRouter = new Hono()
   .use('*', kidAuthMiddleware())
   .use('*', requireKidAuth)
   .get('/me', (c) => {
+    // No DB — just echoes the verified token claims, so no tenant pin here.
     const kid = getKidAuth(c);
     return c.json(kidMeResponseSchema.parse(kid));
   })
   // FHS-355 — the family noticeboard, scoped to the kid's own tenant from the
-  // verified kid token. Same shape as GET /api/notices.
+  // verified kid token. FHS-354 — pin that tenant so the read passes RLS once
+  // the app runs as app_runtime (the token, not resolveTenant, is the source).
   .get('/notices', async (c) => {
     const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
     const notices = await listTenantNotices(getDb(), kid.tenantId);
     return c.json(listNoticesResponseSchema.parse({ notices }));
   })
   // FHS-355 — the kid's OWN tasks (member-scoped from the kid token).
   .get('/tasks', async (c) => {
     const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
     const tasks = await listTasksForMember(getDb(), kid.tenantId, kid.memberId);
     return c.json(kidTasksResponseSchema.parse({ tasks }));
   })
@@ -62,6 +66,7 @@ export const kidRouter = new Hono()
   // setTaskDoneForMember means a kid can never touch another member's task.
   .patch('/tasks/:id', async (c) => {
     const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
     const id = c.req.param('id');
     if (!UUID_RE.test(id)) {
       return c.json({ error: 'invalid id', detail: 'task id must be a UUID' }, 400);
@@ -92,6 +97,7 @@ export const kidRouter = new Hono()
   // read-only at-a-glance list; full sticker interaction is a follow-up.
   .get('/today', async (c) => {
     const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
     const rows = await getDb()
       .select({
         id: habits.id,

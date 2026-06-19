@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { and, asc, eq, isNotNull } from 'drizzle-orm';
-import { getDb } from '../db/client.js';
+import { getDb, pinRequestTenant } from '../db/client.js';
 import { members, tenants } from '../db/schema.js';
 
 // FHS-238 — GET /api/public/kid-members/:slug
@@ -74,6 +74,11 @@ export const publicKidMembersRouter = new Hono().get('/:slug', async (c) => {
   if (!tenantRow) {
     return c.json({ error: 'family not found', errorCode: 'TENANT_NOT_FOUND' }, 404);
   }
+
+  // FHS-354 — pin the resolved tenant so the members read below passes RLS once
+  // the app runs as app_runtime (this public route has no resolveTenant context;
+  // the slug is the boundary).
+  await pinRequestTenant(tenantRow.id);
 
   // Only kids with a PIN set are shown. A kid added by an adult who
   // hasn't set their PIN yet shouldn't appear on the avatar grid —

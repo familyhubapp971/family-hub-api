@@ -7,6 +7,7 @@ import { getTestDb } from '../support/db.js';
 
 vi.mock('../../../apps/api/src/db/client.js', () => ({
   getDb: () => getTestDb(),
+  pinRequestTenant: async () => {},
 }));
 
 const feature = await loadFeature(
