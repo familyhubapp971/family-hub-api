@@ -39,6 +39,14 @@ while [ "$i" -le "$MAX_ATTEMPTS" ]; do
   i=$((i + 1))
 done
 
+# FHS-357 — create the SECURITY DEFINER reader functions (0030) on every boot,
+# UNGATED. `drizzle-kit push` never creates functions, but the app calls them
+# (GET /api/me, invite-claim) regardless of the RLS flip — so a missing function
+# 500s /api/me and strands a user with a family on the onboarding screen. The
+# statements are idempotent and harmless pre-flip, so they always run.
+echo "[boot] applying reader functions (migrate role)"
+DATABASE_URL="$MIGRATE_URL" node scripts/apply-functions.mjs
+
 # FHS-351 — re-assert the RLS role, policies, and grants as the migrate role.
 # `push --force` never touches RLS and can drop a table's grants when it
 # recreates it, so we re-apply (idempotently) on every deploy. Gated by

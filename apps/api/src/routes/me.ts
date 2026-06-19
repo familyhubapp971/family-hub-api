@@ -1,8 +1,22 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { sql } from 'drizzle-orm';
+import { sql, eq } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
+import { members, tenants } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('me');
+
+// `type` (not `interface`) so it satisfies drizzle's execute<T extends
+// Record<string, unknown>> constraint — interfaces lack the implicit index sig.
+type MeTenantRow = {
+  tenant_id: string;
+  slug: string;
+  name: string;
+  onboarding_completed: boolean;
+  role: string;
+};
 
 // FHS-194 — Protected GET /api/me.
 //
@@ -52,14 +66,35 @@ export const meRouter = new Hono().get('/', async (c) => {
   // than a direct members→tenants join — under RLS (app_runtime) a direct join
   // would return zero rows because there's no single tenant context here.
   const db = getDb();
-  const { rows: tenantRows } = await db.execute<{
-    tenant_id: string;
-    slug: string;
-    name: string;
-    onboarding_completed: boolean;
-    role: string;
-  }>(sql`select tenant_id, slug, name, onboarding_completed, role
-         from app_user_memberships(${row.id})`);
+  let tenantRows: MeTenantRow[];
+  try {
+    tenantRows = (
+      await db.execute<MeTenantRow>(sql`select tenant_id, slug, name, onboarding_completed, role
+         from app_user_memberships(${row.id})`)
+    ).rows;
+  } catch (err) {
+    // FHS-357 — the function is created on boot (apply-functions.mjs), not by
+    // drizzle-kit push. If a deploy hasn't created it yet, never strand a user
+    // with a family on the onboarding screen — fall back to the direct join.
+    // Pre-flip the app runs as the owner so this works; post-flip the function
+    // is guaranteed present, so this branch won't run.
+    log.warn(
+      { err: err instanceof Error ? err.message : String(err), userId: row.id },
+      'app_user_memberships unavailable — falling back to direct members→tenants join',
+    );
+    const rows = await db
+      .select({
+        tenant_id: tenants.id,
+        slug: tenants.slug,
+        name: tenants.name,
+        onboarding_completed: tenants.onboardingCompleted,
+        role: members.role,
+      })
+      .from(members)
+      .innerJoin(tenants, eq(members.tenantId, tenants.id))
+      .where(eq(members.userId, row.id));
+    tenantRows = rows;
+  }
 
   const response: MeResponse = {
     id: row.id,

@@ -11,7 +11,7 @@ import type { User } from '../../../../apps/api/src/db/schema.js';
 // /api/me reads the user's memberships across families via the
 // app_user_memberships SECURITY DEFINER function (FHS-354), executed as raw SQL.
 // Stub getDb so the route uses our mock instead of opening a real pool.
-const dbMock = { execute: vi.fn() };
+const dbMock = { execute: vi.fn(), select: vi.fn() };
 vi.mock('../../../../apps/api/src/db/client.js', () => ({
   getDb: () => dbMock,
 }));
@@ -19,6 +19,7 @@ vi.mock('../../../../apps/api/src/db/client.js', () => ({
 beforeEach(() => {
   // Default: user belongs to no tenants. Individual tests override.
   dbMock.execute.mockResolvedValue({ rows: [] });
+  dbMock.select.mockReset();
 });
 
 const ISSUER = 'https://test.supabase.local/auth/v1';
@@ -117,6 +118,51 @@ describe('FHS-194 — GET /api/me', () => {
     // Mirror sync was called with the verified claims.
     expect(sync).toHaveBeenCalledOnce();
     expect(sync).toHaveBeenCalledWith({ id: USER_ID, email: USER_EMAIL });
+  });
+
+  it('FHS-357 — falls back to the direct join when app_user_memberships is missing', async () => {
+    const { privateKey, publicJwk } = await generateEs256Key();
+    const sync = vi.fn().mockResolvedValue(FIXED_ROW);
+    // The function isn't deployed → execute throws; the route must fall back.
+    dbMock.execute.mockRejectedValueOnce(new Error('function app_user_memberships does not exist'));
+    dbMock.select.mockReturnValue({
+      from: () => ({
+        innerJoin: () => ({
+          where: () =>
+            Promise.resolve([
+              {
+                tenant_id: '11111111-1111-4111-8111-111111111111',
+                slug: 'khans',
+                name: 'Khan Family',
+                onboarding_completed: true,
+                role: 'admin',
+              },
+            ]),
+        }),
+      }),
+    });
+    const app = new Hono();
+    app.use(
+      '*',
+      authMiddleware({ issuer: ISSUER, jwks: makeJwksResolver(publicJwk), userMirrorSync: sync }),
+    );
+    app.route('/api/me', meRouter);
+
+    const res = await app.request('/api/me', {
+      headers: { Authorization: `Bearer ${await mintToken(privateKey)}` },
+    });
+
+    expect(res.status).toBe(200);
+    const parsed = meResponseSchema.parse(await res.json());
+    expect(parsed.tenants).toEqual([
+      {
+        id: '11111111-1111-4111-8111-111111111111',
+        slug: 'khans',
+        name: 'Khan Family',
+        role: 'admin',
+        onboardingCompleted: true,
+      },
+    ]);
   });
 
   it('returns 401 when the JWT lacks an email claim (mirror table requires email)', async () => {
