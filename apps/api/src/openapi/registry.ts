@@ -14,6 +14,7 @@ import type { ZodTypeAny } from 'zod';
 import { meResponseSchema } from '../routes/me.js';
 import {
   kidMeResponseSchema,
+  kidProfileResponseSchema,
   kidTasksResponseSchema,
   kidTodayResponseSchema,
 } from '../routes/kid.js';
@@ -80,6 +81,10 @@ export const routeMeta: Record<string, RouteMeta> = {
 
   // Kid-scoped (kid token).
   'GET /api/kid/me': { summary: 'The logged-in kid (token claims)', response: kidMeResponseSchema },
+  'GET /api/kid/profile': {
+    summary: "The kid's profile for the dashboard header (name, avatar, stars/cash)",
+    response: kidProfileResponseSchema,
+  },
   'GET /api/kid/notices': {
     summary: "The kid's family noticeboard",
     response: listNoticesResponseSchema,

@@ -960,6 +960,58 @@
         }
       }
     },
+    "/api/kid/profile": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid's profile for the dashboard header (name, avatar, stars/cash)",
+        "operationId": "get_api_kid_profile",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "displayName": {
+                      "type": "string"
+                    },
+                    "avatarEmoji": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "savedStickers": {
+                      "type": "number"
+                    },
+                    "savedCash": {
+                      "type": "number"
+                    },
+                    "currency": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "displayName",
+                    "avatarEmoji",
+                    "savedStickers",
+                    "savedCash",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kid/tasks": {
       "get": {
         "tags": [

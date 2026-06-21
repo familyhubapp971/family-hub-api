@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { kidAuthMiddleware, requireKidAuth, getKidAuth } from '../middleware/kid-auth.js';
 import { getDb, pinRequestTenant } from '../db/client.js';
-import { habits } from '../db/schema.js';
+import { habits, members } from '../db/schema.js';
+import { getSavings, getTenantCurrency } from '../lib/myworld.js';
 import { listTenantNotices, listNoticesResponseSchema } from './notices.js';
 import { listTasksForMember, setTaskDoneForMember, taskItemSchema } from './tasks.js';
 
@@ -38,6 +39,17 @@ export const kidMeResponseSchema = z.object({
   tenantSlug: z.string().min(1),
 });
 
+// FHS-362 — the kid's own profile for the dashboard header: name, avatar, and
+// banked stars/cash. DB-backed (members + savings), scoped to the kid's own
+// member from the verified token.
+export const kidProfileResponseSchema = z.object({
+  displayName: z.string(),
+  avatarEmoji: z.string().nullable(),
+  savedStickers: z.number(),
+  savedCash: z.number(),
+  currency: z.string(),
+});
+
 export const kidRouter = new Hono()
   .use('*', kidAuthMiddleware())
   .use('*', requireKidAuth)
@@ -45,6 +57,34 @@ export const kidRouter = new Hono()
     // No DB — just echoes the verified token claims, so no tenant pin here.
     const kid = getKidAuth(c);
     return c.json(kidMeResponseSchema.parse(kid));
+  })
+  // FHS-362 — the kid's own profile for the dashboard header (name + avatar +
+  // banked stars/cash), scoped to the kid's own member from the token.
+  .get('/profile', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    const db = getDb();
+    const [m] = await db
+      .select({ displayName: members.displayName, avatarEmoji: members.avatarEmoji })
+      .from(members)
+      .where(and(eq(members.tenantId, kid.tenantId), eq(members.id, kid.memberId)))
+      .limit(1);
+    if (!m) {
+      return c.json({ error: 'not found', detail: 'no such member for this kid' }, 404);
+    }
+    const [savings, currency] = await Promise.all([
+      getSavings(db, kid.tenantId, kid.memberId),
+      getTenantCurrency(db, kid.tenantId),
+    ]);
+    return c.json(
+      kidProfileResponseSchema.parse({
+        displayName: m.displayName,
+        avatarEmoji: m.avatarEmoji,
+        savedStickers: savings.savedStickers,
+        savedCash: savings.savedCash,
+        currency,
+      }),
+    );
   })
   // FHS-355 — the family noticeboard, scoped to the kid's own tenant from the
   // verified kid token. FHS-354 — pin that tenant so the read passes RLS once
