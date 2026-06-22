@@ -1,19 +1,30 @@
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, gte, isNull, lte, or } from 'drizzle-orm';
 import { kidAuthMiddleware, requireKidAuth, getKidAuth } from '../middleware/kid-auth.js';
 import { getDb, pinRequestTenant } from '../db/client.js';
-import { habits, habitStickers, members, mwWeeks, rewards } from '../db/schema.js';
+import {
+  events,
+  habits,
+  habitStickers,
+  mealTemplates,
+  members,
+  mwWeeks,
+  rewards,
+} from '../db/schema.js';
 import {
   getOrCreateCurrentWeek,
   getSavings,
   getTenantCurrency,
   listInvestments,
+  mondayOf,
   redeemReward,
   stickerBalance,
   stickerDayRelation,
 } from '../lib/myworld.js';
 import { listHabitsResponseSchema, weekItemSchema } from './habits.js';
+import { listMealsResponseSchema } from './meals.js';
+import { listEventsResponseSchema } from './events.js';
 import { listRewardsResponseSchema } from './rewards.js';
 import { listTenantNotices, listNoticesResponseSchema } from './notices.js';
 import { listTasksForMember, setTaskDoneForMember, taskItemSchema } from './tasks.js';
@@ -501,4 +512,80 @@ export const kidRouter = new Hono()
         investments,
       }),
     );
+  })
+  // FHS-365 — the kid's meals: the family's meal plan scoped to the kid +
+  // family-wide entries (server-side, not client-filtered). Read-only.
+  .get('/meals', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    const rows = await getDb()
+      .select({
+        id: mealTemplates.id,
+        dayOfWeek: mealTemplates.dayOfWeek,
+        slot: mealTemplates.slot,
+        name: mealTemplates.name,
+        memberId: mealTemplates.memberId,
+        recurring: mealTemplates.recurring,
+      })
+      .from(mealTemplates)
+      .where(
+        and(
+          eq(mealTemplates.tenantId, kid.tenantId),
+          or(isNull(mealTemplates.memberId), eq(mealTemplates.memberId, kid.memberId)),
+        ),
+      )
+      .orderBy(asc(mealTemplates.dayOfWeek), asc(mealTemplates.slot));
+    const meals = rows
+      .filter((r) => (r.name ?? '').trim() !== '')
+      .map((r) => ({
+        id: r.id,
+        dayOfWeek: r.dayOfWeek,
+        slot: r.slot,
+        name: r.name ?? '',
+        memberId: r.memberId ?? null,
+        recurring: r.recurring,
+      }));
+    return c.json(listMealsResponseSchema.parse({ meals }));
+  })
+  // FHS-365 — the kid's schedule for a week (defaults to this week), scoped to
+  // the kid + family-wide events. Read-only. Optional ?weekStart=YYYY-MM-DD.
+  .get('/events', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    const param = c.req.query('weekStart');
+    if (param !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(param)) {
+      return c.json({ error: 'invalid weekStart', detail: 'must be YYYY-MM-DD' }, 400);
+    }
+    const weekStart = param ?? mondayOf(new Date()).toISOString().slice(0, 10);
+    const [y, m, d] = weekStart.split('-').map((s) => Number.parseInt(s, 10));
+    const startMs = Date.UTC(y!, m! - 1, d!);
+    // Reject a structurally-valid but nonsense date (e.g. 2026-99-99).
+    if (new Date(startMs).toISOString().slice(0, 10) !== weekStart) {
+      return c.json({ error: 'invalid weekStart', detail: 'not a real date' }, 400);
+    }
+    const weekEnd = new Date(startMs + 6 * 86_400_000).toISOString().slice(0, 10);
+    const rows = await getDb()
+      .select({
+        id: events.id,
+        date: events.date,
+        startTime: events.startTime,
+        endTime: events.endTime,
+        title: events.title,
+        notes: events.notes,
+        memberId: events.memberId,
+        type: events.type,
+        location: events.location,
+        wear: events.wear,
+      })
+      .from(events)
+      .where(
+        and(
+          eq(events.tenantId, kid.tenantId),
+          gte(events.date, weekStart),
+          lte(events.date, weekEnd),
+          or(isNull(events.memberId), eq(events.memberId, kid.memberId)),
+        ),
+      )
+      .orderBy(asc(events.date), asc(events.startTime));
+    return c.json(listEventsResponseSchema.parse({ weekStart, events: rows }));
   });

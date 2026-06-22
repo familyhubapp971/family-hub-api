@@ -837,6 +837,109 @@
         }
       }
     },
+    "/api/kid/events": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid's schedule for a week (their own + family-wide)",
+        "operationId": "get_api_kid_events",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "weekStart": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "date": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          "startTime": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "nullable": true
+                          },
+                          "endTime": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "nullable": true
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "notes": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "memberId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "school",
+                              "home"
+                            ]
+                          },
+                          "location": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "wear": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "date",
+                          "startTime",
+                          "endTime",
+                          "title",
+                          "notes",
+                          "memberId",
+                          "type",
+                          "location",
+                          "wear"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "weekStart",
+                    "events"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kid/financial": {
       "get": {
         "tags": [
@@ -1236,6 +1339,91 @@
                     "memberId",
                     "tenantId",
                     "tenantSlug"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/meals": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid's meals (their own + family-wide)",
+        "operationId": "get_api_kid_meals",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "meals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "dayOfWeek": {
+                            "type": "string",
+                            "enum": [
+                              "mon",
+                              "tue",
+                              "wed",
+                              "thu",
+                              "fri",
+                              "sat",
+                              "sun"
+                            ]
+                          },
+                          "slot": {
+                            "type": "string",
+                            "enum": [
+                              "breakfast",
+                              "lunch",
+                              "dinner",
+                              "snack"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "memberId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
+                          "recurring": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "dayOfWeek",
+                          "slot",
+                          "name",
+                          "memberId",
+                          "recurring"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "meals"
                   ],
                   "additionalProperties": false
                 }

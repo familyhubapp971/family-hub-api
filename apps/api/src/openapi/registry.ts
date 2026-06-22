@@ -25,6 +25,8 @@ import {
 } from '../routes/kid.js';
 import { listHabitsResponseSchema } from '../routes/habits.js';
 import { listRewardsResponseSchema } from '../routes/rewards.js';
+import { listMealsResponseSchema } from '../routes/meals.js';
+import { listEventsResponseSchema } from '../routes/events.js';
 import { listNoticesResponseSchema } from '../routes/notices.js';
 import {
   createInvitationRequestSchema,
@@ -128,6 +130,14 @@ export const routeMeta: Record<string, RouteMeta> = {
   'GET /api/kid/financial': {
     summary: "The kid's savings + active investments",
     response: kidFinancialResponseSchema,
+  },
+  'GET /api/kid/meals': {
+    summary: "The kid's meals (their own + family-wide)",
+    response: listMealsResponseSchema,
+  },
+  'GET /api/kid/events': {
+    summary: "The kid's schedule for a week (their own + family-wide)",
+    response: listEventsResponseSchema,
   },
 
   // Invitations.
