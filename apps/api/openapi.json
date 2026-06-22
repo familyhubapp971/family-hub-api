@@ -1302,6 +1302,430 @@
         }
       }
     },
+    "/api/kid/journal": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid's journal entry for a day (+ the day's quote)",
+        "operationId": "get_api_kid_journal",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entry": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "entryDate": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "mood": {
+                          "type": "string",
+                          "enum": [
+                            "happy",
+                            "smiling",
+                            "excited",
+                            "laughing",
+                            "surprised",
+                            "nervous",
+                            "grumpy",
+                            "sad"
+                          ],
+                          "nullable": true
+                        },
+                        "gratitude1": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "gratitude2": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "gratitude3": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "quoteIndex": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "nullable": true
+                        },
+                        "creativity": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "nullable": true
+                        },
+                        "body": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "entryDate",
+                        "mood",
+                        "gratitude1",
+                        "gratitude2",
+                        "gratitude3",
+                        "quoteIndex",
+                        "creativity",
+                        "body",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false,
+                      "nullable": true
+                    },
+                    "quoteIndex": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "entry",
+                    "quoteIndex"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Save the kid's journal for a day",
+        "operationId": "put_api_kid_journal",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "entryDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "mood": {
+                    "type": "string",
+                    "enum": [
+                      "happy",
+                      "smiling",
+                      "excited",
+                      "laughing",
+                      "surprised",
+                      "nervous",
+                      "grumpy",
+                      "sad"
+                    ],
+                    "nullable": true
+                  },
+                  "gratitude1": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "nullable": true
+                  },
+                  "gratitude2": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "nullable": true
+                  },
+                  "gratitude3": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "nullable": true
+                  },
+                  "body": {
+                    "type": "string",
+                    "maxLength": 5000,
+                    "nullable": true
+                  },
+                  "creativity": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 500
+                    },
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "entryDate"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "entryDate": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    },
+                    "mood": {
+                      "type": "string",
+                      "enum": [
+                        "happy",
+                        "smiling",
+                        "excited",
+                        "laughing",
+                        "surprised",
+                        "nervous",
+                        "grumpy",
+                        "sad"
+                      ],
+                      "nullable": true
+                    },
+                    "gratitude1": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "gratitude2": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "gratitude3": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "quoteIndex": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "nullable": true
+                    },
+                    "creativity": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "nullable": true
+                    },
+                    "body": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "entryDate",
+                    "mood",
+                    "gratitude1",
+                    "gratitude2",
+                    "gratitude3",
+                    "quoteIndex",
+                    "creativity",
+                    "body",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/journal/earliest": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid's earliest journal date",
+        "operationId": "get_api_kid_journal_earliest",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "earliestDate": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "earliestDate"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/journal/entries": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid's past journal entries",
+        "operationId": "get_api_kid_journal_entries",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "entryDate": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          "mood": {
+                            "type": "string",
+                            "enum": [
+                              "happy",
+                              "smiling",
+                              "excited",
+                              "laughing",
+                              "surprised",
+                              "nervous",
+                              "grumpy",
+                              "sad"
+                            ],
+                            "nullable": true
+                          },
+                          "gratitude1": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "gratitude2": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "gratitude3": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "quoteIndex": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "creativity": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            },
+                            "nullable": true
+                          },
+                          "body": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "entryDate",
+                          "mood",
+                          "gratitude1",
+                          "gratitude2",
+                          "gratitude3",
+                          "quoteIndex",
+                          "creativity",
+                          "body",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "entries"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kid/me": {
       "get": {
         "tags": [

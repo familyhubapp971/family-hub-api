@@ -1,12 +1,14 @@
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
-import { and, asc, eq, gte, isNull, lte, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNull, lte, min, or } from 'drizzle-orm';
+import { quoteIndexForDate } from '@familyhub/shared';
 import { kidAuthMiddleware, requireKidAuth, getKidAuth } from '../middleware/kid-auth.js';
 import { getDb, pinRequestTenant } from '../db/client.js';
 import {
   events,
   habits,
   habitStickers,
+  journalEntries,
   mealTemplates,
   members,
   mwWeeks,
@@ -26,6 +28,17 @@ import { listHabitsResponseSchema, weekItemSchema } from './habits.js';
 import { listMealsResponseSchema } from './meals.js';
 import { listEventsResponseSchema } from './events.js';
 import { listRewardsResponseSchema } from './rewards.js';
+import {
+  DATE_RE,
+  MOOD_VALUES,
+  isNotFuture,
+  isValidCalendarDate,
+  serializeEntry,
+  journalDayResponseSchema,
+  journalEntriesResponseSchema,
+  journalEarliestResponseSchema,
+  journalEntrySchema,
+} from './journal.js';
 import { listTenantNotices, listNoticesResponseSchema } from './notices.js';
 import { listTasksForMember, setTaskDoneForMember, taskItemSchema } from './tasks.js';
 
@@ -63,6 +76,22 @@ export const kidFinancialResponseSchema = z.object({
   savedCash: z.number(),
   currency: z.string(),
   investments: z.array(kidInvestmentSchema),
+});
+
+// FHS-366 — kid journal upsert (the kid writes their OWN day; memberId comes
+// from the token, never the body). Same fields + validation as the parent.
+export const kidJournalUpsertSchema = z.object({
+  entryDate: z
+    .string()
+    .regex(DATE_RE, 'entryDate must be YYYY-MM-DD')
+    .refine(isValidCalendarDate, 'entryDate must be a real calendar date')
+    .refine(isNotFuture, 'entryDate may not be in the future'),
+  mood: z.enum(MOOD_VALUES).nullish(),
+  gratitude1: z.string().max(500).nullish(),
+  gratitude2: z.string().max(500).nullish(),
+  gratitude3: z.string().max(500).nullish(),
+  body: z.string().max(5000).nullish(),
+  creativity: z.record(z.string(), z.string().max(500)).nullish(),
 });
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -588,4 +617,105 @@ export const kidRouter = new Hono()
       )
       .orderBy(asc(events.date), asc(events.startTime));
     return c.json(listEventsResponseSchema.parse({ weekStart, events: rows }));
+  })
+  // FHS-366 — the kid's journal for a day (or null) + the day's quote index.
+  .get('/journal', async (c) => {
+    const kid = getKidAuth(c);
+    const date = c.req.query('date');
+    if (!date || !isValidCalendarDate(date)) {
+      return c.json({ error: 'invalid request', detail: 'date must be a real YYYY-MM-DD' }, 400);
+    }
+    await pinRequestTenant(kid.tenantId);
+    const rows = await getDb()
+      .select()
+      .from(journalEntries)
+      .where(
+        and(
+          eq(journalEntries.tenantId, kid.tenantId),
+          eq(journalEntries.memberId, kid.memberId),
+          eq(journalEntries.entryDate, date),
+        ),
+      )
+      .limit(1);
+    return c.json(
+      journalDayResponseSchema.parse({
+        entry: rows[0] ? serializeEntry(rows[0]) : null,
+        quoteIndex: quoteIndexForDate(date),
+      }),
+    );
+  })
+  // FHS-366 — the kid's past journal entries, newest first.
+  .get('/journal/entries', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    const rows = await getDb()
+      .select()
+      .from(journalEntries)
+      .where(
+        and(eq(journalEntries.tenantId, kid.tenantId), eq(journalEntries.memberId, kid.memberId)),
+      )
+      .orderBy(desc(journalEntries.entryDate));
+    return c.json(journalEntriesResponseSchema.parse({ entries: rows.map(serializeEntry) }));
+  })
+  // FHS-366 — the kid's earliest entry date (back-nav lower bound).
+  .get('/journal/earliest', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    const rows = await getDb()
+      .select({ earliest: min(journalEntries.entryDate) })
+      .from(journalEntries)
+      .where(
+        and(eq(journalEntries.tenantId, kid.tenantId), eq(journalEntries.memberId, kid.memberId)),
+      );
+    return c.json(journalEarliestResponseSchema.parse({ earliestDate: rows[0]?.earliest ?? null }));
+  })
+  // FHS-366 — the kid saves their OWN day (upsert on tenant+member+date).
+  .put('/journal', async (c) => {
+    const kid = getKidAuth(c);
+    const parsed = kidJournalUpsertSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+    await pinRequestTenant(kid.tenantId);
+    const { entryDate, mood, gratitude1, gratitude2, gratitude3, body, creativity } = parsed.data;
+    const quoteIndex = quoteIndexForDate(entryDate);
+    const now = new Date();
+    const [row] = await getDb()
+      .insert(journalEntries)
+      .values({
+        tenantId: kid.tenantId,
+        memberId: kid.memberId,
+        entryDate,
+        mood: mood ?? null,
+        gratitude1: gratitude1 ?? null,
+        gratitude2: gratitude2 ?? null,
+        gratitude3: gratitude3 ?? null,
+        quoteIndex,
+        creativity: creativity ?? {},
+        body: body ?? null,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [journalEntries.tenantId, journalEntries.memberId, journalEntries.entryDate],
+        set: {
+          mood: mood ?? null,
+          gratitude1: gratitude1 ?? null,
+          gratitude2: gratitude2 ?? null,
+          gratitude3: gratitude3 ?? null,
+          quoteIndex,
+          creativity: creativity ?? {},
+          body: body ?? null,
+          updatedAt: now,
+        },
+      })
+      .returning();
+    if (!row) return c.json({ error: 'upsert failed', errorCode: 'JOURNAL_UPSERT_NO_ROW' }, 500);
+    return c.json(journalEntrySchema.parse(serializeEntry(row)), 200);
   });

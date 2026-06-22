@@ -20,11 +20,11 @@ import {
 
 // ─── Zod schemas (exported so tests can import shapes) ────────────────────────
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // A YYYY-MM-DD string that is also a REAL calendar date (rejects 2026-02-30,
 // 2026-13-01) — the regex alone would let those through to Postgres and 500.
-function isValidCalendarDate(s: string): boolean {
+export function isValidCalendarDate(s: string): boolean {
   if (!DATE_RE.test(s)) return false;
   const [y, m, d] = s.split('-').map((n) => Number.parseInt(n, 10));
   if (!y || !m || !d) return false;
@@ -35,13 +35,13 @@ function isValidCalendarDate(s: string): boolean {
 // Not in the future. We allow up to UTC-today + 1 day so a child whose local
 // date is ahead of UTC (e.g. UTC+14 near midnight) can still save "today";
 // this still blocks pre-dating entries weeks/years ahead.
-function isNotFuture(s: string): boolean {
+export function isNotFuture(s: string): boolean {
   const tomorrow = new Date();
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
   return s <= tomorrow.toISOString().slice(0, 10);
 }
 
-const MOOD_VALUES = [
+export const MOOD_VALUES = [
   'happy',
   'smiling',
   'excited',
@@ -110,12 +110,14 @@ const upsertRequestSchema = z.object({
   gratitude2: z.string().max(500).nullish(),
   gratitude3: z.string().max(500).nullish(),
   body: z.string().max(5000).nullish(),
-  creativity: z.record(z.string(), z.string()).nullish(),
+  creativity: z.record(z.string(), z.string().max(500)).nullish(),
 });
 
 // ─── Response serialiser ──────────────────────────────────────────────────────
 
-function serializeEntry(r: typeof journalEntries.$inferSelect): z.infer<typeof journalEntrySchema> {
+export function serializeEntry(
+  r: typeof journalEntries.$inferSelect,
+): z.infer<typeof journalEntrySchema> {
   return {
     id: r.id,
     entryDate: r.entryDate,

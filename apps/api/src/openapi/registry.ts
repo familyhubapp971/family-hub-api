@@ -27,6 +27,13 @@ import { listHabitsResponseSchema } from '../routes/habits.js';
 import { listRewardsResponseSchema } from '../routes/rewards.js';
 import { listMealsResponseSchema } from '../routes/meals.js';
 import { listEventsResponseSchema } from '../routes/events.js';
+import {
+  journalDayResponseSchema,
+  journalEntriesResponseSchema,
+  journalEarliestResponseSchema,
+  journalEntrySchema,
+} from '../routes/journal.js';
+import { kidJournalUpsertSchema } from '../routes/kid.js';
 import { listNoticesResponseSchema } from '../routes/notices.js';
 import {
   createInvitationRequestSchema,
@@ -138,6 +145,23 @@ export const routeMeta: Record<string, RouteMeta> = {
   'GET /api/kid/events': {
     summary: "The kid's schedule for a week (their own + family-wide)",
     response: listEventsResponseSchema,
+  },
+  'GET /api/kid/journal': {
+    summary: "The kid's journal entry for a day (+ the day's quote)",
+    response: journalDayResponseSchema,
+  },
+  'PUT /api/kid/journal': {
+    summary: "Save the kid's journal for a day",
+    request: kidJournalUpsertSchema,
+    response: journalEntrySchema,
+  },
+  'GET /api/kid/journal/entries': {
+    summary: "The kid's past journal entries",
+    response: journalEntriesResponseSchema,
+  },
+  'GET /api/kid/journal/earliest': {
+    summary: "The kid's earliest journal date",
+    response: journalEarliestResponseSchema,
   },
 
   // Invitations.
