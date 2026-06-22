@@ -33,7 +33,13 @@ import {
   journalEarliestResponseSchema,
   journalEntrySchema,
 } from '../routes/journal.js';
-import { kidJournalUpsertSchema } from '../routes/kid.js';
+import {
+  kidJournalUpsertSchema,
+  kidLearnAnswerSchema,
+  kidReadingCreateSchema,
+  kidReadingPatchSchema,
+} from '../routes/kid.js';
+import { bookSchema, listBooksResponseSchema } from '../routes/reading-log.js';
 import { listNoticesResponseSchema } from '../routes/notices.js';
 import {
   createInvitationRequestSchema,
@@ -46,6 +52,7 @@ import { kidPinRequestSchema, kidPinResponseSchema } from '../routes/auth-kid-pi
 import { listMembersResponseSchema, setMemberPinResponseSchema } from '../routes/members.js';
 import { listTasksResponseSchema } from '../routes/tasks.js';
 import {
+  listLearnResponseSchema,
   lessonQuestionsResponseSchema,
   lessonAnswerResponseSchema,
   answerRequestSchema,
@@ -163,6 +170,34 @@ export const routeMeta: Record<string, RouteMeta> = {
     summary: "The kid's earliest journal date",
     response: journalEarliestResponseSchema,
   },
+  'GET /api/kid/learn': {
+    summary: "The kid's lesson subjects + progress",
+    response: listLearnResponseSchema,
+  },
+  'GET /api/kid/learn/{subject}/questions': {
+    summary: "Questions for the kid's lesson + their stats",
+    response: lessonQuestionsResponseSchema,
+  },
+  'POST /api/kid/learn/{subject}/answer': {
+    summary: "Grade one of the kid's answers",
+    request: kidLearnAnswerSchema,
+    response: lessonAnswerResponseSchema,
+  },
+  'GET /api/kid/reading-log': {
+    summary: "The kid's reading log",
+    response: listBooksResponseSchema,
+  },
+  'POST /api/kid/reading-log': {
+    summary: 'Add a book to the kid reading log',
+    request: kidReadingCreateSchema,
+    response: bookSchema,
+  },
+  'PATCH /api/kid/reading-log/{id}': {
+    summary: 'Mark a kid book finished/unfinished',
+    request: kidReadingPatchSchema,
+    response: bookSchema,
+  },
+  'DELETE /api/kid/reading-log/{id}': { summary: 'Remove a book from the kid reading log' },
 
   // Invitations.
   'POST /api/invitations': {

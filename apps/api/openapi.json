@@ -1726,6 +1726,293 @@
         }
       }
     },
+    "/api/kid/learn": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid's lesson subjects + progress",
+        "operationId": "get_api_kid_learn",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subjects": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "subject": {
+                            "type": "string"
+                          },
+                          "progress": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100
+                          }
+                        },
+                        "required": [
+                          "subject",
+                          "progress"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "subjects"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/learn/{subject}/answer": {
+      "post": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Grade one of the kid's answers",
+        "operationId": "post_api_kid_learn_subject_answer",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "questionId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "choiceIndex": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "questionId",
+                  "choiceIndex"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "correct": {
+                      "type": "boolean"
+                    },
+                    "answerIndex": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "progress": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "score": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "streak": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "best": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "answered": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "certificate": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "progress",
+                        "score",
+                        "streak",
+                        "best",
+                        "answered",
+                        "certificate"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "correct",
+                    "answerIndex",
+                    "stats"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/learn/{subject}/questions": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Questions for the kid's lesson + their stats",
+        "operationId": "get_api_kid_learn_subject_questions",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subject": {
+                      "type": "string"
+                    },
+                    "difficulty": {
+                      "type": "string",
+                      "enum": [
+                        "easy",
+                        "medium",
+                        "hard"
+                      ]
+                    },
+                    "questions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": "string"
+                          },
+                          "choices": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "prompt",
+                          "choices"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "progress": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "score": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "streak": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "best": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "answered": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "certificate": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "progress",
+                        "score",
+                        "streak",
+                        "best",
+                        "answered",
+                        "certificate"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "subject",
+                    "difficulty",
+                    "questions",
+                    "stats"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kid/me": {
       "get": {
         "tags": [
@@ -1977,6 +2264,259 @@
                     "savedStickers",
                     "savedCash",
                     "currency"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/reading-log": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid's reading log",
+        "operationId": "get_api_kid_reading_log",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "books": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "author": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "finished": {
+                            "type": "boolean"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "author",
+                          "finished",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "books"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Add a book to the kid reading log",
+        "operationId": "post_api_kid_reading_log",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "author": {
+                    "type": "string",
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "author": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "finished": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "author",
+                    "finished",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/reading-log/{id}": {
+      "delete": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Remove a book from the kid reading log",
+        "operationId": "delete_api_kid_reading_log_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Mark a kid book finished/unfinished",
+        "operationId": "patch_api_kid_reading_log_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "finished": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "finished"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "author": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "finished": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "author",
+                    "finished",
+                    "createdAt"
                   ],
                   "additionalProperties": false
                 }

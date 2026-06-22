@@ -35,7 +35,7 @@ export const listLearnResponseSchema = z.object({
 });
 
 // FHS-283 — interactive lesson schemas.
-const difficultySchema = z.enum(['easy', 'medium', 'hard']);
+export const difficultySchema = z.enum(['easy', 'medium', 'hard']);
 
 export const lessonStatsSchema = z.object({
   progress: z.number().int().min(0).max(100),
@@ -77,7 +77,7 @@ interface ProgressRow {
   certificateAt: Date | null;
 }
 
-function toStats(row: ProgressRow | undefined): LessonStats {
+export function toStats(row: ProgressRow | undefined): LessonStats {
   return {
     progress: row?.progress ?? 0,
     score: row?.totalCorrect ?? 0,
@@ -112,7 +112,7 @@ async function checkMemberAccess(
   return null;
 }
 
-async function loadProgressRow(
+export async function loadProgressRow(
   db: Database,
   tenantId: string,
   memberId: string,

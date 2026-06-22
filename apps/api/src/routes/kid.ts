@@ -1,6 +1,6 @@
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
-import { and, asc, desc, eq, gte, isNull, lte, min, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNull, lte, min, or, sql } from 'drizzle-orm';
 import { quoteIndexForDate } from '@familyhub/shared';
 import { kidAuthMiddleware, requireKidAuth, getKidAuth } from '../middleware/kid-auth.js';
 import { getDb, pinRequestTenant } from '../db/client.js';
@@ -9,11 +9,21 @@ import {
   habits,
   habitStickers,
   journalEntries,
+  learnProgress,
   mealTemplates,
   members,
   mwWeeks,
+  readingLog,
   rewards,
 } from '../db/schema.js';
+import {
+  CERTIFICATE_TARGET,
+  getQuestions,
+  gradeAnswer,
+  isLessonSubject,
+  LESSON_SUBJECTS,
+  type Difficulty,
+} from '../lib/learn-questions.js';
 import {
   getOrCreateCurrentWeek,
   getSavings,
@@ -28,6 +38,15 @@ import { listHabitsResponseSchema, weekItemSchema } from './habits.js';
 import { listMealsResponseSchema } from './meals.js';
 import { listEventsResponseSchema } from './events.js';
 import { listRewardsResponseSchema } from './rewards.js';
+import {
+  difficultySchema,
+  listLearnResponseSchema,
+  lessonQuestionsResponseSchema,
+  lessonAnswerResponseSchema,
+  loadProgressRow,
+  toStats,
+} from './learn.js';
+import { bookSchema, listBooksResponseSchema } from './reading-log.js';
 import {
   DATE_RE,
   MOOD_VALUES,
@@ -77,6 +96,17 @@ export const kidFinancialResponseSchema = z.object({
   currency: z.string(),
   investments: z.array(kidInvestmentSchema),
 });
+
+// FHS-367 — kid learn answer + reading-log writes (memberId from the token).
+export const kidLearnAnswerSchema = z.object({
+  questionId: z.string().min(1),
+  choiceIndex: z.number().int().min(0),
+});
+export const kidReadingCreateSchema = z.object({
+  title: z.string().min(1).max(200),
+  author: z.string().max(120).optional(),
+});
+export const kidReadingPatchSchema = z.object({ finished: z.boolean() });
 
 // FHS-366 — kid journal upsert (the kid writes their OWN day; memberId comes
 // from the token, never the body). Same fields + validation as the parent.
@@ -718,4 +748,228 @@ export const kidRouter = new Hono()
       .returning();
     if (!row) return c.json({ error: 'upsert failed', errorCode: 'JOURNAL_UPSERT_NO_ROW' }, 500);
     return c.json(journalEntrySchema.parse(serializeEntry(row)), 200);
+  })
+  // FHS-367 — the kid's lesson subjects (Maths/Science/Logic) + their progress.
+  .get('/learn', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    const rows = await getDb()
+      .select({ subject: learnProgress.subject, progress: learnProgress.progress })
+      .from(learnProgress)
+      .where(
+        and(eq(learnProgress.tenantId, kid.tenantId), eq(learnProgress.memberId, kid.memberId)),
+      );
+    const stored = new Map(rows.map((r) => [r.subject, r.progress]));
+    const subjects = LESSON_SUBJECTS.map((subject) => ({
+      subject,
+      progress: stored.get(subject) ?? 0,
+    }));
+    return c.json(listLearnResponseSchema.parse({ subjects }));
+  })
+  // FHS-367 — questions for a kid's lesson + their current stats.
+  .get('/learn/:subject/questions', async (c) => {
+    const kid = getKidAuth(c);
+    const subject = decodeURIComponent(c.req.param('subject'));
+    if (!isLessonSubject(subject)) {
+      return c.json({ error: 'unknown subject', detail: 'subject has no interactive lesson' }, 400);
+    }
+    const parsedDifficulty = difficultySchema.safeParse(c.req.query('difficulty') ?? 'easy');
+    if (!parsedDifficulty.success) {
+      return c.json(
+        { error: 'invalid request', detail: 'difficulty must be easy|medium|hard' },
+        400,
+      );
+    }
+    await pinRequestTenant(kid.tenantId);
+    const row = await loadProgressRow(getDb(), kid.tenantId, kid.memberId, subject);
+    return c.json(
+      lessonQuestionsResponseSchema.parse({
+        subject,
+        difficulty: parsedDifficulty.data,
+        questions: getQuestions(subject, parsedDifficulty.data as Difficulty),
+        stats: toStats(row),
+      }),
+    );
+  })
+  // FHS-367 — grade one of the kid's answers + persist streak/score/progress.
+  .post('/learn/:subject/answer', async (c) => {
+    const kid = getKidAuth(c);
+    const subject = decodeURIComponent(c.req.param('subject'));
+    if (!isLessonSubject(subject)) {
+      return c.json({ error: 'unknown subject', detail: 'subject has no interactive lesson' }, 400);
+    }
+    const parsed = kidLearnAnswerSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json(
+        { error: 'invalid request', detail: parsed.error.issues[0]?.message ?? 'bad body' },
+        400,
+      );
+    }
+    const graded = gradeAnswer(subject, parsed.data.questionId, parsed.data.choiceIndex);
+    if (!graded) {
+      return c.json(
+        { error: 'unknown question', detail: 'no such question for this subject' },
+        400,
+      );
+    }
+    await pinRequestTenant(kid.tenantId);
+    const db = getDb();
+    const prev = await loadProgressRow(db, kid.tenantId, kid.memberId, subject);
+    const totalAnswered = (prev?.totalAnswered ?? 0) + 1;
+    const totalCorrect = (prev?.totalCorrect ?? 0) + (graded.correct ? 1 : 0);
+    const currentStreak = graded.correct ? (prev?.currentStreak ?? 0) + 1 : 0;
+    const bestStreak = Math.max(prev?.bestStreak ?? 0, currentStreak);
+    const progress = Math.min(100, Math.round((totalCorrect / CERTIFICATE_TARGET) * 100));
+    const certificateAt = prev?.certificateAt ?? (progress >= 100 ? new Date() : null);
+    await db
+      .insert(learnProgress)
+      .values({
+        tenantId: kid.tenantId,
+        memberId: kid.memberId,
+        subject,
+        progress,
+        currentStreak,
+        bestStreak,
+        totalCorrect,
+        totalAnswered,
+        certificateAt,
+      })
+      .onConflictDoUpdate({
+        target: [learnProgress.tenantId, learnProgress.memberId, learnProgress.subject],
+        set: {
+          progress,
+          currentStreak,
+          bestStreak,
+          totalCorrect,
+          totalAnswered,
+          certificateAt,
+          updatedAt: sql`now()`,
+        },
+      });
+    return c.json(
+      lessonAnswerResponseSchema.parse({
+        correct: graded.correct,
+        answerIndex: graded.answerIndex,
+        stats: toStats({
+          progress,
+          currentStreak,
+          bestStreak,
+          totalCorrect,
+          totalAnswered,
+          certificateAt,
+        }),
+      }),
+    );
+  })
+  // FHS-367 — the kid's reading log (their own books, newest first).
+  .get('/reading-log', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    const rows = await getDb()
+      .select({
+        id: readingLog.id,
+        title: readingLog.title,
+        author: readingLog.author,
+        finished: readingLog.finished,
+        createdAt: readingLog.createdAt,
+      })
+      .from(readingLog)
+      .where(and(eq(readingLog.tenantId, kid.tenantId), eq(readingLog.memberId, kid.memberId)))
+      .orderBy(desc(readingLog.createdAt));
+    return c.json(
+      listBooksResponseSchema.parse({
+        books: rows.map((r) => ({
+          id: r.id,
+          title: r.title,
+          author: r.author ?? null,
+          finished: r.finished,
+          createdAt: r.createdAt.toISOString(),
+        })),
+      }),
+    );
+  })
+  // FHS-367 — the kid adds a book to their reading log.
+  .post('/reading-log', async (c) => {
+    const kid = getKidAuth(c);
+    const parsed = kidReadingCreateSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json(
+        { error: 'invalid request', detail: parsed.error.issues[0]?.message ?? 'bad body' },
+        400,
+      );
+    }
+    await pinRequestTenant(kid.tenantId);
+    const [row] = await getDb()
+      .insert(readingLog)
+      .values({
+        tenantId: kid.tenantId,
+        memberId: kid.memberId,
+        title: parsed.data.title,
+        author: parsed.data.author ?? null,
+      })
+      .returning();
+    if (!row) return c.json({ error: 'insert failed' }, 500);
+    return c.json(
+      bookSchema.parse({
+        id: row.id,
+        title: row.title,
+        author: row.author ?? null,
+        finished: row.finished,
+        createdAt: row.createdAt.toISOString(),
+      }),
+      201,
+    );
+  })
+  // FHS-367 — the kid marks a book finished/unfinished.
+  .patch('/reading-log/:id', async (c) => {
+    const kid = getKidAuth(c);
+    const id = c.req.param('id');
+    if (!UUID_RE.test(id)) {
+      return c.json({ error: 'invalid id', detail: 'book id must be a UUID' }, 400);
+    }
+    const parsed = kidReadingPatchSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json({ error: 'invalid request', detail: 'finished (boolean) required' }, 400);
+    }
+    await pinRequestTenant(kid.tenantId);
+    const [row] = await getDb()
+      .update(readingLog)
+      .set({ finished: parsed.data.finished, updatedAt: new Date() })
+      .where(
+        and(
+          eq(readingLog.tenantId, kid.tenantId),
+          eq(readingLog.memberId, kid.memberId),
+          eq(readingLog.id, id),
+        ),
+      )
+      .returning();
+    if (!row) return c.json({ error: 'not found', detail: 'book not found for this kid' }, 404);
+    return c.json(
+      bookSchema.parse({
+        id: row.id,
+        title: row.title,
+        author: row.author ?? null,
+        finished: row.finished,
+        createdAt: row.createdAt.toISOString(),
+      }),
+    );
+  })
+  // FHS-367 — the kid removes a book from their reading log.
+  .delete('/reading-log/:id', async (c) => {
+    const kid = getKidAuth(c);
+    const id = c.req.param('id');
+    if (!UUID_RE.test(id)) {
+      return c.json({ error: 'invalid id', detail: 'book id must be a UUID' }, 400);
+    }
+    await pinRequestTenant(kid.tenantId);
+    await getDb()
+      .delete(readingLog)
+      .where(
+        and(
+          eq(readingLog.tenantId, kid.tenantId),
+          eq(readingLog.memberId, kid.memberId),
+          eq(readingLog.id, id),
+        ),
+      );
+    return c.body(null, 204);
   });

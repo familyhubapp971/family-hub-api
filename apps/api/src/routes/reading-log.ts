@@ -28,7 +28,7 @@ const patchBookSchema = z.object({
 });
 
 // Shape returned for each book in list + create responses.
-const bookSchema = z.object({
+export const bookSchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
   author: z.string().nullable(),
