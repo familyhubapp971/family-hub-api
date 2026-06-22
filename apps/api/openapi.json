@@ -837,6 +837,269 @@
         }
       }
     },
+    "/api/kid/habits": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid's habits + this week's stickers + balance",
+        "operationId": "get_api_kid_habits",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "habits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "color": {
+                            "type": "string"
+                          },
+                          "icon": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "isBonus": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "color",
+                          "icon",
+                          "isBonus"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stickers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "habitId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "day": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 6
+                          },
+                          "sticker": {
+                            "type": "string",
+                            "enum": [
+                              "gold-star",
+                              "heart",
+                              "magic",
+                              "trophy"
+                            ]
+                          },
+                          "stickerValue": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "habitId",
+                          "day",
+                          "sticker",
+                          "stickerValue"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "week": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "weekNumber": {
+                          "type": "integer"
+                        },
+                        "year": {
+                          "type": "integer"
+                        },
+                        "startDate": {
+                          "type": "string"
+                        },
+                        "isFinalized": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "weekNumber",
+                        "year",
+                        "startDate",
+                        "isFinalized"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "balance": {
+                      "type": "integer"
+                    },
+                    "currency": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "habits",
+                    "stickers",
+                    "week",
+                    "balance",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/habits/{id}/stickers": {
+      "delete": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Remove today's sticker (kid)",
+        "operationId": "delete_api_kid_habits_id_stickers",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "weekId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "day": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
+                  }
+                },
+                "required": [
+                  "weekId",
+                  "day"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Place a sticker on today (kid)",
+        "operationId": "post_api_kid_habits_id_stickers",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "weekId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "day": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
+                  },
+                  "sticker": {
+                    "type": "string",
+                    "enum": [
+                      "gold-star",
+                      "heart",
+                      "magic",
+                      "trophy"
+                    ]
+                  }
+                },
+                "required": [
+                  "weekId",
+                  "day",
+                  "sticker"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
     "/api/kid/me": {
       "get": {
         "tags": [
@@ -1166,6 +1429,70 @@
                   },
                   "required": [
                     "habits"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/weeks": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid's weeks (for prev/next navigation)",
+        "operationId": "get_api_kid_weeks",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "weeks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "weekNumber": {
+                            "type": "integer"
+                          },
+                          "year": {
+                            "type": "integer"
+                          },
+                          "startDate": {
+                            "type": "string"
+                          },
+                          "isFinalized": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "weekNumber",
+                          "year",
+                          "startDate",
+                          "isFinalized"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "weeks"
                   ],
                   "additionalProperties": false
                 }

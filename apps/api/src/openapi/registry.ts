@@ -14,10 +14,14 @@ import type { ZodTypeAny } from 'zod';
 import { meResponseSchema } from '../routes/me.js';
 import {
   kidMeResponseSchema,
+  kidPlaceStickerSchema,
   kidProfileResponseSchema,
+  kidRemoveStickerSchema,
   kidTasksResponseSchema,
   kidTodayResponseSchema,
+  kidWeeksResponseSchema,
 } from '../routes/kid.js';
+import { listHabitsResponseSchema } from '../routes/habits.js';
 import { listNoticesResponseSchema } from '../routes/notices.js';
 import {
   createInvitationRequestSchema,
@@ -93,6 +97,22 @@ export const routeMeta: Record<string, RouteMeta> = {
   'GET /api/kid/today': {
     summary: "The kid's own habits for today",
     response: kidTodayResponseSchema,
+  },
+  'GET /api/kid/weeks': {
+    summary: "The kid's weeks (for prev/next navigation)",
+    response: kidWeeksResponseSchema,
+  },
+  'GET /api/kid/habits': {
+    summary: "The kid's habits + this week's stickers + balance",
+    response: listHabitsResponseSchema,
+  },
+  'POST /api/kid/habits/{id}/stickers': {
+    summary: 'Place a sticker on today (kid)',
+    request: kidPlaceStickerSchema,
+  },
+  'DELETE /api/kid/habits/{id}/stickers': {
+    summary: "Remove today's sticker (kid)",
+    request: kidRemoveStickerSchema,
   },
 
   // Invitations.
