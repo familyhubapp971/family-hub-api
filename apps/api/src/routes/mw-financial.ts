@@ -20,6 +20,7 @@ import {
   elapsedDaysForWeek,
   INVEST_MIN_STICKERS,
   investmentValue,
+  listInvestments,
   STICKER_TO_CASH,
   getOrCreateCurrentWeek,
   getOrCreateSavings,
@@ -232,102 +233,8 @@ export const mwFinancialRouter = new Hono()
     const g = await guard(c, parsed.data.memberId);
     if ('res' in g) return g.res;
     const { db, tenantId } = g;
-    const { memberId } = parsed.data;
-    const now = new Date();
-
-    // Load every active investment joined to its habit + week.
-    const rows = await db
-      .select({
-        id: mwInvestments.id,
-        habitId: mwInvestments.habitId,
-        weekId: mwInvestments.weekId,
-        investedStickers: mwInvestments.investedStickers,
-        originalInvestedStickers: mwInvestments.originalInvestedStickers,
-        currentValue: mwInvestments.currentValue,
-        daysCompleted: mwInvestments.daysCompleted,
-        daysMissed: mwInvestments.daysMissed,
-        habitName: habits.name,
-        habitIcon: habits.icon,
-        weekIsFinalized: mwWeeks.isFinalized,
-        weekStartDate: mwWeeks.startDate,
-      })
-      .from(mwInvestments)
-      .leftJoin(habits, eq(mwInvestments.habitId, habits.id))
-      .leftJoin(mwWeeks, eq(mwInvestments.weekId, mwWeeks.id))
-      .where(
-        and(
-          eq(mwInvestments.tenantId, tenantId),
-          eq(mwInvestments.memberId, memberId),
-          eq(mwInvestments.isActive, true),
-        ),
-      );
-
-    // Recalculate value for each investment and persist fresh values.
-    const investments = await Promise.all(
-      rows.map(async (inv) => {
-        const elapsed = elapsedDaysForWeek(
-          {
-            isFinalized: inv.weekIsFinalized ?? false,
-            startDate: inv.weekStartDate ?? new Date().toISOString().slice(0, 10),
-          },
-          now,
-        );
-
-        // Count stickers the child placed on this habit in this week.
-        const [completedRow] = await db
-          .select({ n: count() })
-          .from(habitStickers)
-          .where(
-            and(
-              eq(habitStickers.tenantId, tenantId),
-              eq(habitStickers.memberId, memberId),
-              eq(habitStickers.habitId, inv.habitId),
-              eq(habitStickers.weekId, inv.weekId),
-            ),
-          );
-        // completedDays = every sticker placed on the habit this week (the kid
-        // gets credit the moment they mark a day), matching legacy. Only the
-        // MISSED penalty uses elapsed days. Capping completed by elapsed made
-        // the value freeze (e.g. on Monday elapsed=0 → no change ever).
-        const completedDays = completedRow?.n ?? 0;
-
-        // Stickers placed only on days that have already fully passed.
-        const [pastRow] = await db
-          .select({ n: count() })
-          .from(habitStickers)
-          .where(
-            and(
-              eq(habitStickers.tenantId, tenantId),
-              eq(habitStickers.memberId, memberId),
-              eq(habitStickers.habitId, inv.habitId),
-              eq(habitStickers.weekId, inv.weekId),
-              lt(habitStickers.day, elapsed),
-            ),
-          );
-        const stickersOnPastDays = pastRow?.n ?? 0;
-        const missedDays = Math.max(0, elapsed - stickersOnPastDays);
-
-        const { currentValueStickers, currentValueCash } = investmentValue({
-          investedStickers: inv.investedStickers,
-          completedDays,
-          missedDays,
-        });
-
-        return {
-          id: inv.id,
-          habitId: inv.habitId,
-          habitName: inv.habitName,
-          habitIcon: inv.habitIcon,
-          investedStickers: inv.investedStickers,
-          originalInvestedStickers: inv.originalInvestedStickers,
-          currentValue: currentValueCash,
-          currentValueStickers,
-          daysCompleted: completedDays,
-          daysMissed: missedDays,
-        };
-      }),
-    );
-
+    // Live value recompute lives in lib/myworld.ts — shared with the kid route.
+    const investments = await listInvestments(db, tenantId, parsed.data.memberId);
     return c.json({ investments });
   })
 

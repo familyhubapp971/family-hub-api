@@ -3,15 +3,18 @@ import { z } from 'zod';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { kidAuthMiddleware, requireKidAuth, getKidAuth } from '../middleware/kid-auth.js';
 import { getDb, pinRequestTenant } from '../db/client.js';
-import { habits, habitStickers, members, mwWeeks } from '../db/schema.js';
+import { habits, habitStickers, members, mwWeeks, rewards } from '../db/schema.js';
 import {
   getOrCreateCurrentWeek,
   getSavings,
   getTenantCurrency,
+  listInvestments,
+  redeemReward,
   stickerBalance,
   stickerDayRelation,
 } from '../lib/myworld.js';
 import { listHabitsResponseSchema, weekItemSchema } from './habits.js';
+import { listRewardsResponseSchema } from './rewards.js';
 import { listTenantNotices, listNoticesResponseSchema } from './notices.js';
 import { listTasksForMember, setTaskDoneForMember, taskItemSchema } from './tasks.js';
 
@@ -26,6 +29,30 @@ export const kidRemoveStickerSchema = z.object({
   day: z.number().int().min(0).max(6),
 });
 export const kidWeeksResponseSchema = z.object({ weeks: z.array(weekItemSchema) });
+
+// FHS-364 — rewards redeem + money cards.
+export const kidRedeemResponseSchema = z.object({
+  stickerBalance: z.number().int(),
+  redemptionId: z.string().uuid(),
+});
+export const kidInvestmentSchema = z.object({
+  id: z.string().uuid(),
+  habitId: z.string().uuid(),
+  habitName: z.string().nullable(),
+  habitIcon: z.string().nullable(),
+  investedStickers: z.number().int(),
+  originalInvestedStickers: z.number().int(),
+  currentValue: z.number(),
+  currentValueStickers: z.number().int(),
+  daysCompleted: z.number().int(),
+  daysMissed: z.number().int(),
+});
+export const kidFinancialResponseSchema = z.object({
+  savedStickers: z.number().int(),
+  savedCash: z.number(),
+  currency: z.string(),
+  investments: z.array(kidInvestmentSchema),
+});
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -395,4 +422,83 @@ export const kidRouter = new Hono()
         ),
       );
     return c.body(null, 204);
+  })
+  // FHS-364 — the kid's reward shop: the family's rewards + the kid's own
+  // spendable star balance (so the UI can show progress / "ready to claim").
+  .get('/rewards', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    const db = getDb();
+    const [rewardRows, balance] = await Promise.all([
+      db
+        .select({
+          id: rewards.id,
+          name: rewards.name,
+          description: rewards.description,
+          stickerCost: rewards.stickerCost,
+          icon: rewards.icon,
+        })
+        .from(rewards)
+        .where(and(eq(rewards.tenantId, kid.tenantId), isNull(rewards.archivedAt)))
+        .orderBy(asc(rewards.stickerCost), asc(rewards.createdAt)),
+      stickerBalance(db, kid.tenantId, kid.memberId),
+    ]);
+    return c.json(
+      listRewardsResponseSchema.parse({ rewards: rewardRows, stickerBalance: balance }),
+    );
+  })
+  // FHS-364 — the kid claims a reward with their own stars (self-scoped redeem;
+  // shared money logic in lib/myworld.ts). 409 when they can't afford it.
+  .post('/rewards/:id/redeem', async (c) => {
+    const kid = getKidAuth(c);
+    const rewardId = c.req.param('id');
+    if (!UUID_RE.test(rewardId)) {
+      return c.json({ error: 'invalid id', detail: 'reward id must be a UUID' }, 400);
+    }
+    await pinRequestTenant(kid.tenantId);
+    const outcome = await redeemReward(getDb(), {
+      tenantId: kid.tenantId,
+      memberId: kid.memberId,
+      rewardId,
+    });
+    if (!outcome.ok && outcome.reason === 'not-found') {
+      return c.json({ error: 'not found', detail: 'reward not found for this kid' }, 404);
+    }
+    if (!outcome.ok) {
+      return c.json(
+        {
+          error: 'insufficient stickers',
+          errorCode: 'INSUFFICIENT_STICKERS',
+          detail: `needs ${outcome.cost}, has ${outcome.balance}`,
+        },
+        409,
+      );
+    }
+    return c.json(
+      kidRedeemResponseSchema.parse({
+        stickerBalance: outcome.balance,
+        redemptionId: outcome.redemptionId,
+      }),
+      201,
+    );
+  })
+  // FHS-364 — the kid's money cards: banked savings (stars + cash) + their
+  // active investments (live value). Read-only.
+  .get('/financial', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    const db = getDb();
+    const [savings, currency, investments] = await Promise.all([
+      getSavings(db, kid.tenantId, kid.memberId),
+      getTenantCurrency(db, kid.tenantId),
+      listInvestments(db, kid.tenantId, kid.memberId),
+    ]);
+    return c.json(
+      kidFinancialResponseSchema.parse({
+        savedStickers: savings.savedStickers,
+        savedCash: savings.savedCash,
+        currency,
+        investments,
+      }),
+    );
   });

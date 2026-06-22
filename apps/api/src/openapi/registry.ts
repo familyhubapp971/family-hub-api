@@ -13,15 +13,18 @@
 import type { ZodTypeAny } from 'zod';
 import { meResponseSchema } from '../routes/me.js';
 import {
+  kidFinancialResponseSchema,
   kidMeResponseSchema,
   kidPlaceStickerSchema,
   kidProfileResponseSchema,
+  kidRedeemResponseSchema,
   kidRemoveStickerSchema,
   kidTasksResponseSchema,
   kidTodayResponseSchema,
   kidWeeksResponseSchema,
 } from '../routes/kid.js';
 import { listHabitsResponseSchema } from '../routes/habits.js';
+import { listRewardsResponseSchema } from '../routes/rewards.js';
 import { listNoticesResponseSchema } from '../routes/notices.js';
 import {
   createInvitationRequestSchema,
@@ -113,6 +116,18 @@ export const routeMeta: Record<string, RouteMeta> = {
   'DELETE /api/kid/habits/{id}/stickers': {
     summary: "Remove today's sticker (kid)",
     request: kidRemoveStickerSchema,
+  },
+  'GET /api/kid/rewards': {
+    summary: "The kid's reward shop + their star balance",
+    response: listRewardsResponseSchema,
+  },
+  'POST /api/kid/rewards/{id}/redeem': {
+    summary: 'Claim a reward with the kid’s own stars',
+    response: kidRedeemResponseSchema,
+  },
+  'GET /api/kid/financial': {
+    summary: "The kid's savings + active investments",
+    response: kidFinancialResponseSchema,
   },
 
   // Invitations.

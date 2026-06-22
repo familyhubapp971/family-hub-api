@@ -1,6 +1,17 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
-import { habitStickers, mwSavings, mwWeeks, tenants, type MwWeek } from '../db/schema.js';
+import {
+  habits,
+  habitStickers,
+  mwInvestments,
+  mwSavings,
+  mwWeekActions,
+  mwWeeks,
+  rewardRedemptions,
+  rewards,
+  tenants,
+  type MwWeek,
+} from '../db/schema.js';
 
 // FHS-290 — shared My World economy helpers.
 //
@@ -241,4 +252,208 @@ export async function stickerBalance(db: Db, tenantId: string, memberId: string)
     getSavings(db, tenantId, memberId),
   ]);
   return Number(unallocRow[0]?.s ?? 0) + savings.savedStickers + cashAsStickers(savings.savedCash);
+}
+
+// The top-level pool db (has `.transaction`) — redeemReward opens its own.
+type PoolDb = ReturnType<typeof getDb>;
+
+export type RedeemOutcome =
+  | { ok: true; balance: number; redemptionId: string }
+  | { ok: false; reason: 'not-found' }
+  | { ok: false; reason: 'insufficient'; cost: number; balance: number };
+
+/**
+ * Spend stickers on a reward for a member (FHS-268). Serialized per
+ * (tenant, member) with an advisory lock; spends banked stickers, then saved
+ * cash, then this week's unallocated stickers (smallest first). Records a
+ * 'claim' week-action + a redemption row. Shared by the parent rewards route
+ * and the kid route so the money logic lives in exactly one place.
+ */
+export async function redeemReward(
+  db: PoolDb,
+  params: { tenantId: string; memberId: string; rewardId: string },
+): Promise<RedeemOutcome> {
+  const { tenantId, memberId, rewardId } = params;
+  const rewardRows = await db
+    .select({ id: rewards.id, stickerCost: rewards.stickerCost, name: rewards.name })
+    .from(rewards)
+    .where(
+      and(eq(rewards.tenantId, tenantId), eq(rewards.id, rewardId), isNull(rewards.archivedAt)),
+    )
+    .limit(1);
+  const reward = rewardRows[0];
+  if (!reward) return { ok: false, reason: 'not-found' };
+  const cost = reward.stickerCost;
+  const week = await getOrCreateCurrentWeek(db, tenantId, memberId);
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${memberId}`}, 0))`,
+    );
+    const savings = await getOrCreateSavings(tx, tenantId, memberId);
+    const unallocated = await tx
+      .select({ id: habitStickers.id, value: habitStickers.stickerValue })
+      .from(habitStickers)
+      .where(
+        and(
+          eq(habitStickers.tenantId, tenantId),
+          eq(habitStickers.memberId, memberId),
+          eq(habitStickers.isAllocated, false),
+        ),
+      )
+      .orderBy(asc(habitStickers.stickerValue));
+    const weekValue = unallocated.reduce((s, r) => s + r.value, 0);
+    const cashStk = cashAsStickers(savings.savedCash);
+    const balance = savings.savedStickers + cashStk + weekValue;
+    if (balance < cost)
+      return { ok: false as const, reason: 'insufficient' as const, cost, balance };
+
+    let need = cost;
+    const fromSavedStickers = Math.min(need, savings.savedStickers);
+    need -= fromSavedStickers;
+    const fromSavedCash = Math.min(need, cashStk);
+    need -= fromSavedCash;
+    const toAllocate: string[] = [];
+    let covered = 0;
+    for (const r of unallocated) {
+      if (covered >= need) break;
+      toAllocate.push(r.id);
+      covered += r.value;
+    }
+    if (toAllocate.length > 0) {
+      await tx
+        .update(habitStickers)
+        .set({ isAllocated: true })
+        .where(
+          and(
+            eq(habitStickers.tenantId, tenantId),
+            eq(habitStickers.memberId, memberId),
+            inArray(habitStickers.id, toAllocate),
+          ),
+        );
+    }
+    if (fromSavedStickers > 0 || fromSavedCash > 0) {
+      await tx
+        .update(mwSavings)
+        .set({
+          savedStickers: sql`${mwSavings.savedStickers} - ${fromSavedStickers}`,
+          savedCash: sql`${mwSavings.savedCash} - ${fromSavedCash * STICKER_TO_CASH}`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(mwSavings.tenantId, tenantId), eq(mwSavings.memberId, memberId)));
+    }
+    const [action] = await tx
+      .insert(mwWeekActions)
+      .values({
+        tenantId,
+        memberId,
+        weekId: week.id,
+        actionType: 'claim',
+        stickersUsed: cost,
+        rewardName: reward.name,
+      })
+      .returning({ id: mwWeekActions.id });
+    await tx.insert(rewardRedemptions).values({ tenantId, rewardId, memberId, stickerCost: cost });
+    return { ok: true as const, balance: balance - cost, redemptionId: action!.id };
+  });
+}
+
+export interface InvestmentView {
+  id: string;
+  habitId: string;
+  habitName: string | null;
+  habitIcon: string | null;
+  investedStickers: number;
+  originalInvestedStickers: number;
+  currentValue: number;
+  currentValueStickers: number;
+  daysCompleted: number;
+  daysMissed: number;
+}
+
+/**
+ * A member's active investments with live value recomputed from this week's
+ * stickers (FHS-296). Shared by the parent mw-financial route and the kid
+ * route. Read-only — does not persist the recomputed value.
+ */
+export async function listInvestments(
+  db: Db,
+  tenantId: string,
+  memberId: string,
+  now: Date = new Date(),
+): Promise<InvestmentView[]> {
+  const rows = await db
+    .select({
+      id: mwInvestments.id,
+      habitId: mwInvestments.habitId,
+      weekId: mwInvestments.weekId,
+      investedStickers: mwInvestments.investedStickers,
+      originalInvestedStickers: mwInvestments.originalInvestedStickers,
+      habitName: habits.name,
+      habitIcon: habits.icon,
+      weekIsFinalized: mwWeeks.isFinalized,
+      weekStartDate: mwWeeks.startDate,
+    })
+    .from(mwInvestments)
+    .leftJoin(habits, eq(mwInvestments.habitId, habits.id))
+    .leftJoin(mwWeeks, eq(mwInvestments.weekId, mwWeeks.id))
+    .where(
+      and(
+        eq(mwInvestments.tenantId, tenantId),
+        eq(mwInvestments.memberId, memberId),
+        eq(mwInvestments.isActive, true),
+      ),
+    );
+  return Promise.all(
+    rows.map(async (inv) => {
+      const elapsed = elapsedDaysForWeek(
+        {
+          isFinalized: inv.weekIsFinalized ?? false,
+          startDate: inv.weekStartDate ?? isoDate(now),
+        },
+        now,
+      );
+      const [completedRow] = await db
+        .select({ n: count() })
+        .from(habitStickers)
+        .where(
+          and(
+            eq(habitStickers.tenantId, tenantId),
+            eq(habitStickers.memberId, memberId),
+            eq(habitStickers.habitId, inv.habitId),
+            eq(habitStickers.weekId, inv.weekId),
+          ),
+        );
+      const completedDays = completedRow?.n ?? 0;
+      const [pastRow] = await db
+        .select({ n: count() })
+        .from(habitStickers)
+        .where(
+          and(
+            eq(habitStickers.tenantId, tenantId),
+            eq(habitStickers.memberId, memberId),
+            eq(habitStickers.habitId, inv.habitId),
+            eq(habitStickers.weekId, inv.weekId),
+            lt(habitStickers.day, elapsed),
+          ),
+        );
+      const missedDays = Math.max(0, elapsed - (pastRow?.n ?? 0));
+      const { currentValueStickers, currentValueCash } = investmentValue({
+        investedStickers: inv.investedStickers,
+        completedDays,
+        missedDays,
+      });
+      return {
+        id: inv.id,
+        habitId: inv.habitId,
+        habitName: inv.habitName,
+        habitIcon: inv.habitIcon,
+        investedStickers: inv.investedStickers,
+        originalInvestedStickers: inv.originalInvestedStickers,
+        currentValue: currentValueCash,
+        currentValueStickers,
+        daysCompleted: completedDays,
+        daysMissed: missedDays,
+      };
+    }),
+  );
 }

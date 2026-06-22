@@ -837,6 +837,105 @@
         }
       }
     },
+    "/api/kid/financial": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid's savings + active investments",
+        "operationId": "get_api_kid_financial",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "savedStickers": {
+                      "type": "integer"
+                    },
+                    "savedCash": {
+                      "type": "number"
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "investments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "habitId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "habitName": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "habitIcon": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "investedStickers": {
+                            "type": "integer"
+                          },
+                          "originalInvestedStickers": {
+                            "type": "integer"
+                          },
+                          "currentValue": {
+                            "type": "number"
+                          },
+                          "currentValueStickers": {
+                            "type": "integer"
+                          },
+                          "daysCompleted": {
+                            "type": "integer"
+                          },
+                          "daysMissed": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "habitId",
+                          "habitName",
+                          "habitIcon",
+                          "investedStickers",
+                          "originalInvestedStickers",
+                          "currentValue",
+                          "currentValueStickers",
+                          "daysCompleted",
+                          "daysMissed"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "savedStickers",
+                    "savedCash",
+                    "currency",
+                    "investments"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kid/habits": {
       "get": {
         "tags": [
@@ -1266,6 +1365,126 @@
                     "savedStickers",
                     "savedCash",
                     "currency"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/rewards": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid's reward shop + their star balance",
+        "operationId": "get_api_kid_rewards",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rewards": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "stickerCost": {
+                            "type": "integer"
+                          },
+                          "icon": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "stickerCost",
+                          "icon"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stickerBalance": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "rewards",
+                    "stickerBalance"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/rewards/{id}/redeem": {
+      "post": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Claim a reward with the kid’s own stars",
+        "operationId": "post_api_kid_rewards_id_redeem",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stickerBalance": {
+                      "type": "integer"
+                    },
+                    "redemptionId": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "stickerBalance",
+                    "redemptionId"
                   ],
                   "additionalProperties": false
                 }
