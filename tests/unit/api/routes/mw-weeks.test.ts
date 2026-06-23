@@ -12,26 +12,32 @@ import type { User } from '../../../../apps/api/src/db/schema.js';
 const dbMock = { select: vi.fn(), insert: vi.fn() };
 vi.mock('../../../../apps/api/src/db/client.js', () => ({ getDb: () => dbMock }));
 
-// Stub out getOrCreateCurrentWeek so routes that call it don't need real DB.
-vi.mock('../../../../apps/api/src/lib/myworld.js', () => ({
-  STICKER_TO_AED: 0.5,
-  getOrCreateCurrentWeek: vi.fn().mockResolvedValue({
-    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    tenantId: '11111111-1111-4111-8111-111111111111',
-    memberId: '44444444-4444-4444-8444-444444444444',
-    weekNumber: 24,
-    year: 2026,
-    startDate: '2026-06-08',
-    isFinalized: false,
-    carriedOverStickers: 0,
-    carriedOverCash: '0',
-    retrievedStickers: 0,
-    retrievedCash: '0',
-    closureSnapshot: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  }),
-}));
+// Stub out getOrCreateCurrentWeek so routes that call it don't need real DB,
+// but keep the real shared loaders (loadWeekActions/Stats/loadWeeksForMember,
+// FHS-374) — they were extracted verbatim from these routes and consume the
+// same DB query queue, so the queue-based dbMock still drives them.
+vi.mock('../../../../apps/api/src/lib/myworld.js', async (importActual) => {
+  const actual = await importActual<typeof import('../../../../apps/api/src/lib/myworld.js')>();
+  return {
+    ...actual,
+    getOrCreateCurrentWeek: vi.fn().mockResolvedValue({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      tenantId: '11111111-1111-4111-8111-111111111111',
+      memberId: '44444444-4444-4444-8444-444444444444',
+      weekNumber: 24,
+      year: 2026,
+      startDate: '2026-06-08',
+      isFinalized: false,
+      carriedOverStickers: 0,
+      carriedOverCash: '0',
+      retrievedStickers: 0,
+      retrievedCash: '0',
+      closureSnapshot: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }),
+  };
+});
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

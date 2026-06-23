@@ -20,12 +20,11 @@ import {
   elapsedDaysForWeek,
   INVEST_MIN_STICKERS,
   investmentValue,
-  listInvestments,
+  loadInvestmentsForMember,
+  loadSavingsForMember,
   STICKER_TO_CASH,
   getOrCreateCurrentWeek,
   getOrCreateSavings,
-  getSavings,
-  getTenantCurrency,
 } from '../lib/myworld.js';
 
 // FHS-295 — My World savings / banking.
@@ -81,15 +80,7 @@ export const mwFinancialRouter = new Hono()
     }
     const g = await guard(c, parsed.data.memberId);
     if ('res' in g) return g.res;
-    const [savings, currency] = await Promise.all([
-      getSavings(g.db, g.tenantId, parsed.data.memberId),
-      getTenantCurrency(g.db, g.tenantId),
-    ]);
-    return c.json({
-      savedStickers: savings.savedStickers,
-      savedCash: savings.savedCash,
-      currency,
-    });
+    return c.json(await loadSavingsForMember(g.db, g.tenantId, parsed.data.memberId));
   })
   // Bank this week's unallocated stickers into savings (as stickers or cash).
   .post('/savings', async (c) => {
@@ -232,10 +223,7 @@ export const mwFinancialRouter = new Hono()
     }
     const g = await guard(c, parsed.data.memberId);
     if ('res' in g) return g.res;
-    const { db, tenantId } = g;
-    // Live value recompute lives in lib/myworld.ts — shared with the kid route.
-    const investments = await listInvestments(db, tenantId, parsed.data.memberId);
-    return c.json({ investments });
+    return c.json(await loadInvestmentsForMember(g.db, g.tenantId, parsed.data.memberId));
   })
 
   // POST create investment. Checks availability (savings-first), allocates

@@ -13,15 +13,14 @@
 import type { ZodTypeAny } from 'zod';
 import { meResponseSchema } from '../routes/me.js';
 import {
-  kidFinancialResponseSchema,
+  kidInvestmentsResponseSchema,
   kidMeResponseSchema,
-  kidPlaceStickerSchema,
   kidProfileResponseSchema,
-  kidRedeemResponseSchema,
-  kidRemoveStickerSchema,
+  kidSavingsResponseSchema,
   kidTasksResponseSchema,
   kidTodayResponseSchema,
   kidWeeksResponseSchema,
+  kidWeekStatsResponseSchema,
 } from '../routes/kid.js';
 import { listHabitsResponseSchema } from '../routes/habits.js';
 import { listRewardsResponseSchema } from '../routes/rewards.js';
@@ -119,32 +118,32 @@ export const routeMeta: Record<string, RouteMeta> = {
     response: kidTodayResponseSchema,
   },
   'GET /api/kid/weeks': {
-    summary: "The kid's weeks (for prev/next navigation)",
+    summary: "The kid's weeks (full shape, identical to parent GET /mw/weeks)",
     response: kidWeeksResponseSchema,
   },
+  'GET /api/kid/weeks/{id}/stats': {
+    summary: "Sticker counts + cash value for one of the kid's weeks",
+    response: kidWeekStatsResponseSchema,
+  },
+  'GET /api/kid/weeks/{id}/actions': {
+    summary: "Audit log of week actions for one of the kid's weeks",
+  },
   'GET /api/kid/habits': {
-    summary: "The kid's habits + this week's stickers + balance",
+    summary: "The kid's habits + stickers + balance (identical to parent GET /api/habits)",
     response: listHabitsResponseSchema,
   },
-  'POST /api/kid/habits/{id}/stickers': {
-    summary: 'Place a sticker on today (kid)',
-    request: kidPlaceStickerSchema,
-  },
-  'DELETE /api/kid/habits/{id}/stickers': {
-    summary: "Remove today's sticker (kid)",
-    request: kidRemoveStickerSchema,
-  },
   'GET /api/kid/rewards': {
-    summary: "The kid's reward shop + their star balance",
+    summary: "The kid's reward shop + their star balance (identical to parent GET /api/rewards)",
     response: listRewardsResponseSchema,
   },
-  'POST /api/kid/rewards/{id}/redeem': {
-    summary: 'Claim a reward with the kid’s own stars',
-    response: kidRedeemResponseSchema,
+  'GET /api/kid/financial/savings': {
+    summary: "The kid's banked savings + currency (identical to parent GET /mw/financial/savings)",
+    response: kidSavingsResponseSchema,
   },
-  'GET /api/kid/financial': {
-    summary: "The kid's savings + active investments",
-    response: kidFinancialResponseSchema,
+  'GET /api/kid/financial/investments': {
+    summary:
+      "The kid's active investments with live value (identical to parent GET /mw/financial/investments)",
+    response: kidInvestmentsResponseSchema,
   },
   'GET /api/kid/meals': {
     summary: "The kid's meals (their own + family-wide)",

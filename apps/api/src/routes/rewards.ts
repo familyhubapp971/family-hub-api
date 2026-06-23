@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
-import { rewards, members } from '../db/schema.js';
+import { members } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 import { memberInTenant } from '../lib/permissions.js';
-import { redeemReward, stickerBalance } from '../lib/myworld.js';
+import { loadRewardsForMember, redeemReward } from '../lib/myworld.js';
 
 // FHS-268 / FHS-292 — GET /api/rewards, POST /api/rewards/:id/redeem.
 //
@@ -78,22 +78,10 @@ export const rewardsRouter = new Hono()
     if (!(await memberInTenant(db, tenantId, parsed.data.memberId))) {
       return c.json({ error: 'not found', detail: 'member not found in this tenant' }, 404);
     }
-    const [rewardRows, balance] = await Promise.all([
-      db
-        .select({
-          id: rewards.id,
-          name: rewards.name,
-          description: rewards.description,
-          stickerCost: rewards.stickerCost,
-          icon: rewards.icon,
-        })
-        .from(rewards)
-        .where(and(eq(rewards.tenantId, tenantId), isNull(rewards.archivedAt)))
-        .orderBy(asc(rewards.stickerCost), asc(rewards.createdAt)),
-      stickerBalance(db, tenantId, parsed.data.memberId),
-    ]);
     return c.json(
-      listRewardsResponseSchema.parse({ rewards: rewardRows, stickerBalance: balance }),
+      listRewardsResponseSchema.parse(
+        await loadRewardsForMember(db, tenantId, parsed.data.memberId),
+      ),
     );
   })
   .post('/:id/redeem', async (c) => {

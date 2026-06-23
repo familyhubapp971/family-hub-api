@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import {
   habits,
@@ -19,8 +19,10 @@ import {
   getOrCreateSavings,
   investmentValue,
   isoWeek,
+  loadWeekActions,
+  loadWeeksForMember,
+  loadWeekStats,
   mondayOf,
-  STICKER_TO_AED,
   STICKER_TO_CASH,
 } from '../lib/myworld.js';
 
@@ -105,23 +107,15 @@ function toWeek(row: typeof mwWeeks.$inferSelect) {
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const mwWeeksRouter = new Hono()
-  // GET / — all weeks for a member, ordered by (year, weekNumber) ascending.
+  // GET / — all weeks for a member, ordered by startDate ascending.
   // Ensures the current week exists first so the list is never empty.
   .get('/', async (c) => {
     const ctx = await guardQuery(c);
     if ('res' in ctx) return ctx.res;
     const { db, tenantId, memberId } = ctx;
 
-    // Ensure the current week exists before listing.
-    await getOrCreateCurrentWeek(db, tenantId, memberId);
-
-    const rows = await db
-      .select()
-      .from(mwWeeks)
-      .where(and(eq(mwWeeks.tenantId, tenantId), eq(mwWeeks.memberId, memberId)))
-      .orderBy(asc(mwWeeks.year), asc(mwWeeks.weekNumber));
-
-    return c.json({ weeks: rows.map(toWeek) });
+    const weeks = await loadWeeksForMember(db, tenantId, memberId);
+    return c.json({ weeks });
   })
 
   // GET /current — get (or create) the current open week for a member.
@@ -139,77 +133,12 @@ export const mwWeeksRouter = new Hono()
     const ctx = await guardQuery(c);
     if ('res' in ctx) return ctx.res;
     const { db, tenantId, memberId } = ctx;
-
     const weekId = c.req.param('id');
-
-    // Validate the week belongs to this (tenant, member).
-    const weekRows = await db
-      .select()
-      .from(mwWeeks)
-      .where(
-        and(eq(mwWeeks.id, weekId), eq(mwWeeks.tenantId, tenantId), eq(mwWeeks.memberId, memberId)),
-      )
-      .limit(1);
-
-    if (!weekRows[0]) {
+    const stats = await loadWeekStats(db, tenantId, memberId, weekId);
+    if (!stats) {
       return c.json({ error: 'not found', detail: 'week not found for this member' }, 404);
     }
-
-    // Total stickers earned this week.
-    const [totalRow] = await db
-      .select({
-        count: sql<string>`coalesce(sum(${habitStickers.stickerValue}), 0)`,
-      })
-      .from(habitStickers)
-      .where(
-        and(
-          eq(habitStickers.tenantId, tenantId),
-          eq(habitStickers.memberId, memberId),
-          eq(habitStickers.weekId, weekId),
-        ),
-      );
-
-    // Unallocated (spendable) stickers.
-    const [unallocatedRow] = await db
-      .select({
-        count: sql<string>`coalesce(sum(${habitStickers.stickerValue}), 0)`,
-      })
-      .from(habitStickers)
-      .where(
-        and(
-          eq(habitStickers.tenantId, tenantId),
-          eq(habitStickers.memberId, memberId),
-          eq(habitStickers.weekId, weekId),
-          eq(habitStickers.isAllocated, false),
-        ),
-      );
-
-    // Allocated (already spent / saved) stickers.
-    const [allocatedRow] = await db
-      .select({
-        count: sql<string>`coalesce(sum(${habitStickers.stickerValue}), 0)`,
-      })
-      .from(habitStickers)
-      .where(
-        and(
-          eq(habitStickers.tenantId, tenantId),
-          eq(habitStickers.memberId, memberId),
-          eq(habitStickers.weekId, weekId),
-          eq(habitStickers.isAllocated, true),
-        ),
-      );
-
-    const totalStickers = Number(totalRow?.count ?? 0);
-    const unallocatedStickers = Number(unallocatedRow?.count ?? 0);
-    const allocatedStickers = Number(allocatedRow?.count ?? 0);
-
-    return c.json({
-      weekId,
-      totalStickers,
-      unallocatedStickers,
-      allocatedStickers,
-      cashValue: unallocatedStickers * STICKER_TO_AED,
-    });
+    return c.json(stats);
   })
 
   // POST /:id/finalize — close a week (faithful port of the legacy flow).
@@ -642,38 +571,13 @@ export const mwWeeksRouter = new Hono()
     if ('res' in ctx) return ctx.res;
     const { db, tenantId, memberId } = ctx;
     const weekId = c.req.param('id');
-
-    const weekRows = await db
-      .select({ id: mwWeeks.id })
-      .from(mwWeeks)
-      .where(
-        and(eq(mwWeeks.id, weekId), eq(mwWeeks.tenantId, tenantId), eq(mwWeeks.memberId, memberId)),
-      )
-      .limit(1);
-    if (!weekRows[0]) {
+    // cash_amount is a Drizzle numeric → comes back as a string; loadWeekActions
+    // coerces it to a number so the client can call .toFixed() on it (FHS-314).
+    const actions = await loadWeekActions(db, tenantId, memberId, weekId);
+    if (!actions) {
       return c.json({ error: 'not found', detail: 'week not found for this member' }, 404);
     }
-
-    const actions = await db
-      .select()
-      .from(mwWeekActions)
-      .where(
-        and(
-          eq(mwWeekActions.tenantId, tenantId),
-          eq(mwWeekActions.memberId, memberId),
-          eq(mwWeekActions.weekId, weekId),
-        ),
-      )
-      .orderBy(desc(mwWeekActions.createdAt));
-
-    // cash_amount is a Drizzle numeric → comes back as a string; coerce to
-    // a number so the client can call .toFixed() on it (FHS-314).
-    return c.json({
-      actions: actions.map((a) => ({
-        ...a,
-        cashAmount: a.cashAmount === null ? null : Number(a.cashAmount),
-      })),
-    });
+    return c.json({ actions });
   })
 
   // PUT /:id/cash — admin-edit of carriedOverCash / retrievedCash on a week.

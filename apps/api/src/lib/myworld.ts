@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import {
   habits,
@@ -567,4 +567,325 @@ export async function computeMemberAnalytics(
   }));
 
   return { stickersPerWeek, habitStats };
+}
+
+// ── Shared loaders (FHS-374) — extracted so kid and parent routes return ─────
+// identical JSON shapes. Each function is pure SELECT (no mutations).
+
+/**
+ * Habits + stickers for a week + the kid's spendable balance + currency.
+ * Produces the exact shape of `listHabitsResponseSchema`. If `weekId` is
+ * supplied and not found for this (tenant, member), returns null so the
+ * caller can 404. Otherwise falls back to the current open week.
+ */
+export async function loadHabitsForWeek(
+  db: Db,
+  tenantId: string,
+  memberId: string,
+  weekId?: string,
+): Promise<{
+  habits: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    color: string;
+    icon: string | null;
+    isBonus: boolean;
+  }>;
+  stickers: Array<{ habitId: string; day: number; sticker: string; stickerValue: number }>;
+  week: {
+    id: string;
+    weekNumber: number;
+    year: number;
+    startDate: string;
+    isFinalized: boolean;
+  };
+  balance: number;
+  currency: string;
+} | null> {
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  let week: MwWeek;
+  if (weekId && UUID_RE.test(weekId)) {
+    const rows = await db
+      .select()
+      .from(mwWeeks)
+      .where(
+        and(eq(mwWeeks.tenantId, tenantId), eq(mwWeeks.memberId, memberId), eq(mwWeeks.id, weekId)),
+      )
+      .limit(1);
+    if (!rows[0]) return null;
+    week = rows[0];
+  } else {
+    week = await getOrCreateCurrentWeek(db, tenantId, memberId);
+  }
+  const [habitRows, stickerRows, balance, currency] = await Promise.all([
+    db
+      .select({
+        id: habits.id,
+        name: habits.name,
+        description: habits.description,
+        color: habits.color,
+        icon: habits.icon,
+        isBonus: habits.isBonus,
+      })
+      .from(habits)
+      .where(
+        and(
+          eq(habits.tenantId, tenantId),
+          eq(habits.memberId, memberId),
+          isNull(habits.archivedAt),
+        ),
+      )
+      .orderBy(asc(habits.createdAt)),
+    db
+      .select({
+        habitId: habitStickers.habitId,
+        day: habitStickers.day,
+        sticker: habitStickers.sticker,
+        stickerValue: habitStickers.stickerValue,
+      })
+      .from(habitStickers)
+      .where(
+        and(
+          eq(habitStickers.tenantId, tenantId),
+          eq(habitStickers.memberId, memberId),
+          eq(habitStickers.weekId, week.id),
+        ),
+      ),
+    stickerBalance(db, tenantId, memberId),
+    getTenantCurrency(db, tenantId),
+  ]);
+  return {
+    habits: habitRows,
+    stickers: stickerRows as Array<{
+      habitId: string;
+      day: number;
+      sticker: string;
+      stickerValue: number;
+    }>,
+    week: {
+      id: week.id,
+      weekNumber: week.weekNumber,
+      year: week.year,
+      startDate: week.startDate,
+      isFinalized: week.isFinalized,
+    },
+    balance,
+    currency,
+  };
+}
+
+export interface WeekView {
+  id: string;
+  weekNumber: number;
+  year: number;
+  startDate: string;
+  isFinalized: boolean;
+  carriedOverStickers: number;
+  carriedOverCash: number;
+  retrievedStickers: number;
+  retrievedCash: number;
+}
+
+function toWeekView(row: MwWeek): WeekView {
+  return {
+    id: row.id,
+    weekNumber: row.weekNumber,
+    year: row.year,
+    startDate: row.startDate,
+    isFinalized: row.isFinalized,
+    carriedOverStickers: row.carriedOverStickers,
+    carriedOverCash: Number(row.carriedOverCash),
+    retrievedStickers: row.retrievedStickers,
+    retrievedCash: Number(row.retrievedCash),
+  };
+}
+
+/**
+ * All weeks for a (tenant, member), ordered by startDate ascending.
+ * Ensures the current week exists first so the list is never empty.
+ * Returns the full parent shape (identical to GET /mw/weeks).
+ */
+export async function loadWeeksForMember(
+  db: ReturnType<typeof getDb>,
+  tenantId: string,
+  memberId: string,
+): Promise<WeekView[]> {
+  // Ensure current week exists.
+  await getOrCreateCurrentWeek(db, tenantId, memberId);
+  const rows = await db
+    .select()
+    .from(mwWeeks)
+    .where(and(eq(mwWeeks.tenantId, tenantId), eq(mwWeeks.memberId, memberId)))
+    .orderBy(asc(mwWeeks.startDate));
+  return rows.map(toWeekView);
+}
+
+/**
+ * Sticker counts + cash value for a specific week (GET /mw/weeks/:id/stats shape).
+ * Returns null when the week isn't found for this (tenant, member).
+ */
+export async function loadWeekStats(
+  db: Db,
+  tenantId: string,
+  memberId: string,
+  weekId: string,
+): Promise<{
+  weekId: string;
+  totalStickers: number;
+  unallocatedStickers: number;
+  allocatedStickers: number;
+  cashValue: number;
+} | null> {
+  const weekRows = await db
+    .select({ id: mwWeeks.id })
+    .from(mwWeeks)
+    .where(
+      and(eq(mwWeeks.id, weekId), eq(mwWeeks.tenantId, tenantId), eq(mwWeeks.memberId, memberId)),
+    )
+    .limit(1);
+  if (!weekRows[0]) return null;
+
+  const [totalRow, unallocatedRow, allocatedRow] = await Promise.all([
+    db
+      .select({ count: sql<string>`coalesce(sum(${habitStickers.stickerValue}), 0)` })
+      .from(habitStickers)
+      .where(
+        and(
+          eq(habitStickers.tenantId, tenantId),
+          eq(habitStickers.memberId, memberId),
+          eq(habitStickers.weekId, weekId),
+        ),
+      ),
+    db
+      .select({ count: sql<string>`coalesce(sum(${habitStickers.stickerValue}), 0)` })
+      .from(habitStickers)
+      .where(
+        and(
+          eq(habitStickers.tenantId, tenantId),
+          eq(habitStickers.memberId, memberId),
+          eq(habitStickers.weekId, weekId),
+          eq(habitStickers.isAllocated, false),
+        ),
+      ),
+    db
+      .select({ count: sql<string>`coalesce(sum(${habitStickers.stickerValue}), 0)` })
+      .from(habitStickers)
+      .where(
+        and(
+          eq(habitStickers.tenantId, tenantId),
+          eq(habitStickers.memberId, memberId),
+          eq(habitStickers.weekId, weekId),
+          eq(habitStickers.isAllocated, true),
+        ),
+      ),
+  ]);
+  const totalStickers = Number(totalRow[0]?.count ?? 0);
+  const unallocatedStickers = Number(unallocatedRow[0]?.count ?? 0);
+  const allocatedStickers = Number(allocatedRow[0]?.count ?? 0);
+  return {
+    weekId,
+    totalStickers,
+    unallocatedStickers,
+    allocatedStickers,
+    cashValue: unallocatedStickers * STICKER_TO_AED,
+  };
+}
+
+/**
+ * Week actions audit log for a specific week (GET /mw/weeks/:id/actions shape).
+ * Returns null when the week isn't found for this (tenant, member).
+ * cashAmount is coerced from numeric string to number.
+ */
+export async function loadWeekActions(
+  db: Db,
+  tenantId: string,
+  memberId: string,
+  weekId: string,
+): Promise<Array<Record<string, unknown>> | null> {
+  const weekRows = await db
+    .select({ id: mwWeeks.id })
+    .from(mwWeeks)
+    .where(
+      and(eq(mwWeeks.id, weekId), eq(mwWeeks.tenantId, tenantId), eq(mwWeeks.memberId, memberId)),
+    )
+    .limit(1);
+  if (!weekRows[0]) return null;
+
+  const actions = await db
+    .select()
+    .from(mwWeekActions)
+    .where(
+      and(
+        eq(mwWeekActions.tenantId, tenantId),
+        eq(mwWeekActions.memberId, memberId),
+        eq(mwWeekActions.weekId, weekId),
+      ),
+    )
+    .orderBy(desc(mwWeekActions.createdAt));
+
+  return actions.map((a) => ({
+    ...a,
+    cashAmount: a.cashAmount === null ? null : Number(a.cashAmount),
+  }));
+}
+
+/**
+ * Banked savings + currency (GET /mw/financial/savings shape).
+ */
+export async function loadSavingsForMember(
+  db: Db,
+  tenantId: string,
+  memberId: string,
+): Promise<{ savedStickers: number; savedCash: number; currency: string }> {
+  const [savings, currency] = await Promise.all([
+    getSavings(db, tenantId, memberId),
+    getTenantCurrency(db, tenantId),
+  ]);
+  return { savedStickers: savings.savedStickers, savedCash: savings.savedCash, currency };
+}
+
+/**
+ * Active investments with live value (GET /mw/financial/investments shape).
+ */
+export async function loadInvestmentsForMember(
+  db: Db,
+  tenantId: string,
+  memberId: string,
+): Promise<{ investments: InvestmentView[] }> {
+  return { investments: await listInvestments(db, tenantId, memberId) };
+}
+
+/**
+ * Family rewards + member's spendable sticker balance (GET /api/rewards shape).
+ */
+export async function loadRewardsForMember(
+  db: Db,
+  tenantId: string,
+  memberId: string,
+): Promise<{
+  rewards: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    stickerCost: number;
+    icon: string | null;
+  }>;
+  stickerBalance: number;
+}> {
+  const [rewardRows, balance] = await Promise.all([
+    db
+      .select({
+        id: rewards.id,
+        name: rewards.name,
+        description: rewards.description,
+        stickerCost: rewards.stickerCost,
+        icon: rewards.icon,
+      })
+      .from(rewards)
+      .where(and(eq(rewards.tenantId, tenantId), isNull(rewards.archivedAt)))
+      .orderBy(asc(rewards.stickerCost), asc(rewards.createdAt)),
+    stickerBalance(db, tenantId, memberId),
+  ]);
+  return { rewards: rewardRows, stickerBalance: balance };
 }

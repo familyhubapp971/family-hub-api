@@ -1,4 +1,4 @@
-import { Hono, type Context } from 'hono';
+import { Hono } from 'hono';
 import { z } from 'zod';
 import { and, asc, desc, eq, gte, isNull, lte, min, or, sql } from 'drizzle-orm';
 import { quoteIndexForDate } from '@familyhub/shared';
@@ -7,14 +7,11 @@ import { getDb, pinRequestTenant } from '../db/client.js';
 import {
   events,
   habits,
-  habitStickers,
   journalEntries,
   learnProgress,
   mealTemplates,
   members,
-  mwWeeks,
   readingLog,
-  rewards,
 } from '../db/schema.js';
 import {
   CERTIFICATE_TARGET,
@@ -26,17 +23,19 @@ import {
 } from '../lib/learn-questions.js';
 import {
   computeMemberAnalytics,
-  getOrCreateCurrentWeek,
   getSavings,
   getTenantCurrency,
-  listInvestments,
+  loadHabitsForWeek,
+  loadInvestmentsForMember,
+  loadRewardsForMember,
+  loadSavingsForMember,
+  loadWeekActions,
+  loadWeeksForMember,
+  loadWeekStats,
   mondayOf,
-  redeemReward,
-  stickerBalance,
-  stickerDayRelation,
 } from '../lib/myworld.js';
 import { mwAnalyticsResponseSchema } from './mw-analytics.js';
-import { listHabitsResponseSchema, weekItemSchema } from './habits.js';
+import { listHabitsResponseSchema } from './habits.js';
 import { listMealsResponseSchema } from './meals.js';
 import { listEventsResponseSchema } from './events.js';
 import { listRewardsResponseSchema } from './rewards.js';
@@ -63,23 +62,40 @@ import {
 import { listTenantNotices, listNoticesResponseSchema } from './notices.js';
 import { listTasksForMember, setTaskDoneForMember, taskItemSchema } from './tasks.js';
 
-const STICKER_TYPES = ['gold-star', 'heart', 'magic', 'trophy'] as const;
-export const kidPlaceStickerSchema = z.object({
-  weekId: z.string().uuid(),
-  day: z.number().int().min(0).max(6),
-  sticker: z.enum(STICKER_TYPES),
+// FHS-374 — week shape that mirrors the full parent GET /mw/weeks shape.
+export const kidWeeksResponseSchema = z.object({
+  weeks: z.array(
+    z.object({
+      id: z.string().uuid(),
+      weekNumber: z.number().int(),
+      year: z.number().int(),
+      startDate: z.string(),
+      isFinalized: z.boolean(),
+      carriedOverStickers: z.number().int(),
+      carriedOverCash: z.number(),
+      retrievedStickers: z.number().int(),
+      retrievedCash: z.number(),
+    }),
+  ),
 });
-export const kidRemoveStickerSchema = z.object({
-  weekId: z.string().uuid(),
-  day: z.number().int().min(0).max(6),
-});
-export const kidWeeksResponseSchema = z.object({ weeks: z.array(weekItemSchema) });
 
-// FHS-364 — rewards redeem + money cards.
-export const kidRedeemResponseSchema = z.object({
-  stickerBalance: z.number().int(),
-  redemptionId: z.string().uuid(),
+// FHS-374 — week stats shape (mirrors GET /mw/weeks/:id/stats).
+export const kidWeekStatsResponseSchema = z.object({
+  weekId: z.string().uuid(),
+  totalStickers: z.number().int(),
+  unallocatedStickers: z.number().int(),
+  allocatedStickers: z.number().int(),
+  cashValue: z.number(),
 });
+
+// FHS-374 — savings shape (mirrors GET /mw/financial/savings).
+export const kidSavingsResponseSchema = z.object({
+  savedStickers: z.number().int(),
+  savedCash: z.number(),
+  currency: z.string(),
+});
+
+// FHS-374 — investments shape (mirrors GET /mw/financial/investments).
 export const kidInvestmentSchema = z.object({
   id: z.string().uuid(),
   habitId: z.string().uuid(),
@@ -92,10 +108,7 @@ export const kidInvestmentSchema = z.object({
   daysCompleted: z.number().int(),
   daysMissed: z.number().int(),
 });
-export const kidFinancialResponseSchema = z.object({
-  savedStickers: z.number().int(),
-  savedCash: z.number(),
-  currency: z.string(),
+export const kidInvestmentsResponseSchema = z.object({
   investments: z.array(kidInvestmentSchema),
 });
 
@@ -167,39 +180,6 @@ export const kidProfileResponseSchema = z.object({
   savedCash: z.number(),
   currency: z.string(),
 });
-
-// FHS-363 — a kid is never an admin, so they may only sticker TODAY in the
-// open week. Mirrors the parent past-day gate (FHS-335) but stricter: past,
-// future, and finalized weeks are all blocked. Returns a response to send, or
-// null when the day is editable.
-async function kidStickerDayBlocked(
-  c: Context,
-  db: ReturnType<typeof getDb>,
-  kid: { tenantId: string; memberId: string },
-  weekId: string,
-  day: number,
-): Promise<Response | null> {
-  const rows = await db
-    .select({ startDate: mwWeeks.startDate, isFinalized: mwWeeks.isFinalized })
-    .from(mwWeeks)
-    .where(
-      and(
-        eq(mwWeeks.tenantId, kid.tenantId),
-        eq(mwWeeks.memberId, kid.memberId),
-        eq(mwWeeks.id, weekId),
-      ),
-    )
-    .limit(1);
-  const week = rows[0];
-  if (!week) return c.json({ error: 'not found', detail: 'week not found for this kid' }, 404);
-  if (week.isFinalized || stickerDayRelation(week.startDate, day) !== 'today') {
-    return c.json(
-      { error: 'forbidden', errorCode: 'KID_TODAY_ONLY', detail: 'you can only sticker today' },
-      403,
-    );
-  }
-  return null;
-}
 
 export const kidRouter = new Hono()
   .use('*', kidAuthMiddleware())
@@ -307,271 +287,80 @@ export const kidRouter = new Hono()
       .orderBy(asc(habits.createdAt));
     return c.json(kidTodayResponseSchema.parse({ habits: rows }));
   })
-  // FHS-363 — the kid's weeks (for prev/next navigation), oldest first.
+  // FHS-374 — weeks list (full parent shape, identical to GET /mw/weeks).
   .get('/weeks', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
-    const rows = await getDb()
-      .select({
-        id: mwWeeks.id,
-        weekNumber: mwWeeks.weekNumber,
-        year: mwWeeks.year,
-        startDate: mwWeeks.startDate,
-        isFinalized: mwWeeks.isFinalized,
-      })
-      .from(mwWeeks)
-      .where(and(eq(mwWeeks.tenantId, kid.tenantId), eq(mwWeeks.memberId, kid.memberId)))
-      .orderBy(asc(mwWeeks.startDate));
-    return c.json(kidWeeksResponseSchema.parse({ weeks: rows }));
+    const weeks = await loadWeeksForMember(getDb(), kid.tenantId, kid.memberId);
+    return c.json(kidWeeksResponseSchema.parse({ weeks }));
   })
-  // FHS-363 — the kid's interactive weekly habits: their habits + this week's
-  // stickers + the week + spendable balance + currency. Optional ?weekId reads
-  // a past week (read-only on the client). Self-scoped from the kid token.
+  // FHS-374 — week stats (identical to GET /mw/weeks/:id/stats).
+  .get('/weeks/:id/stats', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    const weekId = c.req.param('id');
+    const stats = await loadWeekStats(getDb(), kid.tenantId, kid.memberId, weekId);
+    if (!stats) {
+      return c.json({ error: 'not found', detail: 'week not found for this kid' }, 404);
+    }
+    return c.json(kidWeekStatsResponseSchema.parse(stats));
+  })
+  // FHS-374 — week action log (identical to GET /mw/weeks/:id/actions).
+  .get('/weeks/:id/actions', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    const weekId = c.req.param('id');
+    const actions = await loadWeekActions(getDb(), kid.tenantId, kid.memberId, weekId);
+    if (!actions) {
+      return c.json({ error: 'not found', detail: 'week not found for this kid' }, 404);
+    }
+    return c.json({ actions });
+  })
+  // FHS-374 — habits + stickers for a week (identical to GET /api/habits).
+  // ?weekId=UUID to navigate to a past week; omit for the current open week.
+  // A supplied weekId that isn't this kid's is a 404.
   .get('/habits', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
-    const db = getDb();
-    const weekIdParam = c.req.query('weekId');
-    let week;
-    if (weekIdParam && UUID_RE.test(weekIdParam)) {
-      const rows = await db
-        .select()
-        .from(mwWeeks)
-        .where(
-          and(
-            eq(mwWeeks.tenantId, kid.tenantId),
-            eq(mwWeeks.memberId, kid.memberId),
-            eq(mwWeeks.id, weekIdParam),
-          ),
-        )
-        .limit(1);
-      // A supplied weekId that isn't this kid's is a 404 — don't silently
-      // fall back to the current week (that would mislead the nav state).
-      if (!rows[0]) {
-        return c.json({ error: 'not found', detail: 'week not found for this kid' }, 404);
-      }
-      week = rows[0];
-    } else {
-      week = await getOrCreateCurrentWeek(db, kid.tenantId, kid.memberId);
+    const weekIdParam = c.req.query('weekId') ?? undefined;
+    const result = await loadHabitsForWeek(getDb(), kid.tenantId, kid.memberId, weekIdParam);
+    if (!result && weekIdParam) {
+      return c.json({ error: 'not found', detail: 'week not found for this kid' }, 404);
     }
-    const [habitRows, stickerRows, balance, currency] = await Promise.all([
-      db
-        .select({
-          id: habits.id,
-          name: habits.name,
-          description: habits.description,
-          color: habits.color,
-          icon: habits.icon,
-          isBonus: habits.isBonus,
-        })
-        .from(habits)
-        .where(
-          and(
-            eq(habits.tenantId, kid.tenantId),
-            eq(habits.memberId, kid.memberId),
-            isNull(habits.archivedAt),
-          ),
-        )
-        .orderBy(asc(habits.createdAt)),
-      db
-        .select({
-          habitId: habitStickers.habitId,
-          day: habitStickers.day,
-          sticker: habitStickers.sticker,
-          stickerValue: habitStickers.stickerValue,
-        })
-        .from(habitStickers)
-        .where(
-          and(
-            eq(habitStickers.tenantId, kid.tenantId),
-            eq(habitStickers.memberId, kid.memberId),
-            eq(habitStickers.weekId, week.id),
-          ),
-        ),
-      stickerBalance(db, kid.tenantId, kid.memberId),
-      getTenantCurrency(db, kid.tenantId),
-    ]);
     return c.json(
-      listHabitsResponseSchema.parse({
-        habits: habitRows,
-        stickers: stickerRows,
-        week: {
-          id: week.id,
-          weekNumber: week.weekNumber,
-          year: week.year,
-          startDate: week.startDate,
-          isFinalized: week.isFinalized,
-        },
-        balance,
-        currency,
-      }),
+      listHabitsResponseSchema.parse(
+        result ?? (await loadHabitsForWeek(getDb(), kid.tenantId, kid.memberId)),
+      ),
     );
   })
-  // FHS-363 — place a typed sticker on today (only). Body: { weekId, day, sticker }.
-  .post('/habits/:id/stickers', async (c) => {
-    const kid = getKidAuth(c);
-    const habitId = c.req.param('id');
-    if (!UUID_RE.test(habitId)) {
-      return c.json({ error: 'invalid id', detail: 'habit id must be a UUID' }, 400);
-    }
-    const parsed = kidPlaceStickerSchema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) {
-      return c.json(
-        { error: 'invalid request', detail: parsed.error.issues[0]?.message ?? 'bad body' },
-        400,
-      );
-    }
-    await pinRequestTenant(kid.tenantId);
-    const db = getDb();
-    const { weekId, day, sticker } = parsed.data;
-    const blocked = await kidStickerDayBlocked(c, db, kid, weekId, day);
-    if (blocked) return blocked;
-    const habitRows = await db
-      .select({ id: habits.id, isBonus: habits.isBonus })
-      .from(habits)
-      .where(
-        and(
-          eq(habits.tenantId, kid.tenantId),
-          eq(habits.memberId, kid.memberId),
-          eq(habits.id, habitId),
-        ),
-      )
-      .limit(1);
-    const habit = habitRows[0];
-    if (!habit) return c.json({ error: 'not found', detail: 'habit not found for this kid' }, 404);
-    const stickerValue = habit.isBonus ? 5 : 1;
-    await db
-      .insert(habitStickers)
-      .values({
-        tenantId: kid.tenantId,
-        memberId: kid.memberId,
-        habitId,
-        weekId,
-        day,
-        sticker,
-        stickerValue,
-      })
-      .onConflictDoUpdate({
-        target: [
-          habitStickers.tenantId,
-          habitStickers.memberId,
-          habitStickers.habitId,
-          habitStickers.weekId,
-          habitStickers.day,
-        ],
-        set: { sticker, stickerValue, updatedAt: new Date() },
-      });
-    return c.json({ habitId, day, sticker, stickerValue });
-  })
-  // FHS-363 — remove today's sticker (only). Body: { weekId, day }.
-  .delete('/habits/:id/stickers', async (c) => {
-    const kid = getKidAuth(c);
-    const habitId = c.req.param('id');
-    if (!UUID_RE.test(habitId)) {
-      return c.json({ error: 'invalid id', detail: 'habit id must be a UUID' }, 400);
-    }
-    const parsed = kidRemoveStickerSchema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) {
-      return c.json(
-        { error: 'invalid request', detail: parsed.error.issues[0]?.message ?? 'bad body' },
-        400,
-      );
-    }
-    await pinRequestTenant(kid.tenantId);
-    const db = getDb();
-    const { weekId, day } = parsed.data;
-    const blocked = await kidStickerDayBlocked(c, db, kid, weekId, day);
-    if (blocked) return blocked;
-    await db
-      .delete(habitStickers)
-      .where(
-        and(
-          eq(habitStickers.tenantId, kid.tenantId),
-          eq(habitStickers.memberId, kid.memberId),
-          eq(habitStickers.habitId, habitId),
-          eq(habitStickers.weekId, weekId),
-          eq(habitStickers.day, day),
-        ),
-      );
-    return c.body(null, 204);
-  })
-  // FHS-364 — the kid's reward shop: the family's rewards + the kid's own
-  // spendable star balance (so the UI can show progress / "ready to claim").
+  // FHS-374 — rewards (identical to GET /api/rewards).
   .get('/rewards', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
-    const db = getDb();
-    const [rewardRows, balance] = await Promise.all([
-      db
-        .select({
-          id: rewards.id,
-          name: rewards.name,
-          description: rewards.description,
-          stickerCost: rewards.stickerCost,
-          icon: rewards.icon,
-        })
-        .from(rewards)
-        .where(and(eq(rewards.tenantId, kid.tenantId), isNull(rewards.archivedAt)))
-        .orderBy(asc(rewards.stickerCost), asc(rewards.createdAt)),
-      stickerBalance(db, kid.tenantId, kid.memberId),
-    ]);
     return c.json(
-      listRewardsResponseSchema.parse({ rewards: rewardRows, stickerBalance: balance }),
+      listRewardsResponseSchema.parse(
+        await loadRewardsForMember(getDb(), kid.tenantId, kid.memberId),
+      ),
     );
   })
-  // FHS-364 — the kid claims a reward with their own stars (self-scoped redeem;
-  // shared money logic in lib/myworld.ts). 409 when they can't afford it.
-  .post('/rewards/:id/redeem', async (c) => {
+  // FHS-374 — banked savings + currency (identical to GET /mw/financial/savings).
+  .get('/financial/savings', async (c) => {
     const kid = getKidAuth(c);
-    const rewardId = c.req.param('id');
-    if (!UUID_RE.test(rewardId)) {
-      return c.json({ error: 'invalid id', detail: 'reward id must be a UUID' }, 400);
-    }
     await pinRequestTenant(kid.tenantId);
-    const outcome = await redeemReward(getDb(), {
-      tenantId: kid.tenantId,
-      memberId: kid.memberId,
-      rewardId,
-    });
-    if (!outcome.ok && outcome.reason === 'not-found') {
-      return c.json({ error: 'not found', detail: 'reward not found for this kid' }, 404);
-    }
-    if (!outcome.ok) {
-      return c.json(
-        {
-          error: 'insufficient stickers',
-          errorCode: 'INSUFFICIENT_STICKERS',
-          detail: `needs ${outcome.cost}, has ${outcome.balance}`,
-        },
-        409,
-      );
-    }
     return c.json(
-      kidRedeemResponseSchema.parse({
-        stickerBalance: outcome.balance,
-        redemptionId: outcome.redemptionId,
-      }),
-      201,
+      kidSavingsResponseSchema.parse(
+        await loadSavingsForMember(getDb(), kid.tenantId, kid.memberId),
+      ),
     );
   })
-  // FHS-364 — the kid's money cards: banked savings (stars + cash) + their
-  // active investments (live value). Read-only.
-  .get('/financial', async (c) => {
+  // FHS-374 — active investments with live value (identical to GET /mw/financial/investments).
+  .get('/financial/investments', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
-    const db = getDb();
-    const [savings, currency, investments] = await Promise.all([
-      getSavings(db, kid.tenantId, kid.memberId),
-      getTenantCurrency(db, kid.tenantId),
-      listInvestments(db, kid.tenantId, kid.memberId),
-    ]);
     return c.json(
-      kidFinancialResponseSchema.parse({
-        savedStickers: savings.savedStickers,
-        savedCash: savings.savedCash,
-        currency,
-        investments,
-      }),
+      kidInvestmentsResponseSchema.parse(
+        await loadInvestmentsForMember(getDb(), kid.tenantId, kid.memberId),
+      ),
     );
   })
   // FHS-365 — the kid's meals: the family's meal plan scoped to the kid +

@@ -1,9 +1,9 @@
 /**
- * Step bindings for kid-rewards.feature (FHS-364).
+ * Step bindings for kid-rewards.feature (FHS-374).
  *
- * The kid reads the family rewards + their own balance/savings and claims a
- * reward with their own stars (self-scoped redeem, shared money logic). Real
- * kid token against real Postgres.
+ * The kid reads the family rewards + their own star balance (read-only since
+ * FHS-374 — POST /redeem was removed; redemption is parent-approved in
+ * FHS-376). Real kid token against real Postgres.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -29,13 +29,8 @@ const KID_ISSUER = 'family-hub-kid-auth';
 let db: Database;
 let app: Hono;
 let kidToken: string;
-let iceCreamId: string;
-let bigPrizeId: string;
-let otherFamilyRewardId: string;
 let res: Response;
 let body: Record<string, unknown>;
-let redeemRes: Response;
-let redeemBody: { stickerBalance?: number };
 
 async function mintKidToken(memberId: string, tenantId: string, slug: string): Promise<string> {
   const secret = new TextEncoder().encode(config.KID_AUTH_SECRET);
@@ -73,27 +68,9 @@ describeFeature(feature, ({ Background, Scenario }) => {
         await db
           .insert(mwSavings)
           .values({ tenantId: t!.id, memberId: iman!.id, savedStickers: 8 });
-        const [ice] = await db
-          .insert(rewards)
-          .values({ tenantId: t!.id, name: 'Ice Cream', stickerCost: 5 })
-          .returning();
-        const [big] = await db
-          .insert(rewards)
-          .values({ tenantId: t!.id, name: 'Big Prize', stickerCost: 100 })
-          .returning();
-        iceCreamId = ice!.id;
-        bigPrizeId = big!.id;
+        await db.insert(rewards).values({ tenantId: t!.id, name: 'Ice Cream', stickerCost: 5 });
+        await db.insert(rewards).values({ tenantId: t!.id, name: 'Big Prize', stickerCost: 100 });
         kidToken = await mintKidToken(iman!.id, t!.id, t!.slug);
-        // A second family with its own reward — Iman must never reach it.
-        const [other] = await db
-          .insert(tenants)
-          .values({ slug: `other-${randomUUID().slice(0, 8)}`, name: 'Other Fam' })
-          .returning();
-        const [otherReward] = await db
-          .insert(rewards)
-          .values({ tenantId: other!.id, name: 'Their Toy', stickerCost: 1 })
-          .returning();
-        otherFamilyRewardId = otherReward!.id;
         app = new Hono();
         app.route('/api/kid', kidRouter);
       },
@@ -116,64 +93,6 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
     And('the kid sticker balance is 8', () => {
       expect(body.stickerBalance).toBe(8);
-    });
-  });
-
-  Scenario('a kid sees their savings', ({ When, Then, And }) => {
-    When('the kid GETs /api/kid/financial', async () => {
-      res = await app.request('/api/kid/financial', {
-        headers: { Authorization: `Bearer ${kidToken}` },
-      });
-      body = (await res.json()) as Record<string, unknown>;
-    });
-    Then('the kid financial response status is 200', () => {
-      expect(res.status).toBe(200);
-    });
-    And('the kid saved stars is 8', () => {
-      expect(body.savedStickers).toBe(8);
-    });
-  });
-
-  Scenario('a kid claims an affordable reward', ({ When, Then, And }) => {
-    When('the kid redeems "Ice Cream"', async () => {
-      redeemRes = await app.request(`/api/kid/rewards/${iceCreamId}/redeem`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${kidToken}`, 'Content-Type': 'application/json' },
-        body: '{}',
-      });
-      redeemBody = (await redeemRes.json()) as { stickerBalance?: number };
-    });
-    Then('the redeem response status is 201', () => {
-      expect(redeemRes.status).toBe(201);
-    });
-    And('the redeemed balance is 3', () => {
-      expect(redeemBody.stickerBalance).toBe(3);
-    });
-  });
-
-  Scenario("a kid cannot claim a reward they can't afford", ({ When, Then }) => {
-    When('the kid redeems "Big Prize"', async () => {
-      redeemRes = await app.request(`/api/kid/rewards/${bigPrizeId}/redeem`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${kidToken}`, 'Content-Type': 'application/json' },
-        body: '{}',
-      });
-    });
-    Then('the redeem response status is 409', () => {
-      expect(redeemRes.status).toBe(409);
-    });
-  });
-
-  Scenario('a kid cannot claim a reward from another family', ({ When, Then }) => {
-    When('the kid redeems a reward belonging to another family', async () => {
-      redeemRes = await app.request(`/api/kid/rewards/${otherFamilyRewardId}/redeem`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${kidToken}`, 'Content-Type': 'application/json' },
-        body: '{}',
-      });
-    });
-    Then('the redeem response status is 404', () => {
-      expect(redeemRes.status).toBe(404);
     });
   });
 });

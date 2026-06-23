@@ -1,16 +1,11 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { habits, habitStickers, mwWeeks } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 import { loadCaller, canManage, memberInTenant } from '../lib/permissions.js';
-import {
-  getOrCreateCurrentWeek,
-  getTenantCurrency,
-  stickerBalance,
-  stickerDayRelation,
-} from '../lib/myworld.js';
+import { loadHabitsForWeek, stickerDayRelation } from '../lib/myworld.js';
 
 // FHS-292 — habits CRUD + weekly typed-sticker grid (My World).
 //
@@ -175,75 +170,13 @@ export const habitsRouter = new Hono()
     const { memberId } = parsed.data;
     // A specific week may be requested (FHS-293 navigation); else current.
     const weekIdParam = c.req.query('weekId');
-    let week;
-    if (weekIdParam && UUID_RE.test(weekIdParam)) {
-      const rows = await db
-        .select()
-        .from(mwWeeks)
-        .where(
-          and(
-            eq(mwWeeks.tenantId, tenantId),
-            eq(mwWeeks.memberId, memberId),
-            eq(mwWeeks.id, weekIdParam),
-          ),
-        )
-        .limit(1);
-      week = rows[0] ?? (await getOrCreateCurrentWeek(db, tenantId, memberId));
-    } else {
-      week = await getOrCreateCurrentWeek(db, tenantId, memberId);
+    const result = await loadHabitsForWeek(db, tenantId, memberId, weekIdParam ?? undefined);
+    if (!result) {
+      // weekIdParam was supplied but not found — fall back to current week.
+      const fallback = await loadHabitsForWeek(db, tenantId, memberId);
+      return c.json(listHabitsResponseSchema.parse(fallback!));
     }
-    const [habitRows, stickerRows, balance, currency] = await Promise.all([
-      db
-        .select({
-          id: habits.id,
-          name: habits.name,
-          description: habits.description,
-          color: habits.color,
-          icon: habits.icon,
-          isBonus: habits.isBonus,
-        })
-        .from(habits)
-        .where(
-          and(
-            eq(habits.tenantId, tenantId),
-            eq(habits.memberId, memberId),
-            isNull(habits.archivedAt),
-          ),
-        )
-        .orderBy(asc(habits.createdAt)),
-      db
-        .select({
-          habitId: habitStickers.habitId,
-          day: habitStickers.day,
-          sticker: habitStickers.sticker,
-          stickerValue: habitStickers.stickerValue,
-        })
-        .from(habitStickers)
-        .where(
-          and(
-            eq(habitStickers.tenantId, tenantId),
-            eq(habitStickers.memberId, memberId),
-            eq(habitStickers.weekId, week.id),
-          ),
-        ),
-      stickerBalance(db, tenantId, memberId),
-      getTenantCurrency(db, tenantId),
-    ]);
-    return c.json(
-      listHabitsResponseSchema.parse({
-        habits: habitRows,
-        stickers: stickerRows,
-        week: {
-          id: week.id,
-          weekNumber: week.weekNumber,
-          year: week.year,
-          startDate: week.startDate,
-          isFinalized: week.isFinalized,
-        },
-        balance,
-        currency,
-      }),
-    );
+    return c.json(listHabitsResponseSchema.parse(result));
   })
   // Create a habit.
   .post('/', async (c) => {
