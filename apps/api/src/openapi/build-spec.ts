@@ -105,14 +105,22 @@ export function buildOpenApiSpec(app: Pick<Hono, 'routes'>): OpenApiSpec {
     };
     if (meta?.description) operation['description'] = meta.description;
 
-    const params = pathParamNames(oaPath);
-    if (params.length) {
-      operation['parameters'] = params.map((name) => ({
-        name,
-        in: 'path',
-        required: true,
-        schema: { type: 'string' },
-      }));
+    const pathParams = pathParamNames(oaPath).map((name) => ({
+      name,
+      in: 'path',
+      required: true,
+      schema: { type: 'string' },
+    }));
+    const queryParams = Object.entries(meta?.queryParams ?? {}).map(([name, qp]) => ({
+      name,
+      in: 'query',
+      required: qp.required ?? false,
+      ...(qp.description ? { description: qp.description } : {}),
+      schema: jsonSchema(qp.schema),
+    }));
+    const allParams = [...pathParams, ...queryParams];
+    if (allParams.length) {
+      operation['parameters'] = allParams;
     }
 
     const isPublic = meta?.security === false || isPublicByPath(oaPath);

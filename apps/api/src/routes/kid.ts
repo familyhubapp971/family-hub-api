@@ -20,6 +20,7 @@ import {
   isLessonSubject,
   LESSON_SUBJECTS,
   type Difficulty,
+  type LogicSubtopic,
 } from '../lib/learn-questions.js';
 import {
   computeMemberAnalytics,
@@ -41,6 +42,7 @@ import { listMealsResponseSchema } from './meals.js';
 import { listEventsResponseSchema } from './events.js';
 import {
   difficultySchema,
+  subtopicSchema,
   listLearnResponseSchema,
   lessonQuestionsResponseSchema,
   lessonAnswerResponseSchema,
@@ -539,6 +541,7 @@ export const kidRouter = new Hono()
     return c.json(listLearnResponseSchema.parse({ subjects }));
   })
   // FHS-367 — questions for a kid's lesson + their current stats.
+  // FHS-371 — optional ?subtopic= filters Logic questions by sub-topic.
   .get('/learn/:subject/questions', async (c) => {
     const kid = getKidAuth(c);
     const subject = decodeURIComponent(c.req.param('subject'));
@@ -552,13 +555,28 @@ export const kidRouter = new Hono()
         400,
       );
     }
+    const rawSubtopic = c.req.query('subtopic');
+    let subtopic: LogicSubtopic | undefined;
+    if (rawSubtopic !== undefined) {
+      const st = subtopicSchema.safeParse(rawSubtopic);
+      if (!st.success) {
+        return c.json(
+          {
+            error: 'invalid request',
+            detail: 'subtopic must be patterns|odd-one-out|if-then|sorting',
+          },
+          400,
+        );
+      }
+      subtopic = st.data;
+    }
     await pinRequestTenant(kid.tenantId);
     const row = await loadProgressRow(getDb(), kid.tenantId, kid.memberId, subject);
     return c.json(
       lessonQuestionsResponseSchema.parse({
         subject,
         difficulty: parsedDifficulty.data,
-        questions: getQuestions(subject, parsedDifficulty.data as Difficulty),
+        questions: getQuestions(subject, parsedDifficulty.data as Difficulty, subtopic),
         stats: toStats(row),
       }),
     );

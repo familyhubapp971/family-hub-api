@@ -9,8 +9,10 @@ import {
   getQuestions,
   gradeAnswer,
   isLessonSubject,
+  LOGIC_SUBTOPICS,
   CERTIFICATE_TARGET,
   type Difficulty,
+  type LogicSubtopic,
 } from '../lib/learn-questions.js';
 
 // FHS-270 — GET /api/learn, PATCH /api/learn/:subject.
@@ -37,6 +39,11 @@ export const listLearnResponseSchema = z.object({
 // FHS-283 — interactive lesson schemas.
 export const difficultySchema = z.enum(['easy', 'medium', 'hard']);
 
+// FHS-371 — Logic sub-topic filter.
+export const subtopicSchema = z.enum(
+  LOGIC_SUBTOPICS.map((s) => s.slug) as [string, ...string[]],
+) as z.ZodEnum<[LogicSubtopic, ...LogicSubtopic[]]>;
+
 export const lessonStatsSchema = z.object({
   progress: z.number().int().min(0).max(100),
   score: z.number().int().min(0),
@@ -51,7 +58,12 @@ export const lessonQuestionsResponseSchema = z.object({
   subject: z.string(),
   difficulty: difficultySchema,
   questions: z.array(
-    z.object({ id: z.string(), prompt: z.string(), choices: z.array(z.string()) }),
+    z.object({
+      id: z.string(),
+      prompt: z.string(),
+      choices: z.array(z.string()),
+      subtopic: subtopicSchema.optional(),
+    }),
   ),
   stats: lessonStatsSchema,
 });
@@ -203,6 +215,21 @@ export const learnRouter = new Hono()
     if (!isLessonSubject(subject)) {
       return c.json({ error: 'unknown subject', detail: 'subject has no interactive lesson' }, 400);
     }
+    const rawSubtopic = c.req.query('subtopic');
+    let subtopic: LogicSubtopic | undefined;
+    if (rawSubtopic !== undefined) {
+      const st = subtopicSchema.safeParse(rawSubtopic);
+      if (!st.success) {
+        return c.json(
+          {
+            error: 'invalid request',
+            detail: 'subtopic must be patterns|odd-one-out|if-then|sorting',
+          },
+          400,
+        );
+      }
+      subtopic = st.data;
+    }
     const parsed = z
       .object({ memberId: z.string().uuid(), difficulty: difficultySchema.default('easy') })
       .safeParse({
@@ -226,7 +253,7 @@ export const learnRouter = new Hono()
       lessonQuestionsResponseSchema.parse({
         subject,
         difficulty: parsed.data.difficulty,
-        questions: getQuestions(subject, parsed.data.difficulty as Difficulty),
+        questions: getQuestions(subject, parsed.data.difficulty as Difficulty, subtopic),
         stats: toStats(row),
       }),
     );

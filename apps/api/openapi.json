@@ -1770,6 +1770,35 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "difficulty",
+            "in": "query",
+            "required": false,
+            "description": "Lesson difficulty (default: easy)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "easy",
+                "medium",
+                "hard"
+              ]
+            }
+          },
+          {
+            "name": "subtopic",
+            "in": "query",
+            "required": false,
+            "description": "Logic sub-topic filter (patterns|odd-one-out|if-then|sorting). Logic only; ignored for other subjects.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "patterns",
+                "odd-one-out",
+                "if-then",
+                "sorting"
+              ]
+            }
           }
         ],
         "security": [
@@ -1812,6 +1841,15 @@
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "subtopic": {
+                            "type": "string",
+                            "enum": [
+                              "patterns",
+                              "odd-one-out",
+                              "if-then",
+                              "sorting"
+                            ]
                           }
                         },
                         "required": [
@@ -3057,6 +3095,45 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "memberId",
+            "in": "query",
+            "required": true,
+            "description": "The child's member ID",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "difficulty",
+            "in": "query",
+            "required": false,
+            "description": "Lesson difficulty (default: easy)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "easy",
+                "medium",
+                "hard"
+              ]
+            }
+          },
+          {
+            "name": "subtopic",
+            "in": "query",
+            "required": false,
+            "description": "Logic sub-topic filter (patterns|odd-one-out|if-then|sorting). Logic only; ignored for other subjects.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "patterns",
+                "odd-one-out",
+                "if-then",
+                "sorting"
+              ]
+            }
           }
         ],
         "security": [
@@ -3099,6 +3176,15 @@
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "subtopic": {
+                            "type": "string",
+                            "enum": [
+                              "patterns",
+                              "odd-one-out",
+                              "if-then",
+                              "sorting"
+                            ]
                           }
                         },
                         "required": [

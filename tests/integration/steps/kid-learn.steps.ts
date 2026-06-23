@@ -32,6 +32,7 @@ let res: Response;
 let addRes: Response;
 let answerRes: Response;
 let siblingRes: Response;
+let subtopicRes: Response;
 
 async function mintKidToken(memberId: string, tenantId: string, slug: string): Promise<string> {
   const secret = new TextEncoder().encode(config.KID_AUTH_SECRET);
@@ -125,6 +126,26 @@ describeFeature(feature, ({ Background, Scenario }) => {
       const r = await app.request('/api/kid/reading-log', { headers: authFor('Yusuf') });
       const b = (await r.json()) as { books: unknown[] };
       expect(b.books).toHaveLength(0);
+    });
+  });
+
+  Scenario('a kid explores Logic sub-topics', ({ When, Then, And }) => {
+    let subtopicBody: { questions: Array<{ subtopic?: string }> };
+    When('the kid "Iman" fetches Logic questions filtered by subtopic "patterns"', async () => {
+      subtopicRes = await app.request(
+        '/api/kid/learn/Logic/questions?difficulty=easy&subtopic=patterns',
+        { headers: authFor('Iman') },
+      );
+      subtopicBody = (await subtopicRes.json()) as typeof subtopicBody;
+    });
+    Then('the subtopic questions response status is 200', () =>
+      expect(subtopicRes.status).toBe(200),
+    );
+    And('all returned questions have subtopic "patterns"', () => {
+      expect(subtopicBody.questions.length).toBeGreaterThan(0);
+      for (const q of subtopicBody.questions) {
+        expect(q.subtopic).toBe('patterns');
+      }
     });
   });
 

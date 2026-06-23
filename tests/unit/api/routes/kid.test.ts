@@ -60,3 +60,14 @@ describe('FHS-257 — GET /api/kid/me (real app wiring)', () => {
     expect((await res.json()).errorCode).toBe('KID_ON_PARENT_ROUTE');
   });
 });
+
+describe('FHS-371 — GET /api/kid/learn/:subject/questions subtopic', () => {
+  it('400 for an invalid subtopic value', async () => {
+    const token = await mintKidToken();
+    const res = await buildApp().request('/api/kid/learn/Logic/questions?subtopic=bogus', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('invalid request');
+  });
+});

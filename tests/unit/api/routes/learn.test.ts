@@ -64,6 +64,16 @@ describe('FHS-270 — GET /api/learn guards', () => {
   });
 });
 
+describe('FHS-371 — GET /api/learn/:subject/questions subtopic', () => {
+  it('400 for an invalid subtopic value', async () => {
+    const res = await buildApp().request(
+      `/api/learn/Logic/questions?memberId=${MEMBER_ID}&subtopic=bogus`,
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('invalid request');
+  });
+});
+
 describe('FHS-270 — PATCH /api/learn/:subject guards', () => {
   function patch(body: unknown): RequestInit {
     return {

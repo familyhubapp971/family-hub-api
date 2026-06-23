@@ -10,6 +10,7 @@
 // Hono's `:param`). Endpoints not listed here still appear in the spec with an
 // auto-generated summary and a generic 200 response — fill them in over time.
 
+import { z } from 'zod';
 import type { ZodTypeAny } from 'zod';
 import { meResponseSchema } from '../routes/me.js';
 import {
@@ -60,11 +61,19 @@ import {
   investmentRecordSchema,
 } from '../routes/mw-financial.js';
 import {
+  difficultySchema,
   listLearnResponseSchema,
   lessonQuestionsResponseSchema,
   lessonAnswerResponseSchema,
   answerRequestSchema,
+  subtopicSchema,
 } from '../routes/learn.js';
+
+export interface QueryParamMeta {
+  description?: string;
+  required?: boolean;
+  schema: ZodTypeAny;
+}
 
 export interface RouteMeta {
   summary?: string;
@@ -74,6 +83,8 @@ export interface RouteMeta {
   responseDesc?: string;
   /** Set false to mark a route as not requiring the bearer token. */
   security?: false;
+  /** Optional query parameters to document (name → meta). */
+  queryParams?: Record<string, QueryParamMeta>;
 }
 
 export const routeMeta: Record<string, RouteMeta> = {
@@ -185,6 +196,14 @@ export const routeMeta: Record<string, RouteMeta> = {
   'GET /api/kid/learn/{subject}/questions': {
     summary: "Questions for the kid's lesson + their stats",
     response: lessonQuestionsResponseSchema,
+    queryParams: {
+      difficulty: { schema: difficultySchema, description: 'Lesson difficulty (default: easy)' },
+      subtopic: {
+        schema: subtopicSchema,
+        description:
+          'Logic sub-topic filter (patterns|odd-one-out|if-then|sorting). Logic only; ignored for other subjects.',
+      },
+    },
   },
   'POST /api/kid/learn/{subject}/answer': {
     summary: "Grade one of the kid's answers",
@@ -272,6 +291,15 @@ export const routeMeta: Record<string, RouteMeta> = {
   'GET /api/learn/{subject}/questions': {
     summary: "Questions for a subject's lesson + the child's stats",
     response: lessonQuestionsResponseSchema,
+    queryParams: {
+      memberId: { schema: z.string().uuid(), required: true, description: "The child's member ID" },
+      difficulty: { schema: difficultySchema, description: 'Lesson difficulty (default: easy)' },
+      subtopic: {
+        schema: subtopicSchema,
+        description:
+          'Logic sub-topic filter (patterns|odd-one-out|if-then|sorting). Logic only; ignored for other subjects.',
+      },
+    },
   },
   'POST /api/learn/{subject}/answer': {
     summary: 'Grade one answer and update streak/score/progress',

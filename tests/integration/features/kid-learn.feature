@@ -27,3 +27,8 @@ Feature: Kid learn + reading log
   Scenario: a kid cannot change a sibling's book
     When "Yusuf" tries to mark "Iman"'s book finished
     Then the sibling change response status is 404
+
+  Scenario: a kid explores Logic sub-topics
+    When the kid "Iman" fetches Logic questions filtered by subtopic "patterns"
+    Then the subtopic questions response status is 200
+    And all returned questions have subtopic "patterns"
