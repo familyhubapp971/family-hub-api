@@ -1199,6 +1199,64 @@ export type MwWeekAction = typeof mwWeekActions.$inferSelect;
 export type NewMwWeekAction = typeof mwWeekActions.$inferInsert;
 
 /**
+ * Status of a kid's reward redemption request (FHS-376).
+ *
+ * `pending`  — the kid asked; awaiting an admin parent's decision.
+ * `approved` — an admin approved; the cost was deducted from savings.
+ * `declined` — an admin declined; no deduction.
+ */
+export const redemptionRequestStatus = pgEnum('redemption_request_status', [
+  'pending',
+  'approved',
+  'declined',
+]);
+
+/**
+ * `redemption_requests` (FHS-376) — a kid asks to spend on a reward; an admin
+ * parent approves or declines. The kid's POST /api/kid/rewards/:id/request
+ * creates a `pending` row WITHOUT any deduction. An admin's approve deducts
+ * `star_cost` from the kid's banked SAVINGS only (not the week's unallocated
+ * stickers) and flips the row to `approved`; a decline flips it to `declined`.
+ *
+ * `star_cost` snapshots the reward's sticker cost at request time so later
+ * edits to the reward don't rewrite a pending request's price. `decided_by`
+ * records which member (the admin) decided. Tenant-scoped + RLS-guarded like
+ * every other My World table.
+ */
+export const redemptionRequests = pgTable(
+  'redemption_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    // The kid who requested the reward.
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    rewardId: uuid('reward_id')
+      .notNull()
+      .references(() => rewards.id, { onDelete: 'cascade' }),
+    status: redemptionRequestStatus('status').notNull().default('pending'),
+    // Snapshot of the reward's sticker cost when the request was made.
+    starCost: integer('star_cost').notNull(),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+    // Set when an admin approves/declines.
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    // The member (admin) who decided. SET NULL so a removed admin keeps history.
+    decidedBy: uuid('decided_by').references(() => members.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('redemption_requests_tenant_status_idx').on(t.tenantId, t.status),
+    index('redemption_requests_tenant_member_idx').on(t.tenantId, t.memberId),
+  ],
+);
+
+export type RedemptionRequest = typeof redemptionRequests.$inferSelect;
+export type NewRedemptionRequest = typeof redemptionRequests.$inferInsert;
+
+/**
  * `reading_log` — a child's personal book list (Learn Phase 1).
  *
  * One row per book a child adds. Title is required; author is optional.
@@ -1311,6 +1369,7 @@ export const TENANT_SCOPED_TABLES = [
   rewards,
   habitLogs,
   rewardRedemptions,
+  redemptionRequests,
   journalEntries,
   learnProgress,
   mealTemplates,

@@ -27,6 +27,7 @@ import { mwWeeksRouter } from './routes/mw-weeks.js';
 import { mwFinancialRouter } from './routes/mw-financial.js';
 import { mwAnalyticsRouter } from './routes/mw-analytics.js';
 import { rewardsRouter } from './routes/rewards.js';
+import { mwRedemptionRequestsRouter } from './routes/mw-redemption-requests.js';
 import { journalRouter } from './routes/journal.js';
 import { learnRouter } from './routes/learn.js';
 import { readingLogRouter } from './routes/reading-log.js';
@@ -232,6 +233,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/mw/weeks', mwWeeksRouter);
   app.route('/api/mw/financial', mwFinancialRouter);
   app.route('/api/mw/analytics', mwAnalyticsRouter);
+  app.route('/api/mw/redemption-requests', mwRedemptionRequestsRouter);
   app.route('/api/rewards', rewardsRouter);
   app.route('/api/journal', journalRouter);
   app.route('/api/learn', learnRouter);

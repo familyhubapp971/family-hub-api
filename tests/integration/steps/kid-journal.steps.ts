@@ -20,15 +20,16 @@ vi.mock('../../../apps/api/src/db/client.js', () => ({
 
 import { config } from '../../../apps/api/src/config.js';
 import { kidRouter } from '../../../apps/api/src/routes/kid.js';
-import { tenants, members } from '../../../apps/api/src/db/schema.js';
+import { tenants, members, journalEntries } from '../../../apps/api/src/db/schema.js';
 import type { Database } from '../../../apps/api/src/db/client.js';
 
 const KID_ISSUER = 'family-hub-kid-auth';
 
 let db: Database;
 let app: Hono;
+let tenantId: string;
 const tokens = new Map<string, string>();
-let saveRes: Response;
+const memberIds = new Map<string, string>();
 let readRes: Response;
 
 async function mintKidToken(memberId: string, tenantId: string, slug: string): Promise<string> {
@@ -56,6 +57,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
         .insert(tenants)
         .values({ slug: `kidjournal-${randomUUID().slice(0, 8)}`, name: 'Journal Fam' })
         .returning();
+      tenantId = t!.id;
       const [iman] = await db
         .insert(members)
         .values({ tenantId: t!.id, displayName: 'Iman', role: 'child', isChild: true })
@@ -64,6 +66,8 @@ describeFeature(feature, ({ Background, Scenario }) => {
         .insert(members)
         .values({ tenantId: t!.id, displayName: 'Yusuf', role: 'child', isChild: true })
         .returning();
+      memberIds.set('Iman', iman!.id);
+      memberIds.set('Yusuf', yusuf!.id);
       tokens.set('Iman', await mintKidToken(iman!.id, t!.id, t!.slug));
       tokens.set('Yusuf', await mintKidToken(yusuf!.id, t!.id, t!.slug));
       app = new Hono();
@@ -71,38 +75,43 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   });
 
-  const save = (name: string, body: string) =>
-    app.request('/api/kid/journal', {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${tokens.get(name)}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entryDate: today, mood: 'happy', body }),
+  // FHS-376 — kids are read-only on the journal; a parent writes entries. The
+  // test seeds an entry directly, then the kid reads it back.
+  const seedEntry = (name: string, body: string) =>
+    db.insert(journalEntries).values({
+      tenantId,
+      memberId: memberIds.get(name)!,
+      entryDate: today,
+      mood: 'happy',
+      body,
     });
   const readDay = (name: string, date: string) =>
     app.request(`/api/kid/journal?date=${encodeURIComponent(date)}`, {
       headers: { Authorization: `Bearer ${tokens.get(name)}` },
     });
 
-  Scenario('a kid saves and reads back their journal', ({ When, Then, And }) => {
-    When('the kid "Iman" saves a journal entry for today with body "Great day"', async () => {
-      saveRes = await save('Iman', 'Great day');
+  Scenario('a kid reads back a journal entry for today', ({ Given, When, Then }) => {
+    Given('"Iman" has a journal entry for today with body "Great day"', async () => {
+      await seedEntry('Iman', 'Great day');
     });
-    Then('the journal save status is 200', () => {
-      expect(saveRes.status).toBe(200);
+    When('the kid "Iman" reads their journal for today', async () => {
+      readRes = await readDay('Iman', today);
     });
-    And('reading "Iman" journal for today shows body "Great day"', async () => {
-      const r = await readDay('Iman', today);
-      const b = (await r.json()) as { entry: { body: string } | null };
+    Then('reading "Iman" journal for today shows body "Great day"', async () => {
+      const b = (await readRes.json()) as { entry: { body: string } | null };
       expect(b.entry?.body).toBe('Great day');
     });
   });
 
-  Scenario("a sibling does not see another kid's journal", ({ When, Then }) => {
-    When('the kid "Iman" saves a journal entry for today with body "Great day"', async () => {
-      saveRes = await save('Iman', 'Great day');
+  Scenario("a sibling does not see another kid's journal", ({ Given, When, Then }) => {
+    Given('"Iman" has a journal entry for today with body "Great day"', async () => {
+      await seedEntry('Iman', 'Great day');
+    });
+    When('the kid "Yusuf" reads their journal for today', async () => {
+      readRes = await readDay('Yusuf', today);
     });
     Then('reading "Yusuf" journal for today shows no entry', async () => {
-      const r = await readDay('Yusuf', today);
-      const b = (await r.json()) as { entry: unknown };
+      const b = (await readRes.json()) as { entry: unknown };
       expect(b.entry).toBeNull();
     });
   });

@@ -1433,166 +1433,6 @@
             }
           }
         }
-      },
-      "put": {
-        "tags": [
-          "kid"
-        ],
-        "summary": "Save the kid's journal for a day",
-        "operationId": "put_api_kid_journal",
-        "security": [
-          {
-            "kidAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "entryDate": {
-                    "type": "string",
-                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
-                  },
-                  "mood": {
-                    "type": "string",
-                    "enum": [
-                      "happy",
-                      "smiling",
-                      "excited",
-                      "laughing",
-                      "surprised",
-                      "nervous",
-                      "grumpy",
-                      "sad"
-                    ],
-                    "nullable": true
-                  },
-                  "gratitude1": {
-                    "type": "string",
-                    "maxLength": 500,
-                    "nullable": true
-                  },
-                  "gratitude2": {
-                    "type": "string",
-                    "maxLength": 500,
-                    "nullable": true
-                  },
-                  "gratitude3": {
-                    "type": "string",
-                    "maxLength": 500,
-                    "nullable": true
-                  },
-                  "body": {
-                    "type": "string",
-                    "maxLength": 5000,
-                    "nullable": true
-                  },
-                  "creativity": {
-                    "type": "object",
-                    "additionalProperties": {
-                      "type": "string",
-                      "maxLength": 500
-                    },
-                    "nullable": true
-                  }
-                },
-                "required": [
-                  "entryDate"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "format": "uuid"
-                    },
-                    "entryDate": {
-                      "type": "string",
-                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
-                    },
-                    "mood": {
-                      "type": "string",
-                      "enum": [
-                        "happy",
-                        "smiling",
-                        "excited",
-                        "laughing",
-                        "surprised",
-                        "nervous",
-                        "grumpy",
-                        "sad"
-                      ],
-                      "nullable": true
-                    },
-                    "gratitude1": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "gratitude2": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "gratitude3": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "quoteIndex": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "nullable": true
-                    },
-                    "creativity": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "nullable": true
-                    },
-                    "body": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "createdAt": {
-                      "type": "string",
-                      "format": "date-time"
-                    },
-                    "updatedAt": {
-                      "type": "string",
-                      "format": "date-time"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "entryDate",
-                    "mood",
-                    "gratitude1",
-                    "gratitude2",
-                    "gratitude3",
-                    "quoteIndex",
-                    "creativity",
-                    "body",
-                    "createdAt",
-                    "updatedAt"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/api/kid/journal/earliest": {
@@ -2549,7 +2389,7 @@
         "tags": [
           "kid"
         ],
-        "summary": "The kid's reward shop + their star balance (identical to parent GET /api/rewards)",
+        "summary": "The kid's reward shop + star balance + their latest request status per reward",
         "operationId": "get_api_kid_rewards",
         "security": [
           {
@@ -2586,6 +2426,15 @@
                           "icon": {
                             "type": "string",
                             "nullable": true
+                          },
+                          "requestStatus": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "pending",
+                              "approved",
+                              "declined"
+                            ]
                           }
                         },
                         "required": [
@@ -2593,7 +2442,8 @@
                           "name",
                           "description",
                           "stickerCost",
-                          "icon"
+                          "icon",
+                          "requestStatus"
                         ],
                         "additionalProperties": false
                       }
@@ -2605,6 +2455,79 @@
                   "required": [
                     "rewards",
                     "stickerBalance"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/rewards/{id}/request": {
+      "post": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid asks to redeem a reward (no deduction; an admin approves)",
+        "operationId": "post_api_kid_rewards_id_request",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pending request row (idempotent — returns an existing pending one)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "memberId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "rewardId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "declined"
+                      ]
+                    },
+                    "starCost": {
+                      "type": "integer"
+                    },
+                    "requestedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "memberId",
+                    "rewardId",
+                    "status",
+                    "starCost",
+                    "requestedAt"
                   ],
                   "additionalProperties": false
                 }
@@ -3859,6 +3782,202 @@
         "responses": {
           "200": {
             "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/mw/redemption-requests": {
+      "get": {
+        "tags": [
+          "my-world"
+        ],
+        "summary": "The family's reward redemption requests (?status=pending|approved|declined)",
+        "operationId": "get_api_mw_redemption_requests",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "requests": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "memberId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "memberName": {
+                            "type": "string"
+                          },
+                          "rewardId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "rewardName": {
+                            "type": "string"
+                          },
+                          "rewardIcon": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "starCost": {
+                            "type": "integer"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "approved",
+                              "declined"
+                            ]
+                          },
+                          "requestedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "memberId",
+                          "memberName",
+                          "rewardId",
+                          "rewardName",
+                          "rewardIcon",
+                          "starCost",
+                          "status",
+                          "requestedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "requests"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mw/redemption-requests/{id}/approve": {
+      "post": {
+        "tags": [
+          "my-world"
+        ],
+        "summary": "Approve a request — admin only; deducts star_cost from the kid's savings",
+        "operationId": "post_api_mw_redemption_requests_id_approve",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "approved",
+                        "declined"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mw/redemption-requests/{id}/decline": {
+      "post": {
+        "tags": [
+          "my-world"
+        ],
+        "summary": "Decline a request — admin only; no deduction",
+        "operationId": "post_api_mw_redemption_requests_id_decline",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "approved",
+                        "declined"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }

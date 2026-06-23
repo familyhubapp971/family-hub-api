@@ -225,6 +225,13 @@
       "when": 1781780779100,
       "tag": "0031_learn_lesson_stats",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1781780779200,
+      "tag": "0032_redemption_requests",
+      "breakpoints": true
     }
   ]
 }

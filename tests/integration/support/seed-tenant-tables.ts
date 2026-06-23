@@ -29,6 +29,7 @@ import {
   notices,
   pendingInvitations,
   readingLog,
+  redemptionRequests,
   rewardRedemptions,
   rewards,
   savings,
@@ -160,6 +161,15 @@ export async function seedRow(
         rewardId: ctx.rewardId!,
         memberId: ctx.memberId!,
         stickerCost: 5,
+      });
+      break;
+    }
+    case 'redemption_requests': {
+      await db.insert(redemptionRequests).values({
+        tenantId,
+        rewardId: ctx.rewardId!,
+        memberId: ctx.memberId!,
+        starCost: 5,
       });
       break;
     }
@@ -343,6 +353,7 @@ const DEPENDENCY_ORDER = [
   'tasks',
   'habit_logs',
   'reward_redemptions',
+  'redemption_requests',
   'journal_entries',
   'learn_progress',
   'reading_log',

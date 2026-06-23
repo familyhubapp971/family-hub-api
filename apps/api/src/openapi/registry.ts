@@ -16,6 +16,8 @@ import {
   kidInvestmentsResponseSchema,
   kidMeResponseSchema,
   kidProfileResponseSchema,
+  kidRedemptionRequestSchema,
+  kidRewardsResponseSchema,
   kidSavingsResponseSchema,
   kidTasksResponseSchema,
   kidTodayResponseSchema,
@@ -23,17 +25,18 @@ import {
   kidWeekStatsResponseSchema,
 } from '../routes/kid.js';
 import { listHabitsResponseSchema } from '../routes/habits.js';
-import { listRewardsResponseSchema } from '../routes/rewards.js';
+import {
+  decideRedemptionRequestResponseSchema,
+  listRedemptionRequestsResponseSchema,
+} from '../routes/mw-redemption-requests.js';
 import { listMealsResponseSchema } from '../routes/meals.js';
 import { listEventsResponseSchema } from '../routes/events.js';
 import {
   journalDayResponseSchema,
   journalEntriesResponseSchema,
   journalEarliestResponseSchema,
-  journalEntrySchema,
 } from '../routes/journal.js';
 import {
-  kidJournalUpsertSchema,
   kidLearnAnswerSchema,
   kidReadingCreateSchema,
   kidReadingPatchSchema,
@@ -133,8 +136,13 @@ export const routeMeta: Record<string, RouteMeta> = {
     response: listHabitsResponseSchema,
   },
   'GET /api/kid/rewards': {
-    summary: "The kid's reward shop + their star balance (identical to parent GET /api/rewards)",
-    response: listRewardsResponseSchema,
+    summary: "The kid's reward shop + star balance + their latest request status per reward",
+    response: kidRewardsResponseSchema,
+  },
+  'POST /api/kid/rewards/{id}/request': {
+    summary: 'The kid asks to redeem a reward (no deduction; an admin approves)',
+    response: kidRedemptionRequestSchema,
+    responseDesc: 'The pending request row (idempotent — returns an existing pending one)',
   },
   'GET /api/kid/financial/savings': {
     summary: "The kid's banked savings + currency (identical to parent GET /mw/financial/savings)",
@@ -156,11 +164,6 @@ export const routeMeta: Record<string, RouteMeta> = {
   'GET /api/kid/journal': {
     summary: "The kid's journal entry for a day (+ the day's quote)",
     response: journalDayResponseSchema,
-  },
-  'PUT /api/kid/journal': {
-    summary: "Save the kid's journal for a day",
-    request: kidJournalUpsertSchema,
-    response: journalEntrySchema,
   },
   'GET /api/kid/journal/entries': {
     summary: "The kid's past journal entries",
@@ -205,6 +208,20 @@ export const routeMeta: Record<string, RouteMeta> = {
   'GET /api/mw/analytics': {
     summary: "A child's My World analytics (parent view)",
     response: mwAnalyticsResponseSchema,
+  },
+
+  // Redemption requests (FHS-376) — kid asks, admin approves/declines.
+  'GET /api/mw/redemption-requests': {
+    summary: "The family's reward redemption requests (?status=pending|approved|declined)",
+    response: listRedemptionRequestsResponseSchema,
+  },
+  'POST /api/mw/redemption-requests/{id}/approve': {
+    summary: "Approve a request — admin only; deducts star_cost from the kid's savings",
+    response: decideRedemptionRequestResponseSchema,
+  },
+  'POST /api/mw/redemption-requests/{id}/decline': {
+    summary: 'Decline a request — admin only; no deduction',
+    response: decideRedemptionRequestResponseSchema,
   },
 
   // Invitations.

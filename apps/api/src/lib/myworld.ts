@@ -3,10 +3,12 @@ import { getDb } from '../db/client.js';
 import {
   habits,
   habitStickers,
+  members,
   mwInvestments,
   mwSavings,
   mwWeekActions,
   mwWeeks,
+  redemptionRequests,
   rewardRedemptions,
   rewards,
   tenants,
@@ -888,4 +890,346 @@ export async function loadRewardsForMember(
     stickerBalance(db, tenantId, memberId),
   ]);
   return { rewards: rewardRows, stickerBalance: balance };
+}
+
+// ── Redemption requests (FHS-376) — kid asks, admin approves/declines ────────
+
+export type RequestStatus = 'none' | 'pending' | 'approved' | 'declined';
+
+/**
+ * Family rewards + the kid's spendable star balance + the LATEST request status
+ * for each reward (this kid only). Shape of GET /api/kid/rewards. `requestStatus`
+ * reflects the kid's most-recent request for that reward: 'none' if they've never
+ * asked, else the newest request's status.
+ */
+export async function loadKidRewardsWithRequestStatus(
+  db: Db,
+  tenantId: string,
+  memberId: string,
+): Promise<{
+  rewards: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    stickerCost: number;
+    icon: string | null;
+    requestStatus: RequestStatus;
+  }>;
+  stickerBalance: number;
+}> {
+  const [base, requestRows] = await Promise.all([
+    loadRewardsForMember(db, tenantId, memberId),
+    db
+      .select({
+        rewardId: redemptionRequests.rewardId,
+        status: redemptionRequests.status,
+        requestedAt: redemptionRequests.requestedAt,
+      })
+      .from(redemptionRequests)
+      .where(
+        and(eq(redemptionRequests.tenantId, tenantId), eq(redemptionRequests.memberId, memberId)),
+      )
+      .orderBy(desc(redemptionRequests.requestedAt)),
+  ]);
+  // First row per reward is the newest (ordered desc) → the latest status.
+  const latest = new Map<string, RequestStatus>();
+  for (const r of requestRows) {
+    if (!latest.has(r.rewardId)) latest.set(r.rewardId, r.status as RequestStatus);
+  }
+  return {
+    rewards: base.rewards.map((r) => ({
+      ...r,
+      requestStatus: latest.get(r.id) ?? ('none' as const),
+    })),
+    stickerBalance: base.stickerBalance,
+  };
+}
+
+export interface RedemptionRequestRow {
+  id: string;
+  memberId: string;
+  rewardId: string;
+  status: 'pending' | 'approved' | 'declined';
+  starCost: number;
+  requestedAt: string;
+}
+
+export type CreateRequestOutcome =
+  | { ok: true; request: RedemptionRequestRow }
+  | { ok: false; reason: 'reward-not-found' };
+
+/**
+ * The kid asks to redeem a reward (FHS-376). Validates the reward exists +
+ * isn't archived in the tenant, snapshots its sticker cost as `star_cost`, and
+ * creates a `pending` row. Idempotent: if a pending request already exists for
+ * (member, reward) it returns THAT row instead of creating a duplicate. NEVER
+ * deducts — that happens only on an admin approve.
+ */
+export async function createRedemptionRequest(
+  db: PoolDb,
+  params: { tenantId: string; memberId: string; rewardId: string },
+): Promise<CreateRequestOutcome> {
+  const { tenantId, memberId, rewardId } = params;
+  const rewardRows = await db
+    .select({ stickerCost: rewards.stickerCost })
+    .from(rewards)
+    .where(
+      and(eq(rewards.tenantId, tenantId), eq(rewards.id, rewardId), isNull(rewards.archivedAt)),
+    )
+    .limit(1);
+  const reward = rewardRows[0];
+  if (!reward) return { ok: false, reason: 'reward-not-found' };
+
+  return db.transaction(async (tx) => {
+    // Serialize per (tenant, member) so two near-simultaneous taps can't both
+    // create a pending row for the same reward.
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${memberId}:rr`}, 0))`,
+    );
+    const existing = await tx
+      .select({
+        id: redemptionRequests.id,
+        memberId: redemptionRequests.memberId,
+        rewardId: redemptionRequests.rewardId,
+        status: redemptionRequests.status,
+        starCost: redemptionRequests.starCost,
+        requestedAt: redemptionRequests.requestedAt,
+      })
+      .from(redemptionRequests)
+      .where(
+        and(
+          eq(redemptionRequests.tenantId, tenantId),
+          eq(redemptionRequests.memberId, memberId),
+          eq(redemptionRequests.rewardId, rewardId),
+          eq(redemptionRequests.status, 'pending'),
+        ),
+      )
+      .limit(1);
+    if (existing[0]) {
+      return { ok: true as const, request: toRequestRow(existing[0]) };
+    }
+    const [created] = await tx
+      .insert(redemptionRequests)
+      .values({ tenantId, memberId, rewardId, starCost: reward.stickerCost })
+      .returning({
+        id: redemptionRequests.id,
+        memberId: redemptionRequests.memberId,
+        rewardId: redemptionRequests.rewardId,
+        status: redemptionRequests.status,
+        starCost: redemptionRequests.starCost,
+        requestedAt: redemptionRequests.requestedAt,
+      });
+    return { ok: true as const, request: toRequestRow(created!) };
+  });
+}
+
+function toRequestRow(row: {
+  id: string;
+  memberId: string;
+  rewardId: string;
+  status: string;
+  starCost: number;
+  requestedAt: Date;
+}): RedemptionRequestRow {
+  return {
+    id: row.id,
+    memberId: row.memberId,
+    rewardId: row.rewardId,
+    status: row.status as 'pending' | 'approved' | 'declined',
+    starCost: row.starCost,
+    requestedAt: row.requestedAt.toISOString(),
+  };
+}
+
+export interface RedemptionRequestListItem {
+  id: string;
+  memberId: string;
+  memberName: string;
+  rewardId: string;
+  rewardName: string;
+  rewardIcon: string | null;
+  starCost: number;
+  status: 'pending' | 'approved' | 'declined';
+  requestedAt: string;
+}
+
+/**
+ * The family's redemption requests joined with the kid's display name + the
+ * reward's name/icon/cost (GET /api/mw/redemption-requests). Optionally filter
+ * by status. Newest first. Read-only; any member of the tenant may call it.
+ */
+export async function listRedemptionRequests(
+  db: Db,
+  tenantId: string,
+  status?: 'pending' | 'approved' | 'declined',
+): Promise<RedemptionRequestListItem[]> {
+  const rows = await db
+    .select({
+      id: redemptionRequests.id,
+      memberId: redemptionRequests.memberId,
+      memberName: members.displayName,
+      rewardId: redemptionRequests.rewardId,
+      rewardName: rewards.name,
+      rewardIcon: rewards.icon,
+      starCost: redemptionRequests.starCost,
+      status: redemptionRequests.status,
+      requestedAt: redemptionRequests.requestedAt,
+    })
+    .from(redemptionRequests)
+    .leftJoin(members, eq(redemptionRequests.memberId, members.id))
+    .leftJoin(rewards, eq(redemptionRequests.rewardId, rewards.id))
+    .where(
+      status
+        ? and(eq(redemptionRequests.tenantId, tenantId), eq(redemptionRequests.status, status))
+        : eq(redemptionRequests.tenantId, tenantId),
+    )
+    .orderBy(desc(redemptionRequests.requestedAt));
+  return rows.map((r) => ({
+    id: r.id,
+    memberId: r.memberId,
+    memberName: r.memberName ?? '',
+    rewardId: r.rewardId,
+    rewardName: r.rewardName ?? '',
+    rewardIcon: r.rewardIcon ?? null,
+    starCost: r.starCost,
+    status: r.status as 'pending' | 'approved' | 'declined',
+    requestedAt: r.requestedAt.toISOString(),
+  }));
+}
+
+export type DecideRequestOutcome =
+  | { ok: true }
+  | { ok: false; reason: 'not-found' }
+  | { ok: false; reason: 'not-pending' }
+  | { ok: false; reason: 'insufficient-savings'; savings: number; cost: number };
+
+/**
+ * An admin approves a pending redemption request (FHS-376). Deducts `star_cost`
+ * from the kid's banked SAVINGS only (saved stickers first, then saved cash as
+ * stickers) — NOT the current week's unallocated stickers. If savings can't
+ * cover the cost, returns 'insufficient-savings' and makes NO change. On
+ * success flips status='approved', stamps decided_at + decided_by, and records
+ * the redemption (reward_redemptions + a 'claim' week-action) consistent with a
+ * normal redeem. Advisory-locked per (tenant, member) so a double-approve can't
+ * deduct twice. Re-reads the request inside the lock so a second approve of an
+ * already-decided request returns 'not-pending'.
+ */
+export async function approveRedemptionRequest(
+  db: PoolDb,
+  params: { tenantId: string; requestId: string; decidedBy: string },
+): Promise<DecideRequestOutcome> {
+  const { tenantId, requestId, decidedBy } = params;
+  // Read the request (outside the lock just to discover the member); the
+  // authoritative re-read + checks happen inside the lock below.
+  const head = await db
+    .select({ memberId: redemptionRequests.memberId })
+    .from(redemptionRequests)
+    .where(and(eq(redemptionRequests.tenantId, tenantId), eq(redemptionRequests.id, requestId)))
+    .limit(1);
+  if (!head[0]) return { ok: false, reason: 'not-found' };
+  const memberId = head[0].memberId;
+  const week = await getOrCreateCurrentWeek(db, tenantId, memberId);
+
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${memberId}`}, 0))`,
+    );
+    const reqRows = await tx
+      .select({
+        id: redemptionRequests.id,
+        memberId: redemptionRequests.memberId,
+        rewardId: redemptionRequests.rewardId,
+        status: redemptionRequests.status,
+        starCost: redemptionRequests.starCost,
+      })
+      .from(redemptionRequests)
+      .where(and(eq(redemptionRequests.tenantId, tenantId), eq(redemptionRequests.id, requestId)))
+      .limit(1);
+    const req = reqRows[0];
+    if (!req) return { ok: false as const, reason: 'not-found' as const };
+    if (req.status !== 'pending') return { ok: false as const, reason: 'not-pending' as const };
+
+    const cost = req.starCost;
+    const savings = await getOrCreateSavings(tx, tenantId, memberId);
+    const savingsAsStickers = savings.savedStickers + cashAsStickers(savings.savedCash);
+    if (savingsAsStickers < cost) {
+      return {
+        ok: false as const,
+        reason: 'insufficient-savings' as const,
+        savings: savingsAsStickers,
+        cost,
+      };
+    }
+    // Spend saved stickers first, then saved cash (as stickers) — savings only.
+    let need = cost;
+    const fromSavedStickers = Math.min(need, savings.savedStickers);
+    need -= fromSavedStickers;
+    const fromSavedCashStickers = need; // covered: savingsAsStickers >= cost
+    const cashToDeduct = fromSavedCashStickers * STICKER_TO_CASH;
+    if (fromSavedStickers > 0 || fromSavedCashStickers > 0) {
+      await tx
+        .update(mwSavings)
+        .set({
+          savedStickers: sql`${mwSavings.savedStickers} - ${fromSavedStickers}`,
+          savedCash: sql`${mwSavings.savedCash} - ${cashToDeduct}`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(mwSavings.tenantId, tenantId), eq(mwSavings.memberId, memberId)));
+    }
+    // Reward name for the week-action label.
+    const rewardRows = await tx
+      .select({ name: rewards.name })
+      .from(rewards)
+      .where(and(eq(rewards.tenantId, tenantId), eq(rewards.id, req.rewardId)))
+      .limit(1);
+    const rewardName = rewardRows[0]?.name ?? null;
+    // Record the redemption the same way a normal redeem does.
+    await tx.insert(mwWeekActions).values({
+      tenantId,
+      memberId,
+      weekId: week.id,
+      actionType: 'claim',
+      stickersUsed: cost,
+      rewardName,
+    });
+    await tx
+      .insert(rewardRedemptions)
+      .values({ tenantId, rewardId: req.rewardId, memberId, stickerCost: cost });
+    await tx
+      .update(redemptionRequests)
+      .set({ status: 'approved', decidedAt: new Date(), decidedBy })
+      .where(and(eq(redemptionRequests.tenantId, tenantId), eq(redemptionRequests.id, requestId)));
+    return { ok: true as const };
+  });
+}
+
+/**
+ * An admin declines a pending redemption request (FHS-376). Flips
+ * status='declined', stamps decided_at + decided_by. No deduction. Returns
+ * 'not-found' for an unknown id and 'not-pending' if it was already decided.
+ */
+export async function declineRedemptionRequest(
+  db: PoolDb,
+  params: { tenantId: string; requestId: string; decidedBy: string },
+): Promise<DecideRequestOutcome> {
+  const { tenantId, requestId, decidedBy } = params;
+  const updated = await db
+    .update(redemptionRequests)
+    .set({ status: 'declined', decidedAt: new Date(), decidedBy })
+    .where(
+      and(
+        eq(redemptionRequests.tenantId, tenantId),
+        eq(redemptionRequests.id, requestId),
+        eq(redemptionRequests.status, 'pending'),
+      ),
+    )
+    .returning({ id: redemptionRequests.id });
+  if (updated[0]) return { ok: true };
+  // Distinguish unknown id from already-decided.
+  const exists = await db
+    .select({ id: redemptionRequests.id })
+    .from(redemptionRequests)
+    .where(and(eq(redemptionRequests.tenantId, tenantId), eq(redemptionRequests.id, requestId)))
+    .limit(1);
+  return exists[0] ? { ok: false, reason: 'not-pending' } : { ok: false, reason: 'not-found' };
 }
