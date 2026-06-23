@@ -59,6 +59,14 @@ import {
 } from './journal.js';
 import { listTenantNotices, listNoticesResponseSchema } from './notices.js';
 import { listTasksForMember, setTaskDoneForMember, taskItemSchema } from './tasks.js';
+import {
+  worldFlagsExploreBodySchema,
+  worldFlagsLearnCompleteBodySchema,
+  listExplored,
+  addExplored,
+  listLearnProgress,
+  addLearnComplete,
+} from '../lib/world-flags.js';
 
 // FHS-374 — week shape that mirrors the full parent GET /mw/weeks shape.
 export const kidWeeksResponseSchema = z.object({
@@ -162,6 +170,14 @@ export const kidTodayResponseSchema = z.object({
       color: z.string(),
     }),
   ),
+});
+
+// FHS-373 — kid world-flags response shapes.
+export const kidWorldFlagsExploredResponseSchema = z.object({
+  explored: z.array(z.string()),
+});
+export const kidWorldFlagsLearnResponseSchema = z.object({
+  progress: z.record(z.array(z.number().int())),
 });
 
 // FHS-257 / FHS-355 — kid-scoped API surface.
@@ -772,4 +788,71 @@ export const kidRouter = new Hono()
         await computeMemberAnalytics(getDb(), kid.tenantId, kid.memberId),
       ),
     );
+  })
+  // FHS-373 — the kid's explored country flags (from token, no memberId param).
+  .get('/world-flags', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    return c.json(
+      kidWorldFlagsExploredResponseSchema.parse({
+        explored: await listExplored(getDb(), kid.tenantId, kid.memberId),
+      }),
+    );
+  })
+  // FHS-373 — the kid marks a country flag as explored (idempotent).
+  // Body: { countryCode }
+  // Returns: { explored: true }
+  .post('/world-flags/explore', async (c) => {
+    const kid = getKidAuth(c);
+    const parsed = worldFlagsExploreBodySchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+    await pinRequestTenant(kid.tenantId);
+    await addExplored(getDb(), kid.tenantId, kid.memberId, parsed.data.countryCode);
+    return c.json({ explored: true });
+  })
+  // FHS-373 — the kid's world-flags learn progress per continent.
+  // Returns: { progress: Record<continent, number[]> }
+  .get('/world-flags/learn', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    return c.json(
+      kidWorldFlagsLearnResponseSchema.parse({
+        progress: await listLearnProgress(getDb(), kid.tenantId, kid.memberId),
+      }),
+    );
+  })
+  // FHS-373 — the kid marks a learn-path set as mastered (idempotent).
+  // Body: { continent, chunkIndex }
+  // Returns: { completed: true }
+  .post('/world-flags/learn-complete', async (c) => {
+    const kid = getKidAuth(c);
+    const parsed = worldFlagsLearnCompleteBodySchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+    await pinRequestTenant(kid.tenantId);
+    await addLearnComplete(
+      getDb(),
+      kid.tenantId,
+      kid.memberId,
+      parsed.data.continent,
+      parsed.data.chunkIndex,
+    );
+    return c.json({ completed: true });
   });

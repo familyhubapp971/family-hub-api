@@ -1,10 +1,15 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
-import { worldFlagsProgress, worldFlagsLearnProgress } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 import { loadCaller, canManage, memberInTenant } from '../lib/permissions.js';
+import {
+  CONTINENTS,
+  listExplored,
+  addExplored,
+  listLearnProgress,
+  addLearnComplete,
+} from '../lib/world-flags.js';
 
 // World Flags progress — GET/POST /api/world-flags.
 //
@@ -33,14 +38,6 @@ const exploreBodySchema = z.object({
 // The six continents the World Flags dataset is grouped by (mirrors the
 // CONTINENTS list in apps/web data/countries). Constrained server-side so the
 // table can't accumulate arbitrary continent strings from a bad client.
-const CONTINENTS = [
-  'Africa',
-  'Asia',
-  'Europe',
-  'North America',
-  'South America',
-  'Oceania',
-] as const;
 
 const learnCompleteBodySchema = z.object({
   memberId: z.string().uuid(),
@@ -85,16 +82,7 @@ export const worldFlagsRouter = new Hono()
     if (!canManage(caller, parsed.data.memberId)) {
       return c.json({ error: 'forbidden', detail: 'not allowed for this member' }, 403);
     }
-    const rows = await db
-      .select({ countryCode: worldFlagsProgress.countryCode })
-      .from(worldFlagsProgress)
-      .where(
-        and(
-          eq(worldFlagsProgress.tenantId, tenantId),
-          eq(worldFlagsProgress.memberId, parsed.data.memberId),
-        ),
-      );
-    return c.json({ explored: rows.map((r) => r.countryCode) });
+    return c.json({ explored: await listExplored(db, tenantId, parsed.data.memberId) });
   })
 
   // POST /explore — idempotent mark-as-explored.
@@ -130,15 +118,7 @@ export const worldFlagsRouter = new Hono()
     if (!canManage(caller, parsed.data.memberId)) {
       return c.json({ error: 'forbidden', detail: 'not allowed for this member' }, 403);
     }
-    // Idempotent: onConflictDoNothing targets the unique (tenant,member,code) index.
-    await db
-      .insert(worldFlagsProgress)
-      .values({
-        tenantId,
-        memberId: parsed.data.memberId,
-        countryCode: parsed.data.countryCode,
-      })
-      .onConflictDoNothing();
+    await addExplored(db, tenantId, parsed.data.memberId, parsed.data.countryCode);
     return c.json({ explored: true });
   })
 
@@ -173,24 +153,7 @@ export const worldFlagsRouter = new Hono()
     if (!canManage(caller, parsed.data.memberId)) {
       return c.json({ error: 'forbidden', detail: 'not allowed for this member' }, 403);
     }
-    const rows = await db
-      .select({
-        continent: worldFlagsLearnProgress.continent,
-        chunkIndex: worldFlagsLearnProgress.chunkIndex,
-      })
-      .from(worldFlagsLearnProgress)
-      .where(
-        and(
-          eq(worldFlagsLearnProgress.tenantId, tenantId),
-          eq(worldFlagsLearnProgress.memberId, parsed.data.memberId),
-        ),
-      );
-    const progress: Record<string, number[]> = {};
-    for (const r of rows) {
-      (progress[r.continent] ??= []).push(r.chunkIndex);
-    }
-    for (const key of Object.keys(progress)) progress[key]!.sort((a, b) => a - b);
-    return c.json({ progress });
+    return c.json({ progress: await listLearnProgress(db, tenantId, parsed.data.memberId) });
   })
 
   // POST /learn-complete — idempotent mark-a-set-as-mastered.
@@ -226,15 +189,12 @@ export const worldFlagsRouter = new Hono()
     if (!canManage(caller, parsed.data.memberId)) {
       return c.json({ error: 'forbidden', detail: 'not allowed for this member' }, 403);
     }
-    // Idempotent: unique (tenant,member,continent,chunk) index.
-    await db
-      .insert(worldFlagsLearnProgress)
-      .values({
-        tenantId,
-        memberId: parsed.data.memberId,
-        continent: parsed.data.continent,
-        chunkIndex: parsed.data.chunkIndex,
-      })
-      .onConflictDoNothing();
+    await addLearnComplete(
+      db,
+      tenantId,
+      parsed.data.memberId,
+      parsed.data.continent,
+      parsed.data.chunkIndex,
+    );
     return c.json({ completed: true });
   });

@@ -2913,6 +2913,215 @@
         }
       }
     },
+    "/api/kid/world-flags": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid's explored country flags",
+        "operationId": "get_api_kid_world_flags",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All country codes this kid has explored, in DB order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "explored": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "explored"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/world-flags/explore": {
+      "post": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Mark a country flag as explored (idempotent)",
+        "operationId": "post_api_kid_world_flags_explore",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "countryCode": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 3
+                  }
+                },
+                "required": [
+                  "countryCode"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ explored: true } — always, even if already recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "explored": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "explored"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/world-flags/learn": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid's world-flags learn progress per continent",
+        "operationId": "get_api_kid_world_flags_learn",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Completed set indices per continent, each array sorted ascending",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "progress": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "progress"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/world-flags/learn-complete": {
+      "post": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Mark a learn-path set as mastered (idempotent)",
+        "operationId": "post_api_kid_world_flags_learn_complete",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "continent": {
+                    "type": "string",
+                    "enum": [
+                      "Africa",
+                      "Asia",
+                      "Europe",
+                      "North America",
+                      "South America",
+                      "Oceania"
+                    ]
+                  },
+                  "chunkIndex": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 60
+                  }
+                },
+                "required": [
+                  "continent",
+                  "chunkIndex"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ completed: true } — always, even if already recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "completed": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "completed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/learn": {
       "get": {
         "tags": [

@@ -24,6 +24,8 @@ import {
   kidTodayResponseSchema,
   kidWeeksResponseSchema,
   kidWeekStatsResponseSchema,
+  kidWorldFlagsExploredResponseSchema,
+  kidWorldFlagsLearnResponseSchema,
 } from '../routes/kid.js';
 import { listHabitsResponseSchema } from '../routes/habits.js';
 import {
@@ -42,6 +44,10 @@ import {
   kidReadingCreateSchema,
   kidReadingPatchSchema,
 } from '../routes/kid.js';
+import {
+  worldFlagsExploreBodySchema,
+  worldFlagsLearnCompleteBodySchema,
+} from '../lib/world-flags.js';
 import { bookSchema, listBooksResponseSchema } from '../routes/reading-log.js';
 import { mwAnalyticsResponseSchema } from '../routes/mw-analytics.js';
 import { listNoticesResponseSchema } from '../routes/notices.js';
@@ -228,6 +234,28 @@ export const routeMeta: Record<string, RouteMeta> = {
   'GET /api/kid/analytics': {
     summary: "The kid's My World analytics (stats view)",
     response: mwAnalyticsResponseSchema,
+  },
+  'GET /api/kid/world-flags': {
+    summary: "The kid's explored country flags",
+    response: kidWorldFlagsExploredResponseSchema,
+    responseDesc: 'All country codes this kid has explored, in DB order',
+  },
+  'POST /api/kid/world-flags/explore': {
+    summary: 'Mark a country flag as explored (idempotent)',
+    request: worldFlagsExploreBodySchema,
+    response: z.object({ explored: z.literal(true) }),
+    responseDesc: '{ explored: true } — always, even if already recorded',
+  },
+  'GET /api/kid/world-flags/learn': {
+    summary: "The kid's world-flags learn progress per continent",
+    response: kidWorldFlagsLearnResponseSchema,
+    responseDesc: 'Completed set indices per continent, each array sorted ascending',
+  },
+  'POST /api/kid/world-flags/learn-complete': {
+    summary: 'Mark a learn-path set as mastered (idempotent)',
+    request: worldFlagsLearnCompleteBodySchema,
+    response: z.object({ completed: z.literal(true) }),
+    responseDesc: '{ completed: true } — always, even if already recorded',
   },
   'GET /api/mw/analytics': {
     summary: "A child's My World analytics (parent view)",
