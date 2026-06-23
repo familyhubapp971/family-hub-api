@@ -198,7 +198,10 @@ export function cashAsStickers(savedCash: number): number {
 }
 
 // ── Investments (FHS-296) — sticker-first grow model ─────────────────────────
-// currentValueStickers = max(0, investedStickers + completedDays*5 - missedDays*2)
+// deductible (default, legacy):
+//   currentValueStickers = max(0, investedStickers + completedDays*5 - missedDays*2)
+// non-deductible (FHS-378): missed days are still counted/shown but apply NO
+//   penalty, so currentValueStickers = max(0, investedStickers + completedDays*5)
 export const INVEST_DAILY_GAIN = 5;
 export const INVEST_DAILY_PENALTY = 2;
 export const INVEST_MIN_STICKERS = 10;
@@ -218,17 +221,25 @@ export function elapsedDaysForWeek(
   return (now.getUTCDay() + 6) % 7; // Mon=0..Sun=6
 }
 
-/** Sticker-first investment value from completed/missed days. */
+/**
+ * Sticker-first investment value from completed/missed days.
+ *
+ * `deductible` (default true → legacy behaviour) controls whether missed days
+ * cost value: a deductible investment subtracts INVEST_DAILY_PENALTY (−2) per
+ * missed day; a non-deductible one (FHS-378) still tracks missed days for
+ * display but applies NO penalty. The value is floored at 0 either way.
+ */
 export function investmentValue(params: {
   investedStickers: number;
   completedDays: number;
   missedDays: number;
+  deductible?: boolean;
 }): { currentValueStickers: number; currentValueCash: number } {
+  const deductible = params.deductible ?? true;
+  const penalty = deductible ? params.missedDays * INVEST_DAILY_PENALTY : 0;
   const currentValueStickers = Math.max(
     0,
-    params.investedStickers +
-      params.completedDays * INVEST_DAILY_GAIN -
-      params.missedDays * INVEST_DAILY_PENALTY,
+    params.investedStickers + params.completedDays * INVEST_DAILY_GAIN - penalty,
   );
   return { currentValueStickers, currentValueCash: currentValueStickers * STICKER_TO_CASH };
 }
@@ -370,6 +381,7 @@ export interface InvestmentView {
   currentValueStickers: number;
   daysCompleted: number;
   daysMissed: number;
+  deductible: boolean;
 }
 
 /**
@@ -390,6 +402,7 @@ export async function listInvestments(
       weekId: mwInvestments.weekId,
       investedStickers: mwInvestments.investedStickers,
       originalInvestedStickers: mwInvestments.originalInvestedStickers,
+      deductible: mwInvestments.deductible,
       habitName: habits.name,
       habitIcon: habits.icon,
       weekIsFinalized: mwWeeks.isFinalized,
@@ -439,10 +452,12 @@ export async function listInvestments(
           ),
         );
       const missedDays = Math.max(0, elapsed - (pastRow?.n ?? 0));
+      const deductible = inv.deductible ?? true;
       const { currentValueStickers, currentValueCash } = investmentValue({
         investedStickers: inv.investedStickers,
         completedDays,
         missedDays,
+        deductible,
       });
       return {
         id: inv.id,
@@ -455,6 +470,7 @@ export async function listInvestments(
         currentValueStickers,
         daysCompleted: completedDays,
         daysMissed: missedDays,
+        deductible,
       };
     }),
   );

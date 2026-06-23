@@ -385,10 +385,12 @@ export const mwWeeksRouter = new Hono()
           );
         const completedDays = Math.min(cRow?.n ?? 0, 7);
         const missedDays = 7 - completedDays;
+        // FHS-378 — honour the investment's deductible flag when maturing it.
         const { currentValueStickers, currentValueCash } = investmentValue({
           investedStickers: inv.investedStickers,
           completedDays,
           missedDays,
+          deductible: inv.deductible ?? true,
         });
 
         if (continueSet.has(inv.id)) {

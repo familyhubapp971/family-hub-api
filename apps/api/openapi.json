@@ -1103,6 +1103,9 @@
                           },
                           "daysMissed": {
                             "type": "integer"
+                          },
+                          "deductible": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -1115,7 +1118,8 @@
                           "currentValue",
                           "currentValueStickers",
                           "daysCompleted",
-                          "daysMissed"
+                          "daysMissed",
+                          "deductible"
                         ],
                         "additionalProperties": false
                       }
@@ -3652,7 +3656,7 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Get /api/mw/financial/investments",
+        "summary": "A child's active investments with live value (?memberId=)",
         "operationId": "get_api_mw_financial_investments",
         "security": [
           {
@@ -3661,7 +3665,79 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Each item carries `deductible` — false means missed days count but apply no penalty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "investments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "habitId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "habitName": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "habitIcon": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "investedStickers": {
+                            "type": "integer"
+                          },
+                          "originalInvestedStickers": {
+                            "type": "integer"
+                          },
+                          "currentValue": {
+                            "type": "number"
+                          },
+                          "currentValueStickers": {
+                            "type": "integer"
+                          },
+                          "daysCompleted": {
+                            "type": "integer"
+                          },
+                          "daysMissed": {
+                            "type": "integer"
+                          },
+                          "deductible": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "habitId",
+                          "habitName",
+                          "habitIcon",
+                          "investedStickers",
+                          "originalInvestedStickers",
+                          "currentValue",
+                          "currentValueStickers",
+                          "daysCompleted",
+                          "daysMissed",
+                          "deductible"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "investments"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       },
@@ -3669,16 +3745,265 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Create /api/mw/financial/investments",
+        "summary": "Create an investment (optional `deductible`, default true)",
         "operationId": "post_api_mw_financial_investments",
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "habitId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "stickerCount": {
+                    "type": "integer",
+                    "minimum": 10
+                  },
+                  "deductible": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                },
+                "required": [
+                  "memberId",
+                  "habitId",
+                  "stickerCount"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "The created investment row",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "tenantId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "memberId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "habitId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "weekId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "investedAmount": {
+                      "type": "string"
+                    },
+                    "investedStickers": {
+                      "type": "integer"
+                    },
+                    "originalInvestedStickers": {
+                      "type": "integer"
+                    },
+                    "currentValue": {
+                      "type": "string"
+                    },
+                    "daysCompleted": {
+                      "type": "integer"
+                    },
+                    "daysMissed": {
+                      "type": "integer"
+                    },
+                    "isActive": {
+                      "type": "boolean"
+                    },
+                    "isResolved": {
+                      "type": "boolean"
+                    },
+                    "deductible": {
+                      "type": "boolean"
+                    },
+                    "finalReturn": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "tenantId",
+                    "memberId",
+                    "habitId",
+                    "weekId",
+                    "investedAmount",
+                    "investedStickers",
+                    "originalInvestedStickers",
+                    "currentValue",
+                    "daysCompleted",
+                    "daysMissed",
+                    "isActive",
+                    "isResolved",
+                    "deductible",
+                    "finalReturn",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mw/financial/investments/{id}/settings": {
+      "post": {
+        "tags": [
+          "my-world"
+        ],
+        "summary": "Toggle an active investment's deductible flag (FHS-378)",
+        "operationId": "post_api_mw_financial_investments_id_settings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "deductible": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "memberId",
+                  "deductible"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated investment row (404 if missing, 409 if not active)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "tenantId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "memberId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "habitId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "weekId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "investedAmount": {
+                      "type": "string"
+                    },
+                    "investedStickers": {
+                      "type": "integer"
+                    },
+                    "originalInvestedStickers": {
+                      "type": "integer"
+                    },
+                    "currentValue": {
+                      "type": "string"
+                    },
+                    "daysCompleted": {
+                      "type": "integer"
+                    },
+                    "daysMissed": {
+                      "type": "integer"
+                    },
+                    "isActive": {
+                      "type": "boolean"
+                    },
+                    "isResolved": {
+                      "type": "boolean"
+                    },
+                    "deductible": {
+                      "type": "boolean"
+                    },
+                    "finalReturn": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "tenantId",
+                    "memberId",
+                    "habitId",
+                    "weekId",
+                    "investedAmount",
+                    "investedStickers",
+                    "originalInvestedStickers",
+                    "currentValue",
+                    "daysCompleted",
+                    "daysMissed",
+                    "isActive",
+                    "isResolved",
+                    "deductible",
+                    "finalReturn",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }

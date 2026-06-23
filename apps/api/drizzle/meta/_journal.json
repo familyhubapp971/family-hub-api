@@ -232,6 +232,13 @@
       "when": 1781780779200,
       "tag": "0032_redemption_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1781780779300,
+      "tag": "0033_mw_investments_deductible",
+      "breakpoints": true
     }
   ]
 }

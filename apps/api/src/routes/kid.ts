@@ -103,6 +103,8 @@ export const kidInvestmentSchema = z.object({
   currentValueStickers: z.number().int(),
   daysCompleted: z.number().int(),
   daysMissed: z.number().int(),
+  // FHS-378 — false = missed days count but apply no penalty.
+  deductible: z.boolean(),
 });
 export const kidInvestmentsResponseSchema = z.object({
   investments: z.array(kidInvestmentSchema),

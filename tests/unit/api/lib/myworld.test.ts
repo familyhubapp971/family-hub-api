@@ -77,6 +77,39 @@ describe('investmentValue (sticker-first grow model)', () => {
       investmentValue({ investedStickers: 10, completedDays: 2, missedDays: 0 }).currentValueCash,
     ).toBe(10); // 20 stickers * 0.5
   });
+
+  // FHS-378 — deductible vs non-deductible.
+  it('applies the missed-day penalty when deductible is true (default + explicit)', () => {
+    // 10 + 0*5 - 3*2 = 4, the same with deductible omitted or set true.
+    expect(
+      investmentValue({ investedStickers: 10, completedDays: 0, missedDays: 3 })
+        .currentValueStickers,
+    ).toBe(4);
+    expect(
+      investmentValue({ investedStickers: 10, completedDays: 0, missedDays: 3, deductible: true })
+        .currentValueStickers,
+    ).toBe(4);
+  });
+
+  it('ignores the missed-day penalty when deductible is false', () => {
+    // Missed days still passed in (counted/shown) but never subtract value.
+    expect(
+      investmentValue({ investedStickers: 10, completedDays: 0, missedDays: 3, deductible: false })
+        .currentValueStickers,
+    ).toBe(10);
+    // Completed-day gains still apply on a non-deductible investment.
+    expect(
+      investmentValue({ investedStickers: 10, completedDays: 2, missedDays: 5, deductible: false })
+        .currentValueStickers,
+    ).toBe(20); // 10 + 2*5 - 0
+  });
+
+  it('still floors at zero for a deductible investment with heavy misses', () => {
+    expect(
+      investmentValue({ investedStickers: 4, completedDays: 0, missedDays: 9, deductible: true })
+        .currentValueStickers,
+    ).toBe(0);
+  });
 });
 
 describe('elapsedDaysForWeek', () => {

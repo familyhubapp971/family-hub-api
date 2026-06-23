@@ -55,6 +55,11 @@ import { kidPinRequestSchema, kidPinResponseSchema } from '../routes/auth-kid-pi
 import { listMembersResponseSchema, setMemberPinResponseSchema } from '../routes/members.js';
 import { listTasksResponseSchema } from '../routes/tasks.js';
 import {
+  createInvestmentRequestSchema,
+  investmentSettingsRequestSchema,
+  investmentRecordSchema,
+} from '../routes/mw-financial.js';
+import {
   listLearnResponseSchema,
   lessonQuestionsResponseSchema,
   lessonAnswerResponseSchema,
@@ -208,6 +213,26 @@ export const routeMeta: Record<string, RouteMeta> = {
   'GET /api/mw/analytics': {
     summary: "A child's My World analytics (parent view)",
     response: mwAnalyticsResponseSchema,
+  },
+
+  // My World investments (FHS-296 / FHS-378).
+  'GET /api/mw/financial/investments': {
+    summary: "A child's active investments with live value (?memberId=)",
+    response: kidInvestmentsResponseSchema,
+    responseDesc:
+      'Each item carries `deductible` — false means missed days count but apply no penalty',
+  },
+  'POST /api/mw/financial/investments': {
+    summary: 'Create an investment (optional `deductible`, default true)',
+    request: createInvestmentRequestSchema,
+    response: investmentRecordSchema,
+    responseDesc: 'The created investment row',
+  },
+  'POST /api/mw/financial/investments/{id}/settings': {
+    summary: "Toggle an active investment's deductible flag (FHS-378)",
+    request: investmentSettingsRequestSchema,
+    response: investmentRecordSchema,
+    responseDesc: 'The updated investment row (404 if missing, 409 if not active)',
   },
 
   // Redemption requests (FHS-376) — kid asks, admin approves/declines.

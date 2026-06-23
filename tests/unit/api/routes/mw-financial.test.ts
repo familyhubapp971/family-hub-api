@@ -202,6 +202,131 @@ describe('FHS-296 — FIX 1: habit must belong to the requesting member', () => 
   });
 });
 
+// FHS-378 — POST /investments/:id/settings (deductible toggle).
+//
+// Guard + validation paths use the lightweight select-only mock; the 404 / 409
+// / success transaction paths use a transaction-aware mock that drives the
+// select/update chain inside db.transaction(...). The full recalc + roll-over
+// preservation is proven against real Postgres in the integration tier.
+describe('FHS-378 — POST /investments/:id/settings guards + transaction paths', () => {
+  const INV_ID = '33333333-3333-4333-8333-333333333333';
+
+  it('400 on invalid body (missing deductible)', async () => {
+    const res = await buildApp().request(
+      `/api/mw/financial/investments/${INV_ID}/settings`,
+      json({ memberId: MEMBER_ID }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('403 when the caller is not a member', async () => {
+    const res = await buildApp({ memberChecks: [[]] }).request(
+      `/api/mw/financial/investments/${INV_ID}/settings`,
+      json({ memberId: MEMBER_ID, deductible: false }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  // A transaction-aware db mock: guard runs on the pool `select`, then the
+  // handler body runs inside `transaction(cb)` against a tx whose `select`
+  // pulls from `txSelects` (in order) and whose `update` returns `updatedRow`.
+  function buildTxApp(opts: { txSelects: unknown[][]; updatedRow?: unknown }) {
+    const guardQueue: unknown[][] = [
+      [{ id: 'caller', role: 'admin' }], // loadCaller
+      [{ id: MEMBER_ID }], // memberInTenant
+    ];
+    const txQueue = [...opts.txSelects];
+    // `where()` returns a thenable array (for count selects that await it
+    // directly) that ALSO exposes `.limit()` (for selects that paginate). Each
+    // call consumes the next queued result so both shapes draw from txQueue.
+    function whereResult() {
+      const rows = txQueue.shift() ?? [];
+      return {
+        then: (resolve: (v: unknown[]) => unknown) => resolve(rows),
+        limit: () => Promise.resolve(rows),
+      };
+    }
+    const tx = {
+      execute: vi.fn().mockResolvedValue(undefined),
+      select: vi.fn(() => ({ from: () => ({ where: () => whereResult() }) })),
+      update: vi.fn(() => ({
+        set: () => ({
+          where: () => ({ returning: () => Promise.resolve([opts.updatedRow]) }),
+        }),
+      })),
+    };
+    const seed: MiddlewareHandler = async (c, next) => {
+      c.set('user', { id: USER_ID, email: 's@e.com', claims: {} });
+      c.set('userRow', FIXED_USER);
+      c.set('tenantId', TENANT_ID);
+      await next();
+    };
+    dbMock.select.mockImplementation(() => ({
+      from: () => ({ where: () => ({ limit: () => Promise.resolve(guardQueue.shift() ?? []) }) }),
+    }));
+
+    (dbMock as any).transaction = vi.fn(async (cb: (t: typeof tx) => unknown) => cb(tx));
+    const app = new Hono();
+    app.use('*', seed);
+    app.route('/api/mw/financial', mwFinancialRouter);
+    return app;
+  }
+
+  it('404 when the investment does not exist in this tenant', async () => {
+    // txSelects[0] = anyRows lookup → empty (not found).
+    const res = await buildTxApp({ txSelects: [[]] }).request(
+      `/api/mw/financial/investments/${INV_ID}/settings`,
+      json({ memberId: MEMBER_ID, deductible: false }),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('409 when the investment exists but is not active', async () => {
+    // txSelects[0] = anyRows lookup → exists but isActive=false.
+    const res = await buildTxApp({ txSelects: [[{ isActive: false }]] }).request(
+      `/api/mw/financial/investments/${INV_ID}/settings`,
+      json({ memberId: MEMBER_ID, deductible: false }),
+    );
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { errorCode: string }).errorCode).toBe('INVESTMENT_NOT_ACTIVE');
+  });
+
+  it('200 updates the flag and recalculates value (no missed-day penalty when false)', async () => {
+    const invRow = {
+      id: INV_ID,
+      tenantId: TENANT_ID,
+      memberId: MEMBER_ID,
+      habitId: '22222222-2222-4222-8222-222222222222',
+      weekId: '55555555-5555-4555-8555-555555555555',
+      investedStickers: 10,
+      originalInvestedStickers: 10,
+      currentValue: '5',
+      daysCompleted: 0,
+      daysMissed: 0,
+      isActive: true,
+      isResolved: false,
+      deductible: true,
+    };
+    const updatedRow = { ...invRow, deductible: false, currentValue: '5.00' };
+    const res = await buildTxApp({
+      txSelects: [
+        [{ isActive: true }], // anyRows
+        [invRow], // full row
+        [{ isFinalized: false, startDate: '2026-06-15' }], // week
+        [{ n: 0 }], // completed count
+        [{ n: 0 }], // past count
+      ],
+      updatedRow,
+    }).request(
+      `/api/mw/financial/investments/${INV_ID}/settings`,
+      json({ memberId: MEMBER_ID, deductible: false }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { deductible: boolean };
+    expect(body.deductible).toBe(false);
+  });
+});
+
 // FHS-335 — manually overwriting a balance (Admin Panel) is admin-only.
 // A normal user (adult) passes membership/canManage but is then rejected.
 describe('FHS-335 — balance admin-set is admin-only', () => {

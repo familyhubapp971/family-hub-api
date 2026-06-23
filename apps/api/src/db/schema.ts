@@ -1145,6 +1145,10 @@ export const mwInvestments = pgTable(
     daysMissed: integer('days_missed').notNull().default(0),
     isActive: boolean('is_active').notNull().default(true),
     isResolved: boolean('is_resolved').notNull().default(false),
+    // FHS-378 — when true (default, legacy behaviour) missed days apply the
+    // −2/day penalty; when false the investment still tracks missed days but
+    // never loses value for them. Existing rows keep deductible=true.
+    deductible: boolean('deductible').notNull().default(true),
     finalReturn: numeric('final_return', { precision: 12, scale: 2 }).notNull().default('0'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

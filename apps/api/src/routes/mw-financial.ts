@@ -46,6 +46,53 @@ const cashoutSchema = z.object({
   amount: z.number().positive(),
 });
 
+// ── Investment schemas (FHS-296 / FHS-378) — exported for OpenAPI enrichment ──
+
+/** Request body for POST /investments (create an investment). */
+export const createInvestmentRequestSchema = z.object({
+  memberId: z.string().uuid(),
+  habitId: z.string().uuid(),
+  stickerCount: z
+    .number()
+    .int()
+    .min(INVEST_MIN_STICKERS, {
+      message: `Minimum ${INVEST_MIN_STICKERS} stickers required to invest`,
+    }),
+  // FHS-378 — default true keeps the legacy "missed days lose value" behaviour;
+  // false makes missed days count but never penalise.
+  deductible: z.boolean().optional().default(true),
+});
+
+/** Request body for POST /investments/:id/settings (FHS-378). */
+export const investmentSettingsRequestSchema = z.object({
+  memberId: z.string().uuid(),
+  deductible: z.boolean(),
+});
+
+/**
+ * The full investment row returned by POST /investments (create) and
+ * POST /investments/:id/settings. Mirrors the persisted mw_investments row;
+ * numeric money columns come back as strings (Drizzle numeric).
+ */
+export const investmentRecordSchema = z.object({
+  id: z.string().uuid(),
+  tenantId: z.string().uuid(),
+  memberId: z.string().uuid(),
+  habitId: z.string().uuid(),
+  weekId: z.string().uuid(),
+  investedAmount: z.string(),
+  investedStickers: z.number().int(),
+  originalInvestedStickers: z.number().int(),
+  currentValue: z.string(),
+  daysCompleted: z.number().int(),
+  daysMissed: z.number().int(),
+  isActive: z.boolean(),
+  isResolved: z.boolean(),
+  deductible: z.boolean(),
+  finalReturn: z.string(),
+  createdAt: z.string(),
+});
+
 async function guard(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   c: any,
@@ -230,18 +277,7 @@ export const mwFinancialRouter = new Hono()
   // stickers, inserts the investment row, and records a week action.
   .post('/investments', async (c) => {
     const body = (await c.req.json().catch(() => null)) as unknown;
-    const parsed = z
-      .object({
-        memberId: z.string().uuid(),
-        habitId: z.string().uuid(),
-        stickerCount: z
-          .number()
-          .int()
-          .min(INVEST_MIN_STICKERS, {
-            message: `Minimum ${INVEST_MIN_STICKERS} stickers required to invest`,
-          }),
-      })
-      .safeParse(body);
+    const parsed = createInvestmentRequestSchema.safeParse(body);
     if (!parsed.success) {
       return c.json(
         {
@@ -251,7 +287,7 @@ export const mwFinancialRouter = new Hono()
         400,
       );
     }
-    const { memberId, habitId, stickerCount } = parsed.data;
+    const { memberId, habitId, stickerCount, deductible } = parsed.data;
     const g = await guard(c, memberId);
     if ('res' in g) return g.res;
     const { db, tenantId } = g;
@@ -384,6 +420,7 @@ export const mwFinancialRouter = new Hono()
           daysMissed: 0,
           isActive: true,
           isResolved: false,
+          deductible,
         })
         .returning();
 
@@ -528,6 +565,7 @@ export const mwFinancialRouter = new Hono()
         investedStickers: inv.investedStickers,
         completedDays,
         missedDays,
+        deductible: inv.deductible ?? true,
       });
 
       const total = currentValueStickers;
@@ -614,6 +652,140 @@ export const mwFinancialRouter = new Hono()
       withdrawnStickers: outcome.toWithdraw,
       remainingStickers: outcome.remaining,
     });
+  })
+
+  // POST /investments/:id/settings — toggle an ACTIVE investment's deductible flag (FHS-378).
+  //
+  // Same auth/permission gate as create/withdraw (guard → loadCaller + canManage).
+  // Recomputes + persists current_value with the new flag and returns the full
+  // updated investment row (identical shape to POST /investments). Runs inside
+  // the per-(tenant, member) advisory lock so it can't race a concurrent
+  // withdraw/finalize that also reads-then-writes this row.
+  .post('/investments/:id/settings', async (c) => {
+    const investmentId = c.req.param('id');
+    const body = (await c.req.json().catch(() => null)) as unknown;
+    const parsed = investmentSettingsRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+    const { memberId, deductible } = parsed.data;
+    const g = await guard(c, memberId);
+    if ('res' in g) return g.res;
+    const { db, tenantId } = g;
+    const now = new Date();
+
+    const outcome = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${memberId}`}, 0))`,
+      );
+
+      // Distinguish "doesn't exist in this tenant" (404) from "exists but not
+      // active" (409): a resolved/withdrawn investment can't have its terms changed.
+      const anyRows = await tx
+        .select({ isActive: mwInvestments.isActive })
+        .from(mwInvestments)
+        .where(
+          and(
+            eq(mwInvestments.tenantId, tenantId),
+            eq(mwInvestments.memberId, memberId),
+            eq(mwInvestments.id, investmentId),
+          ),
+        )
+        .limit(1);
+      if (!anyRows[0]) return { ok: false as const, code: 'NOT_FOUND' as const };
+      if (!anyRows[0].isActive) return { ok: false as const, code: 'NOT_ACTIVE' as const };
+
+      const [inv] = await tx
+        .select()
+        .from(mwInvestments)
+        .where(
+          and(
+            eq(mwInvestments.tenantId, tenantId),
+            eq(mwInvestments.memberId, memberId),
+            eq(mwInvestments.id, investmentId),
+            eq(mwInvestments.isActive, true),
+          ),
+        )
+        .limit(1);
+      if (!inv) return { ok: false as const, code: 'NOT_ACTIVE' as const };
+
+      // Recompute the cached current_value with the new flag, from this week's
+      // performance (same derivation as withdraw/GET).
+      const weekRows = await tx
+        .select({ isFinalized: mwWeeks.isFinalized, startDate: mwWeeks.startDate })
+        .from(mwWeeks)
+        .where(eq(mwWeeks.id, inv.weekId))
+        .limit(1);
+      const week = weekRows[0];
+      const elapsed = week
+        ? elapsedDaysForWeek({ isFinalized: week.isFinalized, startDate: week.startDate }, now)
+        : 0;
+      const [completedRow] = await tx
+        .select({ n: count() })
+        .from(habitStickers)
+        .where(
+          and(
+            eq(habitStickers.tenantId, tenantId),
+            eq(habitStickers.memberId, memberId),
+            eq(habitStickers.habitId, inv.habitId),
+            eq(habitStickers.weekId, inv.weekId),
+          ),
+        );
+      const completedDays = completedRow?.n ?? 0;
+      const [pastRow] = await tx
+        .select({ n: count() })
+        .from(habitStickers)
+        .where(
+          and(
+            eq(habitStickers.tenantId, tenantId),
+            eq(habitStickers.memberId, memberId),
+            eq(habitStickers.habitId, inv.habitId),
+            eq(habitStickers.weekId, inv.weekId),
+            lt(habitStickers.day, elapsed),
+          ),
+        );
+      const missedDays = Math.max(0, elapsed - (pastRow?.n ?? 0));
+      const { currentValueCash } = investmentValue({
+        investedStickers: inv.investedStickers,
+        completedDays,
+        missedDays,
+        deductible,
+      });
+
+      const [updated] = await tx
+        .update(mwInvestments)
+        .set({ deductible, currentValue: String(currentValueCash) })
+        .where(
+          and(
+            eq(mwInvestments.id, investmentId),
+            eq(mwInvestments.tenantId, tenantId),
+            eq(mwInvestments.memberId, memberId),
+          ),
+        )
+        .returning();
+      return { ok: true as const, investment: updated! };
+    });
+
+    if (!outcome.ok) {
+      if (outcome.code === 'NOT_FOUND') {
+        return c.json({ error: 'not found', detail: 'investment not found for this member' }, 404);
+      }
+      return c.json(
+        {
+          error: 'conflict',
+          errorCode: 'INVESTMENT_NOT_ACTIVE',
+          detail: 'investment is not active',
+        },
+        409,
+      );
+    }
+    return c.json(outcome.investment);
   })
 
   // PUT /savings/admin-set — overwrite a child's savings balance (admin only, FHS-335).
