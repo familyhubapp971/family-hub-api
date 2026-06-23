@@ -40,6 +40,7 @@ import {
   kidReadingPatchSchema,
 } from '../routes/kid.js';
 import { bookSchema, listBooksResponseSchema } from '../routes/reading-log.js';
+import { mwAnalyticsResponseSchema } from '../routes/mw-analytics.js';
 import { listNoticesResponseSchema } from '../routes/notices.js';
 import {
   createInvitationRequestSchema,
@@ -198,6 +199,14 @@ export const routeMeta: Record<string, RouteMeta> = {
     response: bookSchema,
   },
   'DELETE /api/kid/reading-log/{id}': { summary: 'Remove a book from the kid reading log' },
+  'GET /api/kid/analytics': {
+    summary: "The kid's My World analytics (stats view)",
+    response: mwAnalyticsResponseSchema,
+  },
+  'GET /api/mw/analytics': {
+    summary: "A child's My World analytics (parent view)",
+    response: mwAnalyticsResponseSchema,
+  },
 
   // Invitations.
   'POST /api/invitations': {

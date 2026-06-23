@@ -25,6 +25,7 @@ import {
   type Difficulty,
 } from '../lib/learn-questions.js';
 import {
+  computeMemberAnalytics,
   getOrCreateCurrentWeek,
   getSavings,
   getTenantCurrency,
@@ -34,6 +35,7 @@ import {
   stickerBalance,
   stickerDayRelation,
 } from '../lib/myworld.js';
+import { mwAnalyticsResponseSchema } from './mw-analytics.js';
 import { listHabitsResponseSchema, weekItemSchema } from './habits.js';
 import { listMealsResponseSchema } from './meals.js';
 import { listEventsResponseSchema } from './events.js';
@@ -972,4 +974,14 @@ export const kidRouter = new Hono()
         ),
       );
     return c.body(null, 204);
+  })
+  // FHS-369 — the kid's own My World analytics (stats celebration view).
+  .get('/analytics', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    return c.json(
+      mwAnalyticsResponseSchema.parse(
+        await computeMemberAnalytics(getDb(), kid.tenantId, kid.memberId),
+      ),
+    );
   });

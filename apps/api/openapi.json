@@ -837,6 +837,111 @@
         }
       }
     },
+    "/api/kid/analytics": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "The kid's My World analytics (stats view)",
+        "operationId": "get_api_kid_analytics",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stickersPerWeek": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "weekNumber": {
+                            "type": "integer"
+                          },
+                          "year": {
+                            "type": "integer"
+                          },
+                          "startDate": {
+                            "type": "string"
+                          },
+                          "totalStickers": {
+                            "type": "integer"
+                          },
+                          "daysCompleted": {
+                            "type": "integer"
+                          },
+                          "completionRate": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "weekNumber",
+                          "year",
+                          "startDate",
+                          "totalStickers",
+                          "daysCompleted",
+                          "completionRate"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "habitStats": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "habitId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "habitIcon": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "totalDays": {
+                            "type": "integer"
+                          },
+                          "completedDays": {
+                            "type": "integer"
+                          },
+                          "rate": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "habitId",
+                          "name",
+                          "habitIcon",
+                          "totalDays",
+                          "completedDays",
+                          "rate"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "stickersPerWeek",
+                    "habitStats"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kid/events": {
       "get": {
         "tags": [
@@ -3549,7 +3654,7 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Get /api/mw/analytics",
+        "summary": "A child's My World analytics (parent view)",
         "operationId": "get_api_mw_analytics",
         "security": [
           {
@@ -3558,7 +3663,93 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stickersPerWeek": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "weekNumber": {
+                            "type": "integer"
+                          },
+                          "year": {
+                            "type": "integer"
+                          },
+                          "startDate": {
+                            "type": "string"
+                          },
+                          "totalStickers": {
+                            "type": "integer"
+                          },
+                          "daysCompleted": {
+                            "type": "integer"
+                          },
+                          "completionRate": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "weekNumber",
+                          "year",
+                          "startDate",
+                          "totalStickers",
+                          "daysCompleted",
+                          "completionRate"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "habitStats": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "habitId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "habitIcon": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "totalDays": {
+                            "type": "integer"
+                          },
+                          "completedDays": {
+                            "type": "integer"
+                          },
+                          "rate": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "habitId",
+                          "name",
+                          "habitIcon",
+                          "totalDays",
+                          "completedDays",
+                          "rate"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "stickersPerWeek",
+                    "habitStats"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }

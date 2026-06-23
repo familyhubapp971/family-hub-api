@@ -457,3 +457,114 @@ export async function listInvestments(
     }),
   );
 }
+
+// ── Analytics (FHS-298 / FHS-369) ────────────────────────────────────────────
+const ANALYTICS_INVESTMENT_MULTIPLIER = 2;
+
+export interface MemberAnalytics {
+  stickersPerWeek: Array<{
+    weekNumber: number;
+    year: number;
+    startDate: string;
+    totalStickers: number;
+    daysCompleted: number;
+    completionRate: number;
+  }>;
+  habitStats: Array<{
+    habitId: string;
+    name: string;
+    habitIcon: string | null;
+    totalDays: number;
+    completedDays: number;
+    rate: number;
+  }>;
+}
+
+/**
+ * A member's My World analytics (FHS-298): potential value + completion % per
+ * week, and per-habit success rate across all their weeks. Read-only; shared by
+ * the parent mw-analytics route and the kid route so the SQL has one home.
+ */
+export async function computeMemberAnalytics(
+  db: Db,
+  tenantId: string,
+  memberId: string,
+): Promise<MemberAnalytics> {
+  const [habitCountRow] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(habits)
+    .where(
+      and(eq(habits.tenantId, tenantId), eq(habits.memberId, memberId), isNull(habits.archivedAt)),
+    );
+  const weeklyPossibleDays = Math.max(1, (habitCountRow?.n ?? 0) * 7);
+
+  const stickersPerWeekRows = await db
+    .select({
+      weekNumber: mwWeeks.weekNumber,
+      year: mwWeeks.year,
+      startDate: mwWeeks.startDate,
+      totalStickers: sql<number>`coalesce(sum(
+        ${habitStickers.stickerValue} * CASE WHEN EXISTS (
+          SELECT 1 FROM ${mwInvestments}
+          WHERE ${mwInvestments.habitId} = ${habitStickers.habitId}
+            AND ${mwInvestments.weekId} = ${habitStickers.weekId}
+            AND ${mwInvestments.isActive} = true
+            AND ${mwInvestments.tenantId} = ${tenantId}
+            AND ${mwInvestments.memberId} = ${memberId}
+        ) THEN ${ANALYTICS_INVESTMENT_MULTIPLIER} ELSE 1 END
+      ), 0)::int`,
+      daysCompleted: sql<number>`count(${habitStickers.id})::int`,
+    })
+    .from(habitStickers)
+    .innerJoin(mwWeeks, and(eq(habitStickers.weekId, mwWeeks.id), eq(mwWeeks.tenantId, tenantId)))
+    .where(and(eq(habitStickers.tenantId, tenantId), eq(habitStickers.memberId, memberId)))
+    .groupBy(mwWeeks.id, mwWeeks.weekNumber, mwWeeks.year, mwWeeks.startDate)
+    .orderBy(asc(mwWeeks.year), asc(mwWeeks.weekNumber));
+
+  const stickersPerWeek = stickersPerWeekRows.map((w) => ({
+    weekNumber: w.weekNumber,
+    year: w.year,
+    startDate: w.startDate,
+    totalStickers: w.totalStickers ?? 0,
+    daysCompleted: w.daysCompleted ?? 0,
+    completionRate: Math.min(100, Math.round(((w.daysCompleted ?? 0) / weeklyPossibleDays) * 100)),
+  }));
+
+  const [weekCountRow] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(mwWeeks)
+    .where(and(eq(mwWeeks.tenantId, tenantId), eq(mwWeeks.memberId, memberId)));
+  const possibleDays = (weekCountRow?.n || 1) * 7;
+
+  const habitStatRows = await db
+    .select({
+      habitId: habits.id,
+      name: habits.name,
+      habitIcon: habits.icon,
+      completedDays: sql<number>`count(${habitStickers.id})::int`,
+    })
+    .from(habits)
+    .leftJoin(
+      habitStickers,
+      and(
+        eq(habitStickers.habitId, habits.id),
+        eq(habitStickers.tenantId, tenantId),
+        eq(habitStickers.memberId, memberId),
+      ),
+    )
+    .where(
+      and(eq(habits.tenantId, tenantId), eq(habits.memberId, memberId), isNull(habits.archivedAt)),
+    )
+    .groupBy(habits.id, habits.name, habits.icon);
+
+  const habitStats = habitStatRows.map((row) => ({
+    habitId: row.habitId,
+    name: row.name,
+    habitIcon: row.habitIcon,
+    totalDays: possibleDays,
+    completedDays: row.completedDays ?? 0,
+    rate: possibleDays > 0 ? Math.round(((row.completedDays ?? 0) / possibleDays) * 100) : 0,
+  }));
+
+  return { stickersPerWeek, habitStats };
+}
