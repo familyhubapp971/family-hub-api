@@ -26,6 +26,8 @@ import {
   kidWeekStatsResponseSchema,
   kidWorldFlagsExploredResponseSchema,
   kidWorldFlagsLearnResponseSchema,
+  kidAiMathLessonBodySchema,
+  kidAiMathLessonResponseSchema,
 } from '../routes/kid.js';
 import { listHabitsResponseSchema } from '../routes/habits.js';
 import {
@@ -251,6 +253,18 @@ export const routeMeta: Record<string, RouteMeta> = {
     request: worldFlagsLearnCompleteBodySchema,
     response: z.object({ completed: z.literal(true) }),
     responseDesc: '{ completed: true } — always, even if already recorded',
+  },
+  // FHS-389 — AI Maths lesson (feature-flagged OFF by default).
+  'GET /api/kid/learn/maths/ai-lesson/status': {
+    summary: 'Whether AI Maths lessons are enabled (cheap probe, no generation)',
+    response: z.object({ enabled: z.boolean() }),
+  },
+  'POST /api/kid/learn/maths/ai-lesson': {
+    summary: 'Generate an AI Maths lesson for the kid (feature-flagged)',
+    request: kidAiMathLessonBodySchema,
+    response: kidAiMathLessonResponseSchema,
+    responseDesc:
+      '{ enabled: false } when the flag is off; { enabled: true, lesson } on success; { enabled: true, lesson: null, error } on AI failure',
   },
   'GET /api/mw/analytics': {
     summary: "A child's My World analytics (parent view)",

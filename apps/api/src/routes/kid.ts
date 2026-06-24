@@ -66,6 +66,7 @@ import {
   listLearnProgress,
   addLearnComplete,
 } from '../lib/world-flags.js';
+import { aiEnabled, generateMathLesson, lessonSchema } from '../lib/ai.js';
 
 // FHS-374 — week shape that mirrors the full parent GET /mw/weeks shape.
 export const kidWeeksResponseSchema = z.object({
@@ -180,6 +181,28 @@ export const kidWorldFlagsExploredResponseSchema = z.object({
 export const kidWorldFlagsLearnResponseSchema = z.object({
   progress: z.record(z.array(z.number().int())),
 });
+
+// FHS-389 — AI Maths lesson request + response shapes.
+export const kidAiMathLessonBodySchema = z
+  .object({
+    operation: z.enum(['addition', 'subtraction', 'multiplication', 'division']),
+    difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+    tableNumber: z.number().int().min(1).max(12).optional(),
+  })
+  .refine((d) => d.difficulty !== undefined || d.tableNumber !== undefined, {
+    message: 'Either difficulty or tableNumber must be provided',
+  });
+
+// Note: two branches share enabled:true so we use a plain union (not
+// discriminatedUnion, which requires unique discriminator values).
+export const kidAiMathLessonResponseSchema = z.union([
+  // Feature flag is OFF — clean disabled signal, not an error.
+  z.object({ enabled: z.literal(false) }),
+  // Flag is ON, lesson generated successfully.
+  z.object({ enabled: z.literal(true), lesson: lessonSchema }),
+  // Flag is ON, but AI call failed — UI shows friendly error.
+  z.object({ enabled: z.literal(true), lesson: z.null(), error: z.string() }),
+]);
 
 // FHS-257 / FHS-355 — kid-scoped API surface.
 //
@@ -847,4 +870,53 @@ export const kidRouter = new Hono()
       parsed.data.chunkIndex,
     );
     return c.json({ completed: true });
+  })
+  // FHS-389 — AI-generated Maths lesson (feature-flagged, default OFF).
+  // Body: { operation, difficulty? | tableNumber? } — one of difficulty/tableNumber required.
+  // Response when disabled: { enabled: false } (200, not an error).
+  // Response when enabled + success: { enabled: true, lesson: <Lesson> }.
+  // FHS-389 — cheap availability probe. Returns just the flag state with NO
+  // Anthropic call, so the UI can decide whether to show the AI button without
+  // burning a real (paid) lesson generation on every Maths-tab open.
+  .get('/learn/maths/ai-lesson/status', (c) => {
+    getKidAuth(c);
+    return c.json({ enabled: aiEnabled() });
+  })
+  // Response when enabled + AI fails: { enabled: true, lesson: null, error: '...' }.
+  // No child PII is ever sent to Anthropic — only the operation + settings.
+  .post('/learn/maths/ai-lesson', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+
+    if (!aiEnabled()) {
+      return c.json({ enabled: false });
+    }
+
+    const parsed = kidAiMathLessonBodySchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+
+    const lesson = await generateMathLesson({
+      operation: parsed.data.operation,
+      // exactOptionalPropertyTypes: omit undefined fields rather than passing them.
+      ...(parsed.data.difficulty !== undefined ? { difficulty: parsed.data.difficulty } : {}),
+      ...(parsed.data.tableNumber !== undefined ? { tableNumber: parsed.data.tableNumber } : {}),
+    });
+
+    if (!lesson) {
+      return c.json({
+        enabled: true,
+        lesson: null,
+        error: 'Could not generate lesson. Please try again.',
+      });
+    }
+
+    return c.json({ enabled: true, lesson });
   });

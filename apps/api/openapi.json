@@ -1908,6 +1908,274 @@
         }
       }
     },
+    "/api/kid/learn/maths/ai-lesson": {
+      "post": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Generate an AI Maths lesson for the kid (feature-flagged)",
+        "operationId": "post_api_kid_learn_maths_ai_lesson",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "addition",
+                      "subtraction",
+                      "multiplication",
+                      "division"
+                    ]
+                  },
+                  "difficulty": {
+                    "type": "string",
+                    "enum": [
+                      "easy",
+                      "medium",
+                      "hard"
+                    ]
+                  },
+                  "tableNumber": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 12
+                  }
+                },
+                "required": [
+                  "operation"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ enabled: false } when the flag is off; { enabled: true, lesson } on success; { enabled: true, lesson: null, error } on AI failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean",
+                          "enum": [
+                            false
+                          ]
+                        }
+                      },
+                      "required": [
+                        "enabled"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "lesson": {
+                          "type": "object",
+                          "properties": {
+                            "concept": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "visual": {
+                              "type": "object",
+                              "properties": {
+                                "description": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "emoji": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "groups": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "perGroup": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "total": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "equation": {
+                                  "type": "string",
+                                  "minLength": 1
+                                }
+                              },
+                              "required": [
+                                "description",
+                                "emoji",
+                                "groups",
+                                "perGroup",
+                                "total",
+                                "equation"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "stickyPhrase": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "gapCheck": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "practice": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "emoji": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "groups": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "perGroup": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "question": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "answer": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "choices": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "integer",
+                                      "minimum": 0
+                                    },
+                                    "minItems": 4,
+                                    "maxItems": 4
+                                  }
+                                },
+                                "required": [
+                                  "emoji",
+                                  "groups",
+                                  "perGroup",
+                                  "question",
+                                  "answer",
+                                  "choices"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "minItems": 3,
+                              "maxItems": 3
+                            }
+                          },
+                          "required": [
+                            "concept",
+                            "visual",
+                            "stickyPhrase",
+                            "gapCheck",
+                            "practice"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "lesson"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "lesson": {
+                          "enum": [
+                            "null"
+                          ],
+                          "nullable": true
+                        },
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "lesson",
+                        "error"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/learn/maths/ai-lesson/status": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Whether AI Maths lessons are enabled (cheap probe, no generation)",
+        "operationId": "get_api_kid_learn_maths_ai_lesson_status",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "enabled"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kid/me": {
       "get": {
         "tags": [

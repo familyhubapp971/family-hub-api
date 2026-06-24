@@ -91,6 +91,18 @@ const configSchema = z
       .int()
       .positive()
       .default(60 * 60_000),
+    // FHS-389 — AI-generated Maths lessons (Anthropic Claude Haiku).
+    // Feature flag: OFF by default. Set LEARN_AI_ENABLED=true AND supply
+    // ANTHROPIC_API_KEY for live AI. When the flag is off (or the key is
+    // empty) the endpoint returns { enabled: false } — the static Maths
+    // bank remains the full experience. Never commit a real key.
+    // NB: z.coerce.boolean() treats any non-empty string (incl. "false") as
+    // true, so parse the env string explicitly — only "true"/"1" enable it.
+    LEARN_AI_ENABLED: z
+      .string()
+      .default('false')
+      .transform((v) => v === 'true' || v === '1'),
+    ANTHROPIC_API_KEY: z.string().default(''),
   })
   .superRefine((cfg, ctx) => {
     if (!cfg.DATABASE_URL) {
