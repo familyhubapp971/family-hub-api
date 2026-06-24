@@ -19,6 +19,7 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
+  real,
   text,
   timestamp,
   uniqueIndex,
@@ -1360,6 +1361,86 @@ export type WorldFlagsLearnProgress = typeof worldFlagsLearnProgress.$inferSelec
 export type NewWorldFlagsLearnProgress = typeof worldFlagsLearnProgress.$inferInsert;
 
 /**
+ * `mw_maths_progress` (FHS-394) — per-kid stage completion for each
+ * maths operation × table number. One row per (tenant, member, operation,
+ * table_number). The UNIQUE constraint makes PUT upserts idempotent via
+ * onConflictDoUpdate. RLS: tenant_isolation policy gates all reads/writes.
+ */
+export const mwMathsProgress = pgTable(
+  'mw_maths_progress',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    // 'addition' | 'subtraction' | 'multiplication' | 'division'
+    operation: text('operation').notNull(),
+    // 1–12 (times-table number)
+    tableNumber: integer('table_number').notNull(),
+    learnCompleted: boolean('learn_completed').notNull().default(false),
+    practiceCorrect: integer('practice_correct').notNull().default(0),
+    proveScore: integer('prove_score').notNull().default(0),
+    // Postgres REAL (4-byte float) — matches legacy schema.
+    proveAvgTime: real('prove_avg_time').notNull().default(0),
+    placementUnlocked: boolean('placement_unlocked').notNull().default(false),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('mw_maths_progress_unique_idx').on(
+      t.tenantId,
+      t.memberId,
+      t.operation,
+      t.tableNumber,
+    ),
+    index('mw_maths_progress_member_idx').on(t.tenantId, t.memberId),
+  ],
+);
+
+export type MwMathsProgress = typeof mwMathsProgress.$inferSelect;
+export type NewMwMathsProgress = typeof mwMathsProgress.$inferInsert;
+
+/**
+ * `mw_maths_certificates` (FHS-394) — per-kid achievement certificates for
+ * each operation × difficulty. `difficulty` stores the stringified table
+ * number ('1'..'12') for placement certs, or 'easy'|'medium'|'hard' for
+ * learn-mode certs. One row per (tenant, member, operation, difficulty); the
+ * UNIQUE constraint makes POST idempotent via onConflictDoNothing. RLS:
+ * tenant_isolation policy gates all reads/writes.
+ */
+export const mwMathsCertificates = pgTable(
+  'mw_maths_certificates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    operation: text('operation').notNull(),
+    // Stringified table number '1'..'12' or 'easy'|'medium'|'hard'.
+    difficulty: text('difficulty').notNull(),
+    totalCorrect: integer('total_correct').notNull(),
+    earnedAt: timestamp('earned_at', { withTimezone: true }).defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('mw_maths_certificates_unique_idx').on(
+      t.tenantId,
+      t.memberId,
+      t.operation,
+      t.difficulty,
+    ),
+    index('mw_maths_certificates_member_idx').on(t.tenantId, t.memberId),
+  ],
+);
+
+export type MwMathsCertificates = typeof mwMathsCertificates.$inferSelect;
+export type NewMwMathsCertificates = typeof mwMathsCertificates.$inferInsert;
+
+/**
  * Registry of every tenant-scoped table. Drives the cross-tenant leak
  * audit (FHS-6) and any future cross-cutting tooling that needs to walk
  * all family-scoped tables. ADD NEW TABLES HERE when they land — the
@@ -1396,4 +1477,6 @@ export const TENANT_SCOPED_TABLES = [
   readingLog,
   worldFlagsProgress,
   worldFlagsLearnProgress,
+  mwMathsProgress,
+  mwMathsCertificates,
 ] as const;

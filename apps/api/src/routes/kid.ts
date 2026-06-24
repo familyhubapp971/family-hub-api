@@ -67,6 +67,20 @@ import {
   addLearnComplete,
 } from '../lib/world-flags.js';
 import { aiEnabled, generateMathLesson, lessonSchema } from '../lib/ai.js';
+import {
+  operationSchema,
+  updateProgressBodySchema,
+  placementBodySchema,
+  certBodySchema,
+  listMathsProgressResponseSchema,
+  listMathsCertsResponseSchema,
+  mathsProgressRowSchema,
+  listProgress,
+  upsertProgress,
+  listCertificates,
+  awardCertificate,
+  applyPlacement,
+} from '../lib/maths-progress.js';
 
 // FHS-374 — week shape that mirrors the full parent GET /mw/weeks shape.
 export const kidWeeksResponseSchema = z.object({
@@ -180,6 +194,34 @@ export const kidWorldFlagsExploredResponseSchema = z.object({
 });
 export const kidWorldFlagsLearnResponseSchema = z.object({
   progress: z.record(z.array(z.number().int())),
+});
+
+// FHS-394 — Maths progression response shapes (re-exported from the lib for the
+// OpenAPI registry; the actual schemas live in lib/maths-progress.ts).
+export {
+  listMathsProgressResponseSchema,
+  listMathsCertsResponseSchema,
+  mathsProgressRowSchema,
+  updateProgressBodySchema,
+  placementBodySchema,
+  certBodySchema,
+  operationSchema,
+} from '../lib/maths-progress.js';
+
+// FHS-394 — placement + cert response schemas (defined here because they are
+// specific to the endpoint contract, not the shared lib).
+export const mathsPlacementResponseSchema = z.object({ unlocked: z.array(z.number().int()) });
+export const mathsCertResponseSchema = z.object({
+  certificate: z.object({
+    id: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    memberId: z.string().uuid(),
+    operation: operationSchema,
+    difficulty: z.string(),
+    totalCorrect: z.number().int(),
+    earnedAt: z.string().nullable(),
+  }),
+  alreadyEarned: z.boolean(),
 });
 
 // FHS-389 — AI Maths lesson request + response shapes.
@@ -919,4 +961,113 @@ export const kidRouter = new Hono()
     }
 
     return c.json({ enabled: true, lesson });
+  })
+  // FHS-394 — GET /api/kid/maths/progress
+  // Returns all maths progress rows for this kid (all operations + tables).
+  .get('/maths/progress', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    const progress = await listProgress(getDb(), kid.tenantId, kid.memberId);
+    return c.json(listMathsProgressResponseSchema.parse({ progress }));
+  })
+  // FHS-394 — PUT /api/kid/maths/progress
+  // Upsert one progress row; only supplied fields are updated.
+  // Body: { operation, tableNumber, learnCompleted?, practiceCorrect?,
+  //         proveScore?, proveAvgTime? }
+  .put('/maths/progress', async (c) => {
+    const kid = getKidAuth(c);
+    const parsed = updateProgressBodySchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+    await pinRequestTenant(kid.tenantId);
+    const { operation, tableNumber, learnCompleted, practiceCorrect, proveScore, proveAvgTime } =
+      parsed.data;
+    // Only pass fields that were explicitly supplied (exactOptionalPropertyTypes).
+    const updates: {
+      learnCompleted?: boolean;
+      practiceCorrect?: number;
+      proveScore?: number;
+      proveAvgTime?: number;
+    } = {};
+    if (learnCompleted !== undefined) updates.learnCompleted = learnCompleted;
+    if (practiceCorrect !== undefined) updates.practiceCorrect = practiceCorrect;
+    if (proveScore !== undefined) updates.proveScore = proveScore;
+    if (proveAvgTime !== undefined) updates.proveAvgTime = proveAvgTime;
+    const row = await upsertProgress(
+      getDb(),
+      kid.tenantId,
+      kid.memberId,
+      operation,
+      tableNumber,
+      updates,
+    );
+    return c.json(mathsProgressRowSchema.parse(row));
+  })
+  // FHS-394 — POST /api/kid/maths/placement
+  // Applies placement test results and auto-masters qualifying tables.
+  // Body: { operation, results: [{ tableNumber, correct, timeSeconds }] }
+  // Returns: { unlocked: number[] }
+  .post('/maths/placement', async (c) => {
+    const kid = getKidAuth(c);
+    const parsed = placementBodySchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+    await pinRequestTenant(kid.tenantId);
+    const unlocked = await applyPlacement(
+      getDb(),
+      kid.tenantId,
+      kid.memberId,
+      parsed.data.operation,
+      parsed.data.results,
+    );
+    return c.json({ unlocked });
+  })
+  // FHS-394 — GET /api/kid/maths/certificates
+  // Returns all earned certificates for this kid.
+  .get('/maths/certificates', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    const certificates = await listCertificates(getDb(), kid.tenantId, kid.memberId);
+    return c.json(listMathsCertsResponseSchema.parse({ certificates }));
+  })
+  // FHS-394 — POST /api/kid/maths/certificates
+  // Award a certificate (idempotent — returns existing if already earned).
+  // Body: { operation, difficulty, totalCorrect }
+  // Returns: { certificate, alreadyEarned }
+  .post('/maths/certificates', async (c) => {
+    const kid = getKidAuth(c);
+    const parsed = certBodySchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+    await pinRequestTenant(kid.tenantId);
+    const result = await awardCertificate(
+      getDb(),
+      kid.tenantId,
+      kid.memberId,
+      parsed.data.operation,
+      parsed.data.difficulty,
+      parsed.data.totalCorrect,
+    );
+    return c.json(result, result.alreadyEarned ? 200 : 201);
   });

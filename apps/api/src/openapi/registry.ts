@@ -28,6 +28,14 @@ import {
   kidWorldFlagsLearnResponseSchema,
   kidAiMathLessonBodySchema,
   kidAiMathLessonResponseSchema,
+  mathsPlacementResponseSchema,
+  mathsCertResponseSchema,
+  listMathsProgressResponseSchema,
+  listMathsCertsResponseSchema,
+  updateProgressBodySchema,
+  placementBodySchema,
+  certBodySchema,
+  mathsProgressRowSchema,
 } from '../routes/kid.js';
 import { listHabitsResponseSchema } from '../routes/habits.js';
 import {
@@ -323,4 +331,36 @@ export const routeMeta: Record<string, RouteMeta> = {
   // Notices / tasks.
   'GET /api/notices': { summary: 'The family noticeboard', response: listNoticesResponseSchema },
   'GET /api/tasks': { summary: 'List tasks', response: listTasksResponseSchema },
+
+  // FHS-394 — Kid Maths progression.
+  'GET /api/kid/maths/progress': {
+    summary: 'All maths progress rows for this kid (all operations + tables)',
+    response: listMathsProgressResponseSchema,
+    responseDesc: 'Every (operation, table_number) row the kid has touched, in DB order',
+  },
+  'PUT /api/kid/maths/progress': {
+    summary: 'Upsert one maths progress row — only supplied fields are updated',
+    request: updateProgressBodySchema,
+    response: mathsProgressRowSchema,
+    responseDesc: 'The upserted row after the update',
+  },
+  'POST /api/kid/maths/placement': {
+    summary: 'Apply placement test results and auto-master qualifying tables',
+    request: placementBodySchema,
+    response: mathsPlacementResponseSchema,
+    responseDesc:
+      'unlocked[] — the table numbers newly mastered by this call (already-mastered tables are excluded)',
+  },
+  'GET /api/kid/maths/certificates': {
+    summary: 'All earned maths certificates for this kid',
+    response: listMathsCertsResponseSchema,
+    responseDesc:
+      'Certificates in DB order; difficulty is the table number string or easy/medium/hard',
+  },
+  'POST /api/kid/maths/certificates': {
+    summary: 'Award a certificate (idempotent — returns existing if already earned)',
+    request: certBodySchema,
+    response: mathsCertResponseSchema,
+    responseDesc: '{ certificate, alreadyEarned } — 200 if already earned, 201 if newly created',
+  },
 };

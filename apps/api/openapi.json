@@ -2176,6 +2176,519 @@
         }
       }
     },
+    "/api/kid/maths/certificates": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "All earned maths certificates for this kid",
+        "operationId": "get_api_kid_maths_certificates",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Certificates in DB order; difficulty is the table number string or easy/medium/hard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "certificates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "tenantId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "memberId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "operation": {
+                            "type": "string",
+                            "enum": [
+                              "addition",
+                              "subtraction",
+                              "multiplication",
+                              "division"
+                            ]
+                          },
+                          "difficulty": {
+                            "type": "string"
+                          },
+                          "totalCorrect": {
+                            "type": "integer"
+                          },
+                          "earnedAt": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "tenantId",
+                          "memberId",
+                          "operation",
+                          "difficulty",
+                          "totalCorrect",
+                          "earnedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "certificates"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Award a certificate (idempotent — returns existing if already earned)",
+        "operationId": "post_api_kid_maths_certificates",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "addition",
+                      "subtraction",
+                      "multiplication",
+                      "division"
+                    ]
+                  },
+                  "difficulty": {
+                    "type": "string"
+                  },
+                  "totalCorrect": {
+                    "type": "integer",
+                    "exclusiveMinimum": true,
+                    "minimum": 0,
+                    "maximum": 1000
+                  }
+                },
+                "required": [
+                  "operation",
+                  "difficulty",
+                  "totalCorrect"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ certificate, alreadyEarned } — 200 if already earned, 201 if newly created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "certificate": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "tenantId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "memberId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "operation": {
+                          "type": "string",
+                          "enum": [
+                            "addition",
+                            "subtraction",
+                            "multiplication",
+                            "division"
+                          ]
+                        },
+                        "difficulty": {
+                          "type": "string"
+                        },
+                        "totalCorrect": {
+                          "type": "integer"
+                        },
+                        "earnedAt": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "tenantId",
+                        "memberId",
+                        "operation",
+                        "difficulty",
+                        "totalCorrect",
+                        "earnedAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "alreadyEarned": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "certificate",
+                    "alreadyEarned"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/maths/placement": {
+      "post": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Apply placement test results and auto-master qualifying tables",
+        "operationId": "post_api_kid_maths_placement",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "addition",
+                      "subtraction",
+                      "multiplication",
+                      "division"
+                    ]
+                  },
+                  "results": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "tableNumber": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 12
+                        },
+                        "correct": {
+                          "type": "boolean"
+                        },
+                        "timeSeconds": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "tableNumber",
+                        "correct",
+                        "timeSeconds"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "operation",
+                  "results"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "unlocked[] — the table numbers newly mastered by this call (already-mastered tables are excluded)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "unlocked": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "required": [
+                    "unlocked"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/maths/progress": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "All maths progress rows for this kid (all operations + tables)",
+        "operationId": "get_api_kid_maths_progress",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every (operation, table_number) row the kid has touched, in DB order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "progress": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "tenantId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "memberId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "operation": {
+                            "type": "string",
+                            "enum": [
+                              "addition",
+                              "subtraction",
+                              "multiplication",
+                              "division"
+                            ]
+                          },
+                          "tableNumber": {
+                            "type": "integer"
+                          },
+                          "learnCompleted": {
+                            "type": "boolean"
+                          },
+                          "practiceCorrect": {
+                            "type": "integer"
+                          },
+                          "proveScore": {
+                            "type": "integer"
+                          },
+                          "proveAvgTime": {
+                            "type": "number"
+                          },
+                          "placementUnlocked": {
+                            "type": "boolean"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "tenantId",
+                          "memberId",
+                          "operation",
+                          "tableNumber",
+                          "learnCompleted",
+                          "practiceCorrect",
+                          "proveScore",
+                          "proveAvgTime",
+                          "placementUnlocked",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "progress"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Upsert one maths progress row — only supplied fields are updated",
+        "operationId": "put_api_kid_maths_progress",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "addition",
+                      "subtraction",
+                      "multiplication",
+                      "division"
+                    ]
+                  },
+                  "tableNumber": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 12
+                  },
+                  "learnCompleted": {
+                    "type": "boolean"
+                  },
+                  "practiceCorrect": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "proveScore": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "proveAvgTime": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "operation",
+                  "tableNumber"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The upserted row after the update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "tenantId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "memberId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "operation": {
+                      "type": "string",
+                      "enum": [
+                        "addition",
+                        "subtraction",
+                        "multiplication",
+                        "division"
+                      ]
+                    },
+                    "tableNumber": {
+                      "type": "integer"
+                    },
+                    "learnCompleted": {
+                      "type": "boolean"
+                    },
+                    "practiceCorrect": {
+                      "type": "integer"
+                    },
+                    "proveScore": {
+                      "type": "integer"
+                    },
+                    "proveAvgTime": {
+                      "type": "number"
+                    },
+                    "placementUnlocked": {
+                      "type": "boolean"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "tenantId",
+                    "memberId",
+                    "operation",
+                    "tableNumber",
+                    "learnCompleted",
+                    "practiceCorrect",
+                    "proveScore",
+                    "proveAvgTime",
+                    "placementUnlocked",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kid/me": {
       "get": {
         "tags": [

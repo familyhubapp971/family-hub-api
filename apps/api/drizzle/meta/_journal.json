@@ -239,6 +239,13 @@
       "when": 1781780779300,
       "tag": "0033_mw_investments_deductible",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1782000000000,
+      "tag": "0034_mw_maths_progress",
+      "breakpoints": true
     }
   ]
 }
