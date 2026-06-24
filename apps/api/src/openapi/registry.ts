@@ -133,10 +133,6 @@ export const routeMeta: Record<string, RouteMeta> = {
     summary: "The kid's profile for the dashboard header (name, avatar, stars/cash)",
     response: kidProfileResponseSchema,
   },
-  'GET /api/kid/notices': {
-    summary: "The kid's family noticeboard",
-    response: listNoticesResponseSchema,
-  },
   'GET /api/kid/tasks': { summary: "The kid's own tasks", response: kidTasksResponseSchema },
   'GET /api/kid/today': {
     summary: "The kid's own habits for today",

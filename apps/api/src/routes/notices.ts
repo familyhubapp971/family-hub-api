@@ -80,9 +80,8 @@ function rowToItem(r: {
 // membership lookup on the same `members` table.
 
 /**
- * The family noticeboard for a tenant: pinned first, then newest. Shared by the
- * parent route (GET /api/notices) and the kid route (GET /api/kid/notices,
- * FHS-355) so both render identical post-it cards from one query.
+ * The family noticeboard for a tenant: pinned first, then newest. Serves the
+ * parent route (GET /api/notices). (The kid noticeboard was removed in FHS-386.)
  */
 export async function listTenantNotices(
   db: ReturnType<typeof getDb>,

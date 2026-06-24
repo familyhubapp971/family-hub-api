@@ -57,7 +57,6 @@ import {
   journalEntriesResponseSchema,
   journalEarliestResponseSchema,
 } from './journal.js';
-import { listTenantNotices, listNoticesResponseSchema } from './notices.js';
 import { listTasksForMember, setTaskDoneForMember, taskItemSchema } from './tasks.js';
 import {
   worldFlagsExploreBodySchema,
@@ -241,15 +240,6 @@ export const kidRouter = new Hono()
         currency,
       }),
     );
-  })
-  // FHS-355 — the family noticeboard, scoped to the kid's own tenant from the
-  // verified kid token. FHS-354 — pin that tenant so the read passes RLS once
-  // the app runs as app_runtime (the token, not resolveTenant, is the source).
-  .get('/notices', async (c) => {
-    const kid = getKidAuth(c);
-    await pinRequestTenant(kid.tenantId);
-    const notices = await listTenantNotices(getDb(), kid.tenantId);
-    return c.json(listNoticesResponseSchema.parse({ notices }));
   })
   // FHS-355 — the kid's OWN tasks (member-scoped from the kid token).
   .get('/tasks', async (c) => {
