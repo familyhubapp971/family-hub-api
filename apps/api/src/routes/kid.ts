@@ -94,10 +94,12 @@ export const kidWeekStatsResponseSchema = z.object({
 });
 
 // FHS-374 — savings shape (mirrors GET /mw/financial/savings).
+// FHS-387 — stickerRate added so the kid UI never hardcodes 0.5.
 export const kidSavingsResponseSchema = z.object({
   savedStickers: z.number().int(),
   savedCash: z.number(),
   currency: z.string(),
+  stickerRate: z.number(),
 });
 
 // FHS-374 — investments shape (mirrors GET /mw/financial/investments).

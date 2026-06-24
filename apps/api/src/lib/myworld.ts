@@ -849,18 +849,24 @@ export async function loadWeekActions(
 }
 
 /**
- * Banked savings + currency (GET /mw/financial/savings shape).
+ * Banked savings + currency + the fixed star-to-cash rate (GET /mw/financial/savings shape).
+ * FHS-387 — stickerRate exposes STICKER_TO_CASH so callers never hardcode 0.5.
  */
 export async function loadSavingsForMember(
   db: Db,
   tenantId: string,
   memberId: string,
-): Promise<{ savedStickers: number; savedCash: number; currency: string }> {
+): Promise<{ savedStickers: number; savedCash: number; currency: string; stickerRate: number }> {
   const [savings, currency] = await Promise.all([
     getSavings(db, tenantId, memberId),
     getTenantCurrency(db, tenantId),
   ]);
-  return { savedStickers: savings.savedStickers, savedCash: savings.savedCash, currency };
+  return {
+    savedStickers: savings.savedStickers,
+    savedCash: savings.savedCash,
+    currency,
+    stickerRate: STICKER_TO_CASH,
+  };
 }
 
 /**

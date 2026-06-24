@@ -5,7 +5,9 @@ import {
   elapsedDaysForWeek,
   investmentValue,
   stickerDayRelation,
+  STICKER_TO_CASH,
 } from '../../../../apps/api/src/lib/myworld.js';
+import { kidSavingsResponseSchema } from '../../../../apps/api/src/routes/kid.js';
 
 // FHS-335 — date helpers behind the "past day is admin-only" rule.
 describe('dayDateOf', () => {
@@ -143,5 +145,26 @@ describe('cashAsStickers', () => {
     expect(cashAsStickers(2)).toBe(4);
     expect(cashAsStickers(2.4)).toBe(4); // 2.4/0.5 = 4.8 -> 4
     expect(cashAsStickers(0)).toBe(0);
+  });
+});
+
+// FHS-387 — kid savings response includes stickerRate so the UI never hardcodes 0.5.
+describe('kidSavingsResponseSchema includes stickerRate', () => {
+  it('validates a response that includes stickerRate = STICKER_TO_CASH (0.5)', () => {
+    const payload = {
+      savedStickers: 5,
+      savedCash: 2.5,
+      currency: 'AED',
+      stickerRate: STICKER_TO_CASH,
+    };
+    const result = kidSavingsResponseSchema.safeParse(payload);
+    expect(result.success).toBe(true);
+    expect(result.data?.stickerRate).toBe(0.5);
+  });
+
+  it('rejects a response missing stickerRate', () => {
+    const payload = { savedStickers: 5, savedCash: 2.5, currency: 'AED' };
+    const result = kidSavingsResponseSchema.safeParse(payload);
+    expect(result.success).toBe(false);
   });
 });

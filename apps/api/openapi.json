@@ -1155,12 +1155,16 @@
                     },
                     "currency": {
                       "type": "string"
+                    },
+                    "stickerRate": {
+                      "type": "number"
                     }
                   },
                   "required": [
                     "savedStickers",
                     "savedCash",
-                    "currency"
+                    "currency",
+                    "stickerRate"
                   ],
                   "additionalProperties": false
                 }
