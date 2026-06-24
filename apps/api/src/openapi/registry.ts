@@ -48,7 +48,7 @@ import {
   worldFlagsExploreBodySchema,
   worldFlagsLearnCompleteBodySchema,
 } from '../lib/world-flags.js';
-import { bookSchema, listBooksResponseSchema } from '../routes/reading-log.js';
+import { bookSchema, listBooksResponseSchema } from '../lib/reading-log-shared.js';
 import { mwAnalyticsResponseSchema } from '../routes/mw-analytics.js';
 import { listNoticesResponseSchema } from '../routes/notices.js';
 import {
@@ -71,9 +71,8 @@ import {
   listLearnResponseSchema,
   lessonQuestionsResponseSchema,
   lessonAnswerResponseSchema,
-  answerRequestSchema,
   subtopicSchema,
-} from '../routes/learn.js';
+} from '../lib/learn-shared.js';
 
 export interface QueryParamMeta {
   description?: string;
@@ -310,24 +309,4 @@ export const routeMeta: Record<string, RouteMeta> = {
   // Notices / tasks.
   'GET /api/notices': { summary: 'The family noticeboard', response: listNoticesResponseSchema },
   'GET /api/tasks': { summary: 'List tasks', response: listTasksResponseSchema },
-
-  // Learn — interactive lessons (FHS-283).
-  'GET /api/learn/{subject}/questions': {
-    summary: "Questions for a subject's lesson + the child's stats",
-    response: lessonQuestionsResponseSchema,
-    queryParams: {
-      memberId: { schema: z.string().uuid(), required: true, description: "The child's member ID" },
-      difficulty: { schema: difficultySchema, description: 'Lesson difficulty (default: easy)' },
-      subtopic: {
-        schema: subtopicSchema,
-        description:
-          'Logic sub-topic filter (patterns|odd-one-out|if-then|sorting). Logic only; ignored for other subjects.',
-      },
-    },
-  },
-  'POST /api/learn/{subject}/answer': {
-    summary: 'Grade one answer and update streak/score/progress',
-    request: answerRequestSchema,
-    response: lessonAnswerResponseSchema,
-  },
 };

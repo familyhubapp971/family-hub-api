@@ -6,7 +6,6 @@ import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
 import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
 import { journalRouter } from '../../../apps/api/src/routes/journal.js';
-import { learnRouter } from '../../../apps/api/src/routes/learn.js';
 import { tenants, members, users } from '../../../apps/api/src/db/schema.js';
 import type { Database } from '../../../apps/api/src/db/client.js';
 import { getTestDb } from '../support/db.js';
@@ -86,9 +85,6 @@ describeFeature(feature, ({ Background, Scenario }) => {
     memberIds[name] = r!.id;
   }
 
-  // FHS-270 per-day model — use PUT (upsert) instead of the removed POST.
-  // entryDate is unique per (member, day); use a fixed test date per call so
-  // counting "how many entries" still works across the scenarios.
   const PUT_DATE = '2026-01-01';
   async function postJournal(slug: string, member: string, body: string) {
     return app.request('/api/journal', {
@@ -104,21 +100,6 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
     const json = (await res.json()) as { entries: unknown[] };
     return { res, entries: json.entries ?? [] };
-  }
-  async function getLearn(slug: string, member: string) {
-    const res = await app.request(`/api/learn?memberId=${memberIds[member]!}`, {
-      method: 'GET',
-      headers: headers(slug),
-    });
-    const json = (await res.json()) as { subjects: Array<{ subject: string; progress: number }> };
-    return { res, subjects: json.subjects ?? [] };
-  }
-  async function patchLearn(slug: string, member: string, subject: string, progress: number) {
-    return app.request(`/api/learn/${encodeURIComponent(subject)}`, {
-      method: 'PATCH',
-      headers: { ...headers(slug), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ memberId: memberIds[member]!, progress }),
-    });
   }
 
   Background(({ Given, And }) => {
@@ -156,7 +137,6 @@ describeFeature(feature, ({ Background, Scenario }) => {
       );
       app.use('*', resolveTenantFromHeader);
       app.route('/api/journal', journalRouter);
-      app.route('/api/learn', learnRouter);
       token = await mintToken(privateKey);
     });
     And('a tenant {string} exists with the caller as an admin member', async (_c, slug: string) => {
@@ -189,61 +169,6 @@ describeFeature(feature, ({ Background, Scenario }) => {
         expect(b.entries).toHaveLength(nB);
       },
     );
-  });
-
-  Scenario(
-    'Learn GET returns the full subject catalogue defaulting to zero',
-    ({ When, Then, And }) => {
-      let res: Response;
-      let subjects: Array<{ subject: string; progress: number }>;
-      When(
-        'the caller GETs learn progress for {string} in tenant {string}',
-        async (_c, member: string, slug: string) => {
-          const out = await getLearn(slug, member);
-          res = out.res;
-          subjects = out.subjects;
-        },
-      );
-      Then('the learn response status is 200', () => expect(res.status).toBe(200));
-      And('the learn response has {int} subjects', (_c, n: number) =>
-        expect(subjects).toHaveLength(n),
-      );
-      And(
-        'the {string} subject for {string} reads {int}',
-        (_c, subject: string, _m: string, val: number) => {
-          expect(subjects.find((s) => s.subject === subject)?.progress).toBe(val);
-        },
-      );
-    },
-  );
-
-  Scenario('PATCH learn progress upserts and GET reflects it', ({ When, Then, And }) => {
-    let res: Response;
-    When(
-      'the caller sets {string} progress to {int} for {string} in tenant {string}',
-      async (_c, subject: string, progress: number, member: string, slug: string) => {
-        res = await patchLearn(slug, member, subject, progress);
-      },
-    );
-    Then('the learn patch status is 200', () => expect(res.status).toBe(200));
-    And(
-      'the {string} subject for {string} reads {int}',
-      async (_c, subject: string, member: string, val: number) => {
-        const out = await getLearn('khan', member);
-        expect(out.subjects.find((s) => s.subject === subject)?.progress).toBe(val);
-      },
-    );
-  });
-
-  Scenario('PATCH an unknown subject is rejected', ({ When, Then }) => {
-    let res: Response;
-    When(
-      'the caller sets {string} progress to {int} for {string} in tenant {string}',
-      async (_c, subject: string, progress: number, member: string, slug: string) => {
-        res = await patchLearn(slug, member, subject, progress);
-      },
-    );
-    Then('the learn patch status is 400', () => expect(res.status).toBe(400));
   });
 
   Scenario(

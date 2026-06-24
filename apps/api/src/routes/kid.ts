@@ -48,8 +48,8 @@ import {
   lessonAnswerResponseSchema,
   loadProgressRow,
   toStats,
-} from './learn.js';
-import { bookSchema, listBooksResponseSchema } from './reading-log.js';
+} from '../lib/learn-shared.js';
+import { bookSchema, listBooksResponseSchema } from '../lib/reading-log-shared.js';
 import {
   isValidCalendarDate,
   serializeEntry,

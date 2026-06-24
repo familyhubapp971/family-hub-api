@@ -1,8 +1,12 @@
 /**
- * Step bindings for kid-learn.feature (FHS-367).
+ * Step bindings for kid-learn.feature (FHS-367 / FHS-382).
  *
  * The kid does lessons + keeps a reading log, scoped to themselves. Real kid
  * token against real Postgres.
+ *
+ * GAP 5 — answer-grading state machine: streak reset, best-streak retention,
+ *          certificate award when CERTIFICATE_TARGET correct answers reached.
+ * GAP 6 — cross-TENANT isolation: a kid from family B cannot affect family A.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -21,9 +25,25 @@ vi.mock('../../../apps/api/src/db/client.js', () => ({
 import { config } from '../../../apps/api/src/config.js';
 import { kidRouter } from '../../../apps/api/src/routes/kid.js';
 import { tenants, members } from '../../../apps/api/src/db/schema.js';
+import { CERTIFICATE_TARGET } from '../../../apps/api/src/lib/learn-questions.js';
 import type { Database } from '../../../apps/api/src/db/client.js';
 
 const KID_ISSUER = 'family-hub-kid-auth';
+
+// ─── Maths easy bank (correct answer index = 1 for all three) ─────────────────
+// maths-e1: answerIndex 1, maths-e2: answerIndex 1, maths-e3: answerIndex 2
+// We cycle through all easy questions to reach CERTIFICATE_TARGET.
+const MATHS_EASY_QUESTIONS: Array<{ id: string; correctIndex: number; wrongIndex: number }> = [
+  { id: 'maths-e1', correctIndex: 1, wrongIndex: 0 },
+  { id: 'maths-e2', correctIndex: 1, wrongIndex: 0 },
+  { id: 'maths-e3', correctIndex: 2, wrongIndex: 0 },
+  { id: 'maths-m1', correctIndex: 1, wrongIndex: 0 },
+  { id: 'maths-m2', correctIndex: 1, wrongIndex: 0 },
+  { id: 'maths-m3', correctIndex: 1, wrongIndex: 0 },
+  { id: 'maths-h1', correctIndex: 1, wrongIndex: 0 },
+  { id: 'maths-h2', correctIndex: 2, wrongIndex: 0 },
+  { id: 'maths-h3', correctIndex: 0, wrongIndex: 1 },
+];
 
 let db: Database;
 let app: Hono;
@@ -33,6 +53,9 @@ let addRes: Response;
 let answerRes: Response;
 let siblingRes: Response;
 let subtopicRes: Response;
+// GAP 5 — state machine tracking
+let streakRes: Response;
+let certRes: Response;
 
 async function mintKidToken(memberId: string, tenantId: string, slug: string): Promise<string> {
   const secret = new TextEncoder().encode(config.KID_AUTH_SECRET);
@@ -167,4 +190,146 @@ describeFeature(feature, ({ Background, Scenario }) => {
       expect(siblingRes.status).toBe(404);
     });
   });
+
+  // ─── GAP 5: answer-grading state machine ─────────────────────────────────────
+
+  Scenario('a wrong answer resets the streak to 0', ({ When, And, Then }) => {
+    let statsAfterWrong: { streak: number } | undefined;
+
+    When('the kid "Iman" answers a Maths question correctly', async () => {
+      const q = MATHS_EASY_QUESTIONS[0]!;
+      streakRes = await app.request('/api/kid/learn/Maths/answer', {
+        method: 'POST',
+        headers: jsonAuth('Iman'),
+        body: JSON.stringify({ questionId: q.id, choiceIndex: q.correctIndex }),
+      });
+    });
+    And('the kid "Iman" answers a Maths question incorrectly', async () => {
+      const q = MATHS_EASY_QUESTIONS[0]!;
+      streakRes = await app.request('/api/kid/learn/Maths/answer', {
+        method: 'POST',
+        headers: jsonAuth('Iman'),
+        body: JSON.stringify({ questionId: q.id, choiceIndex: q.wrongIndex }),
+      });
+      const body = (await streakRes.json()) as { stats: { streak: number } };
+      statsAfterWrong = body.stats;
+    });
+    Then('the Maths current streak is 0', () => {
+      expect(statsAfterWrong?.streak).toBe(0);
+    });
+  });
+
+  Scenario('the best streak is retained after a wrong answer', ({ When, And, Then }) => {
+    let statsBest: { best: number } | undefined;
+
+    When('the kid "Iman" answers a Maths question correctly', async () => {
+      const q = MATHS_EASY_QUESTIONS[0]!;
+      await app.request('/api/kid/learn/Maths/answer', {
+        method: 'POST',
+        headers: jsonAuth('Iman'),
+        body: JSON.stringify({ questionId: q.id, choiceIndex: q.correctIndex }),
+      });
+    });
+    And('the kid "Iman" answers a Maths question incorrectly', async () => {
+      const q = MATHS_EASY_QUESTIONS[0]!;
+      const r = await app.request('/api/kid/learn/Maths/answer', {
+        method: 'POST',
+        headers: jsonAuth('Iman'),
+        body: JSON.stringify({ questionId: q.id, choiceIndex: q.wrongIndex }),
+      });
+      const body = (await r.json()) as { stats: { best: number } };
+      statsBest = body.stats;
+    });
+    Then('the Maths best streak is at least 1', () => {
+      expect(statsBest?.best).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  Scenario('reaching the certificate target awards a certificate', ({ When, Then }) => {
+    let certStats: { certificate: boolean } | undefined;
+
+    When(
+      'the kid "Iman" answers enough Maths questions correctly to reach the target',
+      async () => {
+        // Answer CERTIFICATE_TARGET questions correctly, cycling the bank as needed.
+        for (let i = 0; i < CERTIFICATE_TARGET; i++) {
+          const q = MATHS_EASY_QUESTIONS[i % MATHS_EASY_QUESTIONS.length]!;
+          const r = await app.request('/api/kid/learn/Maths/answer', {
+            method: 'POST',
+            headers: jsonAuth('Iman'),
+            body: JSON.stringify({ questionId: q.id, choiceIndex: q.correctIndex }),
+          });
+          certRes = r;
+        }
+        const body = (await certRes.json()) as { stats: { certificate: boolean } };
+        certStats = body.stats;
+      },
+    );
+    Then('the Maths answer response has certificate true', () => {
+      expect(certStats?.certificate).toBe(true);
+    });
+  });
+
+  // ─── GAP 6: cross-TENANT isolation ───────────────────────────────────────────
+
+  Scenario(
+    "a kid from family B cannot affect a lesson for family A's child",
+    ({ Given, When, Then }) => {
+      let omarToken: string;
+      let imanProgressBefore: number;
+      let imanProgressAfter: number;
+      let crossTenantRes: Response;
+
+      Given('a second family with kid "Omar"', async () => {
+        // Family B is a completely separate tenant — different slug, no shared data.
+        const [t2] = await db
+          .insert(tenants)
+          .values({ slug: `kidlearn-b-${randomUUID().slice(0, 8)}`, name: 'Omar Fam' })
+          .returning();
+        const [omar] = await db
+          .insert(members)
+          .values({ tenantId: t2!.id, displayName: 'Omar', role: 'child', isChild: true })
+          .returning();
+        omarToken = await mintKidToken(omar!.id, t2!.id, t2!.slug);
+      });
+
+      When('"Omar" POSTs a Maths answer using "Iman"\'s subject path', async () => {
+        // First capture Iman's current Maths progress.
+        const before = await app.request('/api/kid/learn/Maths/questions?difficulty=easy', {
+          headers: authFor('Iman'),
+        });
+        const beforeBody = (await before.json()) as { stats: { answered: number } };
+        imanProgressBefore = beforeBody.stats.answered;
+
+        // Omar uses his own (family B) kid token but targets the same /api/kid route.
+        // The route scopes entirely from the token — the subject path 'Maths' is
+        // shared, but the learnProgress row is keyed by (tenantId, memberId, subject).
+        const q = MATHS_EASY_QUESTIONS[0]!;
+        crossTenantRes = await app.request('/api/kid/learn/Maths/answer', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${omarToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ questionId: q.id, choiceIndex: q.correctIndex }),
+        });
+      });
+
+      Then(
+        'the cross-tenant answer response does not affect "Iman"\'s Maths progress',
+        async () => {
+          // Omar's own answer should succeed (200) — he's a valid kid in his own tenant.
+          expect(crossTenantRes.status).toBe(200);
+
+          // Iman's answered count must be unchanged.
+          const after = await app.request('/api/kid/learn/Maths/questions?difficulty=easy', {
+            headers: authFor('Iman'),
+          });
+          const afterBody = (await after.json()) as { stats: { answered: number } };
+          imanProgressAfter = afterBody.stats.answered;
+          expect(imanProgressAfter).toBe(imanProgressBefore);
+        },
+      );
+    },
+  );
 });
