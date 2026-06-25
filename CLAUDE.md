@@ -492,6 +492,27 @@ FHS-XXX` once promoted).
 - Demo doc (`documents/demo/whats-shipped.html`) refreshed if any
   shipped flow needs revision based on what the test pass found.
 
+### Every reported bug gets logged — no exceptions
+
+> **The moment the founder reports a bug (a screenshot, "this is broken",
+> "X overlaps Y", "still misaligned", etc.), it MUST be logged as an FHS
+> Bug ticket immediately — before or alongside fixing it — so it can be
+> picked up and tracked. Never fix-and-forget without a ticket, and never
+> wait to be asked to file it.** This is automatic, like the
+> branch-creation and ticket-close rules.
+
+How to apply:
+
+- On a bug report, **first** create the FHS Bug (To Do, current sprint,
+  matching Fix Version, parent = the feature's epic, story points, plus
+  area and surface labels, a one-line layperson summary, three technical
+  bullets, and Gherkin AC) per the lifecycle below — even if you fix it in
+  the same session. If several bugs are reported in one message, log each.
+- If the bug is genuinely trivial and fixed in the same turn, still file
+  the ticket and close it on merge — the audit trail is the point.
+- Mirror to `bugs/<slug>.md` only when it feeds the manual-test sheet
+  (per the demo-testing rule); the Jira ticket is always required.
+
 ### Fixing bugs (workflow)
 
 When picking up a bug from `bugs/<slug>.md` (or any `Bug` Jira
