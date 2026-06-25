@@ -81,6 +81,38 @@ import {
   awardCertificate,
   applyPlacement,
 } from '../lib/maths-progress.js';
+import {
+  answerBodySchema as logicAnswerBodySchema,
+  questionsQuerySchema,
+  gradeAndRecord,
+  listCertificates as listLogicCertificates,
+} from '../lib/logic-progress.js';
+import { getLogicQuestions, isLogicGameType, isLogicDifficulty } from '../lib/logic-questions.js';
+
+// FHS-395 — response schemas exported for OpenAPI registry.
+import { z as _z } from 'zod';
+export const logicQuestionsResponseSchema = _z.object({
+  // Require at least id + type; passthrough preserves game-type-specific fields.
+  questions: _z.array(_z.object({ id: _z.string(), type: _z.string() }).passthrough()),
+});
+export const logicAnswerResponseSchema = _z.object({
+  correct: _z.boolean(),
+  correctAnswer: _z.union([_z.string(), _z.boolean()]),
+  explanation: _z.string(),
+  comboCorrect: _z.number().int(),
+  certificateEarned: _z.boolean(),
+});
+export const logicCertificatesResponseSchema = _z.object({
+  certificates: _z.array(
+    _z.object({
+      id: _z.string().uuid(),
+      gameType: _z.string(),
+      difficulty: _z.string(),
+      totalCorrect: _z.number().int(),
+      earnedAt: _z.string(),
+    }),
+  ),
+});
 
 // FHS-374 — week shape that mirrors the full parent GET /mw/weeks shape.
 export const kidWeeksResponseSchema = z.object({
@@ -1070,4 +1102,75 @@ export const kidRouter = new Hono()
       parsed.data.totalCorrect,
     );
     return c.json(result, result.alreadyEarned ? 200 : 201);
+  })
+  // FHS-395 — GET /api/kid/logic/questions?gameType=&difficulty=
+  // Returns questions for the combo with answers stripped.
+  .get('/logic/questions', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    const gameType = c.req.query('gameType');
+    const difficulty = c.req.query('difficulty');
+    if (!isLogicGameType(gameType) || !isLogicDifficulty(difficulty)) {
+      return c.json({ error: 'invalid gameType or difficulty' }, 400);
+    }
+    const parsed = questionsQuerySchema.safeParse({ gameType, difficulty });
+    if (!parsed.success) {
+      return c.json({ error: 'invalid query params' }, 400);
+    }
+    const questions = getLogicQuestions(parsed.data.gameType, parsed.data.difficulty);
+    return c.json({ questions });
+  })
+  // FHS-395 — POST /api/kid/logic/answer
+  // Server-authoritative grading + cert award.
+  // Body: { gameType, difficulty, questionId, answer }
+  // Returns: { correct, correctAnswer, explanation, comboCorrect, certificateEarned }
+  .post('/logic/answer', async (c) => {
+    const kid = getKidAuth(c);
+    const body = await c.req.json().catch(() => null);
+    const parsed = logicAnswerBodySchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+    await pinRequestTenant(kid.tenantId);
+    try {
+      const result = await gradeAndRecord(
+        getDb(),
+        kid.tenantId,
+        kid.memberId,
+        parsed.data.gameType,
+        parsed.data.difficulty,
+        parsed.data.questionId,
+        parsed.data.answer,
+      );
+      return c.json(logicAnswerResponseSchema.parse(result));
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith('Question not found')) {
+        return c.json({ error: err.message }, 400);
+      }
+      throw err;
+    }
+  })
+  // FHS-395 — GET /api/kid/logic/certificates
+  // Returns all earned logic certificates for this kid.
+  .get('/logic/certificates', async (c) => {
+    const kid = getKidAuth(c);
+    await pinRequestTenant(kid.tenantId);
+    const certs = await listLogicCertificates(getDb(), kid.tenantId, kid.memberId);
+    return c.json(
+      logicCertificatesResponseSchema.parse({
+        certificates: certs.map((cert) => ({
+          id: cert.id,
+          gameType: cert.gameType,
+          difficulty: cert.difficulty,
+          totalCorrect: cert.totalCorrect,
+          earnedAt: cert.earnedAt?.toISOString() ?? new Date().toISOString(),
+        })),
+      }),
+    );
   });

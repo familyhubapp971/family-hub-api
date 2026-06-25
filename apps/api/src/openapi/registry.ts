@@ -53,7 +53,11 @@ import {
   kidLearnAnswerSchema,
   kidReadingCreateSchema,
   kidReadingPatchSchema,
+  logicQuestionsResponseSchema,
+  logicAnswerResponseSchema,
+  logicCertificatesResponseSchema,
 } from '../routes/kid.js';
+import { answerBodySchema as logicAnswerBodySchema } from '../lib/logic-progress.js';
 import {
   worldFlagsExploreBodySchema,
   worldFlagsLearnCompleteBodySchema,
@@ -362,5 +366,38 @@ export const routeMeta: Record<string, RouteMeta> = {
     request: certBodySchema,
     response: mathsCertResponseSchema,
     responseDesc: '{ certificate, alreadyEarned } — 200 if already earned, 201 if newly created',
+  },
+
+  // FHS-395 — Kid Logic progression.
+  'GET /api/kid/logic/questions': {
+    summary: 'Questions for a logic game-type × difficulty combo (answers stripped)',
+    response: logicQuestionsResponseSchema,
+    responseDesc:
+      'questions[] — type-specific fields for the renderer; correct answer not included',
+    queryParams: {
+      gameType: {
+        description: 'One of: truefalse, patterns, oddoneout, ifthen, sorting',
+        required: true,
+        schema: logicAnswerBodySchema.shape.gameType,
+      },
+      difficulty: {
+        description: 'One of: easy, medium, hard',
+        required: true,
+        schema: logicAnswerBodySchema.shape.difficulty,
+      },
+    },
+  },
+  'POST /api/kid/logic/answer': {
+    summary: 'Grade a logic answer server-side; award certificate at 10 correct per combo',
+    request: logicAnswerBodySchema,
+    response: logicAnswerResponseSchema,
+    responseDesc:
+      '{ correct, correctAnswer, explanation, comboCorrect, certificateEarned } — comboCorrect is the running total for this gameType×difficulty',
+  },
+  'GET /api/kid/logic/certificates': {
+    summary: 'All earned logic certificates for this kid',
+    response: logicCertificatesResponseSchema,
+    responseDesc:
+      'certificates[] — one row per gameType×difficulty where the kid reached 10 correct answers',
   },
 };

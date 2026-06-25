@@ -2176,6 +2176,238 @@
         }
       }
     },
+    "/api/kid/logic/answer": {
+      "post": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Grade a logic answer server-side; award certificate at 10 correct per combo",
+        "operationId": "post_api_kid_logic_answer",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "gameType": {
+                    "type": "string"
+                  },
+                  "difficulty": {
+                    "type": "string"
+                  },
+                  "questionId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "answer": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "gameType",
+                  "difficulty",
+                  "questionId",
+                  "answer"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ correct, correctAnswer, explanation, comboCorrect, certificateEarned } — comboCorrect is the running total for this gameType×difficulty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "correct": {
+                      "type": "boolean"
+                    },
+                    "correctAnswer": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    },
+                    "explanation": {
+                      "type": "string"
+                    },
+                    "comboCorrect": {
+                      "type": "integer"
+                    },
+                    "certificateEarned": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "correct",
+                    "correctAnswer",
+                    "explanation",
+                    "comboCorrect",
+                    "certificateEarned"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/logic/certificates": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "All earned logic certificates for this kid",
+        "operationId": "get_api_kid_logic_certificates",
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "certificates[] — one row per gameType×difficulty where the kid reached 10 correct answers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "certificates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "gameType": {
+                            "type": "string"
+                          },
+                          "difficulty": {
+                            "type": "string"
+                          },
+                          "totalCorrect": {
+                            "type": "integer"
+                          },
+                          "earnedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "gameType",
+                          "difficulty",
+                          "totalCorrect",
+                          "earnedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "certificates"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kid/logic/questions": {
+      "get": {
+        "tags": [
+          "kid"
+        ],
+        "summary": "Questions for a logic game-type × difficulty combo (answers stripped)",
+        "operationId": "get_api_kid_logic_questions",
+        "parameters": [
+          {
+            "name": "gameType",
+            "in": "query",
+            "required": true,
+            "description": "One of: truefalse, patterns, oddoneout, ifthen, sorting",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "difficulty",
+            "in": "query",
+            "required": true,
+            "description": "One of: easy, medium, hard",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "kidAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "questions[] — type-specific fields for the renderer; correct answer not included",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "questions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ],
+                        "additionalProperties": true
+                      }
+                    }
+                  },
+                  "required": [
+                    "questions"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kid/maths/certificates": {
       "get": {
         "tags": [

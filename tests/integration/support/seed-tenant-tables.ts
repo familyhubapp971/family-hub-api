@@ -22,6 +22,8 @@ import {
   mealTemplates,
   members,
   mwInvestments,
+  mwLogicCertificates,
+  mwLogicProgress,
   mwMathsCertificates,
   mwMathsProgress,
   mwSavings,
@@ -354,6 +356,26 @@ export async function seedRow(
       });
       break;
     }
+    case 'mw_logic_progress': {
+      await db.insert(mwLogicProgress).values({
+        tenantId,
+        memberId: ctx.memberId!,
+        gameType: 'truefalse',
+        difficulty: 'easy',
+        correctCount: 0,
+      });
+      break;
+    }
+    case 'mw_logic_certificates': {
+      await db.insert(mwLogicCertificates).values({
+        tenantId,
+        memberId: ctx.memberId!,
+        gameType: 'truefalse',
+        difficulty: 'easy',
+        totalCorrect: 10,
+      });
+      break;
+    }
     default:
       throw new Error(`seedRow: unknown table "${name}"`);
   }
@@ -388,6 +410,8 @@ const DEPENDENCY_ORDER = [
   'mw_week_actions',
   'mw_maths_progress',
   'mw_maths_certificates',
+  'mw_logic_progress',
+  'mw_logic_certificates',
   'savings',
   'week_actions',
   'savings_transactions',

@@ -1441,6 +1441,79 @@ export type MwMathsCertificates = typeof mwMathsCertificates.$inferSelect;
 export type NewMwMathsCertificates = typeof mwMathsCertificates.$inferInsert;
 
 /**
+ * `mw_logic_progress` (FHS-395) — per-kid correct-answer count for each
+ * logic game_type × difficulty. One row per (tenant, member, game_type,
+ * difficulty). correct_count is incremented server-side on each correct
+ * answer; reaching CERTIFICATE_THRESHOLD (10) triggers a certificate insert.
+ * RLS: tenant_isolation policy gates all reads/writes.
+ */
+export const mwLogicProgress = pgTable(
+  'mw_logic_progress',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    // 'truefalse' | 'patterns' | 'oddoneout' | 'ifthen' | 'sorting'
+    gameType: text('game_type').notNull(),
+    // 'easy' | 'medium' | 'hard'
+    difficulty: text('difficulty').notNull(),
+    correctCount: integer('correct_count').notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('mw_logic_progress_unique_idx').on(
+      t.tenantId,
+      t.memberId,
+      t.gameType,
+      t.difficulty,
+    ),
+    index('mw_logic_progress_member_idx').on(t.tenantId, t.memberId),
+  ],
+);
+
+export type MwLogicProgress = typeof mwLogicProgress.$inferSelect;
+export type NewMwLogicProgress = typeof mwLogicProgress.$inferInsert;
+
+/**
+ * `mw_logic_certificates` (FHS-395) — per-kid achievement certificates for
+ * each game_type × difficulty. Awarded server-side when correct_count reaches
+ * CERTIFICATE_THRESHOLD (10). The UNIQUE constraint makes inserts idempotent
+ * via onConflictDoNothing. RLS: tenant_isolation policy gates all reads/writes.
+ */
+export const mwLogicCertificates = pgTable(
+  'mw_logic_certificates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    gameType: text('game_type').notNull(),
+    difficulty: text('difficulty').notNull(),
+    totalCorrect: integer('total_correct').notNull(),
+    earnedAt: timestamp('earned_at', { withTimezone: true }).defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('mw_logic_certificates_unique_idx').on(
+      t.tenantId,
+      t.memberId,
+      t.gameType,
+      t.difficulty,
+    ),
+    index('mw_logic_certificates_member_idx').on(t.tenantId, t.memberId),
+  ],
+);
+
+export type MwLogicCertificates = typeof mwLogicCertificates.$inferSelect;
+export type NewMwLogicCertificates = typeof mwLogicCertificates.$inferInsert;
+
+/**
  * Registry of every tenant-scoped table. Drives the cross-tenant leak
  * audit (FHS-6) and any future cross-cutting tooling that needs to walk
  * all family-scoped tables. ADD NEW TABLES HERE when they land — the
@@ -1479,4 +1552,6 @@ export const TENANT_SCOPED_TABLES = [
   worldFlagsLearnProgress,
   mwMathsProgress,
   mwMathsCertificates,
+  mwLogicProgress,
+  mwLogicCertificates,
 ] as const;
