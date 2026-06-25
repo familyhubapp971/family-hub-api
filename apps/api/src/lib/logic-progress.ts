@@ -88,7 +88,11 @@ export async function getProgress(
 }
 
 /**
- * Upsert progress row, incrementing correctCount by delta (usually +1).
+ * Upsert progress row, incrementing correctCount by delta (usually +1) and
+ * totalAttempts by attemptsDelta (always +1 — called for every answer).
+ *
+ * FHS-401: totalAttempts tracks every submitted answer (correct or wrong)
+ * so the Insights API can compute accuracy = correctCount / totalAttempts.
  *
  * Read-then-write increment: a concurrent request for the same kid+combo
  * could increment from the same base value. This race is acceptable — the
@@ -103,10 +107,12 @@ export async function upsertProgress(
   gameType: LogicGameType,
   difficulty: LogicDifficulty,
   delta: number,
+  attemptsDelta: number = 1,
 ): Promise<number> {
   const existing = await getProgress(db, tenantId, memberId, gameType, difficulty);
 
   const newCount = (existing?.correctCount ?? 0) + delta;
+  const newAttempts = (existing?.totalAttempts ?? 0) + attemptsDelta;
 
   await db
     .insert(mwLogicProgress)
@@ -116,6 +122,7 @@ export async function upsertProgress(
       gameType,
       difficulty,
       correctCount: newCount,
+      totalAttempts: newAttempts,
     })
     .onConflictDoUpdate({
       target: [
@@ -126,6 +133,7 @@ export async function upsertProgress(
       ],
       set: {
         correctCount: newCount,
+        totalAttempts: newAttempts,
         updatedAt: new Date(),
       },
     });
@@ -207,7 +215,8 @@ export async function gradeAndRecord(
   let certificateEarned = false;
 
   if (gradeResult.correct) {
-    comboCorrect = await upsertProgress(db, tenantId, memberId, gameType, difficulty, 1);
+    // FHS-401: increment both correctCount (+1) and totalAttempts (+1).
+    comboCorrect = await upsertProgress(db, tenantId, memberId, gameType, difficulty, 1, 1);
 
     if (comboCorrect >= CERTIFICATE_THRESHOLD) {
       certificateEarned = await awardCertificate(
@@ -220,8 +229,9 @@ export async function gradeAndRecord(
       );
     }
   } else {
-    const existing = await getProgress(db, tenantId, memberId, gameType, difficulty);
-    comboCorrect = existing?.correctCount ?? 0;
+    // FHS-401: wrong answer — increment totalAttempts (+1) but NOT correctCount.
+    // upsertProgress with delta=0, attemptsDelta=1 achieves this.
+    comboCorrect = await upsertProgress(db, tenantId, memberId, gameType, difficulty, 0, 1);
   }
 
   return {

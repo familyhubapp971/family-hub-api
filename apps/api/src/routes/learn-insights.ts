@@ -34,6 +34,8 @@ const subjectInsightSchema = z.object({
   certificatesTotal: z.number().int().min(0),
   lastActive: z.string().datetime().nullable(),
   needsHelp: z.boolean(),
+  // FHS-401 — accuracy percentage (0–100, rounded) or null if no attempts recorded yet.
+  accuracyPct: z.number().int().min(0).max(100).nullable(),
 });
 
 const weakestDetailSchema = z.object({

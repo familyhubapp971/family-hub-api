@@ -111,13 +111,16 @@ describe('gradeAndRecord — correct answer increments count', () => {
     expect(onConflictDoUpdate).toHaveBeenCalledOnce();
   });
 
-  it('does NOT increment count on a wrong answer', async () => {
+  it('does NOT increment correctCount on a wrong answer, but DOES increment totalAttempts', async () => {
+    // FHS-401: wrong answers now call upsertProgress(delta=0, attemptsDelta=1)
+    // so totalAttempts increments but correctCount stays the same.
     const { getRawQuestions } = await import('../../../../apps/api/src/lib/logic-questions.js');
     const questions = getRawQuestions('truefalse', 'easy');
     const q = questions[0]!;
     const wrongAnswer = !q.answer; // flip boolean
 
     const existingCount = 3;
+    const existingAttempts = 5;
     const selectRows = [
       {
         id: 'p1',
@@ -126,10 +129,23 @@ describe('gradeAndRecord — correct answer increments count', () => {
         gameType: 'truefalse',
         difficulty: 'easy',
         correctCount: existingCount,
+        totalAttempts: existingAttempts,
         updatedAt: new Date(),
       },
     ];
-    const { insert } = makeInsertMock([]);
+    // Wrong answer path now calls upsertProgress (insert with delta=0, attemptsDelta=1).
+    const { insert, onConflictDoUpdate } = makeInsertMock([
+      {
+        id: 'p1',
+        tenantId: TENANT,
+        memberId: MEMBER,
+        gameType: 'truefalse',
+        difficulty: 'easy',
+        correctCount: existingCount, // unchanged
+        totalAttempts: existingAttempts + 1,
+        updatedAt: new Date(),
+      },
+    ]);
     const db = {
       select: makeSelectMock(selectRows),
       insert,
@@ -138,10 +154,12 @@ describe('gradeAndRecord — correct answer increments count', () => {
     const result = await gradeAndRecord(db, TENANT, MEMBER, 'truefalse', 'easy', q.id, wrongAnswer);
 
     expect(result.correct).toBe(false);
-    // comboCorrect reflects the existing (unchanged) count.
+    // comboCorrect = existingCount + 0 (delta=0 on wrong answers).
     expect(result.comboCorrect).toBe(existingCount);
     expect(result.certificateEarned).toBe(false);
-    expect(insert).not.toHaveBeenCalled();
+    // insert IS now called — to increment totalAttempts.
+    expect(insert).toHaveBeenCalledOnce();
+    expect(onConflictDoUpdate).toHaveBeenCalledOnce();
   });
 });
 
@@ -243,6 +261,72 @@ describe('gradeAndRecord — unknown question throws', () => {
     await expect(
       gradeAndRecord(db, TENANT, MEMBER, 'truefalse', 'easy', 'nonexistent-id', true),
     ).rejects.toThrow('Question not found');
+  });
+});
+
+// ─── upsertProgress — attempt counter (FHS-401) ──────────────────────────────
+
+describe('upsertProgress — totalAttempts counter', () => {
+  it('increments totalAttempts on correct answer (delta=1, attemptsDelta=1)', async () => {
+    const { upsertProgress } = await import('../../../../apps/api/src/lib/logic-progress.js');
+
+    const existingRow = {
+      id: 'r1',
+      tenantId: TENANT,
+      memberId: MEMBER,
+      gameType: 'truefalse',
+      difficulty: 'easy',
+      correctCount: 5,
+      totalAttempts: 8,
+      updatedAt: new Date(),
+    };
+
+    const { insert, onConflictDoUpdate, values } = makeInsertMock([
+      { ...existingRow, correctCount: 6, totalAttempts: 9 },
+    ]);
+    const db = {
+      select: makeSelectMock([existingRow]),
+      insert,
+    } as unknown as Parameters<typeof upsertProgress>[0];
+
+    const newCount = await upsertProgress(db, TENANT, MEMBER, 'truefalse', 'easy', 1, 1);
+
+    expect(newCount).toBe(6);
+    expect(insert).toHaveBeenCalledOnce();
+    // The values passed to insert should include totalAttempts = 9 (8+1).
+    const insertedValues = (values.mock.calls[0] as [Record<string, unknown>][])[0];
+    expect(insertedValues?.totalAttempts).toBe(9);
+    expect(onConflictDoUpdate).toHaveBeenCalledOnce();
+  });
+
+  it('increments totalAttempts but NOT correctCount on wrong answer (delta=0, attemptsDelta=1)', async () => {
+    const { upsertProgress } = await import('../../../../apps/api/src/lib/logic-progress.js');
+
+    const existingRow = {
+      id: 'r2',
+      tenantId: TENANT,
+      memberId: MEMBER,
+      gameType: 'patterns',
+      difficulty: 'hard',
+      correctCount: 3,
+      totalAttempts: 7,
+      updatedAt: new Date(),
+    };
+
+    const { insert, values } = makeInsertMock([
+      { ...existingRow, correctCount: 3, totalAttempts: 8 },
+    ]);
+    const db = {
+      select: makeSelectMock([existingRow]),
+      insert,
+    } as unknown as Parameters<typeof upsertProgress>[0];
+
+    const newCount = await upsertProgress(db, TENANT, MEMBER, 'patterns', 'hard', 0, 1);
+
+    expect(newCount).toBe(3); // correctCount unchanged
+    const insertedValues = (values.mock.calls[0] as [Record<string, unknown>][])[0];
+    expect(insertedValues?.correctCount).toBe(3);
+    expect(insertedValues?.totalAttempts).toBe(8); // was 7, now 8
   });
 });
 

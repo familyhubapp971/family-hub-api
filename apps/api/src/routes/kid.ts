@@ -1019,19 +1019,36 @@ export const kidRouter = new Hono()
       );
     }
     await pinRequestTenant(kid.tenantId);
-    const { operation, tableNumber, learnCompleted, practiceCorrect, proveScore, proveAvgTime } =
-      parsed.data;
+    const {
+      operation,
+      tableNumber,
+      learnCompleted,
+      practiceCorrect,
+      proveScore,
+      proveAvgTime,
+      practiceAttempts,
+      proveAttempts,
+    } = parsed.data;
     // Only pass fields that were explicitly supplied (exactOptionalPropertyTypes).
     const updates: {
       learnCompleted?: boolean;
       practiceCorrect?: number;
       proveScore?: number;
       proveAvgTime?: number;
+      accuracyDelta?: { correct: number; attempts: number };
     } = {};
     if (learnCompleted !== undefined) updates.learnCompleted = learnCompleted;
     if (practiceCorrect !== undefined) updates.practiceCorrect = practiceCorrect;
     if (proveScore !== undefined) updates.proveScore = proveScore;
     if (proveAvgTime !== undefined) updates.proveAvgTime = proveAvgTime;
+    // FHS-401: accumulate accuracy counters when attempt data is provided.
+    // Practice: 10 fixed questions, practiceAttempts=10 always.
+    // Prove: proveAttempts = totalAnswered in the 60s window.
+    if (practiceCorrect !== undefined && practiceAttempts !== undefined) {
+      updates.accuracyDelta = { correct: practiceCorrect, attempts: practiceAttempts };
+    } else if (proveScore !== undefined && proveAttempts !== undefined) {
+      updates.accuracyDelta = { correct: proveScore, attempts: proveAttempts };
+    }
     const row = await upsertProgress(
       getDb(),
       kid.tenantId,

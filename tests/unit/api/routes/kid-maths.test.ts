@@ -129,6 +129,8 @@ describe('FHS-394 — GET /api/kid/maths/progress', () => {
       proveScore: 10,
       proveAvgTime: 2.5,
       placementUnlocked: false,
+      totalCorrect: 0, // FHS-401
+      totalAttempts: 0,
       updatedAt: new Date(),
     };
     // listProgress: select().from().where() — no .limit() in that helper.
@@ -179,6 +181,36 @@ describe('FHS-394 — PUT /api/kid/maths/progress', () => {
     expect(res.status).toBe(400);
   });
 
+  it('400 when practiceCorrect > practiceAttempts (impossible input, FHS-401)', async () => {
+    const token = await mintKidToken();
+    const res = await buildApp().request('/api/kid/maths/progress', {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'addition',
+        tableNumber: 1,
+        practiceCorrect: 9,
+        practiceAttempts: 5,
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('400 when proveScore > proveAttempts (impossible input, FHS-401)', async () => {
+    const token = await mintKidToken();
+    const res = await buildApp().request('/api/kid/maths/progress', {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'addition',
+        tableNumber: 1,
+        proveScore: 10,
+        proveAttempts: 8,
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('200 + updated row on valid body', async () => {
     const upserted = {
       id: '00000000-0000-4000-8000-000000000002',
@@ -191,8 +223,18 @@ describe('FHS-394 — PUT /api/kid/maths/progress', () => {
       proveScore: 0,
       proveAvgTime: 0,
       placementUnlocked: false,
+      totalCorrect: 0, // FHS-401
+      totalAttempts: 0,
       updatedAt: new Date(),
     };
+    // FHS-401: upsertProgress now does a SELECT to read existing accuracy totals first.
+    dbMock.select.mockImplementationOnce(() => ({
+      from: () => ({
+        where: () => ({
+          limit: () => Promise.resolve([]), // no existing row
+        }),
+      }),
+    }));
     dbMock.insert.mockImplementationOnce(() => ({
       values: () => ({
         onConflictDoUpdate: () => ({

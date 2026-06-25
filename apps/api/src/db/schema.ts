@@ -1386,6 +1386,13 @@ export const mwMathsProgress = pgTable(
     // Postgres REAL (4-byte float) — matches legacy schema.
     proveAvgTime: real('prove_avg_time').notNull().default(0),
     placementUnlocked: boolean('placement_unlocked').notNull().default(false),
+    // FHS-401 — cumulative accuracy counters accumulated from PUT body.
+    // total_correct += practiceCorrect (practice) or proveScore (prove) per call.
+    // total_attempts += practiceAttempts (always 10) or proveAttempts per call.
+    // Separate from per-session fields (practiceCorrect/proveScore) that gate
+    // stage completion — these are lifetime sums for the Insights accuracy %.
+    totalCorrect: integer('total_correct').notNull().default(0),
+    totalAttempts: integer('total_attempts').notNull().default(0),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   },
   (t) => [
@@ -1462,6 +1469,9 @@ export const mwLogicProgress = pgTable(
     // 'easy' | 'medium' | 'hard'
     difficulty: text('difficulty').notNull(),
     correctCount: integer('correct_count').notNull().default(0),
+    // FHS-401 — cumulative attempt counter incremented on EVERY answer (correct or wrong).
+    // Enables per-subject accuracy = sum(correctCount) / sum(totalAttempts).
+    totalAttempts: integer('total_attempts').notNull().default(0),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   },
   (t) => [

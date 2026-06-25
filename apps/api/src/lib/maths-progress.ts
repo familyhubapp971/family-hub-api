@@ -43,6 +43,14 @@ export const updateProgressBodySchema = z
     practiceCorrect: z.number().int().min(0).optional(),
     proveScore: z.number().int().min(0).optional(),
     proveAvgTime: z.number().min(0).optional(),
+    // FHS-401 — attempt counts for cumulative accuracy tracking.
+    // practiceAttempts: always 10 (MathsTablePractice always asks 10 questions).
+    // proveAttempts: total questions answered in the 60s Prove window.
+    // These are accumulated into mw_maths_progress.total_correct / total_attempts
+    // independently of the per-session practiceCorrect / proveScore that gate stage
+    // completion. Only supplied when the corresponding stage field is also provided.
+    practiceAttempts: z.number().int().min(0).optional(),
+    proveAttempts: z.number().int().min(0).optional(),
   })
   .refine(
     (d) =>
@@ -54,6 +62,22 @@ export const updateProgressBodySchema = z
       message:
         'At least one stage field (learnCompleted, practiceCorrect, proveScore, proveAvgTime) must be provided',
     },
+  )
+  // FHS-401: reject impossible accuracy inputs that would corrupt DB totals.
+  // correct > attempts is physically impossible and would produce >100% accuracy.
+  .refine(
+    (d) =>
+      d.practiceCorrect === undefined ||
+      d.practiceAttempts === undefined ||
+      d.practiceCorrect <= d.practiceAttempts,
+    { message: 'practiceCorrect cannot exceed practiceAttempts' },
+  )
+  .refine(
+    (d) =>
+      d.proveScore === undefined ||
+      d.proveAttempts === undefined ||
+      d.proveScore <= d.proveAttempts,
+    { message: 'proveScore cannot exceed proveAttempts' },
   );
 
 /** POST /api/kid/maths/placement body. */
@@ -111,6 +135,9 @@ export const mathsProgressRowSchema = z.object({
   proveScore: z.number().int(),
   proveAvgTime: z.number(),
   placementUnlocked: z.boolean(),
+  // FHS-401 — cumulative accuracy counters.
+  totalCorrect: z.number().int(),
+  totalAttempts: z.number().int(),
   updatedAt: z.string().nullable(),
 });
 export const listMathsProgressResponseSchema = z.object({
@@ -144,6 +171,8 @@ function serializeProgress(r: {
   proveScore: number;
   proveAvgTime: number;
   placementUnlocked: boolean;
+  totalCorrect: number;
+  totalAttempts: number;
   updatedAt: Date | null;
 }) {
   return {
@@ -157,6 +186,8 @@ function serializeProgress(r: {
     proveScore: r.proveScore,
     proveAvgTime: r.proveAvgTime,
     placementUnlocked: r.placementUnlocked,
+    totalCorrect: r.totalCorrect,
+    totalAttempts: r.totalAttempts,
     updatedAt: r.updatedAt?.toISOString() ?? null,
   };
 }
@@ -194,6 +225,16 @@ export async function listProgress(db: Database, tenantId: string, memberId: str
 /**
  * Upsert one progress row, updating ONLY the fields provided in `updates`.
  * The identity key is (tenantId, memberId, operation, tableNumber).
+ *
+ * FHS-401: accuracyDelta.correct and accuracyDelta.attempts are ACCUMULATED
+ * onto the existing totalCorrect/totalAttempts rather than replacing them.
+ * These lifetime counters enable accuracy = totalCorrect / totalAttempts in
+ * the Insights API without touching per-session stage-gate fields.
+ *
+ * The SELECT (read existing totals) is SKIPPED when no real accuracy delta is
+ * present (accuracyDelta absent, or accuracyDelta.attempts === 0) to avoid a
+ * wasted round-trip on learnCompleted-only or no-op-session PUTs.
+ *
  * Returns the upserted row.
  */
 export async function upsertProgress(
@@ -207,11 +248,46 @@ export async function upsertProgress(
     practiceCorrect?: number;
     proveScore?: number;
     proveAvgTime?: number;
+    // FHS-401 — accuracy accumulators (optional; omit when no attempt data available).
+    accuracyDelta?: { correct: number; attempts: number };
   },
 ) {
+  // FHS-401: only read existing totals when there are real attempts to accumulate.
+  // A learnCompleted-only PUT or a 0-attempt session must NOT touch the counters.
+  const hasRealDelta = updates.accuracyDelta !== undefined && updates.accuracyDelta.attempts > 0;
+
+  let newTotalCorrect = 0;
+  let newTotalAttempts = 0;
+
+  if (hasRealDelta) {
+    const [existing] = await db
+      .select({
+        totalCorrect: mwMathsProgress.totalCorrect,
+        totalAttempts: mwMathsProgress.totalAttempts,
+      })
+      .from(mwMathsProgress)
+      .where(
+        and(
+          eq(mwMathsProgress.tenantId, tenantId),
+          eq(mwMathsProgress.memberId, memberId),
+          eq(mwMathsProgress.operation, operation),
+          eq(mwMathsProgress.tableNumber, tableNumber),
+        ),
+      )
+      .limit(1);
+
+    newTotalCorrect = (existing?.totalCorrect ?? 0) + updates.accuracyDelta!.correct;
+    newTotalAttempts = (existing?.totalAttempts ?? 0) + updates.accuracyDelta!.attempts;
+  }
+
   // Build the conflict-update set — only include provided fields so a PUT
   // with only { practiceCorrect } doesn't accidentally reset learnCompleted.
+  // totalCorrect/totalAttempts are ONLY updated when hasRealDelta is true.
   const conflictSet: Record<string, unknown> = { updatedAt: sql`now()` };
+  if (hasRealDelta) {
+    conflictSet['totalCorrect'] = newTotalCorrect;
+    conflictSet['totalAttempts'] = newTotalAttempts;
+  }
   if (updates.learnCompleted !== undefined) conflictSet['learnCompleted'] = updates.learnCompleted;
   if (updates.practiceCorrect !== undefined)
     conflictSet['practiceCorrect'] = updates.practiceCorrect;
@@ -229,6 +305,8 @@ export async function upsertProgress(
       practiceCorrect: updates.practiceCorrect ?? 0,
       proveScore: updates.proveScore ?? 0,
       proveAvgTime: updates.proveAvgTime ?? 0,
+      totalCorrect: newTotalCorrect,
+      totalAttempts: newTotalAttempts,
     })
     .onConflictDoUpdate({
       target: [

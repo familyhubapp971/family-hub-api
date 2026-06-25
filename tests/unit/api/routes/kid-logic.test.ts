@@ -312,11 +312,31 @@ describe('FHS-395 — POST /api/kid/logic/answer', () => {
     const q = qs[0]!;
     const wrongAnswer = !q.answer; // flip the boolean
 
-    // DB for the "wrong answer" path: getProgress called once.
+    // FHS-401: wrong answers now call upsertProgress (delta=0, attemptsDelta=1),
+    // so both select and insert must be mocked.
     dbMock.select.mockImplementation(() => ({
       from: () => ({
         where: () => ({
           limit: () => Promise.resolve([]),
+        }),
+      }),
+    }));
+    dbMock.insert.mockImplementation(() => ({
+      values: () => ({
+        onConflictDoUpdate: () => ({
+          returning: () =>
+            Promise.resolve([
+              {
+                id: 'p1',
+                tenantId: TENANT_ID,
+                memberId: MEMBER_ID,
+                gameType: 'truefalse',
+                difficulty: 'easy',
+                correctCount: 0,
+                totalAttempts: 1,
+                updatedAt: new Date(),
+              },
+            ]),
         }),
       }),
     }));
@@ -456,10 +476,30 @@ describe('FHS-395 — POST /api/kid/logic/answer', () => {
     const { getRawQuestions } = await import('../../../../apps/api/src/lib/logic-questions.js');
     const sortQ = getRawQuestions('sorting', 'easy')[0]!;
 
+    // FHS-401: wrong answers call upsertProgress — mock both select and insert.
     dbMock.select.mockImplementation(() => ({
       from: () => ({
         where: () => ({
           limit: () => Promise.resolve([]),
+        }),
+      }),
+    }));
+    dbMock.insert.mockImplementation(() => ({
+      values: () => ({
+        onConflictDoUpdate: () => ({
+          returning: () =>
+            Promise.resolve([
+              {
+                id: 'p1',
+                tenantId: TENANT_ID,
+                memberId: MEMBER_ID,
+                gameType: 'sorting',
+                difficulty: 'easy',
+                correctCount: 0,
+                totalAttempts: 1,
+                updatedAt: new Date(),
+              },
+            ]),
         }),
       }),
     }));

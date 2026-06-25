@@ -2762,6 +2762,12 @@
                           "placementUnlocked": {
                             "type": "boolean"
                           },
+                          "totalCorrect": {
+                            "type": "integer"
+                          },
+                          "totalAttempts": {
+                            "type": "integer"
+                          },
                           "updatedAt": {
                             "type": "string",
                             "nullable": true
@@ -2778,6 +2784,8 @@
                           "proveScore",
                           "proveAvgTime",
                           "placementUnlocked",
+                          "totalCorrect",
+                          "totalAttempts",
                           "updatedAt"
                         ],
                         "additionalProperties": false
@@ -2840,6 +2848,14 @@
                   "proveAvgTime": {
                     "type": "number",
                     "minimum": 0
+                  },
+                  "practiceAttempts": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "proveAttempts": {
+                    "type": "integer",
+                    "minimum": 0
                   }
                 },
                 "required": [
@@ -2898,6 +2914,12 @@
                     "placementUnlocked": {
                       "type": "boolean"
                     },
+                    "totalCorrect": {
+                      "type": "integer"
+                    },
+                    "totalAttempts": {
+                      "type": "integer"
+                    },
                     "updatedAt": {
                       "type": "string",
                       "nullable": true
@@ -2914,6 +2936,8 @@
                     "proveScore",
                     "proveAvgTime",
                     "placementUnlocked",
+                    "totalCorrect",
+                    "totalAttempts",
                     "updatedAt"
                   ],
                   "additionalProperties": false
@@ -4129,6 +4153,12 @@
                           },
                           "needsHelp": {
                             "type": "boolean"
+                          },
+                          "accuracyPct": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100,
+                            "nullable": true
                           }
                         },
                         "required": [
@@ -4137,7 +4167,8 @@
                           "certificatesEarned",
                           "certificatesTotal",
                           "lastActive",
-                          "needsHelp"
+                          "needsHelp",
+                          "accuracyPct"
                         ],
                         "additionalProperties": false
                       }

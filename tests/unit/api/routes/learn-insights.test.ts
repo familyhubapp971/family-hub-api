@@ -52,6 +52,7 @@ const STUB_INSIGHTS = {
       certificatesTotal: 48,
       lastActive: null,
       needsHelp: false,
+      accuracyPct: null, // FHS-401
     },
     {
       subject: 'Logic' as const,
@@ -60,6 +61,7 @@ const STUB_INSIGHTS = {
       certificatesTotal: 15,
       lastActive: null,
       needsHelp: false,
+      accuracyPct: null,
     },
     {
       subject: 'Science' as const,
@@ -68,6 +70,7 @@ const STUB_INSIGHTS = {
       certificatesTotal: 1,
       lastActive: null,
       needsHelp: false,
+      accuracyPct: null,
     },
     {
       subject: 'World Flags' as const,
@@ -76,6 +79,7 @@ const STUB_INSIGHTS = {
       certificatesTotal: 6,
       lastActive: null,
       needsHelp: false,
+      accuracyPct: null,
     },
   ],
   weakest: null,
