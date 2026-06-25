@@ -40,6 +40,9 @@
       "name": "kid"
     },
     {
+      "name": "learn"
+    },
+    {
       "name": "me"
     },
     {
@@ -4044,6 +4047,138 @@
                   },
                   "required": [
                     "completed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/learn/insights": {
+      "get": {
+        "tags": [
+          "learn"
+        ],
+        "summary": "A child's Learn insights across Maths, Logic, Science, and World Flags (parent view)",
+        "operationId": "get_api_learn_insights",
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "query",
+            "required": true,
+            "description": "UUID of the child member to query (must belong to the same family)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aggregated insights for the requested child. hasActivity: false when the child has no Learn activity at all.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "memberId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "displayName": {
+                      "type": "string"
+                    },
+                    "subjects": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "subject": {
+                            "type": "string",
+                            "enum": [
+                              "Maths",
+                              "Logic",
+                              "Science",
+                              "World Flags"
+                            ]
+                          },
+                          "progressPct": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100
+                          },
+                          "certificatesEarned": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "certificatesTotal": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "lastActive": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          },
+                          "needsHelp": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "subject",
+                          "progressPct",
+                          "certificatesEarned",
+                          "certificatesTotal",
+                          "lastActive",
+                          "needsHelp"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "weakest": {
+                      "type": "object",
+                      "properties": {
+                        "subject": {
+                          "type": "string",
+                          "enum": [
+                            "Maths",
+                            "Logic",
+                            "Science",
+                            "World Flags"
+                          ]
+                        },
+                        "detail": {
+                          "type": "string"
+                        },
+                        "tip": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "subject",
+                        "detail",
+                        "tip"
+                      ],
+                      "additionalProperties": false,
+                      "nullable": true
+                    },
+                    "hasActivity": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "memberId",
+                    "displayName",
+                    "subjects",
+                    "weakest",
+                    "hasActivity"
                   ],
                   "additionalProperties": false
                 }

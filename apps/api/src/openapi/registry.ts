@@ -87,6 +87,7 @@ import {
   lessonAnswerResponseSchema,
   subtopicSchema,
 } from '../lib/learn-shared.js';
+import { learnInsightsResponseSchema } from '../routes/learn-insights.js';
 
 export interface QueryParamMeta {
   description?: string;
@@ -278,6 +279,21 @@ export const routeMeta: Record<string, RouteMeta> = {
     responseDesc:
       '{ enabled: false } when the flag is off; { enabled: true, lesson } on success; { enabled: true, lesson: null, error } on AI failure',
   },
+  // FHS-384 — Learn Insights (parent view of one child's learning progress).
+  'GET /api/learn/insights': {
+    summary: "A child's Learn insights across Maths, Logic, Science, and World Flags (parent view)",
+    response: learnInsightsResponseSchema,
+    responseDesc:
+      'Aggregated insights for the requested child. hasActivity: false when the child has no Learn activity at all.',
+    queryParams: {
+      memberId: {
+        description: 'UUID of the child member to query (must belong to the same family)',
+        required: true,
+        schema: z.string().uuid(),
+      },
+    },
+  },
+
   'GET /api/mw/analytics': {
     summary: "A child's My World analytics (parent view)",
     response: mwAnalyticsResponseSchema,
