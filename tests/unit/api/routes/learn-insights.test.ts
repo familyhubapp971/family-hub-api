@@ -53,6 +53,9 @@ const STUB_INSIGHTS = {
       lastActive: null,
       needsHelp: false,
       accuracyPct: null, // FHS-401
+      continentsExplored: 0, // FHS-401
+      continentsTotal: 0,
+      exploredContinents: [],
     },
     {
       subject: 'Logic' as const,
@@ -62,6 +65,9 @@ const STUB_INSIGHTS = {
       lastActive: null,
       needsHelp: false,
       accuracyPct: null,
+      continentsExplored: 0,
+      continentsTotal: 0,
+      exploredContinents: [],
     },
     {
       subject: 'Science' as const,
@@ -71,6 +77,9 @@ const STUB_INSIGHTS = {
       lastActive: null,
       needsHelp: false,
       accuracyPct: null,
+      continentsExplored: 0,
+      continentsTotal: 0,
+      exploredContinents: [],
     },
     {
       subject: 'World Flags' as const,
@@ -80,6 +89,9 @@ const STUB_INSIGHTS = {
       lastActive: null,
       needsHelp: false,
       accuracyPct: null,
+      continentsExplored: 0,
+      continentsTotal: 6,
+      exploredContinents: [],
     },
   ],
   weakest: null,

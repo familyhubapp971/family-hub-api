@@ -6,16 +6,8 @@
 //   - weakest tie-break: ties resolve to first in array order (Maths→Logic→Science→WF)
 //   - empty-state: child with no activity → hasActivity false, all zeroed, weakest null
 //   - FHS-401: accuracyPct per subject (Maths/Logic/Science real accuracy; WF null)
-//   - FHS-401: needsHelp uses real accuracy (< 60%) when enough attempts exist
-//
-// Mock call ordering (Promise.all concurrent, but JS single-threaded):
-//   fetchMaths    → call 1: maths certs count
-//   fetchLogic    → call 2: logic certs count
-//   fetchScience  → call 3: science learn_progress row
-//   fetchFlags    → call 4: world_flags_progress count
-//   fetchMaths    → call 5: maths progress aggregate (lastActive, avgProveTime, totalCorrect, totalAttempts)
-//   fetchLogic    → call 6: logic progress rows (grouped by game_type, with totalAttempts)
-//   fetchLogic    → call 7: logic certs per game_type
+//   - FHS-401: needsHelp uses real accuracy (< 70%) when enough attempts exist
+//   - FHS-401: World Flags continentsExplored / exploredContinents from wf_learn_progress
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -59,14 +51,23 @@ vi.mock('../../../../apps/api/src/db/client.js', () => ({
 
 /**
  * Set up the mock DB to return the given row sets in order per call.
- * Call order (fixed by Promise.all async behaviour in single-threaded JS):
+ *
+ * Call order (verified empirically via Promise microtask ordering):
  *   1 = maths certs count
  *   2 = logic certs count
  *   3 = science learn_progress row
- *   4 = world_flags_progress count
- *   5 = maths progress agg (lastActive, avgProveTime)
+ *   4 = world_flags_progress count (explored countries)
+ *   5 = maths progress agg (lastActive, avgProveTime, totalCorrect, totalAttempts)
  *   6 = logic progress rows (grouped by game_type)
- *   7 = logic certs per game_type
+ *   7 = world_flags_learn_progress distinct continents (FHS-401)
+ *   8 = logic certs per game_type
+ *
+ * Why 6 before 7: fetchLogic's .where().groupBy() chain queues its resolution
+ * microtask before fetchWorldFlags's second .where().groupBy() because .groupBy()
+ * is called synchronously on the whereResult Promise in the same turn of the
+ * event loop as .where(). fetchWorldFlags must first await its first query (call 4)
+ * before it can even start the continents query — so the Logic second-query
+ * microtask is queued first.
  */
 function setupDbReturns(
   mathsCerts: Row[],
@@ -75,6 +76,7 @@ function setupDbReturns(
   flags: Row[],
   mathsProgress: Row[],
   logicProgressRows: Row[],
+  wfContinents: Row[],
   logicCertsPerGame: Row[],
 ) {
   dbReturns = [
@@ -84,6 +86,7 @@ function setupDbReturns(
     flags,
     mathsProgress,
     logicProgressRows,
+    wfContinents,
     logicCertsPerGame,
   ];
   callIndex = 0;
@@ -100,7 +103,7 @@ const MEMBER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 describe('computeLearnInsights — empty state (no activity)', () => {
   beforeEach(() => {
-    setupDbReturns([], [], [], [], [], [], []);
+    setupDbReturns([], [], [], [], [], [], [], []);
   });
 
   it('returns hasActivity false', async () => {
@@ -143,9 +146,10 @@ describe('computeLearnInsights — Maths needsHelp heuristic', () => {
       [{ certsEarned: '0' }], // maths certs
       [{ certsEarned: '0' }], // logic certs
       [], // science
-      [], // flags
+      [], // wf count
       [{ lastActive: new Date('2026-01-01'), avgProveTime: 15, totalCorrect: 0, totalAttempts: 0 }], // maths agg
       [], // logic progress rows
+      [], // wf continents
       [], // logic certs per game
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
@@ -158,9 +162,10 @@ describe('computeLearnInsights — Maths needsHelp heuristic', () => {
       [{ certsEarned: '2' }], // maths certs
       [{ certsEarned: '0' }], // logic certs
       [], // science
-      [], // flags
+      [], // wf count
       [{ lastActive: new Date('2026-01-01'), avgProveTime: 12, totalCorrect: 0, totalAttempts: 0 }],
       [], // logic progress rows
+      [], // wf continents
       [], // logic certs per game
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
@@ -177,6 +182,7 @@ describe('computeLearnInsights — Maths needsHelp heuristic', () => {
       [{ lastActive: new Date('2026-01-01'), avgProveTime: 3, totalCorrect: 3, totalAttempts: 10 }],
       [],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'Maths')!.needsHelp).toBe(true);
@@ -191,6 +197,7 @@ describe('computeLearnInsights — Maths needsHelp heuristic', () => {
       [],
       [],
       [{ lastActive: new Date('2026-01-01'), avgProveTime: 3, totalCorrect: 5, totalAttempts: 10 }],
+      [],
       [],
       [],
     );
@@ -215,6 +222,7 @@ describe('computeLearnInsights — Maths needsHelp heuristic', () => {
       ],
       [],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'Maths')!.needsHelp).toBe(false);
@@ -227,6 +235,7 @@ describe('computeLearnInsights — Maths needsHelp heuristic', () => {
       [],
       [],
       [{ lastActive: new Date('2026-01-01'), avgProveTime: 8, totalCorrect: 0, totalAttempts: 0 }],
+      [],
       [],
       [],
     );
@@ -244,6 +253,7 @@ describe('computeLearnInsights — Maths needsHelp heuristic', () => {
       [{ lastActive: new Date('2026-01-01'), avgProveTime: 15, totalCorrect: 0, totalAttempts: 0 }],
       [],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'Maths')!.needsHelp).toBe(false);
@@ -256,6 +266,7 @@ describe('computeLearnInsights — Maths needsHelp heuristic', () => {
       [],
       [],
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
+      [],
       [],
       [],
     );
@@ -271,6 +282,7 @@ describe('computeLearnInsights — Maths needsHelp heuristic', () => {
       [],
       [],
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
+      [],
       [],
       [],
     );
@@ -289,6 +301,7 @@ describe('computeLearnInsights — Maths needsHelp heuristic', () => {
       [{ lastActive: new Date('2026-01-01'), avgProveTime: 3, totalCorrect: 0, totalAttempts: 0 }],
       [],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'Maths')!.accuracyPct).toBeNull();
@@ -302,6 +315,7 @@ describe('computeLearnInsights — Maths needsHelp heuristic', () => {
       [],
       [],
       [{ lastActive: new Date('2026-01-01'), avgProveTime: 3, totalCorrect: 7, totalAttempts: 10 }],
+      [],
       [],
       [],
     );
@@ -327,6 +341,7 @@ describe('computeLearnInsights — Maths needsHelp heuristic', () => {
       ],
       [],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'Maths')!.accuracyPct).toBe(100);
@@ -342,7 +357,7 @@ describe('computeLearnInsights — Logic needsHelp heuristic', () => {
       [{ certsEarned: '0' }], // maths certs
       [{ certsEarned: '2' }], // logic certs
       [], // science
-      [], // flags
+      [], // wf count
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }], // maths agg
       [
         {
@@ -351,8 +366,9 @@ describe('computeLearnInsights — Logic needsHelp heuristic', () => {
           totalAttempts: '0',
           lastUpdated: new Date('2026-01-01'),
         },
-      ],
-      [{ gameType: 'sorting', certCount: '2' }],
+      ], // logic progress rows
+      [], // wf continents
+      [{ gameType: 'sorting', certCount: '2' }], // logic certs per game
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'Logic')!.needsHelp).toBe(true);
@@ -374,6 +390,7 @@ describe('computeLearnInsights — Logic needsHelp heuristic', () => {
           lastUpdated: new Date('2026-01-01'),
         },
       ],
+      [],
       [{ gameType: 'sorting', certCount: '2' }],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
@@ -398,6 +415,7 @@ describe('computeLearnInsights — Logic needsHelp heuristic', () => {
         },
       ],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'Logic')!.needsHelp).toBe(true);
@@ -419,6 +437,7 @@ describe('computeLearnInsights — Logic needsHelp heuristic', () => {
           lastUpdated: new Date('2026-01-01'),
         },
       ],
+      [],
       [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
@@ -442,6 +461,7 @@ describe('computeLearnInsights — Logic needsHelp heuristic', () => {
         },
       ],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'Logic')!.needsHelp).toBe(false);
@@ -454,6 +474,7 @@ describe('computeLearnInsights — Logic needsHelp heuristic', () => {
       [],
       [],
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
+      [],
       [],
       [],
     );
@@ -480,6 +501,7 @@ describe('computeLearnInsights — Logic needsHelp heuristic', () => {
           lastUpdated: new Date('2026-01-01'),
         },
       ],
+      [],
       [{ gameType: 'sorting', certCount: '2' }],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
@@ -508,6 +530,7 @@ describe('computeLearnInsights — Logic needsHelp heuristic', () => {
           lastUpdated: new Date('2026-01-02'),
         },
       ],
+      [],
       [{ gameType: 'sorting', certCount: '2' }],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
@@ -529,6 +552,7 @@ describe('computeLearnInsights — Logic needsHelp heuristic', () => {
           lastUpdated: new Date('2026-01-01'),
         },
       ],
+      [],
       [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
@@ -556,6 +580,7 @@ describe('computeLearnInsights — Science needsHelp heuristic', () => {
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
       [],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'Science')!.needsHelp).toBe(false);
@@ -577,6 +602,7 @@ describe('computeLearnInsights — Science needsHelp heuristic', () => {
       ],
       [],
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
+      [],
       [],
       [],
     );
@@ -602,6 +628,7 @@ describe('computeLearnInsights — Science needsHelp heuristic', () => {
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
       [],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'Science')!.needsHelp).toBe(false);
@@ -622,6 +649,7 @@ describe('computeLearnInsights — Science needsHelp heuristic', () => {
       ],
       [],
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
+      [],
       [],
       [],
     );
@@ -648,6 +676,7 @@ describe('computeLearnInsights — Science needsHelp heuristic', () => {
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
       [],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'Science')!.progressPct).toBe(100);
@@ -662,6 +691,7 @@ describe('computeLearnInsights — Science needsHelp heuristic', () => {
       [{ progress: 0, totalCorrect: 0, totalAnswered: 0, certificateAt: null, lastActive: null }],
       [],
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
+      [],
       [],
       [],
     );
@@ -687,6 +717,7 @@ describe('computeLearnInsights — Science needsHelp heuristic', () => {
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
       [],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'Science')!.accuracyPct).toBe(70);
@@ -709,6 +740,7 @@ describe('computeLearnInsights — Science needsHelp heuristic', () => {
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
       [],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'Science')!.accuracyPct).toBe(100);
@@ -727,6 +759,7 @@ describe('computeLearnInsights — World Flags', () => {
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
       [],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'World Flags')!.needsHelp).toBe(true);
@@ -739,6 +772,7 @@ describe('computeLearnInsights — World Flags', () => {
       [],
       [{ explored: '0', lastActive: null }],
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
+      [],
       [],
       [],
     );
@@ -755,6 +789,7 @@ describe('computeLearnInsights — World Flags', () => {
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
       [],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'World Flags')!.needsHelp).toBe(false);
@@ -769,6 +804,7 @@ describe('computeLearnInsights — World Flags', () => {
       [],
       [{ explored: '50', lastActive: new Date('2026-01-01') }],
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
+      [],
       [],
       [],
     );
@@ -788,6 +824,7 @@ describe('computeLearnInsights — World Flags', () => {
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
       [],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'World Flags')!.progressPct).toBe(50);
@@ -804,9 +841,102 @@ describe('computeLearnInsights — World Flags', () => {
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
       [],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.subjects.find((s) => s.subject === 'World Flags')!.accuracyPct).toBeNull();
+  });
+
+  // ─── FHS-401: continentsExplored / exploredContinents ────────────────────────
+
+  it('continentsExplored = 0 and exploredContinents = [] when no learn-path rows', async () => {
+    setupDbReturns(
+      [{ certsEarned: '0' }],
+      [{ certsEarned: '0' }],
+      [],
+      [{ explored: '5', lastActive: new Date('2026-01-01') }],
+      [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
+      [], // no logic progress rows
+      [], // no wf_learn_progress rows → no continents
+      [], // no logic certs per game
+    );
+    const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
+    const wf = res.subjects.find((s) => s.subject === 'World Flags')!;
+    expect(wf.continentsExplored).toBe(0);
+    expect(wf.exploredContinents).toEqual([]);
+    expect(wf.continentsTotal).toBe(WORLD_FLAGS_CONTINENTS_TOTAL);
+  });
+
+  it('continentsExplored counts distinct continent rows from world_flags_learn_progress', async () => {
+    setupDbReturns(
+      [{ certsEarned: '0' }],
+      [{ certsEarned: '0' }],
+      [],
+      [{ explored: '30', lastActive: new Date('2026-02-01') }],
+      [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
+      [], // no logic progress rows
+      [{ continent: 'Africa' }, { continent: 'Asia' }, { continent: 'Europe' }], // wf continents at call 7
+      [], // logic certs per game
+    );
+    const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
+    const wf = res.subjects.find((s) => s.subject === 'World Flags')!;
+    expect(wf.continentsExplored).toBe(3);
+    expect(wf.exploredContinents).toEqual(['Africa', 'Asia', 'Europe']);
+  });
+
+  it('continentsExplored is clamped to WORLD_FLAGS_CONTINENTS_TOTAL (6) when DB returns more rows', async () => {
+    // A corrupt or over-counted DB could return more than 6 distinct continents.
+    // Math.min(..., TOTAL) ensures the field never exceeds the schema's .max(6).
+    setupDbReturns(
+      [{ certsEarned: '0' }],
+      [{ certsEarned: '0' }],
+      [],
+      [{ explored: '50', lastActive: new Date('2026-02-01') }],
+      [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
+      [], // no logic progress rows
+      [
+        { continent: 'Africa' },
+        { continent: 'Asia' },
+        { continent: 'Europe' },
+        { continent: 'North America' },
+        { continent: 'South America' },
+        { continent: 'Oceania' },
+        { continent: 'Antarctica' }, // 7th row — should be clamped
+      ], // wf continents
+      [], // logic certs per game
+    );
+    const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
+    const wf = res.subjects.find((s) => s.subject === 'World Flags')!;
+    expect(wf.continentsExplored).toBe(6); // clamped to WORLD_FLAGS_CONTINENTS_TOTAL
+    // exploredContinents still has all 7 raw rows (clamping is on the count only)
+    expect(wf.exploredContinents).toHaveLength(7);
+  });
+
+  it('non-WF subjects have continentsExplored = 0 and exploredContinents = []', async () => {
+    setupDbReturns(
+      [{ certsEarned: '5' }],
+      [{ certsEarned: '3' }],
+      [
+        {
+          progress: 60,
+          totalCorrect: 6,
+          totalAnswered: 10,
+          certificateAt: null,
+          lastActive: new Date('2026-01-01'),
+        },
+      ],
+      [{ explored: '20', lastActive: new Date('2026-01-01') }],
+      [{ lastActive: new Date('2026-01-01'), avgProveTime: 3, totalCorrect: 0, totalAttempts: 0 }],
+      [], // no logic progress rows
+      [{ continent: 'Africa' }], // wf continents
+      [], // logic certs per game
+    );
+    const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
+    for (const s of res.subjects.filter((s) => s.subject !== 'World Flags')) {
+      expect(s.continentsExplored).toBe(0);
+      expect(s.exploredContinents).toEqual([]);
+      expect(s.continentsTotal).toBe(0);
+    }
   });
 });
 
@@ -820,7 +950,7 @@ describe('computeLearnInsights — weakest subject', () => {
       [{ certsEarned: '6' }], // maths certs → 12%
       [{ certsEarned: '1' }], // logic certs → 6%
       [], // science
-      [], // flags
+      [], // wf count
       [{ lastActive: new Date('2026-02-01'), avgProveTime: 3, totalCorrect: 0, totalAttempts: 0 }],
       [
         {
@@ -829,8 +959,9 @@ describe('computeLearnInsights — weakest subject', () => {
           totalAttempts: '0',
           lastUpdated: new Date('2026-01-10'),
         },
-      ],
-      [{ gameType: 'truefalse', certCount: '1' }],
+      ], // logic progress rows
+      [], // wf continents
+      [{ gameType: 'truefalse', certCount: '1' }], // logic certs per game
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.weakest?.subject).toBe('Logic');
@@ -851,6 +982,7 @@ describe('computeLearnInsights — weakest subject', () => {
           lastUpdated: new Date('2026-01-10'),
         },
       ],
+      [],
       [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
@@ -874,6 +1006,7 @@ describe('computeLearnInsights — weakest subject', () => {
         },
       ],
       [],
+      [],
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(typeof res.weakest?.tip).toBe('string');
@@ -881,7 +1014,7 @@ describe('computeLearnInsights — weakest subject', () => {
   });
 
   it('weakest is null when no subjects have any activity', async () => {
-    setupDbReturns([], [], [], [], [], [], []);
+    setupDbReturns([], [], [], [], [], [], [], []);
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     expect(res.weakest).toBeNull();
   });
@@ -897,7 +1030,7 @@ describe('computeLearnInsights — weakest subject', () => {
       [{ certsEarned: '0' }], // maths certs → 0%
       [{ certsEarned: '0' }], // logic certs → 0%
       [], // science (no activity)
-      [], // flags (no activity)
+      [], // wf count (no activity)
       [{ lastActive: new Date('2026-01-01'), avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }], // maths lastActive → active
       [
         {
@@ -907,7 +1040,8 @@ describe('computeLearnInsights — weakest subject', () => {
           lastUpdated: new Date('2026-01-01'),
         },
       ], // logic active
-      [],
+      [], // wf continents
+      [], // logic certs per game
     );
     const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
     // Both Maths and Logic have lastActive and 0% progress. Maths is first in
@@ -926,6 +1060,7 @@ describe('computeLearnInsights — hasActivity', () => {
       [],
       [],
       [{ lastActive: new Date('2026-01-01'), avgProveTime: 2, totalCorrect: 0, totalAttempts: 0 }],
+      [],
       [],
       [],
     );
@@ -948,6 +1083,7 @@ describe('computeLearnInsights — hasActivity', () => {
       ],
       [],
       [{ lastActive: null, avgProveTime: 0, totalCorrect: 0, totalAttempts: 0 }],
+      [],
       [],
       [],
     );

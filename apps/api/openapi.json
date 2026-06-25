@@ -4159,6 +4159,22 @@
                             "minimum": 0,
                             "maximum": 100,
                             "nullable": true
+                          },
+                          "continentsExplored": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 6
+                          },
+                          "continentsTotal": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 6
+                          },
+                          "exploredContinents": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
                           }
                         },
                         "required": [
@@ -4168,7 +4184,10 @@
                           "certificatesTotal",
                           "lastActive",
                           "needsHelp",
-                          "accuracyPct"
+                          "accuracyPct",
+                          "continentsExplored",
+                          "continentsTotal",
+                          "exploredContinents"
                         ],
                         "additionalProperties": false
                       }

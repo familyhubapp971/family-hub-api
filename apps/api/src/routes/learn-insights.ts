@@ -36,6 +36,11 @@ const subjectInsightSchema = z.object({
   needsHelp: z.boolean(),
   // FHS-401 — accuracy percentage (0–100, rounded) or null if no attempts recorded yet.
   accuracyPct: z.number().int().min(0).max(100).nullable(),
+  // FHS-401 — World Flags continent progress (0 for non-WF subjects).
+  // continentsExplored and continentsTotal are clamped to WORLD_FLAGS_CONTINENTS_TOTAL (6).
+  continentsExplored: z.number().int().min(0).max(6),
+  continentsTotal: z.number().int().min(0).max(6),
+  exploredContinents: z.array(z.string()),
 });
 
 const weakestDetailSchema = z.object({
