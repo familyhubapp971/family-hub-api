@@ -320,7 +320,10 @@ async function fetchWorldFlags(
   // depends on this sequentiality — do NOT convert to a concurrent Promise.all
   // inside fetchWorldFlags without re-deriving the mock slot numbers.
   const continentRows = await db
-    .select({ continent: worldFlagsLearnProgress.continent })
+    .select({
+      continent: worldFlagsLearnProgress.continent,
+      lastCompleted: max(worldFlagsLearnProgress.completedAt),
+    })
     .from(worldFlagsLearnProgress)
     .where(
       and(
@@ -330,9 +333,26 @@ async function fetchWorldFlags(
     )
     .groupBy(worldFlagsLearnProgress.continent);
 
+  // FHS-422 — the Learn path is activity too. A child who completed Learn chunks
+  // but never used Explore still has rows here; their lastActive must reflect it,
+  // otherwise hasActivity stays false and Learning Insights shows "no activity".
+  const exploreLastActive = row?.lastActive ?? null;
+  let learnLastActive: Date | null = null;
+  for (const r of continentRows) {
+    if (r.lastCompleted && (!learnLastActive || r.lastCompleted > learnLastActive)) {
+      learnLastActive = r.lastCompleted;
+    }
+  }
+  const lastActive =
+    exploreLastActive && learnLastActive
+      ? exploreLastActive > learnLastActive
+        ? exploreLastActive
+        : learnLastActive
+      : (exploreLastActive ?? learnLastActive);
+
   return {
     explored: Number(row?.explored ?? 0),
-    lastActive: row?.lastActive ?? null,
+    lastActive,
     exploredContinents: continentRows.map((r) => r.continent),
   };
 }

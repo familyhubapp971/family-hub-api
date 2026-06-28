@@ -138,6 +138,30 @@ describe('computeLearnInsights — empty state (no activity)', () => {
   });
 });
 
+// ─── FHS-422: World Flags Learn path counts as activity ─────────────────────────
+
+describe('computeLearnInsights — World Flags learn path (FHS-422)', () => {
+  it('counts a completed Learn chunk as activity even with no Explore', async () => {
+    // slot 4 (world_flags_progress / explore) empty; slot 7 (learn continents)
+    // has one completed chunk with a completedAt — this is the Faith case.
+    setupDbReturns(
+      [], // maths certs
+      [], // logic certs
+      [], // science
+      [{ explored: 0, lastActive: null }], // world_flags_progress: no explore
+      [], // maths progress
+      [], // logic progress
+      [{ continent: 'Africa', lastCompleted: new Date('2026-06-20T10:00:00Z') }], // wf learn
+      [], // logic certs per game
+    );
+    const res = await computeLearnInsights(dbMock as never, TENANT_ID, MEMBER_ID);
+    expect(res.hasActivity).toBe(true);
+    const wf = res.subjects.find((s) => s.subject === 'World Flags');
+    expect(wf?.lastActive).not.toBeNull();
+    expect(wf?.exploredContinents).toContain('Africa');
+  });
+});
+
 // ─── Maths needsHelp ──────────────────────────────────────────────────────────
 
 describe('computeLearnInsights — Maths needsHelp heuristic', () => {
