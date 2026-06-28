@@ -28,6 +28,9 @@
       "name": "events"
     },
     {
+      "name": "feedback"
+    },
+    {
       "name": "habits"
     },
     {
@@ -436,6 +439,103 @@
         "responses": {
           "200": {
             "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/feedback": {
+      "post": {
+        "tags": [
+          "feedback"
+        ],
+        "summary": "Submit a beta survey response",
+        "operationId": "post_api_feedback",
+        "description": "Authenticated users submit product feedback. All fields are optional but at least one must be present.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pmfDisappointment": {
+                    "type": "string",
+                    "enum": [
+                      "very",
+                      "somewhat",
+                      "not"
+                    ]
+                  },
+                  "recommendScore": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10
+                  },
+                  "solvesProblem": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  },
+                  "easeOfUse": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  },
+                  "keepUsing": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  },
+                  "painPoint": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "featureRequest": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "otherFeedback": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "201 — the new feedback row id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }

@@ -44,7 +44,8 @@
     "format:check": "prettier --check .",
     "typecheck": "pnpm -r typecheck",
     "clean": "pnpm -r exec rm -rf dist .turbo node_modules/.cache",
-    "prepare": "husky || true"
+    "prepare": "husky || true",
+    "feedback:export": "node scripts/export-beta-feedback.mjs"
   },
   "devDependencies": {
     "@amiceli/vitest-cucumber": "^6.3.0",

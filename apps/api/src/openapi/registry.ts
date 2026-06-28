@@ -88,6 +88,7 @@ import {
   subtopicSchema,
 } from '../lib/learn-shared.js';
 import { learnInsightsResponseSchema } from '../routes/learn-insights.js';
+import { feedbackRequestSchema, feedbackResponseSchema } from '../routes/feedback.js';
 
 export interface QueryParamMeta {
   description?: string;
@@ -297,6 +298,16 @@ export const routeMeta: Record<string, RouteMeta> = {
   'GET /api/mw/analytics': {
     summary: "A child's My World analytics (parent view)",
     response: mwAnalyticsResponseSchema,
+  },
+
+  // FHS-418 — Beta feedback.
+  'POST /api/feedback': {
+    summary: 'Submit a beta survey response',
+    description:
+      'Authenticated users submit product feedback. All fields are optional but at least one must be present.',
+    request: feedbackRequestSchema,
+    response: feedbackResponseSchema,
+    responseDesc: '201 — the new feedback row id',
   },
 
   // My World investments (FHS-296 / FHS-378).

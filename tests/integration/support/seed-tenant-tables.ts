@@ -12,6 +12,7 @@ import {
   activityLogs,
   appSettings,
   assignments,
+  betaFeedback,
   events,
   habits,
   habitLogs,
@@ -337,6 +338,13 @@ export async function seedRow(
       });
       break;
     }
+    case 'beta_feedback': {
+      await db.insert(betaFeedback).values({
+        tenantId,
+        painPoint: `seed-pain-${tenantId.slice(0, 4)}`,
+      });
+      break;
+    }
     case 'mw_maths_progress': {
       await db.insert(mwMathsProgress).values({
         tenantId,
@@ -418,6 +426,7 @@ const DEPENDENCY_ORDER = [
   'investments',
   'app_settings',
   'activity_logs',
+  'beta_feedback',
 ] as const;
 
 /** Seed one fixture row per tenant-scoped table for `tenantId`, FK-ordered. */

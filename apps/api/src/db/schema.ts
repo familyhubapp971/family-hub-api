@@ -1523,6 +1523,53 @@ export const mwLogicCertificates = pgTable(
 export type MwLogicCertificates = typeof mwLogicCertificates.$inferSelect;
 export type NewMwLogicCertificates = typeof mwLogicCertificates.$inferInsert;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Beta feedback (FHS-418)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `beta_feedback` — one submission per survey response from an authenticated user.
+ *
+ * All survey fields are nullable; the API enforces that at least one is present.
+ * `submitted_by_email` is a snapshot of the user's email at submission time for
+ * easy export without a join back to `users`.
+ */
+export const betaFeedback = pgTable(
+  'beta_feedback',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    // users-mirror id of the submitter (nullable: user row could be removed).
+    submittedByUserId: uuid('submitted_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    // Email snapshot for easy CSV export without a join.
+    submittedByEmail: text('submitted_by_email'),
+    // PMF survey — "How disappointed would you be if you could no longer use FamilyHub?"
+    pmfDisappointment: text('pmf_disappointment'),
+    // NPS-style 0–10 recommend score.
+    recommendScore: integer('recommend_score'),
+    // Likert 1–5 scales.
+    solvesProblem: integer('solves_problem'),
+    easeOfUse: integer('ease_of_use'),
+    keepUsing: integer('keep_using'),
+    // Free-text fields (capped at 2000 chars at the API layer).
+    painPoint: text('pain_point'),
+    featureRequest: text('feature_request'),
+    otherFeedback: text('other_feedback'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('beta_feedback_tenant_id_idx').on(t.tenantId, t.id),
+    index('beta_feedback_tenant_created_idx').on(t.tenantId, t.createdAt),
+  ],
+);
+
+export type BetaFeedback = typeof betaFeedback.$inferSelect;
+export type NewBetaFeedback = typeof betaFeedback.$inferInsert;
+
 /**
  * Registry of every tenant-scoped table. Drives the cross-tenant leak
  * audit (FHS-6) and any future cross-cutting tooling that needs to walk
@@ -1564,4 +1611,5 @@ export const TENANT_SCOPED_TABLES = [
   mwMathsCertificates,
   mwLogicProgress,
   mwLogicCertificates,
+  betaFeedback,
 ] as const;

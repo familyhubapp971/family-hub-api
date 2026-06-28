@@ -41,6 +41,7 @@ import { meRouter } from './routes/me.js';
 import { mealsRouter } from './routes/meals.js';
 import { membersRouter } from './routes/members.js';
 import { noticesRouter } from './routes/notices.js';
+import { feedbackRouter } from './routes/feedback.js';
 import { learnInsightsRouter } from './routes/learn-insights.js';
 import { onboardingRouter } from './routes/onboarding.js';
 import { tasksRouter } from './routes/tasks.js';
@@ -234,6 +235,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/mw/redemption-requests', mwRedemptionRequestsRouter);
   app.route('/api/rewards', rewardsRouter);
   app.route('/api/journal', journalRouter);
+  app.route('/api/feedback', feedbackRouter);
   app.route('/api/learn/insights', learnInsightsRouter);
   app.route('/api/onboarding', onboardingRouter);
 
