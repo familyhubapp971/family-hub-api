@@ -89,6 +89,10 @@ import {
 } from '../lib/learn-shared.js';
 import { learnInsightsResponseSchema } from '../routes/learn-insights.js';
 import { feedbackRequestSchema, feedbackResponseSchema } from '../routes/feedback.js';
+import {
+  publicFeedbackRequestSchema,
+  publicFeedbackResponseSchema,
+} from '../routes/public-feedback.js';
 
 export interface QueryParamMeta {
   description?: string;
@@ -300,7 +304,7 @@ export const routeMeta: Record<string, RouteMeta> = {
     response: mwAnalyticsResponseSchema,
   },
 
-  // FHS-418 — Beta feedback.
+  // FHS-418 — Beta feedback (authenticated, tenant-scoped).
   'POST /api/feedback': {
     summary: 'Submit a beta survey response',
     description:
@@ -308,6 +312,17 @@ export const routeMeta: Record<string, RouteMeta> = {
     request: feedbackRequestSchema,
     response: feedbackResponseSchema,
     responseDesc: '201 — the new feedback row id',
+  },
+
+  // FHS-429 — Public (anonymous) feedback from the logged-out homepage.
+  'POST /api/public/feedback': {
+    summary: 'Submit anonymous homepage feedback',
+    description:
+      'Unauthenticated visitors submit product feedback from the public homepage. All fields optional but at least one survey field (not just name/email) must be present.',
+    request: publicFeedbackRequestSchema,
+    response: publicFeedbackResponseSchema,
+    responseDesc: '201 — the new public_feedback row id',
+    security: false,
   },
 
   // My World investments (FHS-296 / FHS-378).

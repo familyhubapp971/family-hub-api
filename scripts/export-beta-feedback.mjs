@@ -1,8 +1,12 @@
 #!/usr/bin/env node
-// Export all beta_feedback rows to a CSV spreadsheet.
+// Export all feedback rows (in-app + public homepage) to a single CSV.
 //
 //   pnpm feedback:export              # prints CSV to the screen
 //   pnpm feedback:export out.csv      # writes CSV to out.csv
+//
+// Sources:
+//   beta_feedback   — authenticated in-app survey (source = 'in_app')
+//   public_feedback — anonymous homepage survey  (source = 'public')
 //
 // Zero-install: uses the `pg` driver already in the repo and reads
 // DATABASE_URL from .env.local (same place the app reads it).
@@ -29,7 +33,9 @@ if (!connectionString) {
 }
 
 const COLUMNS = [
+  'source',
   'family',
+  'name',
   'email',
   'pmf_disappointment',
   'recommend_score',
@@ -55,9 +61,16 @@ function toCsv(rows) {
 
 const client = new pg.Client({ connectionString });
 await client.connect();
+
+// UNION of both tables ordered by creation time.
+// beta_feedback rows carry the family slug (from the tenants join) and the
+// submitted_by_email snapshot; public_feedback rows carry the visitor's name
+// and email directly.
 const { rows } = await client.query(
-  `SELECT t.slug AS family,
-          bf.submitted_by_email AS email,
+  `SELECT 'in_app'                   AS source,
+          t.slug                     AS family,
+          NULL                       AS name,
+          bf.submitted_by_email      AS email,
           bf.pmf_disappointment,
           bf.recommend_score,
           bf.solves_problem,
@@ -69,7 +82,25 @@ const { rows } = await client.query(
           bf.created_at
      FROM beta_feedback bf
      LEFT JOIN tenants t ON t.id = bf.tenant_id
-    ORDER BY bf.created_at ASC`,
+
+   UNION ALL
+
+   SELECT 'public'                   AS source,
+          NULL                       AS family,
+          pf.name                    AS name,
+          pf.email                   AS email,
+          pf.pmf_disappointment,
+          pf.recommend_score,
+          pf.solves_problem,
+          pf.ease_of_use,
+          pf.keep_using,
+          pf.pain_point,
+          pf.feature_request,
+          pf.other_feedback,
+          pf.created_at
+     FROM public_feedback pf
+
+   ORDER BY created_at ASC`,
 );
 await client.end();
 

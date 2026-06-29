@@ -1570,6 +1570,37 @@ export const betaFeedback = pgTable(
 export type BetaFeedback = typeof betaFeedback.$inferSelect;
 export type NewBetaFeedback = typeof betaFeedback.$inferInsert;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Public feedback (FHS-429)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `public_feedback` — survey submissions from anonymous (logged-out) visitors
+ * on the public homepage. No tenant_id: these users have no family/account.
+ *
+ * RLS is intentionally disabled on this table — it is NOT tenant-scoped and
+ * app_runtime can INSERT freely. The DEFAULT PRIVILEGES grant in migration
+ * 0027 covers the table automatically.
+ */
+export const publicFeedback = pgTable('public_feedback', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name'),
+  email: text('email'),
+  pmfDisappointment: text('pmf_disappointment'),
+  recommendScore: integer('recommend_score'),
+  solvesProblem: integer('solves_problem'),
+  easeOfUse: integer('ease_of_use'),
+  keepUsing: integer('keep_using'),
+  painPoint: text('pain_point'),
+  featureRequest: text('feature_request'),
+  otherFeedback: text('other_feedback'),
+  source: text('source').notNull().default('public'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PublicFeedback = typeof publicFeedback.$inferSelect;
+export type NewPublicFeedback = typeof publicFeedback.$inferInsert;
+
 /**
  * Registry of every tenant-scoped table. Drives the cross-tenant leak
  * audit (FHS-6) and any future cross-cutting tooling that needs to walk

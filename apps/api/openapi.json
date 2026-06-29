@@ -5864,6 +5864,107 @@
         }
       }
     },
+    "/api/public/feedback": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Submit anonymous homepage feedback",
+        "operationId": "post_api_public_feedback",
+        "description": "Unauthenticated visitors submit product feedback from the public homepage. All fields optional but at least one survey field (not just name/email) must be present.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 200
+                  },
+                  "pmfDisappointment": {
+                    "type": "string",
+                    "enum": [
+                      "very",
+                      "somewhat",
+                      "not"
+                    ]
+                  },
+                  "recommendScore": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10
+                  },
+                  "solvesProblem": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  },
+                  "easeOfUse": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  },
+                  "keepUsing": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  },
+                  "painPoint": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "featureRequest": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "otherFeedback": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "201 — the new public_feedback row id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/public/kid-members/{slug}": {
       "get": {
         "tags": [

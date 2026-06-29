@@ -41,6 +41,8 @@ const PUBLIC_PATH_PREFIXES = [
   // (kidAuthMiddleware + requireKidAuth). They must skip the parent
   // ES256/JWKS auth, which would 401 a kid token before it reaches them.
   '/api/kid',
+  // FHS-429 — anonymous homepage feedback; the visitor has no account.
+  '/api/public/feedback',
 ] as const;
 
 declare module 'hono' {

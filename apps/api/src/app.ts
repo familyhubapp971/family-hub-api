@@ -47,6 +47,7 @@ import { onboardingRouter } from './routes/onboarding.js';
 import { tasksRouter } from './routes/tasks.js';
 import { publicKidMembersRouter } from './routes/public-kid-members.js';
 import { publicTenantRouter } from './routes/public-tenant.js';
+import { publicFeedbackRouter } from './routes/public-feedback.js';
 import { slugAvailableRouter } from './routes/slug-available.js';
 import { captureException, captureMessage } from './sentry.js';
 
@@ -209,6 +210,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/public/tenant', publicTenantRouter);
   app.route('/api/public/slug-available', slugAvailableRouter);
   app.route('/api/public/kid-members', publicKidMembersRouter);
+  app.route('/api/public/feedback', publicFeedbackRouter);
   app.route('/api/auth/kid-pin', kidPinRouter);
   // FHS-257 — kid-scoped routes; skip parent auth (see PUBLIC_PATH_PREFIXES)
   // and verify the HS256 kid JWT inside the router instead.
