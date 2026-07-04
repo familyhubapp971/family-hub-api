@@ -51,11 +51,16 @@ export const dashboardGoalSchema = z.object({
   target: z.number().nullable(),
 });
 
-// A Recent Activity entry — derived from the activity_logs feed.
+// A Recent Activity entry — merged from several sources (My World actions,
+// tasks, meals, calendar events, habit stickers, approved reward requests;
+// see FHS-439). `id` is a plain string rather than `.uuid()` because a
+// single source row can produce two feed entries (e.g. a task "added" and
+// "completed" moment) that share a DB id with a suffix appended — it is
+// only ever used as a React list key, never looked up again.
 // `actor` is the acting member's display name, or null when the row
-// was logged without a member (system action / member since removed).
+// was logged without a member (system action / whole-family event).
 export const dashboardActivitySchema = z.object({
-  id: z.string().uuid(),
+  id: z.string(),
   actor: z.string().nullable(),
   action: z.string(),
   timestamp: z.string().datetime(),

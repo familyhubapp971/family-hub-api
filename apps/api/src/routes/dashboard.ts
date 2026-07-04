@@ -10,12 +10,14 @@ import {
 import { getDb } from '../db/client.js';
 import {
   activityLogs,
+  events,
   habits,
   habitStickers,
   mealTemplates,
   members,
   mwWeeks,
   mwWeekActions,
+  redemptionRequests,
   rewards,
   savings,
   savingsTransactions,
@@ -42,6 +44,14 @@ import { stickerBalance } from '../lib/myworld.js';
 //   • habitsDone / habitsTotal  → habit_stickers + habits.member_id (per-kid)
 //   • starBalance               → stickerBalance() helper (lib/myworld.ts)
 //   • recentActivity            → activityLogs merged with mw_week_actions
+//
+// FHS-439 — beta review found Recent Activity never populated. Root cause:
+// `activity_logs` has no writer anywhere in the codebase (a dead table), and
+// mw_week_actions only covers My World financial moves (claim/save/invest/…).
+// Nothing a beta family actually does day to day — add a task, plan a meal,
+// add a calendar activity, tick a habit, get a reward approved — ever wrote
+// a row either source could see. Fixed by merging in tasks, meal_templates,
+// events, habit_stickers, and approved redemption_requests directly.
 
 // Format `now` as YYYY-MM-DD in the tenant's IANA timezone. Falls back
 // to UTC when the tenant has no timezone set or the value is unknown
@@ -68,6 +78,18 @@ export function isoDateInTimezone(now: Date, timezone: string | null | undefined
 
 const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 export type WeekdayKey = (typeof WEEKDAY_KEYS)[number];
+
+// Full weekday name for a meal_templates.day_of_week key, used in the
+// Recent Activity feed (FHS-439) — e.g. "planned Biryani for Tuesday dinner".
+const WEEKDAY_LABELS: Record<string, string> = {
+  sun: 'Sunday',
+  mon: 'Monday',
+  tue: 'Tuesday',
+  wed: 'Wednesday',
+  thu: 'Thursday',
+  fri: 'Friday',
+  sat: 'Saturday',
+};
 
 // Which day-of-week is `now` in the tenant's timezone, as the lowercase
 // 3-letter key used by the meal_templates.day_of_week enum. Used to count
@@ -204,6 +226,10 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     .where(eq(members.tenantId, tenantId))
     .orderBy(asc(members.createdAt));
 
+  // Display-name lookup, used throughout (member cards + the Recent
+  // Activity feed's actor field, FHS-439).
+  const memberNameById = new Map(memberRows.map((m) => [m.id, m.displayName]));
+
   // 3 — active habits count (family-level snapshot total, used by counts.habits
   // and by the Today's Snapshot). Per-kid habitsTotal is computed separately
   // in step 8 using habits.member_id.
@@ -243,8 +269,11 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
 
   // 7 — tasks (pending per member + done-today family count + the
   // latest pending title for the adult card's status box, FHS-273).
+  // `id` is also used to derive Recent Activity "added"/"completed" entries
+  // (FHS-439) — re-uses this same query rather than a separate round-trip.
   const taskRows = await db
     .select({
+      id: tasks.id,
       memberId: tasks.memberId,
       doneAt: tasks.doneAt,
       title: tasks.title,
@@ -302,6 +331,72 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     .from(mwWeekActions)
     .where(eq(mwWeekActions.tenantId, tenantId))
     .orderBy(desc(mwWeekActions.createdAt))
+    .limit(5);
+
+  // 11a-11d — FHS-439: the four everyday sources that actually feed the
+  // Recent Activity card (activityLogs + mw_week_actions above almost never
+  // fire for a typical family). Each is tenant-scoped and capped to the last
+  // 5 rows — more than enough to cover the merged top-5 window below.
+
+  // 11a — recently named meal templates (any day, not just today).
+  const recentMealRows = await db
+    .select({
+      id: mealTemplates.id,
+      name: mealTemplates.name,
+      slot: mealTemplates.slot,
+      dayOfWeek: mealTemplates.dayOfWeek,
+      memberId: mealTemplates.memberId,
+      createdAt: mealTemplates.createdAt,
+    })
+    .from(mealTemplates)
+    .where(and(eq(mealTemplates.tenantId, tenantId), isNotNull(mealTemplates.name)))
+    .orderBy(desc(mealTemplates.createdAt))
+    .limit(5);
+
+  // 11b — recently added calendar (Home/School) activities.
+  const recentEventRows = await db
+    .select({
+      id: events.id,
+      title: events.title,
+      memberId: events.memberId,
+      createdAt: events.createdAt,
+    })
+    .from(events)
+    .where(eq(events.tenantId, tenantId))
+    .orderBy(desc(events.createdAt))
+    .limit(5);
+
+  // 11c — recently placed habit stickers (any week, not just the current
+  // one) — joined to habits for a human-readable name.
+  const recentStickerRows = await db
+    .select({
+      id: habitStickers.id,
+      memberId: habitStickers.memberId,
+      habitName: habits.name,
+      createdAt: habitStickers.createdAt,
+    })
+    .from(habitStickers)
+    .leftJoin(habits, eq(habitStickers.habitId, habits.id))
+    .where(eq(habitStickers.tenantId, tenantId))
+    .orderBy(desc(habitStickers.createdAt))
+    .limit(5);
+
+  // 11d — recently approved reward redemption requests — joined to rewards
+  // for a human-readable name. `decidedAt` is set by the approve handler.
+  const recentApprovedRedemptionRows = await db
+    .select({
+      id: redemptionRequests.id,
+      memberId: redemptionRequests.memberId,
+      rewardName: rewards.name,
+      decidedAt: redemptionRequests.decidedAt,
+      createdAt: redemptionRequests.createdAt,
+    })
+    .from(redemptionRequests)
+    .leftJoin(rewards, eq(redemptionRequests.rewardId, rewards.id))
+    .where(
+      and(eq(redemptionRequests.tenantId, tenantId), eq(redemptionRequests.status, 'approved')),
+    )
+    .orderBy(desc(redemptionRequests.decidedAt))
     .limit(5);
 
   // 12 — main meals (breakfast/lunch/dinner) planned for today. DISTINCT
@@ -500,11 +595,13 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     target: s.targetAmount === null ? null : Number(s.targetAmount),
   }));
 
-  // FHS-306 Fix 3 — merge activityLogs + mw_week_actions, sort desc, take 3.
-  // Build a display-name lookup for the mw action actors.
-  const memberNameById = new Map(memberRows.map((m) => [m.id, m.displayName]));
-
+  // FHS-306 Fix 3 / FHS-439 — merge every source that can produce a Recent
+  // Activity entry, sort newest-first, take the top 5. activityLogs and
+  // mw_week_actions rarely fire day-to-day (see the FHS-439 note at the top
+  // of this file); tasks/meals/events/stickers/redemptions are what a real
+  // family actually does, so those are what makes the card populate.
   type RawActivity = { id: string; actor: string | null; action: string; createdAt: Date };
+
   const legacyActivities: RawActivity[] = activityRows.map((a) => ({
     id: a.id,
     actor: a.actor ?? null,
@@ -518,9 +615,65 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     createdAt: a.createdAt,
   }));
 
-  const mergedActivity = [...legacyActivities, ...mwActivities]
+  // Tasks: one row can produce an "added" moment and, separately, a
+  // "completed" moment — same task id, so each gets a `:created` /
+  // `:completed` suffix to stay unique (dashboardActivitySchema's `id` is a
+  // plain string, not a uuid, for exactly this reason).
+  const taskAddedActivities: RawActivity[] = taskRows.map((t) => ({
+    id: `${t.id}:created`,
+    actor: memberNameById.get(t.memberId) ?? null,
+    action: `added a task: "${t.title}"`,
+    createdAt: t.createdAt,
+  }));
+  const taskCompletedActivities: RawActivity[] = taskRows
+    .filter((t): t is typeof t & { doneAt: Date } => t.doneAt !== null)
+    .map((t) => ({
+      id: `${t.id}:completed`,
+      actor: memberNameById.get(t.memberId) ?? null,
+      action: `completed a task: "${t.title}"`,
+      createdAt: t.doneAt,
+    }));
+
+  const mealActivities: RawActivity[] = recentMealRows.map((m) => ({
+    id: m.id,
+    actor: m.memberId ? (memberNameById.get(m.memberId) ?? null) : null,
+    action: `planned "${m.name}" for ${WEEKDAY_LABELS[m.dayOfWeek] ?? m.dayOfWeek} ${m.slot}`,
+    createdAt: m.createdAt,
+  }));
+
+  const eventActivities: RawActivity[] = recentEventRows.map((e) => ({
+    id: e.id,
+    actor: e.memberId ? (memberNameById.get(e.memberId) ?? null) : null,
+    action: `added "${e.title}" to the calendar`,
+    createdAt: e.createdAt,
+  }));
+
+  const stickerActivities: RawActivity[] = recentStickerRows.map((s) => ({
+    id: s.id,
+    actor: memberNameById.get(s.memberId) ?? null,
+    action: `earned a sticker for "${s.habitName ?? 'a habit'}"`,
+    createdAt: s.createdAt,
+  }));
+
+  const redemptionActivities: RawActivity[] = recentApprovedRedemptionRows.map((r) => ({
+    id: r.id,
+    actor: memberNameById.get(r.memberId) ?? null,
+    action: `got the "${r.rewardName ?? 'a reward'}" reward approved`,
+    createdAt: r.decidedAt ?? r.createdAt,
+  }));
+
+  const mergedActivity = [
+    ...legacyActivities,
+    ...mwActivities,
+    ...taskAddedActivities,
+    ...taskCompletedActivities,
+    ...mealActivities,
+    ...eventActivities,
+    ...stickerActivities,
+    ...redemptionActivities,
+  ]
     .sort((x, y) => y.createdAt.getTime() - x.createdAt.getTime())
-    .slice(0, 3);
+    .slice(0, 5);
 
   const recentActivity: DashboardActivity[] = mergedActivity.map((a) => ({
     id: a.id,

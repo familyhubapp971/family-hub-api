@@ -98,7 +98,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "Get /api/admin/settings",
+        "summary": "The family's app_settings map, plus its currency under the `currency` key",
         "operationId": "get_api_admin_settings",
         "security": [
           {
@@ -107,7 +107,17 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "{ [key]: value } — includes appName/appSubtitle (if set) and always includes currency (from tenants.currency, default USD)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -117,7 +127,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "Replace /api/admin/settings/{key}",
+        "summary": "Upsert one setting; admin-only. `currency` writes tenants.currency, not app_settings",
         "operationId": "put_api_admin_settings_key",
         "parameters": [
           {
@@ -134,9 +144,44 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "For key=currency: { key, value } where value is the 3-letter ISO 4217 code just saved. Otherwise the upserted app_settings row",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         }
       }

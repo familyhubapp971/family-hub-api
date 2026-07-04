@@ -93,6 +93,11 @@ import {
   publicFeedbackRequestSchema,
   publicFeedbackResponseSchema,
 } from '../routes/public-feedback.js';
+import {
+  adminSettingsResponseSchema,
+  adminSettingsPutRequestSchema,
+  adminSettingsPutResponseSchema,
+} from '../routes/admin.js';
 
 export interface QueryParamMeta {
   description?: string;
@@ -441,5 +446,20 @@ export const routeMeta: Record<string, RouteMeta> = {
     response: logicCertificatesResponseSchema,
     responseDesc:
       'certificates[] — one row per gameType×difficulty where the kid reached 10 correct answers',
+  },
+
+  // Admin Panel — App Info settings (FHS-308, FHS-441).
+  'GET /api/admin/settings': {
+    summary: "The family's app_settings map, plus its currency under the `currency` key",
+    response: adminSettingsResponseSchema,
+    responseDesc:
+      '{ [key]: value } — includes appName/appSubtitle (if set) and always includes currency (from tenants.currency, default USD)',
+  },
+  'PUT /api/admin/settings/{key}': {
+    summary: 'Upsert one setting; admin-only. `currency` writes tenants.currency, not app_settings',
+    request: adminSettingsPutRequestSchema,
+    response: adminSettingsPutResponseSchema,
+    responseDesc:
+      'For key=currency: { key, value } where value is the 3-letter ISO 4217 code just saved. Otherwise the upserted app_settings row',
   },
 };

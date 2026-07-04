@@ -296,7 +296,13 @@ describeFeature(feature, ({ Background, Scenario }) => {
     Then('the settings response status is {int}', (_c, n: number) =>
       expect(lastSettings.status).toBe(n),
     );
-    And('the settings map is empty', () => expect(Object.keys(lastSettings.body)).toHaveLength(0));
+    And('the settings map is empty', () => {
+      // FHS-441 — currency is always present (defaults to USD), so
+      // "empty" means no custom app_settings keys have been saved yet.
+      const { currency, ...customKeys } = lastSettings.body as Record<string, unknown>;
+      expect(Object.keys(customKeys)).toHaveLength(0);
+      expect(currency).toBe('USD');
+    });
   });
 
   // Scenario: Settings PUT round-trip —————————————————————————————————————
@@ -363,9 +369,106 @@ describeFeature(feature, ({ Background, Scenario }) => {
           body: (await res.json().catch(() => ({}))) as Record<string, unknown>,
         };
       });
-      Then('the settings map is empty', () =>
-        expect(Object.keys(lastSettings.body)).toHaveLength(0),
+      Then('the settings map is empty', () => {
+        const { currency, ...customKeys } = lastSettings.body as Record<string, unknown>;
+        expect(Object.keys(customKeys)).toHaveLength(0);
+        expect(currency).toBe('USD');
+      });
+    },
+  );
+
+  // Scenario: FHS-441 — currency PUT round-trips through tenants.currency ——
+
+  Scenario(
+    'FHS-441 — currency PUT updates tenants.currency and GET reflects it',
+    ({ When, Then, And }) => {
+      When(
+        'the caller puts setting {string} to {string} for tenant {string}',
+        async (_c, key: string, value: string, slug: string) => {
+          const res = await app.request(`/api/admin/settings/${key}`, {
+            method: 'PUT',
+            headers: headers(slug),
+            body: JSON.stringify({ value }),
+          });
+          lastSettingsPut = {
+            status: res.status,
+            body: (await res.json().catch(() => ({}))) as Record<string, unknown>,
+          };
+        },
       );
+      Then('the settings put response status is {int}', (_c, n: number) =>
+        expect(lastSettingsPut.status).toBe(n),
+      );
+      And('the caller fetches settings for tenant {string}', async (_c, slug: string) => {
+        const res = await app.request('/api/admin/settings', { headers: headers(slug) });
+        lastSettings = {
+          status: res.status,
+          body: (await res.json().catch(() => ({}))) as Record<string, unknown>,
+        };
+      });
+      And('the settings map has {string} equal to {string}', (_c, key: string, value: string) => {
+        expect(lastSettings.body[key]).toBe(value);
+      });
+    },
+  );
+
+  // Scenario: FHS-441 — invalid currency codes are rejected —————————————————
+
+  Scenario('FHS-441 — currency PUT rejects an invalid ISO code', ({ When, Then }) => {
+    When(
+      'the caller puts setting {string} to {string} for tenant {string}',
+      async (_c, key: string, value: string, slug: string) => {
+        const res = await app.request(`/api/admin/settings/${key}`, {
+          method: 'PUT',
+          headers: headers(slug),
+          body: JSON.stringify({ value }),
+        });
+        lastSettingsPut = {
+          status: res.status,
+          body: (await res.json().catch(() => ({}))) as Record<string, unknown>,
+        };
+      },
+    );
+    Then('the settings put response status is {int}', (_c, n: number) =>
+      expect(lastSettingsPut.status).toBe(n),
+    );
+  });
+
+  // Scenario: FHS-441 — currency is tenant-scoped ———————————————————————————
+
+  Scenario(
+    'FHS-441 — currency is tenant-scoped (other tenants keep their own)',
+    ({ Given, When, Then, And }) => {
+      Given(
+        'an admin-panel tenant {string} exists with the caller as an admin member',
+        async (_c, slug: string) => {
+          await seedTenant(slug);
+        },
+      );
+      When(
+        'the caller puts setting {string} to {string} for tenant {string}',
+        async (_c, key: string, value: string, slug: string) => {
+          const res = await app.request(`/api/admin/settings/${key}`, {
+            method: 'PUT',
+            headers: headers(slug),
+            body: JSON.stringify({ value }),
+          });
+          lastSettingsPut = {
+            status: res.status,
+            body: (await res.json().catch(() => ({}))) as Record<string, unknown>,
+          };
+        },
+      );
+      And('the caller fetches settings for tenant {string}', async (_c, slug: string) => {
+        const res = await app.request('/api/admin/settings', { headers: headers(slug) });
+        lastSettings = {
+          status: res.status,
+          body: (await res.json().catch(() => ({}))) as Record<string, unknown>,
+        };
+      });
+      Then('the settings map has {string} equal to {string}', (_c, key: string, value: string) => {
+        expect(lastSettings.body[key]).toBe(value);
+      });
     },
   );
 

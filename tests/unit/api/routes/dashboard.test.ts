@@ -4,30 +4,36 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dashboardRouter } from '../../../../apps/api/src/routes/dashboard.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-228 / FHS-262 / FHS-306 — GET /api/dashboard/today.
+// FHS-228 / FHS-262 / FHS-306 / FHS-439 — GET /api/dashboard/today.
 //
 // The route fires a fixed sequence of select() calls plus parallel
 // stickerBalance() calls (which each do 2 selects). We stub db at the
 // module boundary and stickerBalance separately. Derivation logic is
 // covered in dashboard-helpers.test.ts; this file covers wiring + shape.
 //
-// FHS-306 changed the query sequence:
+// FHS-439 added four new tenant-scoped queries (recent meals / calendar
+// events / habit stickers / approved reward requests) so Recent Activity
+// reflects what a real family actually does, not just the near-dead
+// activity_logs table and the My World financial actions. Query sequence:
 //   1  caller membership
 //   2  members roster
 //   3  active habits (family total for counts.habits)
 //   4  rewards count
 //   5  tenant timezone
-//   6  weeks (legacy — streak calendar)
-//   7  tasks
+//   6  weeks
+//   7  tasks (also feeds "added"/"completed" Recent Activity entries)
 //   8  savings
 //   9  savings transactions
 //   10 activityLogs (legacy feed)
 //   11 mw_week_actions (My World feed)
-//   12 meals count (countDistinct slot)
-//   13 kid habitsTotal (habits GROUP BY member_id) — only when kids exist
-//   14 kid current mw_weeks (earliest non-finalized) — only when kids exist
-//   15 kid habit_stickers (countDistinct habit_id per week) — only when open weeks exist
-//   then stickerBalance() per kid (stubbed separately)
+//   12 recent meal templates (FHS-439)
+//   13 recent calendar events (FHS-439)
+//   14 recent habit stickers (FHS-439)
+//   15 recent approved redemption requests (FHS-439)
+//   16 meals count (countDistinct slot, today only)
+//   17 kid habitsTotal (habits GROUP BY member_id) — only when kids exist
+//   18 kid current mw_weeks (earliest non-finalized) — only when kids exist
+//   19 kid habit_stickers (countDistinct habit_id per week) — only when open weeks exist
 
 const dbMock = { select: vi.fn() };
 vi.mock('../../../../apps/api/src/db/client.js', () => ({
@@ -65,7 +71,13 @@ interface SeedData {
   rewardsCount?: number;
   tenantTimezone?: string | null;
   weeks?: Array<{ id: string; startDate: string; endDate: string }>;
-  tasks?: Array<{ memberId: string | null; doneAt: Date | null; title?: string; createdAt?: Date }>;
+  tasks?: Array<{
+    id?: string;
+    memberId: string | null;
+    doneAt: Date | null;
+    title?: string;
+    createdAt?: Date;
+  }>;
   savings?: Array<{ id: string; name: string; targetAmount: string | null }>;
   tx?: Array<{ savingsId: string; amount: string; type: 'deposit' | 'withdrawal' }>;
   activity?: Array<{ id: string; action: string; createdAt: Date; actor: string | null }>;
@@ -76,6 +88,34 @@ interface SeedData {
     stickersUsed: number | null;
     rewardName: string | null;
     habitName: string | null;
+    createdAt: Date;
+  }>;
+  // FHS-439 — the four everyday Recent Activity sources.
+  recentMeals?: Array<{
+    id: string;
+    name: string;
+    slot: string;
+    dayOfWeek: string;
+    memberId: string | null;
+    createdAt: Date;
+  }>;
+  recentEvents?: Array<{
+    id: string;
+    title: string;
+    memberId: string | null;
+    createdAt: Date;
+  }>;
+  recentStickers?: Array<{
+    id: string;
+    memberId: string;
+    habitName: string | null;
+    createdAt: Date;
+  }>;
+  recentApprovedRedemptions?: Array<{
+    id: string;
+    memberId: string;
+    rewardName: string | null;
+    decidedAt: Date | null;
     createdAt: Date;
   }>;
   mealsCount?: number;
@@ -110,7 +150,7 @@ function buildAppWithSeed(opts: SeedOpts = {}, data: SeedData = {}) {
     await next();
   };
 
-  // Determine whether kids exist (for conditional queries 13-15).
+  // Determine whether kids exist (for conditional queries 17-19).
   const kidMembers = (data.members ?? []).filter((m) => m.role === 'child' || m.role === 'teen');
   const hasKids = kidMembers.length > 0;
   const hasOpenWeeks = hasKids && (data.kidOpenWeeks ?? []).length > 0;
@@ -141,17 +181,25 @@ function buildAppWithSeed(opts: SeedOpts = {}, data: SeedData = {}) {
         return chain(data.activity ?? []);
       case 11: // mw_week_actions (My World feed)
         return chain(data.mwActions ?? []);
-      case 12: // meals count
+      case 12: // FHS-439 — recent meal templates
+        return chain(data.recentMeals ?? []);
+      case 13: // FHS-439 — recent calendar events
+        return chain(data.recentEvents ?? []);
+      case 14: // FHS-439 — recent habit stickers
+        return chain(data.recentStickers ?? []);
+      case 15: // FHS-439 — recent approved redemption requests
+        return chain(data.recentApprovedRedemptions ?? []);
+      case 16: // meals count
         return chain([{ n: data.mealsCount ?? 0 }]);
-      case 13: // kid habitsTotal (GROUP BY member_id) — only when kids exist
+      case 17: // kid habitsTotal (GROUP BY member_id) — only when kids exist
         if (!hasKids) return chain([{ n: 0 }]); // shouldn't be reached, but safe
         return chain((data.kidHabitsTotal ?? []).map((r) => ({ memberId: r.memberId, n: r.n })));
-      case 14: // kid open mw_weeks — only when kids exist
+      case 18: // kid open mw_weeks — only when kids exist
         if (!hasKids) return chain([]);
         return chain(
           (data.kidOpenWeeks ?? []).map((r) => ({ memberId: r.memberId, weekId: r.weekId })),
         );
-      case 15: // kid habit_stickers countDistinct — only when open weeks exist
+      case 19: // kid habit_stickers countDistinct — only when open weeks exist
         if (!hasOpenWeeks) return chain([]);
         return chain(
           (data.kidStickerCounts ?? []).map((r) => ({
@@ -314,7 +362,7 @@ describe('FHS-228 / FHS-262 / FHS-306 — GET /api/dashboard/today', () => {
     expect(mwEntry.action).toBe('claimed Ice cream');
   });
 
-  it('FHS-306 Fix 3: merges activityLogs + mwActions, sorts desc, takes top 3', async () => {
+  it('FHS-439: merges all six activity sources, sorts desc, takes top 5', async () => {
     const M = '22222222-2222-4222-8222-222222222222';
     const app = buildAppWithSeed(
       {},
@@ -324,7 +372,7 @@ describe('FHS-228 / FHS-262 / FHS-306 — GET /api/dashboard/today', () => {
           {
             id: 'aaaaaaaa-0001-4aaa-8aaa-aaaaaaaaaaaa',
             action: 'oldest log',
-            createdAt: new Date('2026-06-10T07:00:00.000Z'),
+            createdAt: new Date('2026-06-10T06:00:00.000Z'),
             actor: 'Sarah',
           },
           {
@@ -354,19 +402,122 @@ describe('FHS-228 / FHS-262 / FHS-306 — GET /api/dashboard/today', () => {
             createdAt: new Date('2026-06-10T10:00:00.000Z'),
           },
         ],
+        recentEvents: [
+          {
+            id: 'cccccccc-0001-4ccc-8ccc-cccccccccccc',
+            title: 'Swimming lesson',
+            memberId: M,
+            createdAt: new Date('2026-06-10T12:00:00.000Z'),
+          },
+        ],
+        recentApprovedRedemptions: [
+          {
+            id: 'dddddddd-0001-4ddd-8ddd-dddddddddddd',
+            memberId: M,
+            rewardName: 'Movie night',
+            decidedAt: new Date('2026-06-10T08:00:00.000Z'),
+            createdAt: new Date('2026-06-10T07:30:00.000Z'),
+          },
+        ],
       },
     );
     const res = await app.request('/api/dashboard/today');
     const body = (await res.json()) as {
       recentActivity: Array<{ id: string; action: string }>;
     };
-    // Sorted desc: bbbbbbbb-0001 (11:00), bbbbbbbb-0002 (10:00), aaaaaaaa-0002 (09:00) — oldest cut.
-    expect(body.recentActivity).toHaveLength(3);
-    expect(body.recentActivity[0]!.id).toBe('bbbbbbbb-0001-4bbb-8bbb-bbbbbbbbbbbb');
-    expect(body.recentActivity[0]!.action).toBe('saved 5⭐');
-    expect(body.recentActivity[1]!.id).toBe('bbbbbbbb-0002-4bbb-8bbb-bbbbbbbbbbbb');
-    expect(body.recentActivity[1]!.action).toBe('cashed out 3⭐');
-    expect(body.recentActivity[2]!.id).toBe('aaaaaaaa-0002-4aaa-8aaa-aaaaaaaaaaaa');
+    // 6 candidate entries sorted desc: event(12:00), save(11:00),
+    // cashout(10:00), mid log(09:00), redemption(08:00) — oldest log
+    // (06:00) is cut by the top-5 window.
+    expect(body.recentActivity).toHaveLength(5);
+    expect(body.recentActivity.map((a) => a.id)).toEqual([
+      'cccccccc-0001-4ccc-8ccc-cccccccccccc',
+      'bbbbbbbb-0001-4bbb-8bbb-bbbbbbbbbbbb',
+      'bbbbbbbb-0002-4bbb-8bbb-bbbbbbbbbbbb',
+      'aaaaaaaa-0002-4aaa-8aaa-aaaaaaaaaaaa',
+      'dddddddd-0001-4ddd-8ddd-dddddddddddd',
+    ]);
+    expect(body.recentActivity[0]!.action).toBe('added "Swimming lesson" to the calendar');
+    expect(body.recentActivity[4]!.action).toBe('got the "Movie night" reward approved');
+  });
+
+  it('FHS-439: a meal planned, a habit sticker placed, and a task added/completed all populate Recent Activity', async () => {
+    const M = '22222222-2222-4222-8222-222222222222';
+    const TASK_ID = '55555555-5555-4555-8555-555555555555';
+    const app = buildAppWithSeed(
+      {},
+      {
+        members: [{ id: M, displayName: 'Sarah', role: 'admin', avatarEmoji: null, userId: M }],
+        tasks: [
+          {
+            id: TASK_ID,
+            memberId: M,
+            title: 'Pack school bag',
+            createdAt: new Date('2026-06-10T07:00:00.000Z'),
+            doneAt: new Date('2026-06-10T08:00:00.000Z'),
+          },
+        ],
+        recentMeals: [
+          {
+            id: 'eeeeeeee-0001-4eee-8eee-eeeeeeeeeee1',
+            name: 'Biryani',
+            slot: 'dinner',
+            dayOfWeek: 'tue',
+            memberId: null,
+            createdAt: new Date('2026-06-10T06:00:00.000Z'),
+          },
+        ],
+        recentStickers: [
+          {
+            id: 'ffffffff-0001-4fff-8fff-ffffffffffff',
+            memberId: M,
+            habitName: 'Reading',
+            createdAt: new Date('2026-06-10T05:00:00.000Z'),
+          },
+        ],
+      },
+    );
+    const res = await app.request('/api/dashboard/today');
+    const body = (await res.json()) as {
+      recentActivity: Array<{ id: string; actor: string | null; action: string }>;
+    };
+    // A single task row contributes TWO distinct entries (added + completed)
+    // sharing the same underlying id but with a `:created` / `:completed`
+    // suffix so they never collide as React keys.
+    const added = body.recentActivity.find((a) => a.id === `${TASK_ID}:created`)!;
+    const completed = body.recentActivity.find((a) => a.id === `${TASK_ID}:completed`)!;
+    expect(added.action).toBe('added a task: "Pack school bag"');
+    expect(completed.action).toBe('completed a task: "Pack school bag"');
+    expect(added.actor).toBe('Sarah');
+
+    const meal = body.recentActivity.find((a) => a.id === 'eeeeeeee-0001-4eee-8eee-eeeeeeeeeee1')!;
+    expect(meal.action).toBe('planned "Biryani" for Tuesday dinner');
+    expect(meal.actor).toBeNull(); // whole-family meal, no member_id
+
+    const sticker = body.recentActivity.find(
+      (a) => a.id === 'ffffffff-0001-4fff-8fff-ffffffffffff',
+    )!;
+    expect(sticker.action).toBe('earned a sticker for "Reading"');
+    expect(sticker.actor).toBe('Sarah');
+  });
+
+  it('FHS-439: stays empty only when every source is genuinely empty', async () => {
+    const app = buildAppWithSeed(
+      {},
+      {
+        members: [
+          {
+            id: '22222222-2222-4222-8222-222222222222',
+            displayName: 'Sarah',
+            role: 'admin',
+            avatarEmoji: null,
+            userId: '22222222-2222-4222-8222-222222222222',
+          },
+        ],
+      },
+    );
+    const res = await app.request('/api/dashboard/today');
+    const body = (await res.json()) as { recentActivity: unknown[] };
+    expect(body.recentActivity).toEqual([]);
   });
 
   it('derives per-member stats, snapshot counts, goals and activity', async () => {
@@ -389,36 +540,42 @@ describe('FHS-228 / FHS-262 / FHS-306 — GET /api/dashboard/today', () => {
           weeks: [{ id: 'wk1', startDate: '2026-06-08', endDate: '2026-06-14' }],
           tasks: [
             {
+              id: 't1',
               memberId: M1,
               doneAt: null,
               title: 'Call plumber',
               createdAt: new Date('2026-06-10T07:00:00.000Z'),
             },
             {
+              id: 't2',
               memberId: M1,
               doneAt: null,
               title: 'Grocery run & Bills',
               createdAt: new Date('2026-06-09T08:00:00.000Z'),
             },
             {
+              id: 't3',
               memberId: M2,
               doneAt: null,
               title: 'Tidy room',
               createdAt: new Date('2026-06-09T09:00:00.000Z'),
             },
             {
+              id: 't4',
               memberId: M2,
               doneAt: null,
               title: 'Pack bag',
               createdAt: new Date('2026-06-09T10:00:00.000Z'),
             },
             {
+              id: 't5',
               memberId: M1,
               doneAt: new Date('2026-06-10T09:00:00.000Z'),
               title: 'Done one',
               createdAt: new Date('2026-06-08T09:00:00.000Z'),
             },
             {
+              id: 't6',
               memberId: M1,
               doneAt: new Date('2026-06-01T09:00:00.000Z'),
               title: 'Old one',
@@ -496,12 +653,13 @@ describe('FHS-228 / FHS-262 / FHS-306 — GET /api/dashboard/today', () => {
         mealsPlanned: 2,
       });
       expect(body.goals).toEqual([{ id: G1, label: 'Hajj fund', progress: 250, target: 5000 }]);
-      expect(body.recentActivity).toHaveLength(1);
-      expect(body.recentActivity[0]).toMatchObject({
-        actor: 'Sarah',
-        action: 'completed a habit',
-      });
-      expect(body.recentActivity[0]!.timestamp).toBe('2026-06-10T08:00:00.000Z');
+      // FHS-439 — tasks now also feed the merged feed, so the legacy
+      // activityLogs entry is no longer the only one; just confirm it's
+      // still present somewhere in the top-5 window.
+      expect(body.recentActivity.length).toBeGreaterThan(0);
+      expect(
+        body.recentActivity.some((a) => a.actor === 'Sarah' && a.action === 'completed a habit'),
+      ).toBe(true);
     } finally {
       vi.useRealTimers();
     }
@@ -552,12 +710,16 @@ describe('FHS-228 / FHS-262 / FHS-306 — GET /api/dashboard/today', () => {
           tenantTimezone: 'Asia/Dubai',
           tasks: [
             {
+              id: 'dubai-1',
               memberId: '22222222-2222-4222-8222-222222222222',
               doneAt: new Date('2026-06-10T20:30:00.000Z'),
+              createdAt: new Date('2026-06-10T07:00:00.000Z'),
             },
             {
+              id: 'dubai-2',
               memberId: '22222222-2222-4222-8222-222222222222',
               doneAt: new Date('2026-06-10T08:00:00.000Z'),
+              createdAt: new Date('2026-06-09T07:00:00.000Z'),
             },
           ],
         },

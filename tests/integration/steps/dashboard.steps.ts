@@ -21,6 +21,8 @@ import {
   mwWeeks,
   habitStickers,
   mwWeekActions,
+  events,
+  redemptionRequests,
 } from '../../../apps/api/src/db/schema.js';
 import type { Database } from '../../../apps/api/src/db/client.js';
 import { getTestDb } from '../support/db.js';
@@ -633,6 +635,159 @@ describeFeature(feature, ({ Background, Scenario }) => {
     },
   );
 
+  Scenario(
+    'FHS-439 — meals, calendar events, habit stickers, and approved rewards feed Recent Activity',
+    ({ Given, And, When, Then }) => {
+      let res: Response;
+      let body: DashboardResponse;
+      let imanId: string;
+
+      Given(
+        'the {string} tenant has a child member {string} with no linked user',
+        async (_ctx, slug: string, name: string) => {
+          const inserted = await db
+            .insert(members)
+            .values({ tenantId: tenantIds[slug]!, userId: null, displayName: name, role: 'child' })
+            .returning();
+          imanId = inserted[0]!.id;
+        },
+      );
+
+      And('the {string} tenant has a meal planned for today', async (_ctx, slug: string) => {
+        const tenantId = tenantIds[slug]!;
+        const todayIso = new Date().toISOString().slice(0, 10);
+        const dow = WEEKDAY_KEYS[new Date(`${todayIso}T00:00:00Z`).getUTCDay()]!;
+        await db
+          .insert(mealTemplates)
+          .values({ tenantId, dayOfWeek: dow, slot: 'dinner', name: 'Biryani' });
+      });
+
+      And(
+        'the {string} tenant has a calendar event {string}',
+        async (_ctx, slug: string, title: string) => {
+          const todayIso = new Date().toISOString().slice(0, 10);
+          await db.insert(events).values({ tenantId: tenantIds[slug]!, date: todayIso, title });
+        },
+      );
+
+      And(
+        '{string} has a habit sticker placed in {string}',
+        async (_ctx, _memberName: string, slug: string) => {
+          const tenantId = tenantIds[slug]!;
+          const habitInserted = await db
+            .insert(habits)
+            .values({ tenantId, memberId: imanId, name: 'Morning routine', cadence: 'daily' })
+            .returning();
+          const habitId = habitInserted[0]!.id;
+          const todayIso = new Date().toISOString().slice(0, 10);
+          const now = new Date();
+          const weekNum = Math.ceil(
+            (now.getTime() - new Date(now.getUTCFullYear(), 0, 1).getTime()) / (7 * 86400000),
+          );
+          const mwWeekInserted = await db
+            .insert(mwWeeks)
+            .values({
+              tenantId,
+              memberId: imanId,
+              weekNumber: weekNum,
+              year: now.getUTCFullYear(),
+              startDate: todayIso,
+            })
+            .onConflictDoNothing()
+            .returning();
+          const mwWeekId = mwWeekInserted[0]!.id;
+          await db.insert(habitStickers).values({
+            tenantId,
+            memberId: imanId,
+            habitId,
+            weekId: mwWeekId,
+            day: 0,
+            sticker: 'gold-star',
+            stickerValue: 1,
+          });
+        },
+      );
+
+      And(
+        '{string} has an approved reward request for {string} in {string}',
+        async (_ctx, _memberName: string, rewardName: string, slug: string) => {
+          const tenantId = tenantIds[slug]!;
+          const rewardInserted = await db
+            .insert(rewards)
+            .values({ tenantId, name: rewardName, stickerCost: 5 })
+            .returning();
+          await db.insert(redemptionRequests).values({
+            tenantId,
+            memberId: imanId,
+            rewardId: rewardInserted[0]!.id,
+            status: 'approved',
+            starCost: 5,
+            decidedAt: new Date(),
+          });
+        },
+      );
+
+      When(
+        'the caller GETs /api/dashboard/today for tenant {string}',
+        async (_ctx, slug: string) => {
+          res = await app.request('/api/dashboard/today', {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'x-test-tenant': tenantIds[slug]!,
+            },
+          });
+          body = (await res.json()) as DashboardResponse;
+        },
+      );
+
+      Then('the response status is 200', () => {
+        expect(res.status).toBe(200);
+      });
+
+      // Deliberately avoid embedding literal `"` inside a {string} capture
+      // group here — @amiceli/vitest-cucumber does not decode escaped
+      // quotes within Cucumber Expression parameters, so the expected
+      // action text (which itself contains quotes) is built in the step
+      // body instead of in the .feature file.
+      And(
+        'the response recent activity includes a calendar entry {string}',
+        (_ctx, title: string) => {
+          const expected = `added "${title}" to the calendar`;
+          expect(body.recentActivity.find((a) => a.action === expected)).toBeDefined();
+        },
+      );
+
+      And(
+        'the response recent activity includes a sticker entry {string} for {string}',
+        (_ctx, habitName: string, actorName: string) => {
+          const expected = `earned a sticker for "${habitName}"`;
+          const entry = body.recentActivity.find(
+            (a) => a.action === expected && a.actor === actorName,
+          );
+          expect(
+            entry,
+            `sticker activity for "${habitName}" by "${actorName}" not found`,
+          ).toBeDefined();
+        },
+      );
+
+      And(
+        'the response recent activity includes an approved reward entry {string} for {string}',
+        (_ctx, rewardName: string, actorName: string) => {
+          const expected = `got the "${rewardName}" reward approved`;
+          const entry = body.recentActivity.find(
+            (a) => a.action === expected && a.actor === actorName,
+          );
+          expect(
+            entry,
+            `reward-approved activity for "${rewardName}" by "${actorName}" not found`,
+          ).toBeDefined();
+        },
+      );
+    },
+  );
+
   Scenario('A non-member of the tenant gets 403', ({ Given, When, Then }) => {
     let res: Response;
 
@@ -760,6 +915,26 @@ describeFeature(feature, ({ Background, Scenario }) => {
             title: 'Done in smith',
             doneAt: new Date(),
           });
+        },
+      );
+
+      // FHS-439 — the two new Recent Activity sources must respect tenant
+      // scoping too: a meal/event in "smith" must never surface on "khan"'s
+      // dashboard.
+      And('the {string} tenant has a meal planned for today', async (_ctx, slug: string) => {
+        const tenantId = tenantIds[slug]!;
+        const todayIso = new Date().toISOString().slice(0, 10);
+        const dow = WEEKDAY_KEYS[new Date(`${todayIso}T00:00:00Z`).getUTCDay()]!;
+        await db
+          .insert(mealTemplates)
+          .values({ tenantId, dayOfWeek: dow, slot: 'dinner', name: 'Smith dinner' });
+      });
+
+      And(
+        'the {string} tenant has a calendar event {string}',
+        async (_ctx, slug: string, title: string) => {
+          const todayIso = new Date().toISOString().slice(0, 10);
+          await db.insert(events).values({ tenantId: tenantIds[slug]!, date: todayIso, title });
         },
       );
 

@@ -48,6 +48,18 @@ Feature: GET /api/dashboard/today (FHS-228)
     And the member "Iman" shows habitsDone 1 and starBalance at least 1
     And the recent activity includes a "claimed Ice cream" entry for "Iman"
 
+  Scenario: FHS-439 — meals, calendar events, habit stickers, and approved rewards feed Recent Activity
+    Given the "khan" tenant has a child member "Iman" with no linked user
+    And the "khan" tenant has a meal planned for today
+    And the "khan" tenant has a calendar event "Swimming lesson"
+    And "Iman" has a habit sticker placed in "khan"
+    And "Iman" has an approved reward request for "Ice cream" in "khan"
+    When the caller GETs /api/dashboard/today for tenant "khan"
+    Then the response status is 200
+    And the response recent activity includes a calendar entry "Swimming lesson"
+    And the response recent activity includes a sticker entry "Morning routine" for "Iman"
+    And the response recent activity includes an approved reward entry "Ice cream" for "Iman"
+
   Scenario: A non-member of the tenant gets 403
     Given a second tenant "smith" exists with no caller membership
     When the caller GETs /api/dashboard/today for tenant "smith"
@@ -60,6 +72,8 @@ Feature: GET /api/dashboard/today (FHS-228)
     And the "smith" tenant has a savings goal "Smith fund" with a 100 deposit
     And the "smith" tenant has a recent activity entry "smith event"
     And the "smith" tenant has 1 task completed today by "Zaid"
+    And the "smith" tenant has a meal planned for today
+    And the "smith" tenant has a calendar event "Smith family trip"
     When the caller GETs /api/dashboard/today for tenant "khan"
     Then the response status is 200
     And the response counts are:
