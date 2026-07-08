@@ -11,7 +11,14 @@ import type { User } from '../../../../apps/api/src/db/schema.js';
 // tenants.currency in; PUT writes straight to tenants.currency instead of
 // upserting an app_settings row.
 
-const dbMock = { select: vi.fn(), insert: vi.fn(), update: vi.fn() };
+const dbMock = {
+  select: vi.fn(),
+  insert: vi.fn(),
+  update: vi.fn(),
+  execute: vi.fn(),
+  delete: vi.fn(),
+  transaction: vi.fn(),
+};
 vi.mock('../../../../apps/api/src/db/client.js', () => ({ getDb: () => dbMock }));
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
@@ -101,6 +108,9 @@ beforeEach(() => {
   dbMock.select.mockReset();
   dbMock.insert.mockReset();
   dbMock.update.mockReset();
+  dbMock.execute.mockReset();
+  dbMock.delete.mockReset();
+  dbMock.transaction.mockReset();
 });
 
 describe('FHS-343 — PUT /api/admin/settings/:key is admin-only', () => {
@@ -197,5 +207,161 @@ describe('FHS-441 — PUT /api/admin/settings/currency writes tenants.currency',
     );
     expect(tooLong.status).toBe(400);
     expect(dbMock.update).not.toHaveBeenCalled();
+  });
+});
+
+// FHS-435 — GDPR: export my data + delete my account.
+
+const TENANT_ROW = {
+  id: TENANT_ID,
+  slug: 'khans',
+  name: 'The Khans',
+  status: 'active',
+  plan: 'starter',
+  timezone: 'UTC',
+  currency: 'USD',
+  onboardingCompleted: true,
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+};
+
+function buildExportApp(callerRole: string | null) {
+  const seed: MiddlewareHandler = async (c, next) => {
+    c.set('user', { id: USER_ID, email: 's@e.com', claims: {} });
+    c.set('userRow', FIXED_USER);
+    c.set('tenantId', TENANT_ID);
+    await next();
+  };
+  let idx = 0;
+  dbMock.select.mockImplementation(() => {
+    idx += 1;
+    if (idx === 1) return chain(callerRole ? [{ id: 'm1', role: callerRole }] : []);
+    return chain([TENANT_ROW]);
+  });
+  dbMock.execute.mockResolvedValue({ rows: [] });
+  const app = new Hono();
+  app.use('*', seed);
+  app.route('/api/admin', adminRouter);
+  return app;
+}
+
+describe('FHS-435 — GET /api/admin/export', () => {
+  it('403 when the caller is not a tenant member', async () => {
+    const res = await buildExportApp(null).request('/api/admin/export');
+    expect(res.status).toBe(403);
+  });
+
+  it('403 ADMIN_ONLY for a normal user (adult)', async () => {
+    const res = await buildExportApp('adult').request('/api/admin/export');
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { errorCode: string }).errorCode).toBe('ADMIN_ONLY');
+    expect(dbMock.execute).not.toHaveBeenCalled();
+  });
+
+  it('200 for an admin — sets a downloadable Content-Disposition header', async () => {
+    const app = buildExportApp('admin');
+    const res = await app.request('/api/admin/export');
+    expect(res.status).toBe(200);
+    const disposition = res.headers.get('Content-Disposition');
+    expect(disposition).toContain('attachment');
+    expect(disposition).toContain('khans');
+    expect(disposition).toContain('.json');
+  });
+
+  it('response body carries the family row + one data key per tenant-scoped table', async () => {
+    const app = buildExportApp('admin');
+    const res = await app.request('/api/admin/export');
+    const body = (await res.json()) as {
+      exportedAt: string;
+      family: { name: string; slug: string };
+      data: Record<string, unknown>;
+    };
+    expect(body.family).toEqual({
+      ...TENANT_ROW,
+      createdAt: expect.any(String),
+      updatedAt: expect.any(String),
+    });
+    // Spot-check a few of the families of data the ticket calls out by name.
+    expect(body.data).toHaveProperty('members');
+    expect(body.data).toHaveProperty('tasks');
+    expect(body.data).toHaveProperty('habits');
+    expect(body.data).toHaveProperty('habitStickers');
+    expect(body.data).toHaveProperty('rewards');
+    expect(body.data).toHaveProperty('redemptionRequests');
+    expect(body.data).toHaveProperty('learnProgress');
+  });
+});
+
+function buildDeleteApp(callerRole: string | null, tenantName = 'The Khans') {
+  const seed: MiddlewareHandler = async (c, next) => {
+    c.set('user', { id: USER_ID, email: 's@e.com', claims: {} });
+    c.set('userRow', FIXED_USER);
+    c.set('tenantId', TENANT_ID);
+    await next();
+  };
+  let idx = 0;
+  dbMock.select.mockImplementation(() => {
+    idx += 1;
+    if (idx === 1) return chain(callerRole ? [{ id: 'm1', role: callerRole }] : []);
+    return chain([{ name: tenantName }]);
+  });
+  const deleteWhere = vi.fn().mockResolvedValue(undefined);
+  dbMock.delete.mockImplementation(() => ({ where: deleteWhere }));
+  dbMock.transaction.mockImplementation(async (fn: (tx: typeof dbMock) => Promise<unknown>) =>
+    fn(dbMock),
+  );
+  const app = new Hono();
+  app.use('*', seed);
+  app.route('/api/admin', adminRouter);
+  return { app, deleteWhere };
+}
+
+const postDelete = (confirm: string): RequestInit => ({
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ confirm }),
+});
+
+describe('FHS-435 — POST /api/admin/delete-account', () => {
+  it('403 when the caller is not a tenant member', async () => {
+    const { app } = buildDeleteApp(null);
+    const res = await app.request('/api/admin/delete-account', postDelete('The Khans'));
+    expect(res.status).toBe(403);
+  });
+
+  it('403 ADMIN_ONLY for a normal user (adult) — nothing is deleted', async () => {
+    const { app, deleteWhere } = buildDeleteApp('adult');
+    const res = await app.request('/api/admin/delete-account', postDelete('The Khans'));
+    expect(res.status).toBe(403);
+    expect(dbMock.transaction).not.toHaveBeenCalled();
+    expect(deleteWhere).not.toHaveBeenCalled();
+  });
+
+  it('400 CONFIRM_MISMATCH when the typed name does not match — nothing is deleted', async () => {
+    const { app, deleteWhere } = buildDeleteApp('admin');
+    const res = await app.request('/api/admin/delete-account', postDelete('Wrong Family Name'));
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { errorCode: string }).errorCode).toBe('CONFIRM_MISMATCH');
+    expect(dbMock.transaction).not.toHaveBeenCalled();
+    expect(deleteWhere).not.toHaveBeenCalled();
+  });
+
+  it('400 when confirm is missing from the body', async () => {
+    const { app } = buildDeleteApp('admin');
+    const res = await app.request('/api/admin/delete-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('200 + deletes the tenant inside a transaction when the typed name matches exactly', async () => {
+    const { app, deleteWhere } = buildDeleteApp('admin');
+    const res = await app.request('/api/admin/delete-account', postDelete('The Khans'));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ deleted: true });
+    expect(dbMock.transaction).toHaveBeenCalledTimes(1);
+    expect(deleteWhere).toHaveBeenCalledTimes(1);
   });
 });

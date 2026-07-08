@@ -97,6 +97,9 @@ import {
   adminSettingsResponseSchema,
   adminSettingsPutRequestSchema,
   adminSettingsPutResponseSchema,
+  adminExportResponseSchema,
+  adminDeleteAccountRequestSchema,
+  adminDeleteAccountResponseSchema,
 } from '../routes/admin.js';
 
 export interface QueryParamMeta {
@@ -461,5 +464,20 @@ export const routeMeta: Record<string, RouteMeta> = {
     response: adminSettingsPutResponseSchema,
     responseDesc:
       'For key=currency: { key, value } where value is the 3-letter ISO 4217 code just saved. Otherwise the upserted app_settings row',
+  },
+
+  // GDPR — export my data + delete my account (FHS-435).
+  'GET /api/admin/export': {
+    summary: "Download the family's full data as one JSON file (GDPR data portability); admin-only",
+    response: adminExportResponseSchema,
+    responseDesc:
+      'Content-Disposition: attachment. { exportedAt, family, data } — data has one array per tenant-scoped table (e.g. members, tasks, habits, habitStickers), each row filtered to this tenant only',
+  },
+  'POST /api/admin/delete-account': {
+    summary: "IRREVERSIBLE — permanently deletes the caller's family and all its data; admin-only",
+    request: adminDeleteAccountRequestSchema,
+    response: adminDeleteAccountResponseSchema,
+    responseDesc:
+      '{ deleted: true } on success. 400 CONFIRM_MISMATCH if `confirm` does not exactly equal the family name — nothing is deleted in that case',
   },
 };
