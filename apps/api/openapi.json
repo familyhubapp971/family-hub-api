@@ -22,6 +22,9 @@
       "name": "auth"
     },
     {
+      "name": "calendar"
+    },
+    {
       "name": "dashboard"
     },
     {
@@ -537,6 +540,76 @@
                     "token",
                     "member",
                     "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/calendar/feed": {
+      "get": {
+        "tags": [
+          "calendar"
+        ],
+        "summary": "The family calendar subscribe URL (creates the feed key on first call)",
+        "operationId": "get_api_calendar_feed",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An absolute ICS subscribe URL for Google / Apple / Outlook",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/calendar/feed/rotate": {
+      "post": {
+        "tags": [
+          "calendar"
+        ],
+        "summary": "Regenerate the calendar feed key (admin-only); invalidates old subscriptions",
+        "operationId": "post_api_calendar_feed_rotate",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url"
                   ],
                   "additionalProperties": false
                 }
@@ -6069,6 +6142,30 @@
         "security": [
           {
             "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/public/calendar/{token}": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Public ICS calendar feed for a family (signed token = credential)",
+        "operationId": "get_api_public_calendar_token",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {

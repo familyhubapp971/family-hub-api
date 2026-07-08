@@ -44,6 +44,7 @@ import {
 } from '../routes/mw-redemption-requests.js';
 import { listMealsResponseSchema } from '../routes/meals.js';
 import { listEventsResponseSchema } from '../routes/events.js';
+import { calendarFeedResponseSchema } from '../routes/calendar.js';
 import {
   journalDayResponseSchema,
   journalEntriesResponseSchema,
@@ -205,6 +206,20 @@ export const routeMeta: Record<string, RouteMeta> = {
   'GET /api/kid/events': {
     summary: "The kid's schedule for a week (their own + family-wide)",
     response: listEventsResponseSchema,
+  },
+  'GET /api/calendar/feed': {
+    summary: 'The family calendar subscribe URL (creates the feed key on first call)',
+    response: calendarFeedResponseSchema,
+    responseDesc: 'An absolute ICS subscribe URL for Google / Apple / Outlook',
+  },
+  'POST /api/calendar/feed/rotate': {
+    summary: 'Regenerate the calendar feed key (admin-only); invalidates old subscriptions',
+    response: calendarFeedResponseSchema,
+  },
+  'GET /api/public/calendar/{token}': {
+    summary: 'Public ICS calendar feed for a family (signed token = credential)',
+    security: false,
+    responseDesc: 'text/calendar (ICS) of the family activities',
   },
   'GET /api/kid/journal': {
     summary: "The kid's journal entry for a day (+ the day's quote)",

@@ -102,6 +102,10 @@ export const tenants = pgTable('tenants', {
   // to /dashboard when this is true so a returning user doesn't get
   // the wizard a second time.
   onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
+  // FHS-445 — per-family secret that signs the calendar "subscribe link"
+  // token (HMAC). Null until the family first opens the sync card; rotating
+  // it invalidates every existing subscription. Never leaves the server.
+  calendarFeedKey: text('calendar_feed_key'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

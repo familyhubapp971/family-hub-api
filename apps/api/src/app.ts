@@ -48,6 +48,8 @@ import { tasksRouter } from './routes/tasks.js';
 import { publicKidMembersRouter } from './routes/public-kid-members.js';
 import { publicTenantRouter } from './routes/public-tenant.js';
 import { publicFeedbackRouter } from './routes/public-feedback.js';
+import { calendarRouter } from './routes/calendar.js';
+import { publicCalendarRouter } from './routes/public-calendar.js';
 import { slugAvailableRouter } from './routes/slug-available.js';
 import { captureException, captureMessage } from './sentry.js';
 
@@ -65,6 +67,16 @@ const TENANT_OPTIONAL_API_PREFIXES = [
 ];
 function isTenantOptionalPath(path: string): boolean {
   return TENANT_OPTIONAL_API_PREFIXES.some((p) => path.startsWith(p));
+}
+
+// FHS-445 — the public calendar feed carries its bearer credential IN the URL
+// path (/api/public/calendar/<tenantId>.<sig>.ics). That secret must never
+// reach logs or Sentry, so redact everything after the prefix before anything
+// records the path. (logger.ts redaction only strips named fields, not a secret
+// embedded inside a plain string value.)
+const CALENDAR_FEED_PREFIX = '/api/public/calendar/';
+function redactPath(path: string): string {
+  return path.startsWith(CALENDAR_FEED_PREFIX) ? `${CALENDAR_FEED_PREFIX}[redacted]` : path;
 }
 
 export interface BuildAppOptions {
@@ -165,12 +177,14 @@ export function buildApp(opts: BuildAppOptions = {}) {
     const started = Date.now();
     await next();
     const path = c.req.path;
+    // Never log the raw calendar-feed path (it embeds the family's token).
+    const logPath = redactPath(path);
     const tenantId = c.get('tenantId');
     const userId = c.get('user')?.id;
     log.info(
       {
         method: c.req.method,
-        path,
+        path: logPath,
         status: c.res.status,
         durationMs: Date.now() - started,
         request_id: c.get('requestId'),
@@ -192,11 +206,11 @@ export function buildApp(opts: BuildAppOptions = {}) {
       !isTenantOptionalPath(path)
     ) {
       log.warn(
-        { method: c.req.method, path, request_id: c.get('requestId'), user_id: userId },
+        { method: c.req.method, path: logPath, request_id: c.get('requestId'), user_id: userId },
         'tenant-scoped request ran with no tenant context',
       );
       captureMessage('tenant-scoped request without tenant context', {
-        path,
+        path: logPath,
         method: c.req.method,
         requestId: c.get('requestId'),
         userId,
@@ -211,6 +225,8 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/public/slug-available', slugAvailableRouter);
   app.route('/api/public/kid-members', publicKidMembersRouter);
   app.route('/api/public/feedback', publicFeedbackRouter);
+  // FHS-445 — public calendar ICS feed (no auth; signed token in the URL).
+  app.route('/api/public/calendar', publicCalendarRouter);
   app.route('/api/auth/kid-pin', kidPinRouter);
   // FHS-257 — kid-scoped routes; skip parent auth (see PUBLIC_PATH_PREFIXES)
   // and verify the HS256 kid JWT inside the router instead.
@@ -226,6 +242,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/dashboard', dashboardRouter);
   app.route('/api/meals', mealsRouter);
   app.route('/api/events', eventsRouter);
+  app.route('/api/calendar', calendarRouter);
   app.route('/api/assignments', assignmentsRouter);
   app.route('/api/notices', noticesRouter);
   app.route('/api/tasks', tasksRouter);
@@ -247,7 +264,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
     captureException(err, {
       requestId: c.get('requestId'),
       tenantId: c.get('tenantId'),
-      path: c.req.path,
+      path: redactPath(c.req.path),
       method: c.req.method,
     });
     return c.json({ error: 'internal server error' }, 500);

@@ -56,6 +56,11 @@ const configSchema = z
     // redirectTo URL on Supabase admin invites — the invitee clicks
     // the email link and lands on <APP_BASE_URL>/auth/callback.
     APP_BASE_URL: z.string().url().optional(),
+    // FHS-445 — the API's own public origin (e.g. https://api.fhapp.co), used to
+    // build the absolute calendar subscribe URL. When set it is trusted over the
+    // request Host header (which a client can spoof); unset, we fall back to the
+    // request origin so dev + tests work without configuration.
+    API_PUBLIC_URL: z.string().url().optional(),
     // Cache TTL for the JWKS in milliseconds. 10 minutes by default —
     // long enough to amortise network cost, short enough that a key
     // rotation propagates without an api restart.
@@ -103,6 +108,14 @@ const configSchema = z
       .default('false')
       .transform((v) => v === 'true' || v === '1'),
     ANTHROPIC_API_KEY: z.string().default(''),
+    // FHS-445 — server-side secret that signs the calendar "subscribe link"
+    // tokens (HMAC). Required in production; dev/test tolerate a default so the
+    // api boots without the operator generating a secret first. Same posture as
+    // KID_AUTH_SECRET.
+    CALENDAR_FEED_SECRET: z
+      .string()
+      .min(32, 'CALENDAR_FEED_SECRET must be at least 32 characters')
+      .default('dev-only-calendar-feed-secret-replace-in-production'),
   })
   .superRefine((cfg, ctx) => {
     if (!cfg.DATABASE_URL) {
@@ -129,6 +142,16 @@ const configSchema = z
         code: z.ZodIssueCode.custom,
         path: ['KID_AUTH_SECRET'],
         message: 'KID_AUTH_SECRET must be a real secret in production (FHS-236).',
+      });
+    }
+    if (
+      cfg.NODE_ENV === 'production' &&
+      cfg.CALENDAR_FEED_SECRET === 'dev-only-calendar-feed-secret-replace-in-production'
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['CALENDAR_FEED_SECRET'],
+        message: 'CALENDAR_FEED_SECRET must be a real secret in production (FHS-445).',
       });
     }
   })

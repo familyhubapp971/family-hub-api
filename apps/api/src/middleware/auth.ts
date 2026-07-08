@@ -43,6 +43,10 @@ const PUBLIC_PATH_PREFIXES = [
   '/api/kid',
   // FHS-429 — anonymous homepage feedback; the visitor has no account.
   '/api/public/feedback',
+  // FHS-445 — the calendar subscribe feed (ICS). A calendar app (Google /
+  // Apple / Outlook) fetches it with no bearer token; the signed token in the
+  // URL path is the credential, verified in constant time by the handler.
+  '/api/public/calendar',
 ] as const;
 
 declare module 'hono' {
