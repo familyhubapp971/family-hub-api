@@ -36,4 +36,16 @@ mkdir -p "$REPORTS_DIR"
 # Pass absolute reports dir + scenario name into k6 so report.js can
 # namespace its output (back-to-back runs don't clobber each other).
 SCENARIO_NAME="$(basename "$scenario" .js)"
+
+# k6's built-in web dashboard: export a self-contained HTML report per run
+# (open it with `pnpm report`). Defaults on; override with K6_WEB_DASHBOARD=false
+# to skip, or set K6_WEB_DASHBOARD_EXPORT to change the path. A live dashboard
+# also serves on 127.0.0.1:5665 while the run is in progress.
+: "${K6_WEB_DASHBOARD:=true}"
+: "${K6_WEB_DASHBOARD_EXPORT:=$REPORTS_DIR/report-$SCENARIO_NAME.html}"
+# 5s aggregation buckets so even the 30s smoke has enough periods to render a
+# report (k6 skips report generation with too few data points at the 10s default).
+: "${K6_WEB_DASHBOARD_PERIOD:=5s}"
+export K6_WEB_DASHBOARD K6_WEB_DASHBOARD_EXPORT K6_WEB_DASHBOARD_PERIOD
+
 exec k6 run -e REPORTS_DIR="$REPORTS_DIR" -e SCENARIO="$SCENARIO_NAME" "$scenario" "$@"

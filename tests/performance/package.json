@@ -9,6 +9,7 @@
     "smoke:auth": "scripts/run-k6.sh scenarios/auth-smoke.js",
     "load": "scripts/run-k6.sh scenarios/load.js",
     "stress": "scripts/run-k6.sh scenarios/stress.js",
-    "soak": "scripts/run-k6.sh scenarios/soak.js"
+    "soak": "scripts/run-k6.sh scenarios/soak.js",
+    "report": "scripts/open-report.sh"
   }
 }

@@ -39,6 +39,8 @@ pnpm stress               # 200 VUs, 10m — past peak
 pnpm soak                 # 30 VUs, 2h — leak/drift detection
 pnpm smoke:auth           # auth-only smoke
 
+pnpm report               # open the latest run's HTML dashboard in your browser
+
 # point at staging + a seeded fixtures file:
 BASE_URL=$STAGING_API_URL pnpm smoke -- -e LOAD_FIXTURES=fixtures/load-tenants.json
 ```
@@ -118,6 +120,7 @@ are opt-in:
    you set (it starts as `null`, which fails loudly instead of silently
    if you forget this step and try to run parent sessions anyway).
 3. Link the new Supabase user to the seeded admin member row:
+
    ```sql
    UPDATE members SET user_id = '<supabase-user-uuid>'
      WHERE id = '<fixtures[].parent.adminMemberId>';
