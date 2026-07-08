@@ -2,12 +2,19 @@
 // leaks, connection-pool exhaustion, GC pressure, log-volume issues.
 // 30 VUs / 2h. Runs weekly Sunday nightly via FHS-185 perf.yml.
 //
+// FHS-460 — see config.js's RATE-LIMIT WARNING block before pointing
+// this at staging; 30 VUs of real sessions still needs the limit raised
+// for the run to measure real latency instead of 429s.
+//
 // Run locally (long! — usually only run in CI):
-//   k6 run tests/performance/scenarios/soak.js
+//   node tests/performance/scripts/seed-load-tenants.mjs
+//   k6 run -e LOAD_FIXTURES=tests/performance/fixtures/load-tenants.json \
+//          tests/performance/scenarios/soak.js
 
 import { sleep } from 'k6';
-import { PROFILES, THRESHOLDS } from '../config.js';
-import { defaultWorkload, tenantSlugForVU } from '../scripts/helpers.js';
+import { BASE_URL, PROFILES, THRESHOLDS } from '../config.js';
+import { kidSession, parentSession, healthOnlyFallback } from '../scripts/helpers.js';
+import { loadFixtures, loginAllFixtures } from '../scripts/fixtures.js';
 export { handleSummary } from '../scripts/report.js';
 
 export const options = {
@@ -18,17 +25,29 @@ export const options = {
     // a duplicate `http_req_duration` key would silently overwrite
     // (JS object literal semantics). p99 uses its dedicated
     // THRESHOLDS.p99_response — independent of the write SLO.
-    http_req_duration: [
-      `p(95)<${THRESHOLDS.p95_response}`,
-      `p(99)<${THRESHOLDS.p99_response}`,
-    ],
+    http_req_duration: [`p(95)<${THRESHOLDS.p95_response}`, `p(99)<${THRESHOLDS.p99_response}`],
     http_req_failed: [`rate<${THRESHOLDS.max_error_rate}`],
   },
 };
 
-export default function () {
-  const tenant = tenantSlugForVU(__VU);
-  defaultWorkload(tenant);
+export function setup() {
+  const fixtures = loadFixtures();
+  if (fixtures.length === 0) return { fixtures: [] };
+  return { fixtures: loginAllFixtures(BASE_URL, fixtures) };
+}
+
+export default function (data) {
+  if (data.fixtures.length === 0) {
+    healthOnlyFallback();
+    sleep(2 + Math.random() * 3);
+    return;
+  }
+  const fixture = data.fixtures[(__VU - 1) % data.fixtures.length];
+  const kid = fixture.kids[__VU % fixture.kids.length];
+  kidSession(BASE_URL, kid.token);
+  if (fixture.parent.token) {
+    parentSession(BASE_URL, fixture.parent.token, fixture.tenantSlug, kid.memberId);
+  }
 
   // Uniform [2, 5)s think-time — not modelled on a real distribution,
   // but enough variance to avoid lock-step VU behaviour over the soak.

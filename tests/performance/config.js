@@ -5,6 +5,31 @@
 // api dev server runs on :3001. In CI/staging override BASE_URL:
 //   k6 run -e BASE_URL=https://api.familyhub.app scenarios/smoke.js
 
+// ─────────────────────────────────────────────────────────────────────────
+// ⚠️  RATE-LIMIT WARNING — read this before running load/stress/soak.
+// ─────────────────────────────────────────────────────────────────────────
+// apps/api/src/middleware/rate-limit.ts caps every caller at
+// RATE_LIMIT_PER_MINUTE requests per 60s (config.ts default: 100),
+// keyed on the CALLER'S IP (apps/api/src/app.ts mounts it globally,
+// before auth, for every request).
+//
+// k6 sends ALL of a run's traffic from ONE machine → ONE IP → ONE shared
+// token bucket, no matter how many VUs you spin up. A single realistic
+// family session (see scripts/helpers.js kidSession/parentSession) is
+// ~12-19 requests. At the `load` profile (50 VUs) that's up to
+// 50 x 19 = 950 requests in the first minute — you will exhaust the
+// 100-token bucket in a few seconds and spend the rest of the run
+// measuring 429 "rate limit exceeded" responses, not real API latency.
+//
+// Before pointing load/stress/soak at staging, EITHER:
+//   1. Ask for RATE_LIMIT_PER_MINUTE to be raised on the staging Railway
+//      service for the test window (and set back after), OR
+//   2. Keep VUs low enough that (VUs x ~19 req) stays under the limit —
+//      fine for `smoke` (1 VU), but defeats the point of `load`/`stress`.
+// A run that's mostly 429s is a rate-limit ceiling finding, not a real
+// capacity finding — don't report it as the latter.
+// ─────────────────────────────────────────────────────────────────────────
+
 export const BASE_URL = __ENV.BASE_URL || 'http://localhost:3001';
 
 export const PROFILES = {
@@ -31,7 +56,16 @@ export const THRESHOLDS = {
 export const STRESS_LATENCY_MULTIPLIER = 2;
 export const STRESS_ERROR_BUDGET_MULTIPLIER = 2;
 
-// Synthetic tenant slugs for per-tenant VU groups (FHS-184 will provide
-// real factories; until then these are placeholders matched by the
-// integration test seeds).
-export const TENANTS = ['tenant-a', 'tenant-b', 'tenant-c'];
+// FHS-460 — the two screens every real session opens (the parent
+// Dashboard/Today tab and the kid Today tab) get their OWN p95 budget
+// tag instead of hiding inside the global average. scripts/helpers.js
+// tags those two requests `name:dashboard` / `name:kid-today`.
+// `multiplier` lets stress.js reuse this with STRESS_LATENCY_MULTIPLIER
+// instead of duplicating the threshold strings.
+export function hotScreenThresholds(multiplier = 1) {
+  const budget = THRESHOLDS.p95_response * multiplier;
+  return {
+    'http_req_duration{name:dashboard}': [`p(95)<${budget}`],
+    'http_req_duration{name:kid-today}': [`p(95)<${budget}`],
+  };
+}

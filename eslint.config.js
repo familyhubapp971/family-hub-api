@@ -122,8 +122,8 @@ export default tseslint.config(
     },
   },
 
-  // 6b. k6 perf scripts — k6 injects __ENV / __VU / __ITER into the VU
-  //     runtime; they're not Node nor browser globals.
+  // 6b. k6 perf scripts — k6 injects __ENV / __VU / __ITER / open() into
+  //     the VU runtime; they're not Node nor browser globals.
   {
     files: ['tests/performance/**/*.{js,mjs}'],
     languageOptions: {
@@ -132,6 +132,7 @@ export default tseslint.config(
         __ENV: 'readonly',
         __VU: 'readonly',
         __ITER: 'readonly',
+        open: 'readonly',
       },
     },
   },

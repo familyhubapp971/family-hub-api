@@ -2,17 +2,28 @@
 // Ramps from 0 → 200 VUs over 10m, then drops back. Run pre-release
 // only (manual / FHS-185 perf.yml on demand).
 //
-// Run locally:
-//   k6 run tests/performance/scenarios/stress.js
+// FHS-460 — see config.js's RATE-LIMIT WARNING block: at 200 peak VUs
+// this scenario is guaranteed to exhaust the default 100 req/min bucket
+// almost instantly unless RATE_LIMIT_PER_MINUTE is raised on the target
+// for the test window — otherwise you're measuring the rate limiter,
+// not the api's real breaking point.
+//
+// Run locally (after seeding — see tests/performance/README.md):
+//   node tests/performance/scripts/seed-load-tenants.mjs
+//   k6 run -e LOAD_FIXTURES=tests/performance/fixtures/load-tenants.json \
+//          tests/performance/scenarios/stress.js
 
 import { sleep } from 'k6';
 import {
+  BASE_URL,
   PROFILES,
   THRESHOLDS,
   STRESS_LATENCY_MULTIPLIER,
   STRESS_ERROR_BUDGET_MULTIPLIER,
+  hotScreenThresholds,
 } from '../config.js';
-import { defaultWorkload, tenantSlugForVU } from '../scripts/helpers.js';
+import { kidSession, parentSession, healthOnlyFallback } from '../scripts/helpers.js';
+import { loadFixtures, loginAllFixtures } from '../scripts/fixtures.js';
 export { handleSummary } from '../scripts/report.js';
 
 const peakVUs = PROFILES.stress.vus; // 200
@@ -32,12 +43,28 @@ export const options = {
   thresholds: {
     http_req_duration: [`p(95)<${THRESHOLDS.p95_response * STRESS_LATENCY_MULTIPLIER}`],
     http_req_failed: [`rate<${THRESHOLDS.max_error_rate * STRESS_ERROR_BUDGET_MULTIPLIER}`],
+    ...hotScreenThresholds(STRESS_LATENCY_MULTIPLIER),
   },
 };
 
-export default function () {
-  const tenant = tenantSlugForVU(__VU);
-  defaultWorkload(tenant);
+export function setup() {
+  const fixtures = loadFixtures();
+  if (fixtures.length === 0) return { fixtures: [] };
+  return { fixtures: loginAllFixtures(BASE_URL, fixtures) };
+}
+
+export default function (data) {
+  if (data.fixtures.length === 0) {
+    healthOnlyFallback();
+    sleep(0.1);
+    return;
+  }
+  const fixture = data.fixtures[(__VU - 1) % data.fixtures.length];
+  const kid = fixture.kids[__VU % fixture.kids.length];
+  kidSession(BASE_URL, kid.token);
+  if (fixture.parent.token) {
+    parentSession(BASE_URL, fixture.parent.token, fixture.tenantSlug, kid.memberId);
+  }
 
   // 100ms think-time → each VU caps at ~10 rps. The intent is high
   // throughput without melting the api in tight-loop mode; tighten
