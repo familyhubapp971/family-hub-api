@@ -1,5 +1,16 @@
 import { Hono } from 'hono';
-import { and, asc, count, countDistinct, desc, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  isNotNull,
+  sql,
+} from 'drizzle-orm';
 import {
   dashboardTodayResponseSchema,
   type DashboardActivity,
@@ -26,7 +37,7 @@ import {
   weeks,
 } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
-import { stickerBalance } from '../lib/myworld.js';
+import { stickerBalances } from '../lib/myworld.js';
 
 // FHS-228 / FHS-262 — GET /api/dashboard/today.
 //
@@ -300,104 +311,253 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     .from(savingsTransactions)
     .where(eq(savingsTransactions.tenantId, tenantId));
 
-  // 10 — recent activity from activityLogs (last 5, merged with mw_week_actions below).
-  const activityRows = await db
-    .select({
-      id: activityLogs.id,
-      action: activityLogs.action,
-      createdAt: activityLogs.createdAt,
-      actor: members.displayName,
-    })
-    .from(activityLogs)
-    .leftJoin(
-      members,
-      and(eq(activityLogs.actorMemberId, members.id), eq(members.tenantId, tenantId)),
+  // 10 — Recent Activity feed sources, in ONE round-trip (FHS-463).
+  //
+  // The card merges six append-only sources (legacy activity_logs, My World
+  // week actions, and — FHS-439 — meals / calendar events / habit stickers /
+  // approved reward requests). Each was previously its own SELECT ... ORDER BY
+  // <ts> DESC LIMIT 5 round-trip; on the request-pinned single pg connection
+  // those ran strictly serially. They're combined here into one UNION ALL so
+  // the feed costs one round-trip instead of six.
+  //
+  // Correctness contract: this does NOT change the feed's values or ordering.
+  // Each member keeps its exact WHERE / ORDER BY / LIMIT 5, so the candidate
+  // set is identical to the six separate queries. The rows are split back into
+  // the same per-source arrays below and handed to the UNCHANGED JS merge
+  // (map → sort newest-first → slice top 5), which owns all string-building
+  // and tie-breaking. A discriminator column (`src`) and per-source LIMIT keep
+  // the union faithful; no outer ORDER BY / LIMIT is applied, so the JS merge
+  // still sees every candidate exactly as before.
+  //
+  // Column layout is fixed by the FIRST member (positional union); every other
+  // member SELECTs the same 15 columns in order, NULL-cast where N/A.
+  const activityFeed = await db.execute(sql`
+    (
+      SELECT
+        'log'::text AS "src",
+        ${activityLogs.id}::text AS "id",
+        NULL::uuid AS "memberId",
+        ${members.displayName} AS "actor",
+        ${activityLogs.action} AS "action",
+        NULL::text AS "actionType",
+        NULL::integer AS "stickersUsed",
+        NULL::text AS "rewardName",
+        NULL::text AS "habitName",
+        NULL::text AS "name",
+        NULL::text AS "slot",
+        NULL::text AS "dayOfWeek",
+        NULL::text AS "title",
+        ${activityLogs.createdAt} AS "createdAt",
+        NULL::timestamptz AS "decidedAt"
+      FROM ${activityLogs}
+      LEFT JOIN ${members}
+        ON ${activityLogs.actorMemberId} = ${members.id}
+        AND ${members.tenantId} = ${tenantId}
+      WHERE ${activityLogs.tenantId} = ${tenantId}
+      ORDER BY ${activityLogs.createdAt} DESC
+      LIMIT 5
     )
-    .where(eq(activityLogs.tenantId, tenantId))
-    .orderBy(desc(activityLogs.createdAt))
-    .limit(5);
-
-  // 11 — My World week actions (last 5 rows) for the merged activity feed.
-  const mwActionRows = await db
-    .select({
-      id: mwWeekActions.id,
-      memberId: mwWeekActions.memberId,
-      actionType: mwWeekActions.actionType,
-      stickersUsed: mwWeekActions.stickersUsed,
-      rewardName: mwWeekActions.rewardName,
-      habitName: mwWeekActions.habitName,
-      createdAt: mwWeekActions.createdAt,
-    })
-    .from(mwWeekActions)
-    .where(eq(mwWeekActions.tenantId, tenantId))
-    .orderBy(desc(mwWeekActions.createdAt))
-    .limit(5);
-
-  // 11a-11d — FHS-439: the four everyday sources that actually feed the
-  // Recent Activity card (activityLogs + mw_week_actions above almost never
-  // fire for a typical family). Each is tenant-scoped and capped to the last
-  // 5 rows — more than enough to cover the merged top-5 window below.
-
-  // 11a — recently named meal templates (any day, not just today).
-  const recentMealRows = await db
-    .select({
-      id: mealTemplates.id,
-      name: mealTemplates.name,
-      slot: mealTemplates.slot,
-      dayOfWeek: mealTemplates.dayOfWeek,
-      memberId: mealTemplates.memberId,
-      createdAt: mealTemplates.createdAt,
-    })
-    .from(mealTemplates)
-    .where(and(eq(mealTemplates.tenantId, tenantId), isNotNull(mealTemplates.name)))
-    .orderBy(desc(mealTemplates.createdAt))
-    .limit(5);
-
-  // 11b — recently added calendar (Home/School) activities.
-  const recentEventRows = await db
-    .select({
-      id: events.id,
-      title: events.title,
-      memberId: events.memberId,
-      createdAt: events.createdAt,
-    })
-    .from(events)
-    .where(eq(events.tenantId, tenantId))
-    .orderBy(desc(events.createdAt))
-    .limit(5);
-
-  // 11c — recently placed habit stickers (any week, not just the current
-  // one) — joined to habits for a human-readable name.
-  const recentStickerRows = await db
-    .select({
-      id: habitStickers.id,
-      memberId: habitStickers.memberId,
-      habitName: habits.name,
-      createdAt: habitStickers.createdAt,
-    })
-    .from(habitStickers)
-    .leftJoin(habits, eq(habitStickers.habitId, habits.id))
-    .where(eq(habitStickers.tenantId, tenantId))
-    .orderBy(desc(habitStickers.createdAt))
-    .limit(5);
-
-  // 11d — recently approved reward redemption requests — joined to rewards
-  // for a human-readable name. `decidedAt` is set by the approve handler.
-  const recentApprovedRedemptionRows = await db
-    .select({
-      id: redemptionRequests.id,
-      memberId: redemptionRequests.memberId,
-      rewardName: rewards.name,
-      decidedAt: redemptionRequests.decidedAt,
-      createdAt: redemptionRequests.createdAt,
-    })
-    .from(redemptionRequests)
-    .leftJoin(rewards, eq(redemptionRequests.rewardId, rewards.id))
-    .where(
-      and(eq(redemptionRequests.tenantId, tenantId), eq(redemptionRequests.status, 'approved')),
+    UNION ALL
+    (
+      SELECT
+        'mw'::text,
+        ${mwWeekActions.id}::text,
+        ${mwWeekActions.memberId},
+        NULL::text,
+        NULL::text,
+        ${mwWeekActions.actionType}::text,
+        ${mwWeekActions.stickersUsed},
+        ${mwWeekActions.rewardName},
+        ${mwWeekActions.habitName},
+        NULL::text,
+        NULL::text,
+        NULL::text,
+        NULL::text,
+        ${mwWeekActions.createdAt},
+        NULL::timestamptz
+      FROM ${mwWeekActions}
+      WHERE ${mwWeekActions.tenantId} = ${tenantId}
+      ORDER BY ${mwWeekActions.createdAt} DESC
+      LIMIT 5
     )
-    .orderBy(desc(redemptionRequests.decidedAt))
-    .limit(5);
+    UNION ALL
+    (
+      SELECT
+        'meal'::text,
+        ${mealTemplates.id}::text,
+        ${mealTemplates.memberId},
+        NULL::text,
+        NULL::text,
+        NULL::text,
+        NULL::integer,
+        NULL::text,
+        NULL::text,
+        ${mealTemplates.name},
+        ${mealTemplates.slot}::text,
+        ${mealTemplates.dayOfWeek}::text,
+        NULL::text,
+        ${mealTemplates.createdAt},
+        NULL::timestamptz
+      FROM ${mealTemplates}
+      WHERE ${mealTemplates.tenantId} = ${tenantId}
+        AND ${mealTemplates.name} IS NOT NULL
+      ORDER BY ${mealTemplates.createdAt} DESC
+      LIMIT 5
+    )
+    UNION ALL
+    (
+      SELECT
+        'event'::text,
+        ${events.id}::text,
+        ${events.memberId},
+        NULL::text,
+        NULL::text,
+        NULL::text,
+        NULL::integer,
+        NULL::text,
+        NULL::text,
+        NULL::text,
+        NULL::text,
+        NULL::text,
+        ${events.title},
+        ${events.createdAt},
+        NULL::timestamptz
+      FROM ${events}
+      WHERE ${events.tenantId} = ${tenantId}
+      ORDER BY ${events.createdAt} DESC
+      LIMIT 5
+    )
+    UNION ALL
+    (
+      SELECT
+        'sticker'::text,
+        ${habitStickers.id}::text,
+        ${habitStickers.memberId},
+        NULL::text,
+        NULL::text,
+        NULL::text,
+        NULL::integer,
+        NULL::text,
+        ${habits.name},
+        NULL::text,
+        NULL::text,
+        NULL::text,
+        NULL::text,
+        ${habitStickers.createdAt},
+        NULL::timestamptz
+      FROM ${habitStickers}
+      LEFT JOIN ${habits} ON ${habitStickers.habitId} = ${habits.id}
+      WHERE ${habitStickers.tenantId} = ${tenantId}
+      ORDER BY ${habitStickers.createdAt} DESC
+      LIMIT 5
+    )
+    UNION ALL
+    (
+      SELECT
+        'redemption'::text,
+        ${redemptionRequests.id}::text,
+        ${redemptionRequests.memberId},
+        NULL::text,
+        NULL::text,
+        NULL::text,
+        NULL::integer,
+        ${rewards.name},
+        NULL::text,
+        NULL::text,
+        NULL::text,
+        NULL::text,
+        NULL::text,
+        ${redemptionRequests.createdAt},
+        ${redemptionRequests.decidedAt}
+      FROM ${redemptionRequests}
+      LEFT JOIN ${rewards} ON ${redemptionRequests.rewardId} = ${rewards.id}
+      WHERE ${redemptionRequests.tenantId} = ${tenantId}
+        AND ${redemptionRequests.status} = 'approved'
+      ORDER BY ${redemptionRequests.decidedAt} DESC
+      LIMIT 5
+    )
+  `);
+
+  // Split the union back into the same per-source row shapes the JS merge
+  // below already consumes. Postgres returns text/uuid as string, integer as
+  // number, timestamptz as Date — exactly what the merge expects. Order is
+  // irrelevant here: the merge re-sorts every candidate.
+  type ActivityFeedRow = {
+    src: string;
+    id: string;
+    memberId: string | null;
+    actor: string | null;
+    action: string | null;
+    actionType: string | null;
+    stickersUsed: number | null;
+    rewardName: string | null;
+    habitName: string | null;
+    name: string | null;
+    slot: string | null;
+    dayOfWeek: string | null;
+    title: string | null;
+    // db.execute returns raw pg rows: timestamptz comes back as an ISO STRING,
+    // not a Date (unlike the drizzle query builder). Coerced to Date below so
+    // the downstream JS merge (which calls .getTime()) behaves exactly as it
+    // did when these were six drizzle .select() queries.
+    createdAt: Date | string;
+    decidedAt: Date | string | null;
+  };
+  const feedRows = (activityFeed.rows as ActivityFeedRow[]).map((r) => ({
+    ...r,
+    createdAt: new Date(r.createdAt),
+    decidedAt: r.decidedAt === null ? null : new Date(r.decidedAt),
+  }));
+
+  const activityRows = feedRows
+    .filter((r) => r.src === 'log')
+    .map((r) => ({ id: r.id, action: r.action as string, createdAt: r.createdAt, actor: r.actor }));
+  const mwActionRows = feedRows
+    .filter((r) => r.src === 'mw')
+    .map((r) => ({
+      id: r.id,
+      memberId: r.memberId as string,
+      actionType: r.actionType as string,
+      stickersUsed: r.stickersUsed,
+      rewardName: r.rewardName,
+      habitName: r.habitName,
+      createdAt: r.createdAt,
+    }));
+  const recentMealRows = feedRows
+    .filter((r) => r.src === 'meal')
+    .map((r) => ({
+      id: r.id,
+      name: r.name as string,
+      slot: r.slot as string,
+      dayOfWeek: r.dayOfWeek as string,
+      memberId: r.memberId,
+      createdAt: r.createdAt,
+    }));
+  const recentEventRows = feedRows
+    .filter((r) => r.src === 'event')
+    .map((r) => ({
+      id: r.id,
+      title: r.title as string,
+      memberId: r.memberId,
+      createdAt: r.createdAt,
+    }));
+  const recentStickerRows = feedRows
+    .filter((r) => r.src === 'sticker')
+    .map((r) => ({
+      id: r.id,
+      memberId: r.memberId as string,
+      habitName: r.habitName,
+      createdAt: r.createdAt,
+    }));
+  const recentApprovedRedemptionRows = feedRows
+    .filter((r) => r.src === 'redemption')
+    .map((r) => ({
+      id: r.id,
+      memberId: r.memberId as string,
+      rewardName: r.rewardName,
+      decidedAt: r.decidedAt,
+      createdAt: r.createdAt,
+    }));
 
   // 12 — main meals (breakfast/lunch/dinner) planned for today. DISTINCT
   // slots, not rows: FHS-264 lets a slot hold a whole-family meal plus
@@ -489,21 +649,14 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     }
   }
 
-  // 16 — per-kid star balance (stickerBalance helper: unallocated stickers
-  // + saved stickers + cash-as-stickers). Fan-out is bounded by the number
-  // of kids in the family, which is typically small.
-  const starBalanceByMember = new Map<string, number>();
-  if (kidMemberIds.length > 0) {
-    const balances = await Promise.all(
-      kidMemberIds.map(async (memberId) => ({
-        memberId,
-        balance: await stickerBalance(db, tenantId, memberId),
-      })),
-    );
-    for (const { memberId, balance } of balances) {
-      starBalanceByMember.set(memberId, balance);
-    }
-  }
+  // 16 — per-kid star balance (unallocated stickers + saved stickers +
+  // cash-as-stickers). FHS-463 — batched into a fixed two queries via
+  // stickerBalances() instead of the old 2×(kids) serial fan-out; the
+  // per-kid value is identical to the previous stickerBalance() call.
+  const starBalanceByMember =
+    kidMemberIds.length > 0
+      ? await stickerBalances(db, tenantId, kidMemberIds)
+      : new Map<string, number>();
 
   // --- Derive task stats ---
 

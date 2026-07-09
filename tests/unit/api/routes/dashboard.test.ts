@@ -4,50 +4,48 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dashboardRouter } from '../../../../apps/api/src/routes/dashboard.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-228 / FHS-262 / FHS-306 / FHS-439 — GET /api/dashboard/today.
+// FHS-228 / FHS-262 / FHS-306 / FHS-439 / FHS-463 — GET /api/dashboard/today.
 //
-// The route fires a fixed sequence of select() calls plus parallel
-// stickerBalance() calls (which each do 2 selects). We stub db at the
-// module boundary and stickerBalance separately. Derivation logic is
+// The route fires a fixed sequence of select() calls, ONE execute() for the
+// Recent Activity feed, plus a single batched stickerBalances() call. We stub
+// db at the module boundary and stickerBalances separately. Derivation logic is
 // covered in dashboard-helpers.test.ts; this file covers wiring + shape.
 //
-// FHS-439 added four new tenant-scoped queries (recent meals / calendar
-// events / habit stickers / approved reward requests) so Recent Activity
-// reflects what a real family actually does, not just the near-dead
-// activity_logs table and the My World financial actions. Query sequence:
-//   1  caller membership
-//   2  members roster
-//   3  active habits (family total for counts.habits)
-//   4  rewards count
-//   5  tenant timezone
-//   6  weeks
-//   7  tasks (also feeds "added"/"completed" Recent Activity entries)
-//   8  savings
-//   9  savings transactions
-//   10 activityLogs (legacy feed)
-//   11 mw_week_actions (My World feed)
-//   12 recent meal templates (FHS-439)
-//   13 recent calendar events (FHS-439)
-//   14 recent habit stickers (FHS-439)
-//   15 recent approved redemption requests (FHS-439)
-//   16 meals count (countDistinct slot, today only)
-//   17 kid habitsTotal (habits GROUP BY member_id) — only when kids exist
-//   18 kid current mw_weeks (earliest non-finalized) — only when kids exist
-//   19 kid habit_stickers (countDistinct habit_id per week) — only when open weeks exist
+// FHS-463 collapsed the six per-source activity SELECTs (activity_logs,
+// mw_week_actions, meals, events, stickers, approved redemptions) into ONE
+// UNION ALL run via db.execute(), and the per-kid stickerBalance fan-out into
+// one batched stickerBalances() call — both to cut round-trips on the app's
+// hottest screen. Neither changes the JSON. Query sequence now:
+//   select 1  caller membership
+//   select 2  members roster
+//   select 3  active habits (family total for counts.habits)
+//   select 4  rewards count
+//   select 5  tenant timezone
+//   select 6  weeks
+//   select 7  tasks (also feeds "added"/"completed" Recent Activity entries)
+//   select 8  savings
+//   select 9  savings transactions
+//   execute   Recent Activity UNION ALL (six sources, one round-trip)
+//   select 10 meals count (countDistinct slot, today only)
+//   select 11 kid habitsTotal (habits GROUP BY member_id) — only when kids exist
+//   select 12 kid current mw_weeks (earliest non-finalized) — only when kids exist
+//   select 13 kid habit_stickers (countDistinct habit_id per week) — only when open weeks
+//   stickerBalances() — batched per-kid star balance (mocked helper)
 
-const dbMock = { select: vi.fn() };
+const dbMock = { select: vi.fn(), execute: vi.fn() };
 vi.mock('../../../../apps/api/src/db/client.js', () => ({
   getDb: () => dbMock,
 }));
 
-// Stub stickerBalance so unit tests don't need to simulate its two inner
-// selects. Default to returning 0; individual tests can override per call.
+// Stub stickerBalances so unit tests don't need to simulate its two batched
+// selects. Default returns an empty Map; per-kid values come from the seed's
+// `stickerBalances` map (see buildAppWithSeed).
 vi.mock('../../../../apps/api/src/lib/myworld.js', () => ({
-  stickerBalance: vi.fn().mockResolvedValue(0),
+  stickerBalances: vi.fn().mockResolvedValue(new Map()),
 }));
 
-import { stickerBalance } from '../../../../apps/api/src/lib/myworld.js';
-const stickerBalanceMock = vi.mocked(stickerBalance);
+import { stickerBalances } from '../../../../apps/api/src/lib/myworld.js';
+const stickerBalancesMock = vi.mocked(stickerBalances);
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '00000000-0000-4000-8000-000000000777';
@@ -142,6 +140,89 @@ function chain(rows: unknown): unknown {
   return obj;
 }
 
+// FHS-463 — mirror the handler's Recent Activity UNION ALL: turn the seeded
+// per-source arrays into the discriminated { rows } shape db.execute() returns.
+// Every row carries all 15 columns (NULL where a source doesn't set them) plus
+// a `src` tag; the handler filters by `src` and rebuilds its per-source arrays.
+function buildActivityFeedRows(data: SeedData): { rows: Array<Record<string, unknown>> } {
+  const base = {
+    memberId: null as string | null,
+    actor: null as string | null,
+    action: null as string | null,
+    actionType: null as string | null,
+    stickersUsed: null as number | null,
+    rewardName: null as string | null,
+    habitName: null as string | null,
+    name: null as string | null,
+    slot: null as string | null,
+    dayOfWeek: null as string | null,
+    title: null as string | null,
+    decidedAt: null as Date | null,
+  };
+  const rows: Array<Record<string, unknown>> = [];
+  for (const a of data.activity ?? [])
+    rows.push({
+      ...base,
+      src: 'log',
+      id: a.id,
+      actor: a.actor ?? null,
+      action: a.action,
+      createdAt: a.createdAt,
+    });
+  for (const a of data.mwActions ?? [])
+    rows.push({
+      ...base,
+      src: 'mw',
+      id: a.id,
+      memberId: a.memberId,
+      actionType: a.actionType,
+      stickersUsed: a.stickersUsed,
+      rewardName: a.rewardName,
+      habitName: a.habitName,
+      createdAt: a.createdAt,
+    });
+  for (const m of data.recentMeals ?? [])
+    rows.push({
+      ...base,
+      src: 'meal',
+      id: m.id,
+      memberId: m.memberId,
+      name: m.name,
+      slot: m.slot,
+      dayOfWeek: m.dayOfWeek,
+      createdAt: m.createdAt,
+    });
+  for (const e of data.recentEvents ?? [])
+    rows.push({
+      ...base,
+      src: 'event',
+      id: e.id,
+      memberId: e.memberId,
+      title: e.title,
+      createdAt: e.createdAt,
+    });
+  for (const s of data.recentStickers ?? [])
+    rows.push({
+      ...base,
+      src: 'sticker',
+      id: s.id,
+      memberId: s.memberId,
+      habitName: s.habitName,
+      createdAt: s.createdAt,
+    });
+  for (const r of data.recentApprovedRedemptions ?? [])
+    rows.push({
+      ...base,
+      src: 'redemption',
+      id: r.id,
+      memberId: r.memberId,
+      rewardName: r.rewardName,
+      decidedAt: r.decidedAt,
+      createdAt: r.createdAt,
+    });
+  return { rows };
+}
+
 function buildAppWithSeed(opts: SeedOpts = {}, data: SeedData = {}) {
   const seed: MiddlewareHandler = async (c, next) => {
     c.set('user', { id: USER_ID, email: USER_EMAIL, claims: {} });
@@ -177,29 +258,19 @@ function buildAppWithSeed(opts: SeedOpts = {}, data: SeedData = {}) {
         return chain(data.savings ?? []);
       case 9: // savings transactions
         return chain(data.tx ?? []);
-      case 10: // activityLogs (legacy feed)
-        return chain(data.activity ?? []);
-      case 11: // mw_week_actions (My World feed)
-        return chain(data.mwActions ?? []);
-      case 12: // FHS-439 — recent meal templates
-        return chain(data.recentMeals ?? []);
-      case 13: // FHS-439 — recent calendar events
-        return chain(data.recentEvents ?? []);
-      case 14: // FHS-439 — recent habit stickers
-        return chain(data.recentStickers ?? []);
-      case 15: // FHS-439 — recent approved redemption requests
-        return chain(data.recentApprovedRedemptions ?? []);
-      case 16: // meals count
+      // FHS-463 — the six activity sources are now one execute() (see below);
+      // meals count and the kid stats shift up by five select() positions.
+      case 10: // meals count
         return chain([{ n: data.mealsCount ?? 0 }]);
-      case 17: // kid habitsTotal (GROUP BY member_id) — only when kids exist
+      case 11: // kid habitsTotal (GROUP BY member_id) — only when kids exist
         if (!hasKids) return chain([{ n: 0 }]); // shouldn't be reached, but safe
         return chain((data.kidHabitsTotal ?? []).map((r) => ({ memberId: r.memberId, n: r.n })));
-      case 18: // kid open mw_weeks — only when kids exist
+      case 12: // kid open mw_weeks — only when kids exist
         if (!hasKids) return chain([]);
         return chain(
           (data.kidOpenWeeks ?? []).map((r) => ({ memberId: r.memberId, weekId: r.weekId })),
         );
-      case 19: // kid habit_stickers countDistinct — only when open weeks exist
+      case 13: // kid habit_stickers countDistinct — only when open weeks exist
         if (!hasOpenWeeks) return chain([]);
         return chain(
           (data.kidStickerCounts ?? []).map((r) => ({
@@ -213,9 +284,18 @@ function buildAppWithSeed(opts: SeedOpts = {}, data: SeedData = {}) {
     }
   });
 
-  // Configure stickerBalance per kid.
-  stickerBalanceMock.mockImplementation(async (_db, _tenantId, memberId) => {
-    return data.stickerBalances?.get(memberId) ?? 0;
+  // FHS-463 — the Recent Activity feed is one UNION ALL run via db.execute().
+  // Reproduce it here: emit the same discriminated rows the real union yields
+  // (one row per seeded source item), which the handler splits back into the
+  // per-source arrays its JS merge consumes. Postgres returns { rows }.
+  dbMock.execute.mockResolvedValue(buildActivityFeedRows(data));
+
+  // Configure the batched stickerBalances() per kid from the seed map.
+  stickerBalancesMock.mockImplementation(async (_db, _tenantId, memberIds) => {
+    const balances = new Map<string, number>();
+    for (const memberId of memberIds)
+      balances.set(memberId, data.stickerBalances?.get(memberId) ?? 0);
+    return balances;
   });
 
   const app = new Hono();
@@ -226,8 +306,10 @@ function buildAppWithSeed(opts: SeedOpts = {}, data: SeedData = {}) {
 
 beforeEach(() => {
   dbMock.select.mockReset();
-  stickerBalanceMock.mockReset();
-  stickerBalanceMock.mockResolvedValue(0);
+  dbMock.execute.mockReset();
+  dbMock.execute.mockResolvedValue({ rows: [] });
+  stickerBalancesMock.mockReset();
+  stickerBalancesMock.mockResolvedValue(new Map());
 });
 
 describe('FHS-228 / FHS-262 / FHS-306 — GET /api/dashboard/today', () => {
@@ -788,5 +870,34 @@ describe('FHS-228 / FHS-262 / FHS-306 — GET /api/dashboard/today', () => {
       };
       expect(body.recentActivity[0]!.action, `actionType=${actionType}`).toBe(expected);
     }
+  });
+
+  it('FHS-463: activity feed is one execute() and star balance one batched call', async () => {
+    const M_KID = '33333333-3333-4333-8333-333333333333';
+    const WK_MW = 'wwwwwwww-wwww-4www-8www-wwwwwwwwwww1';
+    const app = buildAppWithSeed(
+      {},
+      {
+        members: [
+          { id: M_KID, displayName: 'Iman', role: 'child', avatarEmoji: null, userId: null },
+        ],
+        kidHabitsTotal: [{ memberId: M_KID, n: 3 }],
+        kidOpenWeeks: [{ memberId: M_KID, weekId: WK_MW, year: 2026, weekNumber: 24 }],
+        kidStickerCounts: [{ memberId: M_KID, weekId: WK_MW, n: 2 }],
+        stickerBalances: new Map([[M_KID, 7]]),
+      },
+    );
+    const res = await app.request('/api/dashboard/today');
+    expect(res.status).toBe(200);
+    // The six per-source activity reads are now a single UNION ALL execute(),
+    // and the per-kid stickerBalance fan-out is one batched stickerBalances().
+    expect(dbMock.execute).toHaveBeenCalledTimes(1);
+    expect(stickerBalancesMock).toHaveBeenCalledTimes(1);
+    // select() count for this seed (1 kid, open week): caller, members, habits,
+    // rewards, tenant, weeks, tasks, savings, tx, mealsCount, kidHabitsTotal,
+    // kidOpenWeeks, kidStickerCounts = 13. Before FHS-463 the same path fired
+    // 19 selects (13 + 6 activity sources) plus 2 stickerBalance selects = 21
+    // serial round-trips; now 13 selects + 1 execute + 2 batched = 16.
+    expect(dbMock.select).toHaveBeenCalledTimes(13);
   });
 });

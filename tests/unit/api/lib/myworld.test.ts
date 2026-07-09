@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   cashAsStickers,
   dayDateOf,
   elapsedDaysForWeek,
   investmentValue,
+  stickerBalances,
   stickerDayRelation,
   STICKER_TO_CASH,
 } from '../../../../apps/api/src/lib/myworld.js';
@@ -145,6 +146,52 @@ describe('cashAsStickers', () => {
     expect(cashAsStickers(2)).toBe(4);
     expect(cashAsStickers(2.4)).toBe(4); // 2.4/0.5 = 4.8 -> 4
     expect(cashAsStickers(0)).toBe(0);
+  });
+});
+
+// FHS-463 — stickerBalances() batches the per-member star balance into a fixed
+// two queries (one grouped SUM over unallocated stickers, one over savings)
+// instead of the 2×N fan-out of calling stickerBalance() per member. The value
+// per member is identical: unallocated + saved stickers + cash-as-stickers.
+describe('stickerBalances (FHS-463 — batched per-member star balance)', () => {
+  // Minimal db stub: each db.select() resolves to the next canned result set,
+  // no matter where the builder chain stops (.from / .where / .groupBy).
+  function stubDb(resultSets: unknown[]) {
+    let call = 0;
+    const chain = (rows: unknown): unknown => {
+      const obj: Record<string, unknown> = {
+        from: () => obj,
+        where: () => obj,
+        groupBy: () => obj,
+        then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
+          Promise.resolve(rows).then(resolve, reject),
+      };
+      return obj;
+    };
+    const select = vi.fn(() => chain(resultSets[call++]));
+    return { db: { select } as unknown as Parameters<typeof stickerBalances>[0], select };
+  }
+
+  it('sums unallocated + saved stickers + cash-as-stickers per member in two queries', async () => {
+    const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const { db, select } = stubDb([
+      [{ memberId: A, s: '4' }], // B earned no unallocated stickers this window
+      [{ memberId: A, savedStickers: 2, savedCash: '1.50' }], // B has no savings row
+    ]);
+    const balances = await stickerBalances(db, 'tenant', [A, B]);
+    // A: 4 unallocated + 2 saved + floor(1.50 / 0.5)=3 = 9. B: nothing = 0.
+    expect(balances.get(A)).toBe(9);
+    expect(balances.get(B)).toBe(0);
+    // Exactly two round-trips regardless of member count (was 2×members before).
+    expect(select).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns an empty map and issues no query when given no members', async () => {
+    const { db, select } = stubDb([]);
+    const balances = await stickerBalances(db, 'tenant', []);
+    expect(balances.size).toBe(0);
+    expect(select).not.toHaveBeenCalled();
   });
 });
 

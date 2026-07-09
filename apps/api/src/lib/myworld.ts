@@ -267,6 +267,63 @@ export async function stickerBalance(db: Db, tenantId: string, memberId: string)
   return Number(unallocRow[0]?.s ?? 0) + savings.savedStickers + cashAsStickers(savings.savedCash);
 }
 
+/**
+ * Batched {@link stickerBalance} for many members in a FIXED two queries,
+ * instead of the 2×N you get from calling stickerBalance() per member
+ * (FHS-463 — the dashboard fanned this out across every kid on the family's
+ * hottest screen). The per-member value is identical to stickerBalance():
+ * unallocated week stickers + banked saved stickers + saved cash as whole
+ * stickers. Members with no rows resolve to 0. Returns a Map keyed by
+ * memberId; ids not in the input are simply absent.
+ */
+export async function stickerBalances(
+  db: Db,
+  tenantId: string,
+  memberIds: string[],
+): Promise<Map<string, number>> {
+  const balances = new Map<string, number>();
+  if (memberIds.length === 0) return balances;
+  const [unallocRows, savingsRows] = await Promise.all([
+    db
+      .select({
+        memberId: habitStickers.memberId,
+        s: sql<string>`coalesce(sum(${habitStickers.stickerValue}), 0)`,
+      })
+      .from(habitStickers)
+      .where(
+        and(
+          eq(habitStickers.tenantId, tenantId),
+          eq(habitStickers.isAllocated, false),
+          inArray(habitStickers.memberId, memberIds),
+        ),
+      )
+      .groupBy(habitStickers.memberId),
+    db
+      .select({
+        memberId: mwSavings.memberId,
+        savedStickers: mwSavings.savedStickers,
+        savedCash: mwSavings.savedCash,
+      })
+      .from(mwSavings)
+      .where(and(eq(mwSavings.tenantId, tenantId), inArray(mwSavings.memberId, memberIds))),
+  ]);
+  const unallocByMember = new Map<string, number>();
+  for (const row of unallocRows) unallocByMember.set(row.memberId, Number(row.s ?? 0));
+  const savingsByMember = new Map<string, { savedStickers: number; savedCash: number }>();
+  for (const row of savingsRows) {
+    savingsByMember.set(row.memberId, {
+      savedStickers: row.savedStickers,
+      savedCash: Number(row.savedCash),
+    });
+  }
+  for (const memberId of memberIds) {
+    const unalloc = unallocByMember.get(memberId) ?? 0;
+    const saved = savingsByMember.get(memberId) ?? { savedStickers: 0, savedCash: 0 };
+    balances.set(memberId, unalloc + saved.savedStickers + cashAsStickers(saved.savedCash));
+  }
+  return balances;
+}
+
 // The top-level pool db (has `.transaction`) — redeemReward opens its own.
 type PoolDb = ReturnType<typeof getDb>;
 
