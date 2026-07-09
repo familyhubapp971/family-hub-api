@@ -22,7 +22,7 @@
 import http from 'k6/http';
 import { check, sleep, fail } from 'k6';
 import { BASE_URL, PROFILES, THRESHOLDS } from '../config.js';
-export { handleSummary } from '../scripts/report.js';
+export { handleSummary } from '../lib/report.js';
 
 const SUPABASE_URL = __ENV.SUPABASE_URL || __ENV.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = __ENV.SUPABASE_ANON_KEY || __ENV.VITE_SUPABASE_ANON_KEY;

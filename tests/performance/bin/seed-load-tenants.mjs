@@ -15,9 +15,9 @@
 // tests/performance/README.md.
 //
 // Usage:
-//   node tests/performance/scripts/seed-load-tenants.mjs [tenantCount] [fixturesOutPath]
-//   node tests/performance/scripts/seed-load-tenants.mjs 3
-//   node tests/performance/scripts/seed-load-tenants.mjs 5 tests/performance/fixtures/load-tenants.json
+//   node tests/performance/bin/seed-load-tenants.mjs [tenantCount] [fixturesOutPath]
+//   node tests/performance/bin/seed-load-tenants.mjs 3
+//   node tests/performance/bin/seed-load-tenants.mjs 5 tests/performance/fixtures/load-tenants.json
 //
 // Reads DATABASE_URL from the environment, falling back to .env.local
 // (same simple parse as scripts/export-beta-feedback.mjs). Connects as
@@ -174,13 +174,12 @@ async function seedTenant(index) {
   );
 
   const kidNames = ['Kid A', 'Kid B'];
-  const kidAges = [8, 12];
   const kidMemberIds = [];
   for (let k = 0; k < kidNames.length; k += 1) {
     const memberId = await insertOne(
       'members',
-      ['tenant_id', 'display_name', 'role', 'is_child', 'pin_hash', 'age'],
-      [tenantId, kidNames[k], 'child', true, KID_PIN_HASH, kidAges[k]],
+      ['tenant_id', 'display_name', 'role', 'is_child', 'pin_hash'],
+      [tenantId, kidNames[k], 'child', true, KID_PIN_HASH],
     );
     kidMemberIds.push(memberId);
   }

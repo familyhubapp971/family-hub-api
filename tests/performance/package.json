@@ -4,12 +4,12 @@
   "private": true,
   "description": "k6 load & performance tests for the Family Hub API. See README.md. (FHS-459/460)",
   "scripts": {
-    "seed": "node scripts/seed-load-tenants.mjs",
-    "smoke": "scripts/run-k6.sh scenarios/smoke.js",
-    "smoke:auth": "scripts/run-k6.sh scenarios/auth-smoke.js",
-    "load": "scripts/run-k6.sh scenarios/load.js",
-    "stress": "scripts/run-k6.sh scenarios/stress.js",
-    "soak": "scripts/run-k6.sh scenarios/soak.js",
-    "report": "scripts/open-report.sh"
+    "seed": "node bin/seed-load-tenants.mjs",
+    "smoke": "bin/run-k6.sh scenarios/smoke.js",
+    "smoke:auth": "bin/run-k6.sh scenarios/auth-smoke.js",
+    "load": "bin/run-k6.sh scenarios/load.js",
+    "stress": "bin/run-k6.sh scenarios/stress.js",
+    "soak": "bin/run-k6.sh scenarios/soak.js",
+    "report": "bin/open-report.sh"
   }
 }

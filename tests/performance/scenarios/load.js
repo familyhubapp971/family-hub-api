@@ -7,7 +7,7 @@
 // the test window.
 //
 // Run locally (after seeding — see tests/performance/README.md):
-//   node tests/performance/scripts/seed-load-tenants.mjs
+//   node tests/performance/bin/seed-load-tenants.mjs
 //   k6 run -e LOAD_FIXTURES=tests/performance/fixtures/load-tenants.json \
 //          tests/performance/scenarios/load.js
 // Override target:
@@ -16,9 +16,9 @@
 
 import { sleep } from 'k6';
 import { BASE_URL, PROFILES, THRESHOLDS, hotScreenThresholds } from '../config.js';
-import { kidSession, parentSession, healthOnlyFallback } from '../scripts/helpers.js';
-import { loadFixtures, loginAllFixtures } from '../scripts/fixtures.js';
-export { handleSummary } from '../scripts/report.js';
+import { kidSession, parentSession, healthOnlyFallback } from '../lib/helpers.js';
+import { loadFixtures, loginAllFixtures } from '../lib/fixtures.js';
+export { handleSummary } from '../lib/report.js';
 
 export const options = {
   vus: PROFILES.load.vus,

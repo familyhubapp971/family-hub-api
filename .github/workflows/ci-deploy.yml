@@ -47,7 +47,7 @@ jobs:
         env:
           BASE_URL: ${{ vars.PROD_API_URL }}
         run: |
-          tests/performance/scripts/run-k6.sh tests/performance/scenarios/smoke.js \
+          tests/performance/bin/run-k6.sh tests/performance/scenarios/smoke.js \
             -e "BASE_URL=$BASE_URL"
       - name: Upload smoke report
         if: always()

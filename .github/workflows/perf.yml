@@ -54,7 +54,7 @@ jobs:
       - name: k6 load against ${{ vars.STAGING_API_URL || 'http://localhost:3001' }}
         env:
           BASE_URL: ${{ vars.STAGING_API_URL || 'http://localhost:3001' }}
-        run: tests/performance/scripts/run-k6.sh tests/performance/scenarios/load.js
+        run: tests/performance/bin/run-k6.sh tests/performance/scenarios/load.js
       - if: always()
         uses: actions/upload-artifact@v4
         with: { name: perf-load-nightly, path: tests/performance/reports/, retention-days: 30 }
@@ -75,7 +75,7 @@ jobs:
       - name: k6 soak
         env:
           BASE_URL: ${{ vars.STAGING_API_URL || 'http://localhost:3001' }}
-        run: tests/performance/scripts/run-k6.sh tests/performance/scenarios/soak.js
+        run: tests/performance/bin/run-k6.sh tests/performance/scenarios/soak.js
       - if: always()
         uses: actions/upload-artifact@v4
         with: { name: perf-soak-weekly, path: tests/performance/reports/, retention-days: 30 }
@@ -99,7 +99,7 @@ jobs:
           BASE_URL: ${{ github.event.inputs.base_url || vars.STAGING_API_URL || 'http://localhost:3001' }}
           # Restricted to the choice list above ─ defence in depth.
           SCENARIO: ${{ github.event.inputs.scenario }}
-        run: tests/performance/scripts/run-k6.sh "tests/performance/scenarios/${SCENARIO}.js"
+        run: tests/performance/bin/run-k6.sh "tests/performance/scenarios/${SCENARIO}.js"
       - if: always()
         uses: actions/upload-artifact@v4
         with:

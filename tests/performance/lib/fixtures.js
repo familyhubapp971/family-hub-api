@@ -13,7 +13,7 @@
 // loginAllFixtures() — that's still "setup reads the fixtures", just
 // with the k6-mandated open() call one file up.
 //
-// Fixtures shape (see scripts/seed-load-tenants.mjs, which writes this):
+// Fixtures shape (see bin/seed-load-tenants.mjs, which writes this):
 //   [{ tenantSlug, parent: { email, password }, kids: [{ memberId, pin }] }]
 
 import { kidLogin, parentLogin } from './auth.js';
@@ -33,7 +33,7 @@ export function loadFixtures() {
     console.warn(
       '[perf] LOAD_FIXTURES not set — running a HEALTH-ONLY fallback workload. ' +
         'This does NOT exercise any real authenticated path. Seed synthetic ' +
-        'tenants first: node tests/performance/scripts/seed-load-tenants.mjs, ' +
+        'tenants first: node tests/performance/bin/seed-load-tenants.mjs, ' +
         'then re-run with -e LOAD_FIXTURES=<path-to-fixtures.json>. See ' +
         'tests/performance/README.md.',
     );
