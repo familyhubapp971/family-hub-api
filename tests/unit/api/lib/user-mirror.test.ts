@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { getOrCreateUser } from '../../../../apps/api/src/lib/user-mirror.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getOrCreateUser, resetUserMirrorCache } from '../../../../apps/api/src/lib/user-mirror.js';
 import type { Database } from '../../../../apps/api/src/db/client.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
@@ -97,5 +97,39 @@ describe('FHS-192 — getOrCreateUser (unit)', () => {
     await expect(getOrCreateUser(db, { id: ROW.id, email: ROW.email })).rejects.toThrow(
       /upsert returned no row/,
     );
+  });
+});
+
+// FHS-465 — per-replica cache: once (id, email) is confirmed, skip the DB.
+describe('FHS-465 — getOrCreateUser cache', () => {
+  beforeEach(() => {
+    process.env['USER_MIRROR_CACHE'] = 'on';
+    resetUserMirrorCache();
+  });
+  afterEach(() => {
+    delete process.env['USER_MIRROR_CACHE'];
+    resetUserMirrorCache();
+  });
+
+  it('hits the DB once, then serves the same (id, email) from cache', async () => {
+    const { db } = buildMockDb([ROW]);
+
+    const first = await getOrCreateUser(db, { id: ROW.id, email: ROW.email });
+    const second = await getOrCreateUser(db, { id: ROW.id, email: ROW.email });
+
+    expect(first).toEqual(ROW);
+    expect(second).toEqual(ROW);
+    // Second call never touched the database.
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-syncs (misses cache) when the email changes', async () => {
+    const { db } = buildMockDb([ROW]);
+
+    await getOrCreateUser(db, { id: ROW.id, email: ROW.email });
+    await getOrCreateUser(db, { id: ROW.id, email: 'changed@example.com' });
+
+    // Different email → different key → the upsert runs again.
+    expect(db.transaction).toHaveBeenCalledTimes(2);
   });
 });
