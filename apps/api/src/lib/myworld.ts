@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import {
   habits,
@@ -475,62 +475,70 @@ export async function listInvestments(
         eq(mwInvestments.isActive, true),
       ),
     );
-  return Promise.all(
-    rows.map(async (inv) => {
-      const elapsed = elapsedDaysForWeek(
-        {
-          isFinalized: inv.weekIsFinalized ?? false,
-          startDate: inv.weekStartDate ?? isoDate(now),
-        },
-        now,
-      );
-      const [completedRow] = await db
-        .select({ n: count() })
-        .from(habitStickers)
-        .where(
-          and(
-            eq(habitStickers.tenantId, tenantId),
-            eq(habitStickers.memberId, memberId),
-            eq(habitStickers.habitId, inv.habitId),
-            eq(habitStickers.weekId, inv.weekId),
-          ),
-        );
-      const completedDays = completedRow?.n ?? 0;
-      const [pastRow] = await db
-        .select({ n: count() })
-        .from(habitStickers)
-        .where(
-          and(
-            eq(habitStickers.tenantId, tenantId),
-            eq(habitStickers.memberId, memberId),
-            eq(habitStickers.habitId, inv.habitId),
-            eq(habitStickers.weekId, inv.weekId),
-            lt(habitStickers.day, elapsed),
-          ),
-        );
-      const missedDays = Math.max(0, elapsed - (pastRow?.n ?? 0));
-      const deductible = inv.deductible ?? true;
-      const { currentValueStickers, currentValueCash } = investmentValue({
-        investedStickers: inv.investedStickers,
-        completedDays,
-        missedDays,
-        deductible,
-      });
-      return {
-        id: inv.id,
-        habitId: inv.habitId,
-        habitName: inv.habitName,
-        habitIcon: inv.habitIcon,
-        investedStickers: inv.investedStickers,
-        originalInvestedStickers: inv.originalInvestedStickers,
-        currentValue: currentValueCash,
-        currentValueStickers,
-        daysCompleted: completedDays,
-        daysMissed: missedDays,
-        deductible,
-      };
-    }),
-  );
+  if (rows.length === 0) return [];
+
+  // FHS-466 — was 2 count() queries PER investment (an N+1 on the single pinned
+  // connection). Fetch the relevant sticker days ONCE, then count per investment
+  // in JS. Same result: completedDays = all stickers for (habit, week);
+  // pastDays = those with day < the week's elapsed days.
+  const habitIds = [...new Set(rows.map((r) => r.habitId))];
+  const weekIds = [...new Set(rows.map((r) => r.weekId))];
+  const stickerRows = await db
+    .select({
+      habitId: habitStickers.habitId,
+      weekId: habitStickers.weekId,
+      day: habitStickers.day,
+    })
+    .from(habitStickers)
+    .where(
+      and(
+        eq(habitStickers.tenantId, tenantId),
+        eq(habitStickers.memberId, memberId),
+        inArray(habitStickers.habitId, habitIds),
+        inArray(habitStickers.weekId, weekIds),
+      ),
+    );
+  const daysByHabitWeek = new Map<string, number[]>();
+  for (const s of stickerRows) {
+    const key = `${s.habitId}:${s.weekId}`;
+    const arr = daysByHabitWeek.get(key);
+    if (arr) arr.push(s.day);
+    else daysByHabitWeek.set(key, [s.day]);
+  }
+
+  return rows.map((inv) => {
+    const elapsed = elapsedDaysForWeek(
+      {
+        isFinalized: inv.weekIsFinalized ?? false,
+        startDate: inv.weekStartDate ?? isoDate(now),
+      },
+      now,
+    );
+    const days = daysByHabitWeek.get(`${inv.habitId}:${inv.weekId}`) ?? [];
+    const completedDays = days.length;
+    const pastDays = days.filter((d) => d < elapsed).length;
+    const missedDays = Math.max(0, elapsed - pastDays);
+    const deductible = inv.deductible ?? true;
+    const { currentValueStickers, currentValueCash } = investmentValue({
+      investedStickers: inv.investedStickers,
+      completedDays,
+      missedDays,
+      deductible,
+    });
+    return {
+      id: inv.id,
+      habitId: inv.habitId,
+      habitName: inv.habitName,
+      habitIcon: inv.habitIcon,
+      investedStickers: inv.investedStickers,
+      originalInvestedStickers: inv.originalInvestedStickers,
+      currentValue: currentValueCash,
+      currentValueStickers,
+      daysCompleted: completedDays,
+      daysMissed: missedDays,
+      deductible,
+    };
+  });
 }
 
 // ── Analytics (FHS-298 / FHS-369) ────────────────────────────────────────────
