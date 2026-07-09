@@ -651,6 +651,8 @@ export const events = pgTable(
     index('events_tenant_id_idx').on(t.tenantId, t.id),
     index('events_tenant_date_idx').on(t.tenantId, t.date),
     index('events_tenant_member_idx').on(t.tenantId, t.memberId),
+    // FHS-461 — dashboard "Recent Activity" feed: WHERE tenant_id ORDER BY created_at DESC LIMIT 5.
+    index('events_tenant_created_idx').on(t.tenantId, t.createdAt),
   ],
 );
 
@@ -750,6 +752,10 @@ export const tasks = pgTable(
   (t) => [
     index('tasks_tenant_id_idx').on(t.tenantId, t.id),
     index('tasks_tenant_member_done_idx').on(t.tenantId, t.memberId, t.doneAt),
+    // FHS-461 — dashboard taskRows (WHERE tenant_id ORDER BY created_at DESC) and
+    // the Tasks board / kid tasks (ORDER BY member_id, created_at DESC).
+    index('tasks_tenant_created_idx').on(t.tenantId, t.createdAt),
+    index('tasks_tenant_member_created_idx').on(t.tenantId, t.memberId, t.createdAt),
   ],
 );
 
@@ -1044,6 +1050,11 @@ export const habitStickers = pgTable(
     // habit and each hold their own sticker on the same (week, day).
     uniqueIndex('habit_stickers_unique').on(t.tenantId, t.memberId, t.habitId, t.weekId, t.day),
     index('habit_stickers_member_week_idx').on(t.tenantId, t.memberId, t.weekId),
+    // FHS-461 — dashboard per-week sticker rollup groups by (member_id, week_id)
+    // filtered by (tenant_id, week_id) — the existing indexes lead with member_id,
+    // which that query never filters on. Fastest-growing table, highest-value index.
+    index('habit_stickers_tenant_week_idx').on(t.tenantId, t.weekId),
+    index('habit_stickers_tenant_created_idx').on(t.tenantId, t.createdAt),
   ],
 );
 export type HabitSticker = typeof habitStickers.$inferSelect;
@@ -1202,7 +1213,12 @@ export const mwWeekActions = pgTable(
     habitName: text('habit_name'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('mw_week_actions_week_idx').on(t.tenantId, t.weekId)],
+  (t) => [
+    index('mw_week_actions_week_idx').on(t.tenantId, t.weekId),
+    // FHS-461 — dashboard "Recent Activity" feed reads this append-only log with
+    // ORDER BY created_at DESC LIMIT 5 (only index was on week_id).
+    index('mw_week_actions_tenant_created_idx').on(t.tenantId, t.createdAt),
+  ],
 );
 export type MwWeekAction = typeof mwWeekActions.$inferSelect;
 export type NewMwWeekAction = typeof mwWeekActions.$inferInsert;
@@ -1259,6 +1275,15 @@ export const redemptionRequests = pgTable(
   (t) => [
     index('redemption_requests_tenant_status_idx').on(t.tenantId, t.status),
     index('redemption_requests_tenant_member_idx').on(t.tenantId, t.memberId),
+    // FHS-461 — dashboard "reward approved" feed (status='approved' ORDER BY
+    // decided_at DESC) + the admin approvals list (status='pending' ORDER BY
+    // requested_at DESC). The status-only index still sorts in memory.
+    index('redemption_requests_tenant_status_decided_idx').on(t.tenantId, t.status, t.decidedAt),
+    index('redemption_requests_tenant_status_requested_idx').on(
+      t.tenantId,
+      t.status,
+      t.requestedAt,
+    ),
   ],
 );
 
