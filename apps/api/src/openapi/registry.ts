@@ -74,7 +74,12 @@ import { createTenantRequestSchema, createTenantResponseSchema } from '../routes
 import { slugAvailableResponseSchema } from '../routes/slug-available.js';
 import { publicKidMembersResponseSchema } from '../routes/public-kid-members.js';
 import { kidPinRequestSchema, kidPinResponseSchema } from '../routes/auth-kid-pin.js';
-import { listMembersResponseSchema, setMemberPinResponseSchema } from '../routes/members.js';
+import {
+  addMemberBodySchema,
+  addMemberResponseSchema,
+  listMembersResponseSchema,
+  setMemberPinResponseSchema,
+} from '../routes/members.js';
 import { listTasksResponseSchema } from '../routes/tasks.js';
 import {
   createInvestmentRequestSchema,
@@ -392,6 +397,11 @@ export const routeMeta: Record<string, RouteMeta> = {
 
   // Members.
   'GET /api/members': { summary: 'List family members', response: listMembersResponseSchema },
+  'POST /api/members': {
+    summary: 'Add a family member seat (child, teen, or adult) — no login, direct roster insert',
+    request: addMemberBodySchema,
+    response: addMemberResponseSchema,
+  },
   'PUT /api/members/{id}/pin': {
     summary: "Set a kid member's login PIN",
     response: setMemberPinResponseSchema,

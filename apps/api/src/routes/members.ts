@@ -336,9 +336,13 @@ membersRouter.delete('/:id/pin', async (c) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FHS-276 — Manage Members mutations.
+// FHS-276 / FHS-473 — Manage Members mutations.
 //
-// POST   /api/members        — add a child/teen seat (name + optional age).
+// POST   /api/members        — add a child/teen/adult seat (name + optional
+//                               age). Same direct-insert, no-login creation
+//                               onboarding uses for a plain adult row (no
+//                               email) — this endpoint is that path reused
+//                               for the Manage Members "Add member" flow.
 // PATCH  /api/members/:id    — rename, and/or toggle admin on parent rows.
 // DELETE /api/members/:id    — remove a member (their content cascades).
 //
@@ -349,11 +353,22 @@ membersRouter.delete('/:id/pin', async (c) => {
 
 const memberIdParamsSchema = z.object({ id: z.string().uuid('member id must be a UUID') });
 
-const addChildBodySchema = z.object({
+// FHS-473 — 'adult' added alongside 'child'/'teen' so Manage Members can add
+// any non-login family member type, not just kids. isChild stays keyed off
+// role (below) since only child/teen seats use PIN login.
+export const addMemberBodySchema = z.object({
   displayName: z.string().trim().min(1).max(80),
-  role: z.enum(['child', 'teen']).default('child'),
+  role: z.enum(['child', 'teen', 'adult']).default('child'),
   age: z.number().int().min(1).max(25).optional(),
   avatarEmoji: z.string().min(1).max(8).optional(),
+});
+
+export const addMemberResponseSchema = z.object({
+  member: z.object({
+    id: z.string().uuid(),
+    displayName: z.string(),
+    role: z.string(),
+  }),
 });
 
 const patchMemberBodySchema = z
@@ -404,7 +419,7 @@ membersRouter.post('/', async (c) => {
   if (caller.role !== 'admin') {
     return c.json({ error: 'forbidden', detail: 'only admins can add members' }, 403);
   }
-  const parsed = addChildBodySchema.safeParse(await c.req.json().catch(() => null));
+  const parsed = addMemberBodySchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return c.json(
       {
@@ -422,7 +437,10 @@ membersRouter.post('/', async (c) => {
       role: parsed.data.role,
       age: parsed.data.age ?? null,
       avatarEmoji: parsed.data.avatarEmoji ?? null,
-      isChild: true,
+      // FHS-473 — only child/teen seats are kid-PIN-login eligible; an
+      // adult added here is a plain roster entry, same as onboarding's
+      // no-email adult row.
+      isChild: parsed.data.role !== 'adult',
     })
     .returning({ id: members.id, displayName: members.displayName, role: members.role });
   return c.json({ member: inserted[0] }, 201);

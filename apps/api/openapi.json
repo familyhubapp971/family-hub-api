@@ -4845,16 +4845,90 @@
         "tags": [
           "members"
         ],
-        "summary": "Create /api/members",
+        "summary": "Add a family member seat (child, teen, or adult) — no login, direct roster insert",
         "operationId": "post_api_members",
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "child",
+                      "teen",
+                      "adult"
+                    ],
+                    "default": "child"
+                  },
+                  "age": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 25
+                  },
+                  "avatarEmoji": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8
+                  }
+                },
+                "required": [
+                  "displayName"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "member": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "displayName": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "displayName",
+                        "role"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "member"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
