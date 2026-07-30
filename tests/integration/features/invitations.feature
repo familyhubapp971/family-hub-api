@@ -39,3 +39,15 @@ Feature: POST /api/invitations (FHS-91)
     Then the response status is 409
     And the error detail mentions "already has a Family Hub account"
     And no member seat remains named "Existing Person"
+
+  Scenario: A normal user (adult, non-admin) cannot invite someone as admin (FHS-486)
+    Given the inviter is a normal user (adult), not an admin, in tenant "khan"
+    When the inviter POSTs an invitation for "wannabe-admin@example.com" as "admin"
+    Then the response status is 403
+    And exactly 0 rows exist in pending_invitations with email "wannabe-admin@example.com" and status "pending"
+
+  Scenario: An admin can invite a co-admin (FHS-486)
+    When the inviter POSTs an invitation for "partner@example.com" as "admin"
+    Then the response status is 201
+    And exactly 1 row exists in pending_invitations with email "partner@example.com" and status "pending"
+    And that invitation was persisted with role "admin"

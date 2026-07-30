@@ -174,14 +174,65 @@ describe('FHS-91 — POST /api/invitations', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 400 when role is not in the allowlist (e.g. admin)', async () => {
+  it('returns 400 when role is not in the allowlist (e.g. child)', async () => {
+    // 'child' is excluded on purpose — kids use PIN login, never a
+    // magic-link invite (ADR 0009 / FHS-234).
     const app = buildAppWithSeed();
     const res = await app.request('/api/invitations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'invitee@example.com', role: 'admin' }),
+      body: JSON.stringify({ email: 'invitee@example.com', role: 'child' }),
     });
     expect(res.status).toBe(400);
+  });
+
+  // FHS-486 / ADR 0019 — admin-grant safeguard: only an admin caller may
+  // invite someone as admin. A non-admin adult trying is a privilege
+  // escalation attempt and must be rejected before anything is written.
+  it('returns 403 when a non-admin adult tries to invite someone as admin', async () => {
+    const app = buildAppWithSeed({ callerRole: 'adult' });
+    const res = await app.request('/api/invitations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'wannabe-admin@example.com', role: 'admin' }),
+    });
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { detail: string };
+    expect(body.detail).toMatch(/only an admin/i);
+    expect(dbMock.insert).not.toHaveBeenCalled();
+  });
+
+  it('an admin caller CAN invite someone as admin (co-admin)', async () => {
+    const app = buildAppWithSeed({ callerRole: 'admin' });
+    const inv = fixedInvitation({ role: 'admin', email: 'partner@example.com' });
+    // Capture the persisted row (not just the echoed fixture) so the test
+    // actually proves the handler wrote role: 'admin' to the DB — otherwise
+    // a regression that silently downgraded the grant to 'adult' would pass.
+    let insertedValues: unknown = null;
+    dbMock.insert.mockReturnValue({
+      values: (val: unknown) => {
+        insertedValues = val;
+        return { returning: () => Promise.resolve([inv]) };
+      },
+    });
+    dbMock.update.mockReturnValue({
+      set: () => ({ where: () => Promise.resolve() }),
+    });
+    inviteUserByEmail.mockResolvedValue({ id: 'supabase-user-uuid' });
+
+    const res = await app.request('/api/invitations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'partner@example.com', role: 'admin' }),
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { invitation: { role: string } };
+    expect(body.invitation.role).toBe('admin');
+    // The DB write and the Supabase invite metadata both carry role: 'admin'.
+    expect(insertedValues).toMatchObject({ tenantId: TENANT_ID, role: 'admin' });
+    expect(inviteUserByEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ role: 'admin' }) }),
+    );
   });
 
   it('returns 409 when the same email already has a pending invite (unique-violation)', async () => {

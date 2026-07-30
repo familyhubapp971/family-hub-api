@@ -2,7 +2,7 @@ import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber';
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
 import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
 import { invitationsRouter } from '../../../apps/api/src/routes/invitations.js';
@@ -411,4 +411,98 @@ describeFeature(feature, ({ Background, Scenario }) => {
       });
     },
   );
+
+  // FHS-486 / ADR 0019 — admin-grant safeguard: only an admin caller may
+  // invite someone as admin.
+  Scenario(
+    'A normal user (adult, non-admin) cannot invite someone as admin (FHS-486)',
+    ({ Given, When, Then, And }) => {
+      let res: Response;
+
+      Given(
+        // Cucumber Expressions treat bare `()` as optional-text syntax —
+        // escape them so "(adult)" matches as literal text, not a group.
+        'the inviter is a normal user \\(adult\\), not an admin, in tenant {string}',
+        async (_ctx, slug: string) => {
+          await db
+            .update(members)
+            .set({ role: 'adult' })
+            .where(eq(members.tenantId, tenantIds[slug]!));
+        },
+      );
+
+      When(
+        'the inviter POSTs an invitation for {string} as {string}',
+        async (_ctx, email: string, role: string) => {
+          res = await app.request('/api/invitations', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'x-test-tenant': tenantIds['khan']!,
+            },
+            body: JSON.stringify({ email, role }),
+          });
+        },
+      );
+
+      Then('the response status is 403', () => {
+        expect(res.status).toBe(403);
+      });
+
+      And(
+        'exactly 0 rows exist in pending_invitations with email {string} and status {string}',
+        async (_ctx, email: string, status: string) => {
+          const { rows } = await db.execute<{ count: string }>(
+            sql`SELECT COUNT(*)::text AS count FROM pending_invitations
+                WHERE email = ${email} AND status = ${status}`,
+          );
+          expect(Number(rows[0]?.count)).toBe(0);
+        },
+      );
+    },
+  );
+
+  Scenario('An admin can invite a co-admin (FHS-486)', ({ When, Then, And }) => {
+    let res: Response;
+
+    When(
+      'the inviter POSTs an invitation for {string} as {string}',
+      async (_ctx, email: string, role: string) => {
+        res = await app.request('/api/invitations', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'x-test-tenant': tenantIds['khan']!,
+          },
+          body: JSON.stringify({ email, role }),
+        });
+      },
+    );
+
+    Then('the response status is 201', () => {
+      expect(res.status).toBe(201);
+    });
+
+    And(
+      'exactly 1 row exists in pending_invitations with email {string} and status {string}',
+      async (_ctx, email: string, status: string) => {
+        const { rows } = await db.execute<{ count: string }>(
+          sql`SELECT COUNT(*)::text AS count FROM pending_invitations
+              WHERE email = ${email} AND status = ${status}`,
+        );
+        expect(Number(rows[0]?.count)).toBe(1);
+      },
+    );
+
+    // Prove the grant actually persisted as admin — not silently downgraded.
+    And('that invitation was persisted with role {string}', async (_ctx, role: string) => {
+      const { rows } = await db.execute<{ role: string }>(
+        sql`SELECT role FROM pending_invitations
+              WHERE email = 'partner@example.com' AND status = 'pending'`,
+      );
+      expect(rows[0]?.role).toBe(role);
+    });
+  });
 });

@@ -1449,6 +1449,7 @@
         ],
         "summary": "Invite someone to the family",
         "operationId": "post_api_invitations",
+        "description": "role is one of admin | adult | teen | guest (default adult). Granting 'admin' requires the caller to already be an admin (403 otherwise) — FHS-486 / ADR 0019.",
         "security": [
           {
             "bearerAuth": []
@@ -1469,6 +1470,7 @@
                   "role": {
                     "type": "string",
                     "enum": [
+                      "admin",
                       "adult",
                       "teen",
                       "guest"

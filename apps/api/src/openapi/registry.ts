@@ -434,6 +434,9 @@ export const routeMeta: Record<string, RouteMeta> = {
   // Invitations.
   'POST /api/invitations': {
     summary: 'Invite someone to the family',
+    description:
+      "role is one of admin | adult | teen | guest (default adult). Granting 'admin' " +
+      'requires the caller to already be an admin (403 otherwise) — FHS-486 / ADR 0019.',
     request: createInvitationRequestSchema,
     response: createInvitationResponseSchema,
   },

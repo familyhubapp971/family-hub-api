@@ -24,6 +24,8 @@ import { createLogger } from '../logger.js';
 //   - Caller must be a member of the resolved tenant (resolveTenant
 //     middleware sets c.var.tenantId from JWT/subdomain/path).
 //   - Caller's role must be `admin` or `adult` — kids can't invite.
+//   - FHS-486 — inviting someone as `role: 'admin'` additionally requires
+//     the caller to already be an admin (403 otherwise). See ADR 0019.
 //
 // Rate limiting (10 invites/hour/tenant) is FHS-95's job; the global
 // rate-limit middleware still applies per-IP.
@@ -31,11 +33,12 @@ import { createLogger } from '../logger.js';
 const log = createLogger('invitations');
 
 // Subset of memberRole that callers are allowed to assign on invite.
-// Admins shouldn't be able to grant `admin` via the invite flow — that
-// requires a separate promotion path (deferred). Likewise, inviting
-// someone as `child` doesn't make sense in the magic-link flow because
-// kids use the PIN auth path (ADR 0009 / FHS-234).
-const INVITE_ROLE_VALUES = ['adult', 'teen', 'guest'] as const;
+// FHS-486 / ADR 0019 — `admin` IS invitable (a co-parent can be invited
+// as a full admin), but only an admin caller may grant it — see the
+// admin-grant safeguard below. Inviting someone as `child` still doesn't
+// make sense in the magic-link flow because kids use the PIN auth path
+// (ADR 0009 / FHS-234).
+const INVITE_ROLE_VALUES = ['admin', 'adult', 'teen', 'guest'] as const;
 const inviteRoleSchema = z.enum(INVITE_ROLE_VALUES);
 
 export const createInvitationRequestSchema = z.object({
@@ -135,6 +138,15 @@ export const invitationsRouter = new Hono().post('/', async (c) => {
       },
       400,
     );
+  }
+
+  // FHS-486 / ADR 0019 — admin-grant safeguard: a non-admin adult can
+  // invite everyday roles, but only an existing admin may grant `admin`
+  // on the invite. Without this a normal user could hand out full rights
+  // by inviting someone as admin — exactly the escalation ADR 0015 closed
+  // for the /api/members role PATCH.
+  if (parsed.data.role === 'admin' && caller.role !== 'admin') {
+    return c.json({ error: 'forbidden', detail: 'only an admin can invite someone as admin' }, 403);
   }
 
   const email = parsed.data.email.trim().toLowerCase();
