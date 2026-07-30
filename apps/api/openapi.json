@@ -6601,6 +6601,217 @@
             "description": "Success"
           }
         }
+      },
+      "post": {
+        "tags": [
+          "rewards"
+        ],
+        "summary": "Create a reward in the family reward shop; admin-only",
+        "operationId": "post_api_rewards",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "nullable": true
+                  },
+                  "stickerCost": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "icon": {
+                    "type": "string",
+                    "maxLength": 40,
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "name",
+                  "stickerCost"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "201 — the created reward",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "stickerCost": {
+                      "type": "integer"
+                    },
+                    "icon": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "description",
+                    "stickerCost",
+                    "icon"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rewards/{id}": {
+      "delete": {
+        "tags": [
+          "rewards"
+        ],
+        "summary": "Archive (soft-delete) a reward; admin-only",
+        "operationId": "delete_api_rewards_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "rewards"
+        ],
+        "summary": "Partially update a reward's name/description/stickerCost/icon; admin-only",
+        "operationId": "patch_api_rewards_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "nullable": true
+                  },
+                  "stickerCost": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "icon": {
+                    "type": "string",
+                    "maxLength": 40,
+                    "nullable": true
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated reward. 404 if the reward is not in the caller's tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "stickerCost": {
+                      "type": "integer"
+                    },
+                    "icon": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "description",
+                    "stickerCost",
+                    "icon"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/rewards/{id}/redeem": {

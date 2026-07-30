@@ -107,6 +107,11 @@ import {
   adminDeleteAccountRequestSchema,
   adminDeleteAccountResponseSchema,
 } from '../routes/admin.js';
+import {
+  rewardItemSchema,
+  createRewardRequestSchema,
+  updateRewardRequestSchema,
+} from '../routes/rewards.js';
 
 export interface QueryParamMeta {
   description?: string;
@@ -504,5 +509,24 @@ export const routeMeta: Record<string, RouteMeta> = {
     response: adminDeleteAccountResponseSchema,
     responseDesc:
       '{ deleted: true } on success. 400 CONFIRM_MISMATCH if `confirm` does not exactly equal the family name — nothing is deleted in that case',
+  },
+
+  // FHS-483 — parent-managed reward-shop catalogue (create/edit/archive).
+  'POST /api/rewards': {
+    summary: 'Create a reward in the family reward shop; admin-only',
+    request: createRewardRequestSchema,
+    response: rewardItemSchema,
+    responseDesc: '201 — the created reward',
+  },
+  'PATCH /api/rewards/{id}': {
+    summary: "Partially update a reward's name/description/stickerCost/icon; admin-only",
+    request: updateRewardRequestSchema,
+    response: rewardItemSchema,
+    responseDesc: "The updated reward. 404 if the reward is not in the caller's tenant",
+  },
+  'DELETE /api/rewards/{id}': {
+    summary: 'Archive (soft-delete) a reward; admin-only',
+    responseDesc:
+      "204 on success. 404 if the reward is not in the caller's tenant or is already archived. Never a hard delete — reward_redemptions/redemption_requests keep their FK for history",
   },
 };
