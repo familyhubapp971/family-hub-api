@@ -56,3 +56,26 @@ Feature: GET + POST /api/events (FHS-230)
     Then the POST response status is 201
     And re-fetching events for week "2026-05-04" in tenant "khan" lists 1 events
     And the "Dentist" event has type "home"
+
+  Scenario: A recurring activity appears on both chosen weekdays in its first week (FHS-476)
+    Given the caller creates a recurring event "Tennis" starting "2026-06-01" repeating on "tue,thu" ending "2026-06-09" in tenant "khan"
+    When the caller GETs /api/events for week "2026-06-01" in tenant "khan"
+    Then the GET response status is 200
+    And the response includes "Tennis" occurrences on "2026-06-02,2026-06-04"
+
+  Scenario: A recurring activity stops appearing after its end date, mid-week (FHS-476)
+    Given the caller creates a recurring event "Tennis" starting "2026-06-01" repeating on "tue,thu" ending "2026-06-09" in tenant "khan"
+    When the caller GETs /api/events for week "2026-06-08" in tenant "khan"
+    Then the response includes "Tennis" occurrences on "2026-06-09"
+    And the response excludes a "Tennis" event on "2026-06-11"
+
+  Scenario: A recurring activity produces no occurrences once its end date has fully passed (FHS-476)
+    Given the caller creates a recurring event "Tennis" starting "2026-06-01" repeating on "tue,thu" ending "2026-06-09" in tenant "khan"
+    When the caller GETs /api/events for week "2026-06-15" in tenant "khan"
+    Then the response includes 0 events
+
+  Scenario: A recurring series never leaks across tenants (FHS-476)
+    Given a second tenant "smith" exists with the caller as an admin member
+    And the caller creates a recurring event "Piano" starting "2026-06-01" repeating on "tue,thu" ending "2026-06-30" in tenant "smith"
+    When the caller GETs /api/events for week "2026-06-01" in tenant "khan"
+    Then the response excludes a "Piano" event on "2026-06-02"

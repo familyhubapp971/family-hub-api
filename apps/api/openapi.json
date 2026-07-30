@@ -643,8 +643,20 @@
         "tags": [
           "events"
         ],
-        "summary": "Get /api/events",
+        "summary": "The family's calendar activities for a week (?weekStart=YYYY-MM-DD)",
         "operationId": "get_api_events",
+        "parameters": [
+          {
+            "name": "weekStart",
+            "in": "query",
+            "required": true,
+            "description": "Monday of the week to fetch (YYYY-MM-DD)",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -652,7 +664,116 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "One entry per occurrence in the 7-day window. A weekly-recurring series (recurrenceDays set) contributes one entry per matching weekday, all sharing the same series id, with isRecurring: true",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "weekStart": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "date": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          "startTime": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "nullable": true
+                          },
+                          "endTime": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "nullable": true
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "notes": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "memberId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "school",
+                              "home"
+                            ]
+                          },
+                          "location": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "wear": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "recurrenceDays": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 6
+                            },
+                            "nullable": true
+                          },
+                          "recurrenceEndDate": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "nullable": true
+                          },
+                          "isRecurring": {
+                            "type": "boolean"
+                          },
+                          "seriesStartDate": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "date",
+                          "startTime",
+                          "endTime",
+                          "title",
+                          "notes",
+                          "memberId",
+                          "type",
+                          "location",
+                          "wear",
+                          "recurrenceDays",
+                          "recurrenceEndDate",
+                          "isRecurring",
+                          "seriesStartDate"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "weekStart",
+                    "events"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       },
@@ -660,16 +781,189 @@
         "tags": [
           "events"
         ],
-        "summary": "Create /api/events",
+        "summary": "Create a calendar activity; admin/adult only",
         "operationId": "post_api_events",
+        "description": "Optional recurrenceDays (weekdays 0=Sun..6=Sat) + recurrenceEndDate turn it into a weekly-repeating series anchored on `date`. No occurrence rows are stored — GET expands the series on read.",
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "startTime": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                    "nullable": true
+                  },
+                  "endTime": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                    "nullable": true
+                  },
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "nullable": true
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "school",
+                      "home"
+                    ],
+                    "default": "home"
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "nullable": true
+                  },
+                  "wear": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "nullable": true
+                  },
+                  "recurrenceDays": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 6
+                    },
+                    "minItems": 1,
+                    "maxItems": 7,
+                    "nullable": true
+                  },
+                  "recurrenceEndDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "date",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "201 — the created event (the series anchor, if recurring)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "date": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    },
+                    "startTime": {
+                      "type": "string",
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "nullable": true
+                    },
+                    "endTime": {
+                      "type": "string",
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "nullable": true
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "notes": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "memberId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "school",
+                        "home"
+                      ]
+                    },
+                    "location": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "wear": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "recurrenceDays": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 6
+                      },
+                      "nullable": true
+                    },
+                    "recurrenceEndDate": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "nullable": true
+                    },
+                    "isRecurring": {
+                      "type": "boolean"
+                    },
+                    "seriesStartDate": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "date",
+                    "startTime",
+                    "endTime",
+                    "title",
+                    "notes",
+                    "memberId",
+                    "type",
+                    "location",
+                    "wear",
+                    "recurrenceDays",
+                    "recurrenceEndDate",
+                    "isRecurring",
+                    "seriesStartDate"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -679,7 +973,7 @@
         "tags": [
           "events"
         ],
-        "summary": "Delete /api/events/{id}",
+        "summary": "Delete an event; admin/adult only",
         "operationId": "delete_api_events_id",
         "parameters": [
           {
@@ -706,8 +1000,9 @@
         "tags": [
           "events"
         ],
-        "summary": "Replace /api/events/{id}",
+        "summary": "Replace an event (full update); admin/adult only",
         "operationId": "put_api_events_id",
+        "description": "For a recurring series this edits the WHOLE series (start date, weekdays, end date, and all other fields) — not a single occurrence. Single-occurrence editing is a follow-up.",
         "parameters": [
           {
             "name": "id",
@@ -723,9 +1018,181 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "startTime": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                    "nullable": true
+                  },
+                  "endTime": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                    "nullable": true
+                  },
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "nullable": true
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "school",
+                      "home"
+                    ],
+                    "default": "home"
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "nullable": true
+                  },
+                  "wear": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "nullable": true
+                  },
+                  "recurrenceDays": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 6
+                    },
+                    "minItems": 1,
+                    "maxItems": 7,
+                    "nullable": true
+                  },
+                  "recurrenceEndDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "date",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "date": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    },
+                    "startTime": {
+                      "type": "string",
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "nullable": true
+                    },
+                    "endTime": {
+                      "type": "string",
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "nullable": true
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "notes": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "memberId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "school",
+                        "home"
+                      ]
+                    },
+                    "location": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "wear": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "recurrenceDays": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 6
+                      },
+                      "nullable": true
+                    },
+                    "recurrenceEndDate": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "nullable": true
+                    },
+                    "isRecurring": {
+                      "type": "boolean"
+                    },
+                    "seriesStartDate": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "date",
+                    "startTime",
+                    "endTime",
+                    "title",
+                    "notes",
+                    "memberId",
+                    "type",
+                    "location",
+                    "wear",
+                    "recurrenceDays",
+                    "recurrenceEndDate",
+                    "isRecurring",
+                    "seriesStartDate"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -1396,6 +1863,27 @@
                           "wear": {
                             "type": "string",
                             "nullable": true
+                          },
+                          "recurrenceDays": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 6
+                            },
+                            "nullable": true
+                          },
+                          "recurrenceEndDate": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "nullable": true
+                          },
+                          "isRecurring": {
+                            "type": "boolean"
+                          },
+                          "seriesStartDate": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
                           }
                         },
                         "required": [
@@ -1408,7 +1896,11 @@
                           "memberId",
                           "type",
                           "location",
-                          "wear"
+                          "wear",
+                          "recurrenceDays",
+                          "recurrenceEndDate",
+                          "isRecurring",
+                          "seriesStartDate"
                         ],
                         "additionalProperties": false
                       }

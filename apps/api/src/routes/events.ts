@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, asc, eq, gte, lte } from 'drizzle-orm';
+import { and, asc, eq, gte, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { events, members } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
+import { expandWeekOccurrences } from '../lib/recurrence.js';
 
 // FHS-230 — GET + POST /api/events.
 //
@@ -13,10 +14,16 @@ import { getAuthenticatedUser } from '../middleware/auth.js';
 // optional times and an optional member assignee.
 //
 // Read open to all members; create restricted to admin + adult.
+//
+// FHS-476 — weekly recurring activities. A series is ONE row (`date` is
+// its anchor / first occurrence); GET expands it into virtual per-week
+// occurrences via `expandWeekOccurrences` (apps/api/src/lib/recurrence.ts).
+// Edit/delete act on the whole series (see PUT/DELETE below).
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const WEEKDAY = z.number().int().min(0).max(6);
 
 export const eventTypeValues = ['school', 'home'] as const;
 
@@ -32,6 +39,18 @@ export const eventItemSchema = z.object({
   type: z.enum(eventTypeValues),
   location: z.string().nullable(),
   wear: z.string().nullable(),
+  // FHS-476 — weekly recurrence. recurrenceDays/recurrenceEndDate always
+  // describe the series (same on every occurrence); isRecurring is true
+  // for a virtual occurrence generated from a repeating series, and for
+  // the series row itself when it repeats. `seriesStartDate` is the
+  // real, un-overwritten anchor date — always equal to `date` except on
+  // a recurring occurrence that isn't the anchor day; a client editing
+  // one of those must PUT `seriesStartDate` back as `date`, not the
+  // occurrence's own `date`, or it will move the whole series.
+  recurrenceDays: z.array(WEEKDAY).nullable(),
+  recurrenceEndDate: z.string().regex(ISO_DATE).nullable(),
+  isRecurring: z.boolean(),
+  seriesStartDate: z.string().regex(ISO_DATE),
 });
 
 export const listEventsResponseSchema = z.object({
@@ -45,7 +64,7 @@ const queryParamsSchema = z.object({
   weekStart: z.string().regex(ISO_DATE, 'weekStart must be YYYY-MM-DD'),
 });
 
-const createEventRequestSchema = z
+export const createEventRequestSchema = z
   .object({
     date: z.string().regex(ISO_DATE, 'date must be YYYY-MM-DD'),
     title: z.string().trim().min(1, 'title is required').max(120),
@@ -56,6 +75,11 @@ const createEventRequestSchema = z
     type: z.enum(eventTypeValues).default('home'),
     location: z.string().trim().max(120).nullish(),
     wear: z.string().trim().max(120).nullish(),
+    // FHS-476 — "Repeat weekly": the weekdays it repeats on (0=Sun..6=Sat,
+    // deduped + sorted) and an optional end date. Omit/null both for a
+    // normal one-off event.
+    recurrenceDays: z.array(WEEKDAY).min(1).max(7).nullish(),
+    recurrenceEndDate: z.string().regex(ISO_DATE, 'recurrenceEndDate must be YYYY-MM-DD').nullish(),
   })
   .refine((d) => !d.endTime || !!d.startTime, {
     message: 'endTime requires startTime',
@@ -65,7 +89,22 @@ const createEventRequestSchema = z
     // HH:MM strings sort lexically by clock time so `>` is calendar-correct.
     message: 'endTime must be after startTime',
     path: ['endTime'],
-  });
+  })
+  .refine((d) => !d.recurrenceEndDate || d.recurrenceEndDate >= d.date, {
+    // YYYY-MM-DD strings sort lexically by calendar date.
+    message: 'recurrenceEndDate must be on or after date',
+    path: ['recurrenceEndDate'],
+  })
+  .refine((d) => !d.recurrenceEndDate || (d.recurrenceDays && d.recurrenceDays.length > 0), {
+    message: 'recurrenceEndDate requires recurrenceDays',
+    path: ['recurrenceEndDate'],
+  })
+  .transform((d) => ({
+    ...d,
+    recurrenceDays: d.recurrenceDays
+      ? [...new Set(d.recurrenceDays)].sort((a, b) => a - b)
+      : (d.recurrenceDays ?? null),
+  }));
 
 const WRITE_ROLES = new Set(['admin', 'adult']);
 
@@ -89,6 +128,20 @@ function addDays(iso: string, days: number): string {
   const dt = new Date(Date.UTC(y!, m! - 1, d!));
   dt.setUTCDate(dt.getUTCDate() + days);
   return dt.toISOString().slice(0, 10);
+}
+
+// The series row itself (create/update response) isn't a computed
+// occurrence, so `isRecurring`/`seriesStartDate` aren't DB columns —
+// they're derived: `isRecurring` from whether the series repeats at
+// all, `seriesStartDate` is just the row's own `date` (it IS the anchor).
+function withIsRecurring<T extends { date: string; recurrenceDays: number[] | null }>(
+  row: T,
+): T & { isRecurring: boolean; seriesStartDate: string } {
+  return {
+    ...row,
+    isRecurring: !!(row.recurrenceDays && row.recurrenceDays.length > 0),
+    seriesStartDate: row.date,
+  };
 }
 
 export const eventsRouter = new Hono()
@@ -124,6 +177,11 @@ export const eventsRouter = new Hono()
     const weekStart = parsed.data.weekStart;
     const weekEnd = addDays(weekStart, 6);
 
+    // FHS-476 — fetch every row that could contribute an occurrence to
+    // this week: a plain one-off event whose own date is in the window,
+    // OR a recurring series whose anchor is on/before the week ends and
+    // which hasn't already ended before the week starts. Expansion into
+    // per-day occurrences happens in application code below.
     const rows = await db
       .select({
         id: events.id,
@@ -136,16 +194,34 @@ export const eventsRouter = new Hono()
         type: events.type,
         location: events.location,
         wear: events.wear,
+        recurrenceDays: events.recurrenceDays,
+        recurrenceEndDate: events.recurrenceEndDate,
       })
       .from(events)
       .where(
-        and(eq(events.tenantId, tenantId), gte(events.date, weekStart), lte(events.date, weekEnd)),
+        and(
+          eq(events.tenantId, tenantId),
+          or(
+            and(gte(events.date, weekStart), lte(events.date, weekEnd)),
+            and(
+              isNotNull(events.recurrenceDays),
+              lte(events.date, weekEnd),
+              or(isNull(events.recurrenceEndDate), gte(events.recurrenceEndDate, weekStart)),
+            ),
+          ),
+        ),
       )
       .orderBy(asc(events.date), asc(events.startTime));
 
+    const occurrences = expandWeekOccurrences(rows, weekStart).sort((a, b) => {
+      const dateCmp = a.date.localeCompare(b.date);
+      if (dateCmp !== 0) return dateCmp;
+      return (a.startTime ?? '99:99').localeCompare(b.startTime ?? '99:99');
+    });
+
     const response: ListEventsResponse = {
       weekStart,
-      events: rows.map((r) => ({
+      events: occurrences.map((r) => ({
         id: r.id,
         date: r.date,
         startTime: r.startTime,
@@ -156,6 +232,10 @@ export const eventsRouter = new Hono()
         type: r.type as (typeof eventTypeValues)[number],
         location: r.location,
         wear: r.wear,
+        recurrenceDays: r.recurrenceDays,
+        recurrenceEndDate: r.recurrenceEndDate,
+        isRecurring: r.isRecurring,
+        seriesStartDate: r.seriesStartDate,
       })),
     };
     return c.json(listEventsResponseSchema.parse(response));
@@ -223,6 +303,8 @@ export const eventsRouter = new Hono()
         type: parsed.data.type,
         location: parsed.data.location ?? null,
         wear: parsed.data.wear ?? null,
+        recurrenceDays: parsed.data.recurrenceDays,
+        recurrenceEndDate: parsed.data.recurrenceEndDate ?? null,
       })
       .returning({
         id: events.id,
@@ -235,13 +317,15 @@ export const eventsRouter = new Hono()
         type: events.type,
         location: events.location,
         wear: events.wear,
+        recurrenceDays: events.recurrenceDays,
+        recurrenceEndDate: events.recurrenceEndDate,
       });
 
     if (!row) {
       return c.json({ error: 'insert failed', errorCode: 'EVENT_INSERT_NO_ROW' }, 500);
     }
 
-    return c.json(eventItemSchema.parse(row), 201);
+    return c.json(eventItemSchema.parse(withIsRecurring(row)), 201);
   })
   // Update an event (full replace). Admin + adult only; tenant-scoped.
   .put('/:id', async (c) => {
@@ -303,6 +387,8 @@ export const eventsRouter = new Hono()
         type: parsed.data.type,
         location: parsed.data.location ?? null,
         wear: parsed.data.wear ?? null,
+        recurrenceDays: parsed.data.recurrenceDays,
+        recurrenceEndDate: parsed.data.recurrenceEndDate ?? null,
       })
       .where(and(eq(events.id, id), eq(events.tenantId, tenantId)))
       .returning({
@@ -316,12 +402,14 @@ export const eventsRouter = new Hono()
         type: events.type,
         location: events.location,
         wear: events.wear,
+        recurrenceDays: events.recurrenceDays,
+        recurrenceEndDate: events.recurrenceEndDate,
       });
 
     if (!row) {
       return c.json({ error: 'not found', detail: 'event not found in this tenant' }, 404);
     }
-    return c.json(eventItemSchema.parse(row));
+    return c.json(eventItemSchema.parse(withIsRecurring(row)));
   })
   // Delete an event. Admin + adult only; tenant-scoped.
   .delete('/:id', async (c) => {

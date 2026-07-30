@@ -67,7 +67,25 @@ interface EventsResponse {
     type: 'school' | 'home';
     location: string | null;
     wear: string | null;
+    recurrenceDays: number[] | null;
+    recurrenceEndDate: string | null;
+    isRecurring: boolean;
+    seriesStartDate: string;
   }>;
+}
+
+// FHS-476 — "tue,thu" → [2, 4] (0=Sunday..6=Saturday, matching recurrenceDays).
+const WEEKDAY_NAME_TO_NUM: Record<string, number> = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+};
+function parseWeekdayList(csv: string): number[] {
+  return csv.split(',').map((s) => WEEKDAY_NAME_TO_NUM[s.trim().toLowerCase()]!);
 }
 
 describeFeature(feature, ({ Background, Scenario }) => {
@@ -159,6 +177,24 @@ describeFeature(feature, ({ Background, Scenario }) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ date, title, ...extras }),
+    });
+  }
+
+  async function postRecurringEvent(
+    slug: string,
+    title: string,
+    date: string,
+    recurrenceDays: number[],
+    recurrenceEndDate: string,
+  ) {
+    return app.request('/api/events', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-test-tenant': tenantIds[slug]!,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ date, title, recurrenceDays, recurrenceEndDate }),
     });
   }
 
@@ -450,4 +486,200 @@ describeFeature(feature, ({ Background, Scenario }) => {
       expect(event!.type).toBe(type);
     });
   });
+
+  // FHS-476 — split across three scenarios (one GET each) rather than one
+  // scenario with several "When...GET" steps: @amiceli/vitest-cucumber's
+  // step matching gets flaky once the identical step text is invoked more
+  // than once in a single scenario, so one-GET-per-scenario sidesteps it
+  // entirely and keeps each scenario testing one behaviour anyway.
+  Scenario(
+    'A recurring activity appears on both chosen weekdays in its first week (FHS-476)',
+    ({ Given, When, Then, And }) => {
+      let res: Response;
+      let body: EventsResponse;
+
+      Given(
+        'the caller creates a recurring event {string} starting {string} repeating on {string} ending {string} in tenant {string}',
+        async (_ctx, title: string, date: string, days: string, endDate: string, slug: string) => {
+          const created = await postRecurringEvent(
+            slug,
+            title,
+            date,
+            parseWeekdayList(days),
+            endDate,
+          );
+          expect(created.status).toBe(201);
+        },
+      );
+
+      When(
+        'the caller GETs /api/events for week {string} in tenant {string}',
+        async (_ctx, weekStart: string, slug: string) => {
+          const out = await getEvents(slug, weekStart);
+          res = out.res;
+          body = out.body;
+        },
+      );
+
+      Then('the GET response status is 200', () => {
+        expect(res.status).toBe(200);
+      });
+
+      And(
+        'the response includes {string} occurrences on {string}',
+        (_ctx, title: string, dates: string) => {
+          for (const date of dates.split(',')) {
+            const found = body.events.find((e) => e.title === title && e.date === date);
+            expect(
+              found,
+              `${title} on ${date} missing; got ${JSON.stringify(body.events)}`,
+            ).toBeDefined();
+            expect(found!.isRecurring).toBe(true);
+          }
+        },
+      );
+    },
+  );
+
+  Scenario(
+    'A recurring activity stops appearing after its end date, mid-week (FHS-476)',
+    ({ Given, When, Then, And }) => {
+      let body: EventsResponse;
+
+      Given(
+        'the caller creates a recurring event {string} starting {string} repeating on {string} ending {string} in tenant {string}',
+        async (_ctx, title: string, date: string, days: string, endDate: string, slug: string) => {
+          const created = await postRecurringEvent(
+            slug,
+            title,
+            date,
+            parseWeekdayList(days),
+            endDate,
+          );
+          expect(created.status).toBe(201);
+        },
+      );
+
+      When(
+        'the caller GETs /api/events for week {string} in tenant {string}',
+        async (_ctx, weekStart: string, slug: string) => {
+          const out = await getEvents(slug, weekStart);
+          body = out.body;
+        },
+      );
+
+      Then(
+        'the response includes {string} occurrences on {string}',
+        (_ctx, title: string, dates: string) => {
+          for (const date of dates.split(',')) {
+            const found = body.events.find((e) => e.title === title && e.date === date);
+            expect(
+              found,
+              `${title} on ${date} missing; got ${JSON.stringify(body.events)}`,
+            ).toBeDefined();
+            expect(found!.isRecurring).toBe(true);
+          }
+        },
+      );
+
+      And(
+        'the response excludes a {string} event on {string}',
+        (_ctx, title: string, date: string) => {
+          const found = body.events.find((e) => e.title === title && e.date === date);
+          expect(found).toBeUndefined();
+        },
+      );
+    },
+  );
+
+  Scenario(
+    'A recurring activity produces no occurrences once its end date has fully passed (FHS-476)',
+    ({ Given, When, Then }) => {
+      let body: EventsResponse;
+
+      Given(
+        'the caller creates a recurring event {string} starting {string} repeating on {string} ending {string} in tenant {string}',
+        async (_ctx, title: string, date: string, days: string, endDate: string, slug: string) => {
+          const created = await postRecurringEvent(
+            slug,
+            title,
+            date,
+            parseWeekdayList(days),
+            endDate,
+          );
+          expect(created.status).toBe(201);
+        },
+      );
+
+      When(
+        'the caller GETs /api/events for week {string} in tenant {string}',
+        async (_ctx, weekStart: string, slug: string) => {
+          const out = await getEvents(slug, weekStart);
+          body = out.body;
+        },
+      );
+
+      Then('the response includes {int} events', (_ctx, n: number) => {
+        expect(body.events).toHaveLength(n);
+      });
+    },
+  );
+
+  Scenario(
+    'A recurring series never leaks across tenants (FHS-476)',
+    ({ Given, And, When, Then }) => {
+      let res: Response;
+      let body: EventsResponse;
+
+      Given(
+        'a second tenant {string} exists with the caller as an admin member',
+        async (_ctx, slug: string) => {
+          const inserted = await db
+            .insert(tenants)
+            .values({ slug, name: `${slug} Family` })
+            .returning();
+          const tenant = inserted[0]!;
+          tenantIds[slug] = tenant.id;
+          await db.insert(members).values({
+            tenantId: tenant.id,
+            userId: USER_ID,
+            displayName: 'Caller',
+            role: 'admin',
+          });
+        },
+      );
+
+      And(
+        'the caller creates a recurring event {string} starting {string} repeating on {string} ending {string} in tenant {string}',
+        async (_ctx, title: string, date: string, days: string, endDate: string, slug: string) => {
+          const created = await postRecurringEvent(
+            slug,
+            title,
+            date,
+            parseWeekdayList(days),
+            endDate,
+          );
+          expect(created.status).toBe(201);
+        },
+      );
+
+      When(
+        'the caller GETs /api/events for week {string} in tenant {string}',
+        async (_ctx, weekStart: string, slug: string) => {
+          const out = await getEvents(slug, weekStart);
+          res = out.res;
+          body = out.body;
+        },
+      );
+
+      Then(
+        'the response excludes a {string} event on {string}',
+        (_ctx, title: string, date: string) => {
+          expect(res.status).toBe(200);
+          const found = body.events.find((e) => e.title === title && e.date === date);
+          expect(found).toBeUndefined();
+        },
+      );
+    },
+  );
 });

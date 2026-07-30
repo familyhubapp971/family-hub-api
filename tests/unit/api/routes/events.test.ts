@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { eventsRouter } from '../../../../apps/api/src/routes/events.js';
+import { createEventRequestSchema, eventsRouter } from '../../../../apps/api/src/routes/events.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
 // FHS-230 — GET + POST /api/events. Same shape as the meals route
@@ -152,6 +152,8 @@ describe('FHS-230 — GET /api/events', () => {
         type: 'school',
         location: 'Leisure Centre',
         wear: 'Swimsuit and towel',
+        recurrenceDays: null,
+        recurrenceEndDate: null,
       },
     ]);
     const res = await app.request('/api/events?weekStart=2026-05-04');
@@ -163,6 +165,7 @@ describe('FHS-230 — GET /api/events', () => {
         type: string;
         location: string | null;
         wear: string | null;
+        isRecurring: boolean;
       }>;
     };
     expect(body.events).toHaveLength(1);
@@ -172,7 +175,52 @@ describe('FHS-230 — GET /api/events', () => {
       type: 'school',
       location: 'Leisure Centre',
       wear: 'Swimsuit and towel',
+      isRecurring: false,
     });
+  });
+
+  // FHS-476 — the mocked select returns rows as-is; this confirms the GET
+  // handler threads them through expandWeekOccurrences (the expansion
+  // algorithm itself is covered exhaustively in
+  // tests/unit/api/lib/recurrence.test.ts) and shapes the response with
+  // isRecurring/seriesStartDate.
+  it('expands a recurring series row into one occurrence per matching weekday (FHS-476)', async () => {
+    const SERIES_ID = '44444444-4444-4444-8444-444444444444';
+    // Monday 2026-05-04 anchor, repeats Tue(2) + Thu(4).
+    const app = buildAppWithSeed({}, [
+      {
+        id: SERIES_ID,
+        date: '2026-05-04',
+        startTime: '16:00',
+        endTime: null,
+        title: 'Tennis',
+        notes: null,
+        memberId: null,
+        type: 'home',
+        location: null,
+        wear: null,
+        recurrenceDays: [2, 4],
+        recurrenceEndDate: null,
+      },
+    ]);
+    const res = await app.request('/api/events?weekStart=2026-05-04');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      events: Array<{
+        id: string;
+        date: string;
+        isRecurring: boolean;
+        seriesStartDate: string;
+        recurrenceDays: number[] | null;
+      }>;
+    };
+    expect(body.events.map((e) => e.date).sort()).toEqual(['2026-05-05', '2026-05-07']);
+    expect(body.events.every((e) => e.id === SERIES_ID)).toBe(true);
+    expect(body.events.every((e) => e.isRecurring)).toBe(true);
+    expect(body.events.every((e) => e.seriesStartDate === '2026-05-04')).toBe(true);
+    expect(body.events.every((e) => e.recurrenceDays?.join(',') === '2,4')).toBe(true);
+    // The anchor's own weekday (Monday=1) isn't in [2, 4], so it never renders.
+    expect(body.events.some((e) => e.date === '2026-05-04')).toBe(false);
   });
 });
 
@@ -276,6 +324,8 @@ describe('FHS-230 — POST /api/events', () => {
           type: 'home',
           location: null,
           wear: null,
+          recurrenceDays: null,
+          recurrenceEndDate: null,
         },
       ],
     );
@@ -284,10 +334,18 @@ describe('FHS-230 — POST /api/events', () => {
       postBody({ date: '2026-05-04', title: 'Swim lesson', startTime: '09:00' }),
     );
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { id: string; title: string; type: string };
+    const body = (await res.json()) as {
+      id: string;
+      title: string;
+      type: string;
+      isRecurring: boolean;
+      seriesStartDate: string;
+    };
     expect(body.id).toBe(E1);
     expect(body.title).toBe('Swim lesson');
     expect(body.type).toBe('home');
+    expect(body.isRecurring).toBe(false);
+    expect(body.seriesStartDate).toBe('2026-05-04');
     expect(dbMock.insert).toHaveBeenCalledTimes(1);
   });
 
@@ -308,6 +366,8 @@ describe('FHS-230 — POST /api/events', () => {
           type: 'school',
           location: 'School gym',
           wear: 'PE kit',
+          recurrenceDays: null,
+          recurrenceEndDate: null,
         },
       ],
     );
@@ -337,5 +397,158 @@ describe('FHS-230 — POST /api/events', () => {
       postBody({ date: '2026-05-04', title: 'X', type: 'work' }),
     );
     expect(res.status).toBe(400);
+  });
+});
+
+// FHS-476 — validation for the "repeat weekly" fields.
+describe('FHS-476 — POST /api/events recurrence validation', () => {
+  function postBody(body: unknown): RequestInit {
+    return {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    };
+  }
+
+  it('creates a recurring series with recurrenceDays + recurrenceEndDate', async () => {
+    const E1 = '22222222-2222-4222-8222-222222222222';
+    const app = buildAppWithSeed(
+      {},
+      [],
+      [
+        {
+          id: E1,
+          date: '2026-05-04',
+          startTime: '16:00',
+          endTime: null,
+          title: 'Tennis',
+          notes: null,
+          memberId: null,
+          type: 'home',
+          location: null,
+          wear: null,
+          recurrenceDays: [2, 4],
+          recurrenceEndDate: '2026-06-30',
+        },
+      ],
+    );
+    const res = await app.request(
+      '/api/events',
+      postBody({
+        date: '2026-05-04',
+        title: 'Tennis',
+        startTime: '16:00',
+        recurrenceDays: [4, 2, 2], // unsorted + a duplicate
+        recurrenceEndDate: '2026-06-30',
+      }),
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      isRecurring: boolean;
+      recurrenceDays: number[] | null;
+      recurrenceEndDate: string | null;
+    };
+    expect(body.isRecurring).toBe(true);
+    // Duplicates deduped, sorted ascending.
+    expect(dbMock.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a recurrenceEndDate before the event date', async () => {
+    const app = buildAppWithSeed({});
+    const res = await app.request(
+      '/api/events',
+      postBody({
+        date: '2026-05-04',
+        title: 'Tennis',
+        recurrenceDays: [2],
+        recurrenceEndDate: '2026-05-01',
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a recurrenceEndDate with no recurrenceDays', async () => {
+    const app = buildAppWithSeed({});
+    const res = await app.request(
+      '/api/events',
+      postBody({ date: '2026-05-04', title: 'Tennis', recurrenceEndDate: '2026-06-30' }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an empty recurrenceDays array', async () => {
+    const app = buildAppWithSeed({});
+    const res = await app.request(
+      '/api/events',
+      postBody({ date: '2026-05-04', title: 'Tennis', recurrenceDays: [] }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an out-of-range weekday (7)', async () => {
+    const app = buildAppWithSeed({});
+    const res = await app.request(
+      '/api/events',
+      postBody({ date: '2026-05-04', title: 'Tennis', recurrenceDays: [7] }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('an event with recurrenceDays omitted (undefined) is a normal one-off', async () => {
+    const E1 = '22222222-2222-4222-8222-222222222222';
+    const app = buildAppWithSeed(
+      {},
+      [],
+      [
+        {
+          id: E1,
+          date: '2026-05-04',
+          startTime: null,
+          endTime: null,
+          title: 'Dentist',
+          notes: null,
+          memberId: null,
+          type: 'home',
+          location: null,
+          wear: null,
+          recurrenceDays: null,
+          recurrenceEndDate: null,
+        },
+      ],
+    );
+    const res = await app.request(
+      '/api/events',
+      postBody({ date: '2026-05-04', title: 'Dentist' }),
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { isRecurring: boolean };
+    expect(body.isRecurring).toBe(false);
+  });
+});
+
+// FHS-476 — the schema's own dedup + sort transform, tested directly
+// since the route-level mock DB can't observe what gets written.
+describe('createEventRequestSchema — recurrenceDays transform', () => {
+  it('dedupes and sorts recurrenceDays ascending', () => {
+    const parsed = createEventRequestSchema.parse({
+      date: '2026-05-04',
+      title: 'Tennis',
+      recurrenceDays: [4, 2, 2, 4],
+    });
+    expect(parsed.recurrenceDays).toEqual([2, 4]);
+  });
+
+  it('leaves recurrenceDays null when omitted', () => {
+    const parsed = createEventRequestSchema.parse({ date: '2026-05-04', title: 'Dentist' });
+    expect(parsed.recurrenceDays).toBeNull();
+  });
+
+  it('leaves recurrenceDays null when explicitly null', () => {
+    const parsed = createEventRequestSchema.parse({
+      date: '2026-05-04',
+      title: 'Dentist',
+      recurrenceDays: null,
+    });
+    expect(parsed.recurrenceDays).toBeNull();
   });
 });

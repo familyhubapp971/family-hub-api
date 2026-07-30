@@ -625,8 +625,16 @@ export const eventType = pgEnum('event_type', ['school', 'home']);
  * FHS-265 adds `type` (school | home sub-tab), `location` ("where")
  * and `wear` ("what to wear") — both free text, both optional.
  *
- * Recurring events (weekly, monthly) are deferred — they'll need a
- * separate `event_rules` table when shipped.
+ * FHS-476 adds weekly recurrence via expand-on-read: `recurrence_days`
+ * holds the weekdays (0=Sunday..6=Saturday) a series repeats on as a
+ * Postgres int array (null/empty = a normal one-off event); `date`
+ * stays the series anchor (its first occurrence); `recurrence_end_date`
+ * is the last day it repeats (inclusive, null = no end). No row is
+ * ever written per occurrence — `GET /api/events` computes the virtual
+ * occurrences that fall in the requested week on every read (see
+ * `apps/api/src/lib/recurrence.ts`). Editing/deleting a recurring
+ * event acts on the whole series; single-occurrence edits are a
+ * follow-up.
  */
 export const events = pgTable(
   'events',
@@ -644,6 +652,8 @@ export const events = pgTable(
     type: eventType('type').notNull().default('home'),
     location: text('location'),
     wear: text('wear'),
+    recurrenceDays: integer('recurrence_days').array(),
+    recurrenceEndDate: date('recurrence_end_date'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -43,7 +43,11 @@ import {
   listRedemptionRequestsResponseSchema,
 } from '../routes/mw-redemption-requests.js';
 import { listMealsResponseSchema } from '../routes/meals.js';
-import { listEventsResponseSchema } from '../routes/events.js';
+import {
+  createEventRequestSchema,
+  eventItemSchema,
+  listEventsResponseSchema,
+} from '../routes/events.js';
 import { calendarFeedResponseSchema } from '../routes/calendar.js';
 import {
   journalDayResponseSchema,
@@ -216,6 +220,41 @@ export const routeMeta: Record<string, RouteMeta> = {
   'GET /api/kid/events': {
     summary: "The kid's schedule for a week (their own + family-wide)",
     response: listEventsResponseSchema,
+  },
+
+  // Calendar activities (FHS-230, FHS-265, FHS-476).
+  'GET /api/events': {
+    summary: "The family's calendar activities for a week (?weekStart=YYYY-MM-DD)",
+    response: listEventsResponseSchema,
+    responseDesc:
+      'One entry per occurrence in the 7-day window. A weekly-recurring series (recurrenceDays set) contributes one entry per matching weekday, all sharing the same series id, with isRecurring: true',
+    queryParams: {
+      weekStart: {
+        description: 'Monday of the week to fetch (YYYY-MM-DD)',
+        required: true,
+        schema: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      },
+    },
+  },
+  'POST /api/events': {
+    summary: 'Create a calendar activity; admin/adult only',
+    description:
+      'Optional recurrenceDays (weekdays 0=Sun..6=Sat) + recurrenceEndDate turn it into a weekly-repeating series anchored on `date`. No occurrence rows are stored — GET expands the series on read.',
+    request: createEventRequestSchema,
+    response: eventItemSchema,
+    responseDesc: '201 — the created event (the series anchor, if recurring)',
+  },
+  'PUT /api/events/{id}': {
+    summary: 'Replace an event (full update); admin/adult only',
+    description:
+      'For a recurring series this edits the WHOLE series (start date, weekdays, end date, and all other fields) — not a single occurrence. Single-occurrence editing is a follow-up.',
+    request: createEventRequestSchema,
+    response: eventItemSchema,
+  },
+  'DELETE /api/events/{id}': {
+    summary: 'Delete an event; admin/adult only',
+    responseDesc:
+      '204 on success. For a recurring series this deletes the WHOLE series. 404 if not found in this tenant',
   },
   'GET /api/calendar/feed': {
     summary: 'The family calendar subscribe URL (creates the feed key on first call)',
