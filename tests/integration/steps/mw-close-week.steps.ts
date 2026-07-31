@@ -158,9 +158,18 @@ describeFeature(feature, ({ Background, Scenario }) => {
   }
 
   async function seedHabit(slug: string, name: string, memberName: string, isBonus: boolean) {
+    // FHS-512 — stickerValue now comes from `boost` (isBonus is legacy/derived
+    // display-only). A direct DB insert bypasses the API's isBonus→boost
+    // derivation, so set boost explicitly to keep "bonus" habits worth 5.
     const [row] = await db
       .insert(habits)
-      .values({ tenantId: tenantIds[slug]!, memberId: memberIds[memberName]!, name, isBonus })
+      .values({
+        tenantId: tenantIds[slug]!,
+        memberId: memberIds[memberName]!,
+        name,
+        isBonus,
+        boost: isBonus ? 5 : 1,
+      })
       .returning();
     habitIds[name] = row!.id;
   }

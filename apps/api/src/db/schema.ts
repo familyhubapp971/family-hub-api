@@ -106,6 +106,12 @@ export const tenants = pgTable('tenants', {
   // token (HMAC). Null until the family first opens the sync card; rotating
   // it invalidates every existing subscription. Never leaves the server.
   calendarFeedKey: text('calendar_feed_key'),
+  // FHS-512 — the family's default "1 sticker is worth" rate, in INTEGER
+  // MINOR UNITS of `currency` (e.g. 50 = 0.50 AED). Replaces the old
+  // hardcoded STICKER_TO_CASH=0.5 constant. A child can override this on
+  // their own `members` row; see `effectiveRateMinor` in lib/reward-config.ts.
+  // Never store this as a float — money is minor-unit integers only.
+  stickerRateMinor: integer('sticker_rate_minor').notNull().default(50),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -181,6 +187,11 @@ export const members = pgTable(
     // Collected by the Manage Members "Add a Child" form; not a birthday,
     // so it goes stale — fine for v1 display purposes.
     age: integer('age'),
+    // FHS-512 — per-child override of the family's sticker rate, in INTEGER
+    // MINOR UNITS (e.g. 75 = 0.75). Null = use the family default
+    // (tenants.sticker_rate_minor). See `effectiveRateMinor` in
+    // lib/reward-config.ts — never store this as a float.
+    stickerRateMinor: integer('sticker_rate_minor'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -323,8 +334,20 @@ export const habits = pgTable(
     color: text('color').notNull().default('#facc15'),
     // FHS-291 — My World economy: an emoji/lucide key for the habit card,
     // and a bonus flag (bonus habits earn stickerValue 5 instead of 1).
+    // FHS-512 — superseded by `boost` below for the actual sticker VALUE;
+    // `is_bonus` is kept only as a legacy/display flag (see `boost`).
     icon: text('icon'),
     isBonus: boolean('is_bonus').notNull().default(false),
+    // FHS-512 — a completed day places stickerValue = boost (generalises
+    // is_bonus: 1 = normal, 2/3/5 = the UI's boost presets). Replaces the
+    // hardcoded `isBonus ? 5 : 1`. Migration 0042 backfills boost=5 where
+    // is_bonus was true.
+    boost: integer('boost').notNull().default(1),
+    // FHS-512 — money (INTEGER MINOR UNITS) deducted from the child's
+    // savings when a due day passes with no sticker placed on this habit.
+    // 0 = no penalty (default). Applied at close-week; see
+    // lib/reward-config.ts `applySkipPenalties`.
+    skipPenaltyMinor: integer('skip_penalty_minor').notNull().default(0),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1301,6 +1324,47 @@ export type RedemptionRequest = typeof redemptionRequests.$inferSelect;
 export type NewRedemptionRequest = typeof redemptionRequests.$inferInsert;
 
 /**
+ * `money_adjustments` (FHS-512) — a standalone ledger entry that moves a
+ * child's money without a sticker changing hands. Today the only writer is
+ * the skip-penalty accrual at close-week (one negative row per due day that
+ * passed with no sticker on a habit that has `skip_penalty_minor > 0`), but
+ * the shape is generic (`reason` free text) for future adjustment types.
+ *
+ * `amount_minor` is an INTEGER in the tenant's minor currency unit
+ * (negative for a penalty) — never a float. The same amount is folded
+ * directly into `mw_savings.saved_cash` at write time (floored at 0) so
+ * every existing balance reader (savings, kid view, admin view, close-week
+ * summary) reflects the deduction without a second code path; this table is
+ * the audit trail + what `reward-config`'s reopen/repair reversal reads.
+ *
+ * No `week_id` column (not required by the feature spec) — reversal on
+ * reopen/repair matches rows by `day` falling inside the week's Mon–Sun
+ * range for (tenant, member). RLS: tenant_isolation policy, same as every
+ * other My World table.
+ */
+export const moneyAdjustments = pgTable(
+  'money_adjustments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    habitId: uuid('habit_id').references(() => habits.id, { onDelete: 'set null' }),
+    day: date('day').notNull(),
+    amountMinor: integer('amount_minor').notNull(),
+    reason: text('reason').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('money_adjustments_tenant_member_idx').on(t.tenantId, t.memberId)],
+);
+
+export type MoneyAdjustment = typeof moneyAdjustments.$inferSelect;
+export type NewMoneyAdjustment = typeof moneyAdjustments.$inferInsert;
+
+/**
  * `reading_log` — a child's personal book list (Learn Phase 1).
  *
  * One row per book a child adds. Title is required; author is optional.
@@ -1672,6 +1736,7 @@ export const TENANT_SCOPED_TABLES = [
   mwSavingsTransactions,
   mwInvestments,
   mwWeekActions,
+  moneyAdjustments,
   appSettings,
   activityLogs,
   readingLog,

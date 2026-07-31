@@ -147,20 +147,33 @@ describe('cashAsStickers', () => {
     expect(cashAsStickers(2.4)).toBe(4); // 2.4/0.5 = 4.8 -> 4
     expect(cashAsStickers(0)).toBe(0);
   });
+
+  // FIX 2 (BLOCKER) — a rate of 0 must never be divided by: with real saved
+  // cash and no guard, 2/0 is Infinity, so `balance < cost` never blocks a
+  // redemption ("free unlimited redemption"). A rate <= 0 resolves to 0
+  // stickers instead of dividing.
+  it('resolves to 0 stickers instead of dividing when the rate is 0 or negative', () => {
+    expect(cashAsStickers(2, 0)).toBe(0);
+    expect(cashAsStickers(100, 0)).toBe(0);
+    expect(cashAsStickers(2, -0.5)).toBe(0);
+  });
 });
 
-// FHS-463 — stickerBalances() batches the per-member star balance into a fixed
-// two queries (one grouped SUM over unallocated stickers, one over savings)
+// FHS-463 — stickerBalances() batches the per-member star balance into a FIXED
+// number of queries (grouped SUM over unallocated stickers, one over savings,
+// one over rates — FHS-512 added the third for the configurable rate)
 // instead of the 2×N fan-out of calling stickerBalance() per member. The value
-// per member is identical: unallocated + saved stickers + cash-as-stickers.
+// per member is identical: unallocated + saved stickers + cash-as-stickers
+// (now at each member's own effective rate, not a fixed 0.5).
 describe('stickerBalances (FHS-463 — batched per-member star balance)', () => {
   // Minimal db stub: each db.select() resolves to the next canned result set,
-  // no matter where the builder chain stops (.from / .where / .groupBy).
+  // no matter where the builder chain stops (.from / .innerJoin / .where / .groupBy).
   function stubDb(resultSets: unknown[]) {
     let call = 0;
     const chain = (rows: unknown): unknown => {
       const obj: Record<string, unknown> = {
         from: () => obj,
+        innerJoin: () => obj,
         where: () => obj,
         groupBy: () => obj,
         then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
@@ -172,19 +185,35 @@ describe('stickerBalances (FHS-463 — batched per-member star balance)', () => 
     return { db: { select } as unknown as Parameters<typeof stickerBalances>[0], select };
   }
 
-  it('sums unallocated + saved stickers + cash-as-stickers per member in two queries', async () => {
+  it('sums unallocated + saved stickers + cash-as-stickers (at each member rate) in three queries', async () => {
     const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
     const { db, select } = stubDb([
       [{ memberId: A, s: '4' }], // B earned no unallocated stickers this window
       [{ memberId: A, savedStickers: 2, savedCash: '1.50' }], // B has no savings row
+      [
+        { memberId: A, memberRate: null, tenantRate: 50 }, // A uses the family default (0.50)
+        { memberId: B, memberRate: 75, tenantRate: 50 }, // B has an override (0.75) — irrelevant, B has no cash
+      ],
     ]);
     const balances = await stickerBalances(db, 'tenant', [A, B]);
     // A: 4 unallocated + 2 saved + floor(1.50 / 0.5)=3 = 9. B: nothing = 0.
     expect(balances.get(A)).toBe(9);
     expect(balances.get(B)).toBe(0);
-    // Exactly two round-trips regardless of member count (was 2×members before).
-    expect(select).toHaveBeenCalledTimes(2);
+    // Exactly three round-trips regardless of member count (was 2×members before FHS-463).
+    expect(select).toHaveBeenCalledTimes(3);
+  });
+
+  it('uses a member override rate (not the family default) when converting saved cash to stickers', async () => {
+    const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const { db } = stubDb([
+      [], // no unallocated stickers
+      [{ memberId: A, savedStickers: 0, savedCash: '3.00' }],
+      [{ memberId: A, memberRate: 100, tenantRate: 50 }], // A's own rate: 1.00/star
+    ]);
+    const balances = await stickerBalances(db, 'tenant', [A]);
+    // floor(3.00 / 1.00) = 3 stars, NOT floor(3.00 / 0.5) = 6.
+    expect(balances.get(A)).toBe(3);
   });
 
   it('returns an empty map and issues no query when given no members', async () => {
@@ -196,21 +225,43 @@ describe('stickerBalances (FHS-463 — batched per-member star balance)', () => 
 });
 
 // FHS-387 — kid savings response includes stickerRate so the UI never hardcodes 0.5.
+// FHS-512 — stickerRate is now the child's CONFIGURABLE effective rate, and
+// stickerRateMinor carries the same rate as a money-safe integer.
 describe('kidSavingsResponseSchema includes stickerRate', () => {
-  it('validates a response that includes stickerRate = STICKER_TO_CASH (0.5)', () => {
+  it('validates a response that includes stickerRate = STICKER_TO_CASH (0.5) and stickerRateMinor', () => {
     const payload = {
       savedStickers: 5,
       savedCash: 2.5,
       currency: 'AED',
       stickerRate: STICKER_TO_CASH,
+      stickerRateMinor: 50,
     };
     const result = kidSavingsResponseSchema.safeParse(payload);
     expect(result.success).toBe(true);
     expect(result.data?.stickerRate).toBe(0.5);
+    expect(result.data?.stickerRateMinor).toBe(50);
+  });
+
+  it('validates a non-default configured rate', () => {
+    const payload = {
+      savedStickers: 5,
+      savedCash: 2.5,
+      currency: 'AED',
+      stickerRate: 0.75,
+      stickerRateMinor: 75,
+    };
+    const result = kidSavingsResponseSchema.safeParse(payload);
+    expect(result.success).toBe(true);
   });
 
   it('rejects a response missing stickerRate', () => {
-    const payload = { savedStickers: 5, savedCash: 2.5, currency: 'AED' };
+    const payload = { savedStickers: 5, savedCash: 2.5, currency: 'AED', stickerRateMinor: 50 };
+    const result = kidSavingsResponseSchema.safeParse(payload);
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a response missing stickerRateMinor', () => {
+    const payload = { savedStickers: 5, savedCash: 2.5, currency: 'AED', stickerRate: 0.5 };
     const result = kidSavingsResponseSchema.safeParse(payload);
     expect(result.success).toBe(false);
   });

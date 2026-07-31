@@ -23,8 +23,13 @@ import {
   loadWeeksForMember,
   loadWeekStats,
   mondayOf,
-  STICKER_TO_CASH,
 } from '../lib/myworld.js';
+import {
+  applySkipPenalties,
+  getEffectiveRateMinor,
+  rateMinorToDecimal,
+  reverseSkipPenalties,
+} from '../lib/reward-config.js';
 
 // FHS-293 — My World weeks list / current / stats endpoints.
 //
@@ -189,6 +194,10 @@ export const mwWeeksRouter = new Hono()
 
     const weekId = c.req.param('id');
     const now = new Date();
+    // FHS-512 — resolved once per finalize call (child override, else the
+    // family default); every cash figure this handler writes uses it.
+    const rateMinor = await getEffectiveRateMinor(db, tenantId, memberId);
+    const rate = rateMinorToDecimal(rateMinor);
 
     const outcome = await db.transaction(async (tx) => {
       await tx.execute(
@@ -348,9 +357,21 @@ export const mwWeeksRouter = new Hono()
           weekId,
           actionType: 'auto_save',
           stickersUsed: stickerValue,
-          cashAmount: String(stickerValue * STICKER_TO_CASH),
+          cashAmount: String(stickerValue * rate),
         });
       }
+
+      // ── 2b. Skip-penalty accrual (FHS-512) — one negative money_adjustments
+      // row per due day missed on a habit with skip_penalty_minor > 0, folded
+      // straight into saved_cash. Runs after auto-save/before the finalized
+      // flag flips, inside the same advisory lock + transaction.
+      const skipPenalty = await applySkipPenalties(
+        tx,
+        tenantId,
+        memberId,
+        { id: weekId, startDate: week.startDate },
+        now,
+      );
 
       // ── 3+4. Mark finalized (a closed week is a "closed book": all 7 days
       // are past) and store the snapshot. ────────────────────────────────────
@@ -386,12 +407,15 @@ export const mwWeeksRouter = new Hono()
         const completedDays = Math.min(cRow?.n ?? 0, 7);
         const missedDays = 7 - completedDays;
         // FHS-378 — honour the investment's deductible flag when maturing it.
-        const { currentValueStickers, currentValueCash } = investmentValue({
-          investedStickers: inv.investedStickers,
-          completedDays,
-          missedDays,
-          deductible: inv.deductible ?? true,
-        });
+        const { currentValueStickers, currentValueCash } = investmentValue(
+          {
+            investedStickers: inv.investedStickers,
+            completedDays,
+            missedDays,
+            deductible: inv.deductible ?? true,
+          },
+          rate,
+        );
 
         if (continueSet.has(inv.id)) {
           toContinue.push({
@@ -525,6 +549,7 @@ export const mwWeeksRouter = new Hono()
         stickersAutoSaved: stickerValue,
         investmentReturns,
         continuedInvestments,
+        skipPenaltyMinor: skipPenalty.totalPenaltyMinor,
         nextWeekId: nextWeek.id,
         nextWeekNumber: nextWeek.weekNumber,
         nextWeekYear: nextWeek.year,
@@ -561,6 +586,7 @@ export const mwWeeksRouter = new Hono()
       stickersAutoSaved: outcome.stickersAutoSaved,
       investmentReturns: outcome.investmentReturns,
       continuedInvestments: outcome.continuedInvestments,
+      skipPenaltyMinor: outcome.skipPenaltyMinor,
       nextWeekId: outcome.nextWeekId,
       nextWeekNumber: outcome.nextWeekNumber,
       nextWeekYear: outcome.nextWeekYear,
@@ -683,7 +709,7 @@ export const mwWeeksRouter = new Hono()
       if (!week) return { ok: false as const, code: 'NOT_FOUND' as const };
       if (!week.isFinalized) return { ok: false as const, code: 'NOT_FINALIZED' as const };
 
-      const reversal = await reverseFinalizationEffects(tx, tenantId, memberId, weekId);
+      const reversal = await reverseFinalizationEffects(tx, tenantId, memberId, weekId, week);
 
       await tx
         .update(mwWeeks)
@@ -762,7 +788,7 @@ export const mwWeeksRouter = new Hono()
       // Repair only applies to non-finalized weeks (reopen handles finalized ones).
       if (week.isFinalized) return { ok: false as const, code: 'IS_FINALIZED' as const };
 
-      const reversal = await reverseFinalizationEffects(tx, tenantId, memberId, weekId);
+      const reversal = await reverseFinalizationEffects(tx, tenantId, memberId, weekId, week);
       return { ok: true as const, reversal };
     });
 
@@ -801,10 +827,12 @@ async function reverseFinalizationEffects(
   tenantId: string,
   memberId: string,
   weekId: string,
+  week: { startDate: string },
 ): Promise<{
   stickersReversed: number;
   cashReversed: number;
   investmentsRestored: number;
+  skipPenaltyReversedMinor: number;
 }> {
   let stickersReversed = 0;
   let cashReversed = 0;
@@ -970,5 +998,13 @@ async function reverseFinalizationEffects(
       ),
     );
 
-  return { stickersReversed, cashReversed, investmentsRestored };
+  // ── 5. Reverse skip-penalty adjustments (FHS-512) ───────────────────────
+  const skipPenaltyReversal = await reverseSkipPenalties(tx, tenantId, memberId, week, now);
+
+  return {
+    stickersReversed,
+    cashReversed,
+    investmentsRestored,
+    skipPenaltyReversedMinor: skipPenaltyReversal.totalReversedMinor,
+  };
 }

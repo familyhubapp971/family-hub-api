@@ -28,9 +28,19 @@ function buildApp(opts: { noTenant?: boolean; memberChecks?: unknown[][] } = {})
     await next();
   };
   const queue = [...(opts.memberChecks ?? [])];
-  dbMock.select.mockImplementation(() => ({
-    from: () => ({ where: () => ({ limit: () => Promise.resolve(queue.shift() ?? []) }) }),
-  }));
+  // FHS-512 — guard() now also resolves the member's effective rate via an
+  // innerJoin query; the chain below supports both `.from().where().limit()`
+  // and `.from().innerJoin().where().limit()` so every select() (however
+  // many hops) draws its result from the same `queue`, in call order.
+  dbMock.select.mockImplementation(() => {
+    const chain = {
+      from: () => chain,
+      innerJoin: () => chain,
+      where: () => chain,
+      limit: () => Promise.resolve(queue.shift() ?? []),
+    };
+    return chain;
+  });
   const app = new Hono();
   app.use('*', seed);
   app.route('/api/mw/financial', mwFinancialRouter);
@@ -181,11 +191,12 @@ describe('FHS-296 — POST /api/mw/financial/investments/:id/withdraw guards', (
 // FIX 1 — invest in another child's habit returns 404
 describe('FHS-296 — FIX 1: habit must belong to the requesting member', () => {
   it('404 when the habit exists in the tenant but belongs to a different child', async () => {
-    // Queue: [callerRow], [memberExistsRow], habit lookup returns [] (not found for this member)
+    // Queue: [callerRow], [memberExistsRow], [rate row], habit lookup returns [] (not found for this member)
     const res = await buildApp({
       memberChecks: [
         [{ id: 'admin-member-id', role: 'admin' }], // loadCaller
         [{ id: MEMBER_ID }], // memberInTenant
+        [{ memberRate: null, tenantRate: 50 }], // rate resolver (FHS-512)
         [], // habit lookup scoped to memberId → empty
       ],
     }).request(
@@ -234,6 +245,7 @@ describe('FHS-378 — POST /investments/:id/settings guards + transaction paths'
     const guardQueue: unknown[][] = [
       [{ id: 'caller', role: 'admin' }], // loadCaller
       [{ id: MEMBER_ID }], // memberInTenant
+      [{ memberRate: null, tenantRate: 50 }], // rate resolver (FHS-512)
     ];
     const txQueue = [...opts.txSelects];
     // `where()` returns a thenable array (for count selects that await it
@@ -261,9 +273,15 @@ describe('FHS-378 — POST /investments/:id/settings guards + transaction paths'
       c.set('tenantId', TENANT_ID);
       await next();
     };
-    dbMock.select.mockImplementation(() => ({
-      from: () => ({ where: () => ({ limit: () => Promise.resolve(guardQueue.shift() ?? []) }) }),
-    }));
+    dbMock.select.mockImplementation(() => {
+      const chain = {
+        from: () => chain,
+        innerJoin: () => chain,
+        where: () => chain,
+        limit: () => Promise.resolve(guardQueue.shift() ?? []),
+      };
+      return chain;
+    });
 
     (dbMock as any).transaction = vi.fn(async (cb: (t: typeof tx) => unknown) => cb(tx));
     const app = new Hono();
@@ -332,7 +350,12 @@ describe('FHS-378 — POST /investments/:id/settings guards + transaction paths'
 describe('FHS-335 — balance admin-set is admin-only', () => {
   it('PUT /savings/admin-set as a normal user → 403 ADMIN_ONLY', async () => {
     const res = await buildApp({
-      memberChecks: [[{ id: 'caller', role: 'adult' }], [{ id: MEMBER_ID }], [{ role: 'adult' }]],
+      memberChecks: [
+        [{ id: 'caller', role: 'adult' }], // loadCaller
+        [{ id: MEMBER_ID }], // memberInTenant
+        [{ memberRate: null, tenantRate: 50 }], // rate resolver (FHS-512)
+        [{ role: 'adult' }], // explicit admin-role re-check in the handler
+      ],
     }).request('/api/mw/financial/savings/admin-set', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

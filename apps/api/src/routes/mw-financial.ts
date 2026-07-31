@@ -22,10 +22,10 @@ import {
   investmentValue,
   loadInvestmentsForMember,
   loadSavingsForMember,
-  STICKER_TO_CASH,
   getOrCreateCurrentWeek,
   getOrCreateSavings,
 } from '../lib/myworld.js';
+import { getEffectiveRateMinor, rateMinorToDecimal } from '../lib/reward-config.js';
 
 // FHS-295 — My World savings / banking.
 //
@@ -97,7 +97,7 @@ async function guard(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   c: any,
   member: string,
-): Promise<{ db: ReturnType<typeof getDb>; tenantId: string } | { res: Response }> {
+): Promise<{ db: ReturnType<typeof getDb>; tenantId: string; rate: number } | { res: Response }> {
   getAuthenticatedUser(c);
   const userRow = c.get('userRow');
   if (!userRow) throw new Error('financial handler reached without userRow');
@@ -115,7 +115,10 @@ async function guard(
   if (!canManage(caller, member)) {
     return { res: c.json({ error: 'forbidden', detail: 'not allowed for this member' }, 403) };
   }
-  return { db, tenantId };
+  // FHS-512 — this member's effective rate (their own override, else the
+  // family default), resolved once per request; every cash figure below uses it.
+  const rate = rateMinorToDecimal(await getEffectiveRateMinor(db, tenantId, member));
+  return { db, tenantId, rate };
 }
 
 export const mwFinancialRouter = new Hono()
@@ -145,10 +148,12 @@ export const mwFinancialRouter = new Hono()
     const { memberId, type, amount } = parsed.data;
     const g = await guard(c, memberId);
     if ('res' in g) return g.res;
-    const { db, tenantId } = g;
+    const { db, tenantId, rate } = g;
     const week = await getOrCreateCurrentWeek(db, tenantId, memberId);
-    // stickers to draw from this week (cash save converts at 0.5).
-    const stickersNeeded = type === 'cash' ? Math.ceil(amount / STICKER_TO_CASH) : amount;
+    // stickers to draw from this week (cash save converts at this child's rate).
+    // FIX 2 — guard the divide: a rate <= 0 must never be divided by (see
+    // cashAsStickers' doc comment for why); treat it as needing 0 stickers.
+    const stickersNeeded = type === 'cash' ? (rate <= 0 ? 0 : Math.ceil(amount / rate)) : amount;
 
     const outcome = await db.transaction(async (tx) => {
       await tx.execute(
@@ -194,7 +199,7 @@ export const mwFinancialRouter = new Hono()
           ),
         );
       const bankedStickers = type === 'stickers' ? covered : 0;
-      const bankedCash = type === 'cash' ? covered * STICKER_TO_CASH : 0;
+      const bankedCash = type === 'cash' ? covered * rate : 0;
       const [txnRow] = await tx
         .insert(mwSavingsTransactions)
         .values({
@@ -290,7 +295,7 @@ export const mwFinancialRouter = new Hono()
     const { memberId, habitId, stickerCount, deductible } = parsed.data;
     const g = await guard(c, memberId);
     if ('res' in g) return g.res;
-    const { db, tenantId } = g;
+    const { db, tenantId, rate } = g;
 
     // Verify the habit exists in this tenant AND belongs to this member.
     // (FIX 1: scope to memberId so child A cannot invest in child B's habit)
@@ -350,7 +355,7 @@ export const mwFinancialRouter = new Hono()
         )
         .orderBy(asc(habitStickers.stickerValue));
       const weekValue = unallocated.reduce((acc, r) => acc + r.value, 0);
-      const available = weekValue + s.savedStickers + cashAsStickers(s.savedCash);
+      const available = weekValue + s.savedStickers + cashAsStickers(s.savedCash, rate);
 
       if (stickerCount > available) {
         return { ok: false as const, conflict: false as const, available };
@@ -372,8 +377,8 @@ export const mwFinancialRouter = new Hono()
       }
 
       if (remaining > 0 && s.savedCash > 0) {
-        const fromCashStickers = Math.min(remaining, cashAsStickers(s.savedCash));
-        const cashToDeduct = fromCashStickers * STICKER_TO_CASH;
+        const fromCashStickers = Math.min(remaining, cashAsStickers(s.savedCash, rate));
+        const cashToDeduct = fromCashStickers * rate;
         await tx
           .update(mwSavings)
           .set({ savedCash: sql`${mwSavings.savedCash} - ${cashToDeduct}`, updatedAt: new Date() })
@@ -414,8 +419,8 @@ export const mwFinancialRouter = new Hono()
           weekId: week.id,
           investedStickers: stickerCount,
           originalInvestedStickers: stickerCount,
-          investedAmount: String(stickerCount * STICKER_TO_CASH),
-          currentValue: String(stickerCount * STICKER_TO_CASH),
+          investedAmount: String(stickerCount * rate),
+          currentValue: String(stickerCount * rate),
           daysCompleted: 0,
           daysMissed: 0,
           isActive: true,
@@ -432,7 +437,7 @@ export const mwFinancialRouter = new Hono()
         stickersUsed: stickerCount,
         habitId,
         habitName,
-        cashAmount: String(stickerCount * STICKER_TO_CASH),
+        cashAmount: String(stickerCount * rate),
       });
 
       return { ok: true as const, investment };
@@ -483,7 +488,7 @@ export const mwFinancialRouter = new Hono()
     const { memberId, stickers: requestedStickers } = parsed.data;
     const g = await guard(c, memberId);
     if ('res' in g) return g.res;
-    const { db, tenantId } = g;
+    const { db, tenantId, rate } = g;
     const now = new Date();
 
     // Everything that decides the payout — re-reading the investment, recomputing
@@ -561,12 +566,15 @@ export const mwFinancialRouter = new Hono()
       const stickersOnPastDays = pastRow?.n ?? 0;
       const missedDays = Math.max(0, elapsed - stickersOnPastDays);
 
-      const { currentValueStickers } = investmentValue({
-        investedStickers: inv.investedStickers,
-        completedDays,
-        missedDays,
-        deductible: inv.deductible ?? true,
-      });
+      const { currentValueStickers } = investmentValue(
+        {
+          investedStickers: inv.investedStickers,
+          completedDays,
+          missedDays,
+          deductible: inv.deductible ?? true,
+        },
+        rate,
+      );
 
       const total = currentValueStickers;
       if (requestedStickers !== undefined && requestedStickers > total) {
@@ -596,7 +604,7 @@ export const mwFinancialRouter = new Hono()
           .update(mwInvestments)
           .set({
             investedStickers: newPrincipal,
-            currentValue: String((currentValueStickers - toWithdraw) * STICKER_TO_CASH),
+            currentValue: String((currentValueStickers - toWithdraw) * rate),
           })
           .where(
             and(
@@ -611,7 +619,7 @@ export const mwFinancialRouter = new Hono()
           .set({
             isActive: false,
             isResolved: true,
-            finalReturn: String(toWithdraw * STICKER_TO_CASH),
+            finalReturn: String(toWithdraw * rate),
           })
           .where(
             and(
@@ -631,7 +639,7 @@ export const mwFinancialRouter = new Hono()
         stickersUsed: toWithdraw,
         habitId: inv.habitId,
         habitName,
-        cashAmount: String(toWithdraw * STICKER_TO_CASH),
+        cashAmount: String(toWithdraw * rate),
       });
 
       return { ok: true as const, toWithdraw, remaining: total - toWithdraw };
@@ -677,7 +685,7 @@ export const mwFinancialRouter = new Hono()
     const { memberId, deductible } = parsed.data;
     const g = await guard(c, memberId);
     if ('res' in g) return g.res;
-    const { db, tenantId } = g;
+    const { db, tenantId, rate } = g;
     const now = new Date();
 
     const outcome = await db.transaction(async (tx) => {
@@ -751,12 +759,15 @@ export const mwFinancialRouter = new Hono()
           ),
         );
       const missedDays = Math.max(0, elapsed - (pastRow?.n ?? 0));
-      const { currentValueCash } = investmentValue({
-        investedStickers: inv.investedStickers,
-        completedDays,
-        missedDays,
-        deductible,
-      });
+      const { currentValueCash } = investmentValue(
+        {
+          investedStickers: inv.investedStickers,
+          completedDays,
+          missedDays,
+          deductible,
+        },
+        rate,
+      );
 
       const [updated] = await tx
         .update(mwInvestments)
@@ -860,26 +871,30 @@ export const mwFinancialRouter = new Hono()
     const { memberId, amount } = parsed.data;
     const g = await guard(c, memberId);
     if ('res' in g) return g.res;
-    const { db, tenantId } = g;
+    const { db, tenantId, rate } = g;
     const week = await getOrCreateCurrentWeek(db, tenantId, memberId);
     const outcome = await db.transaction(async (tx) => {
       await tx.execute(
         sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${memberId}`}, 0))`,
       );
       const s = await getOrCreateSavings(tx, tenantId, memberId);
-      const totalAvailable = s.savedCash + s.savedStickers * STICKER_TO_CASH;
+      const totalAvailable = s.savedCash + s.savedStickers * rate;
       if (amount > totalAvailable) return { ok: false as const, totalAvailable };
       let remaining = amount;
       const cashDeducted = Math.min(remaining, s.savedCash);
       remaining -= cashDeducted;
       let stickersDeducted = 0;
       let refundCash = 0;
-      if (remaining > 0 && s.savedStickers > 0) {
-        // Stickers come in 0.5 units; if the remainder isn't a whole
+      // FIX 2 — guard the divide: `totalAvailable` above already means
+      // `remaining` is 0 here whenever rate <= 0 (stickers contribute 0 to
+      // totalAvailable when rate <= 0), so this is unreachable in practice —
+      // guarded anyway so a rate of 0 can never divide-by-zero.
+      if (remaining > 0 && s.savedStickers > 0 && rate > 0) {
+        // Stickers come in `rate`-sized units; if the remainder isn't a whole
         // multiple, the rounded-up sticker over-delivers — refund that
         // surplus back to saved cash so no value is destroyed.
-        stickersDeducted = Math.min(Math.ceil(remaining / STICKER_TO_CASH), s.savedStickers);
-        refundCash = stickersDeducted * STICKER_TO_CASH - remaining;
+        stickersDeducted = Math.min(Math.ceil(remaining / rate), s.savedStickers);
+        refundCash = stickersDeducted * rate - remaining;
         remaining = 0;
       }
       await tx

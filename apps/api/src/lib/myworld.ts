@@ -14,16 +14,26 @@ import {
   tenants,
   type MwWeek,
 } from '../db/schema.js';
+import {
+  DEFAULT_STICKER_RATE_MINOR,
+  effectiveRateMinor,
+  getEffectiveRateMinor,
+  rateMinorToDecimal,
+} from './reward-config.js';
 
 // FHS-290 — shared My World economy helpers.
 //
-// 1 sticker = 0.5 AED. A child's spendable balance = stickers banked in
-// savings + stickers earned-but-unallocated in their weeks. Weeks are
-// Monday-anchored ISO weeks; one open (non-finalized) week per child.
+// A child's spendable balance = stickers banked in savings + stickers
+// earned-but-unallocated in their weeks. Weeks are Monday-anchored ISO
+// weeks; one open (non-finalized) week per child.
 
-// One sticker is worth this much in the family's chosen currency. The rate
-// is a fixed economy constant (ported from legacy); only the currency the
-// amount is shown in varies per family (set at registration).
+// FHS-512 — the sticker→cash rate is now CONFIGURABLE per family (and per
+// child). STICKER_TO_CASH survives only as the legacy default: it's the
+// fallback value for any function param below that isn't given an explicit
+// rate, and it's what the DB column defaults new tenants to (see migration
+// 0042). Every money-computing function in this file now RESOLVES the
+// effective rate via `getEffectiveRateMinor` instead of reading this
+// constant directly — grep for `rate` params before assuming 0.5 anywhere.
 export const STICKER_TO_CASH = 0.5;
 /** @deprecated use STICKER_TO_CASH — kept for any older import. */
 export const STICKER_TO_AED = STICKER_TO_CASH;
@@ -192,9 +202,16 @@ export async function getOrCreateSavings(
   return getSavings(db, tenantId, memberId);
 }
 
-/** Cash savings expressed as whole sticker-equivalents. */
-export function cashAsStickers(savedCash: number): number {
-  return Math.floor(savedCash / STICKER_TO_CASH);
+/**
+ * Cash savings expressed as whole sticker-equivalents, at the given (decimal)
+ * rate. FIX 2 — a rate of 0 must NOT divide (Infinity/NaN stickers would make
+ * every redemption look "free" since `balance < cost` never blocks). The
+ * reward-config API now rejects a 0 rate at the source, but this stays
+ * defensive for any rate value that reaches here another way.
+ */
+export function cashAsStickers(savedCash: number, rate: number = STICKER_TO_CASH): number {
+  if (rate <= 0) return 0;
+  return Math.floor(savedCash / rate);
 }
 
 // ── Investments (FHS-296) — sticker-first grow model ─────────────────────────
@@ -229,19 +246,22 @@ export function elapsedDaysForWeek(
  * missed day; a non-deductible one (FHS-378) still tracks missed days for
  * display but applies NO penalty. The value is floored at 0 either way.
  */
-export function investmentValue(params: {
-  investedStickers: number;
-  completedDays: number;
-  missedDays: number;
-  deductible?: boolean;
-}): { currentValueStickers: number; currentValueCash: number } {
+export function investmentValue(
+  params: {
+    investedStickers: number;
+    completedDays: number;
+    missedDays: number;
+    deductible?: boolean;
+  },
+  rate: number = STICKER_TO_CASH,
+): { currentValueStickers: number; currentValueCash: number } {
   const deductible = params.deductible ?? true;
   const penalty = deductible ? params.missedDays * INVEST_DAILY_PENALTY : 0;
   const currentValueStickers = Math.max(
     0,
     params.investedStickers + params.completedDays * INVEST_DAILY_GAIN - penalty,
   );
-  return { currentValueStickers, currentValueCash: currentValueStickers * STICKER_TO_CASH };
+  return { currentValueStickers, currentValueCash: currentValueStickers * rate };
 }
 
 /**
@@ -251,7 +271,7 @@ export function investmentValue(params: {
  * save, invest) removes it from this balance. (Ported from legacy.)
  */
 export async function stickerBalance(db: Db, tenantId: string, memberId: string): Promise<number> {
-  const [unallocRow, savings] = await Promise.all([
+  const [unallocRow, savings, rateMinor] = await Promise.all([
     db
       .select({ s: sql<string>`coalesce(sum(${habitStickers.stickerValue}), 0)` })
       .from(habitStickers)
@@ -263,8 +283,12 @@ export async function stickerBalance(db: Db, tenantId: string, memberId: string)
         ),
       ),
     getSavings(db, tenantId, memberId),
+    getEffectiveRateMinor(db, tenantId, memberId),
   ]);
-  return Number(unallocRow[0]?.s ?? 0) + savings.savedStickers + cashAsStickers(savings.savedCash);
+  const rate = rateMinorToDecimal(rateMinor);
+  return (
+    Number(unallocRow[0]?.s ?? 0) + savings.savedStickers + cashAsStickers(savings.savedCash, rate)
+  );
 }
 
 /**
@@ -283,7 +307,7 @@ export async function stickerBalances(
 ): Promise<Map<string, number>> {
   const balances = new Map<string, number>();
   if (memberIds.length === 0) return balances;
-  const [unallocRows, savingsRows] = await Promise.all([
+  const [unallocRows, savingsRows, rateRows] = await Promise.all([
     db
       .select({
         memberId: habitStickers.memberId,
@@ -306,6 +330,17 @@ export async function stickerBalances(
       })
       .from(mwSavings)
       .where(and(eq(mwSavings.tenantId, tenantId), inArray(mwSavings.memberId, memberIds))),
+    // FHS-512 — one extra query (not N) so this stays a fixed-query batch;
+    // each member's effective rate = their own override, else the family default.
+    db
+      .select({
+        memberId: members.id,
+        memberRate: members.stickerRateMinor,
+        tenantRate: tenants.stickerRateMinor,
+      })
+      .from(members)
+      .innerJoin(tenants, eq(tenants.id, members.tenantId))
+      .where(and(eq(members.tenantId, tenantId), inArray(members.id, memberIds))),
   ]);
   const unallocByMember = new Map<string, number>();
   for (const row of unallocRows) unallocByMember.set(row.memberId, Number(row.s ?? 0));
@@ -316,10 +351,21 @@ export async function stickerBalances(
       savedCash: Number(row.savedCash),
     });
   }
+  const rateByMember = new Map<string, number>();
+  for (const row of rateRows) {
+    rateByMember.set(
+      row.memberId,
+      effectiveRateMinor(
+        { stickerRateMinor: row.memberRate },
+        { stickerRateMinor: row.tenantRate },
+      ),
+    );
+  }
   for (const memberId of memberIds) {
     const unalloc = unallocByMember.get(memberId) ?? 0;
     const saved = savingsByMember.get(memberId) ?? { savedStickers: 0, savedCash: 0 };
-    balances.set(memberId, unalloc + saved.savedStickers + cashAsStickers(saved.savedCash));
+    const rate = rateMinorToDecimal(rateByMember.get(memberId) ?? DEFAULT_STICKER_RATE_MINOR);
+    balances.set(memberId, unalloc + saved.savedStickers + cashAsStickers(saved.savedCash, rate));
   }
   return balances;
 }
@@ -355,6 +401,7 @@ export async function redeemReward(
   if (!reward) return { ok: false, reason: 'not-found' };
   const cost = reward.stickerCost;
   const week = await getOrCreateCurrentWeek(db, tenantId, memberId);
+  const rate = rateMinorToDecimal(await getEffectiveRateMinor(db, tenantId, memberId));
   return db.transaction(async (tx) => {
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${memberId}`}, 0))`,
@@ -372,7 +419,7 @@ export async function redeemReward(
       )
       .orderBy(asc(habitStickers.stickerValue));
     const weekValue = unallocated.reduce((s, r) => s + r.value, 0);
-    const cashStk = cashAsStickers(savings.savedCash);
+    const cashStk = cashAsStickers(savings.savedCash, rate);
     const balance = savings.savedStickers + cashStk + weekValue;
     if (balance < cost)
       return { ok: false as const, reason: 'insufficient' as const, cost, balance };
@@ -406,7 +453,7 @@ export async function redeemReward(
         .update(mwSavings)
         .set({
           savedStickers: sql`${mwSavings.savedStickers} - ${fromSavedStickers}`,
-          savedCash: sql`${mwSavings.savedCash} - ${fromSavedCash * STICKER_TO_CASH}`,
+          savedCash: sql`${mwSavings.savedCash} - ${fromSavedCash * rate}`,
           updatedAt: new Date(),
         })
         .where(and(eq(mwSavings.tenantId, tenantId), eq(mwSavings.memberId, memberId)));
@@ -476,6 +523,7 @@ export async function listInvestments(
       ),
     );
   if (rows.length === 0) return [];
+  const rate = rateMinorToDecimal(await getEffectiveRateMinor(db, tenantId, memberId));
 
   // FHS-466 — was 2 count() queries PER investment (an N+1 on the single pinned
   // connection). Fetch the relevant sticker days ONCE, then count per investment
@@ -519,12 +567,15 @@ export async function listInvestments(
     const pastDays = days.filter((d) => d < elapsed).length;
     const missedDays = Math.max(0, elapsed - pastDays);
     const deductible = inv.deductible ?? true;
-    const { currentValueStickers, currentValueCash } = investmentValue({
-      investedStickers: inv.investedStickers,
-      completedDays,
-      missedDays,
-      deductible,
-    });
+    const { currentValueStickers, currentValueCash } = investmentValue(
+      {
+        investedStickers: inv.investedStickers,
+        completedDays,
+        missedDays,
+        deductible,
+      },
+      rate,
+    );
     return {
       id: inv.id,
       habitId: inv.habitId,
@@ -674,6 +725,8 @@ export async function loadHabitsForWeek(
     color: string;
     icon: string | null;
     isBonus: boolean;
+    boost: number;
+    skipPenaltyMinor: number;
   }>;
   stickers: Array<{ habitId: string; day: number; sticker: string; stickerValue: number }>;
   week: {
@@ -710,6 +763,8 @@ export async function loadHabitsForWeek(
         color: habits.color,
         icon: habits.icon,
         isBonus: habits.isBonus,
+        boost: habits.boost,
+        skipPenaltyMinor: habits.skipPenaltyMinor,
       })
       .from(habits)
       .where(
@@ -866,12 +921,13 @@ export async function loadWeekStats(
   const totalStickers = Number(totalRow[0]?.count ?? 0);
   const unallocatedStickers = Number(unallocatedRow[0]?.count ?? 0);
   const allocatedStickers = Number(allocatedRow[0]?.count ?? 0);
+  const rate = rateMinorToDecimal(await getEffectiveRateMinor(db, tenantId, memberId));
   return {
     weekId,
     totalStickers,
     unallocatedStickers,
     allocatedStickers,
-    cashValue: unallocatedStickers * STICKER_TO_AED,
+    cashValue: unallocatedStickers * rate,
   };
 }
 
@@ -914,23 +970,34 @@ export async function loadWeekActions(
 }
 
 /**
- * Banked savings + currency + the fixed star-to-cash rate (GET /mw/financial/savings shape).
- * FHS-387 — stickerRate exposes STICKER_TO_CASH so callers never hardcode 0.5.
+ * Banked savings + currency + this child's EFFECTIVE star-to-cash rate
+ * (GET /mw/financial/savings shape). FHS-387 first added `stickerRate` so
+ * callers never hardcode 0.5; FHS-512 makes the rate itself configurable
+ * (child override, else the family default) and adds `stickerRateMinor`
+ * (the same rate as an integer minor-unit amount) for money-safe callers.
  */
 export async function loadSavingsForMember(
   db: Db,
   tenantId: string,
   memberId: string,
-): Promise<{ savedStickers: number; savedCash: number; currency: string; stickerRate: number }> {
-  const [savings, currency] = await Promise.all([
+): Promise<{
+  savedStickers: number;
+  savedCash: number;
+  currency: string;
+  stickerRate: number;
+  stickerRateMinor: number;
+}> {
+  const [savings, currency, rateMinor] = await Promise.all([
     getSavings(db, tenantId, memberId),
     getTenantCurrency(db, tenantId),
+    getEffectiveRateMinor(db, tenantId, memberId),
   ]);
   return {
     savedStickers: savings.savedStickers,
     savedCash: savings.savedCash,
     currency,
-    stickerRate: STICKER_TO_CASH,
+    stickerRate: rateMinorToDecimal(rateMinor),
+    stickerRateMinor: rateMinor,
   };
 }
 
@@ -1216,6 +1283,7 @@ export async function approveRedemptionRequest(
   if (!head[0]) return { ok: false, reason: 'not-found' };
   const memberId = head[0].memberId;
   const week = await getOrCreateCurrentWeek(db, tenantId, memberId);
+  const rate = rateMinorToDecimal(await getEffectiveRateMinor(db, tenantId, memberId));
 
   return db.transaction(async (tx) => {
     await tx.execute(
@@ -1238,7 +1306,7 @@ export async function approveRedemptionRequest(
 
     const cost = req.starCost;
     const savings = await getOrCreateSavings(tx, tenantId, memberId);
-    const savingsAsStickers = savings.savedStickers + cashAsStickers(savings.savedCash);
+    const savingsAsStickers = savings.savedStickers + cashAsStickers(savings.savedCash, rate);
     if (savingsAsStickers < cost) {
       return {
         ok: false as const,
@@ -1252,7 +1320,7 @@ export async function approveRedemptionRequest(
     const fromSavedStickers = Math.min(need, savings.savedStickers);
     need -= fromSavedStickers;
     const fromSavedCashStickers = need; // covered: savingsAsStickers >= cost
-    const cashToDeduct = fromSavedCashStickers * STICKER_TO_CASH;
+    const cashToDeduct = fromSavedCashStickers * rate;
     if (fromSavedStickers > 0 || fromSavedCashStickers > 0) {
       await tx
         .update(mwSavings)

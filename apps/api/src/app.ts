@@ -28,6 +28,7 @@ import { mwFinancialRouter } from './routes/mw-financial.js';
 import { mwAnalyticsRouter } from './routes/mw-analytics.js';
 import { rewardsRouter } from './routes/rewards.js';
 import { mwRedemptionRequestsRouter } from './routes/mw-redemption-requests.js';
+import { rewardConfigRouter } from './routes/reward-config.js';
 import { journalRouter } from './routes/journal.js';
 import { healthRouter } from './routes/health.js';
 import { helloRouter } from './routes/hello.js';
@@ -253,6 +254,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/mw/analytics', mwAnalyticsRouter);
   app.route('/api/mw/redemption-requests', mwRedemptionRequestsRouter);
   app.route('/api/rewards', rewardsRouter);
+  app.route('/api/reward-config', rewardConfigRouter);
   app.route('/api/journal', journalRouter);
   app.route('/api/feedback', feedbackRouter);
   app.route('/api/learn/insights', learnInsightsRouter);

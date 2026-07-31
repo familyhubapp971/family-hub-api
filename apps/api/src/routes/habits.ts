@@ -17,6 +17,10 @@ import { loadHabitsForWeek, stickerDayRelation } from '../lib/myworld.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STICKER_TYPES = ['gold-star', 'heart', 'magic', 'trophy'] as const;
+// FIX 3 (BLOCKER) — no upper bound let an oversized skip penalty reach
+// Postgres' numeric(12,2) money column and 500. Same cap as reward-config's
+// rate fields (1000.00 in minor units).
+const SKIP_PENALTY_MINOR_MAX = 100_000;
 
 export const habitItemSchema = z.object({
   id: z.string().uuid(),
@@ -24,7 +28,13 @@ export const habitItemSchema = z.object({
   description: z.string().nullable(),
   color: z.string(),
   icon: z.string().nullable(),
+  // FHS-512 — isBonus is now DERIVED (boost > 1), kept for back-compat.
   isBonus: z.boolean(),
+  // A completed day places stickerValue = boost. 1 = normal; the Pocket
+  // money screen's presets are 2/3/5.
+  boost: z.number().int().min(1),
+  // Money (integer minor units) deducted at close-week for a due day missed. 0 = none.
+  skipPenaltyMinor: z.number().int().min(0).max(SKIP_PENALTY_MINOR_MAX),
 });
 
 export const stickerItemSchema = z.object({
@@ -53,19 +63,26 @@ export const listHabitsResponseSchema = z.object({
 });
 
 const memberQuerySchema = z.object({ memberId: z.string().uuid() });
-const createSchema = z.object({
+// FHS-512 — `boost` replaces isBonus as the source of truth for sticker
+// value; isBonus is still accepted for back-compat (a bare `isBonus: true`
+// with no explicit `boost` maps to the legacy fixed bonus value of 5).
+export const createHabitRequestSchema = z.object({
   memberId: z.string().uuid(),
   name: z.string().trim().min(1).max(120),
   icon: z.string().trim().max(40).nullish(),
   color: z.string().trim().max(40).optional(),
   isBonus: z.boolean().optional(),
+  boost: z.number().int().min(1).max(20).optional(),
+  skipPenaltyMinor: z.number().int().min(0).max(SKIP_PENALTY_MINOR_MAX).optional(),
 });
-const updateSchema = z.object({
+export const updateHabitRequestSchema = z.object({
   memberId: z.string().uuid(),
   name: z.string().trim().min(1).max(120).optional(),
   icon: z.string().trim().max(40).nullish(),
   color: z.string().trim().max(40).optional(),
   isBonus: z.boolean().optional(),
+  boost: z.number().int().min(1).max(20).optional(),
+  skipPenaltyMinor: z.number().int().min(0).max(SKIP_PENALTY_MINOR_MAX).optional(),
 });
 const deleteSchema = z.object({
   memberId: z.string().uuid(),
@@ -183,9 +200,12 @@ export const habitsRouter = new Hono()
     const ctx = await guard(c);
     if ('res' in ctx) return ctx.res;
     if (ctx.role !== 'admin') return adminOnly(c); // FHS-342 — managing habits is admin-only
-    const { db, tenantId, parsed } = await parseBody(c, ctx, createSchema);
+    const { db, tenantId, parsed } = await parseBody(c, ctx, createHabitRequestSchema);
     if ('res' in parsed) return parsed.res;
-    const { memberId, name, icon, color, isBonus } = parsed.data;
+    const { memberId, name, icon, color, isBonus, boost, skipPenaltyMinor } = parsed.data;
+    // FHS-512 — `boost` is the source of truth; a bare legacy `isBonus: true`
+    // with no explicit boost maps to the old fixed bonus value of 5.
+    const resolvedBoost = boost ?? (isBonus ? 5 : 1);
     const [row] = await db
       .insert(habits)
       .values({
@@ -194,7 +214,9 @@ export const habitsRouter = new Hono()
         name,
         icon: icon ?? null,
         color: color ?? '#facc15',
-        isBonus: isBonus ?? false,
+        isBonus: isBonus ?? resolvedBoost > 1,
+        boost: resolvedBoost,
+        skipPenaltyMinor: skipPenaltyMinor ?? 0,
       })
       .returning();
     return c.json(toHabit(row!), 201);
@@ -208,14 +230,23 @@ export const habitsRouter = new Hono()
     if (!UUID_RE.test(habitId)) {
       return c.json({ error: 'invalid id', detail: 'habit id must be a UUID' }, 400);
     }
-    const { db, tenantId, parsed } = await parseBody(c, ctx, updateSchema);
+    const { db, tenantId, parsed } = await parseBody(c, ctx, updateHabitRequestSchema);
     if ('res' in parsed) return parsed.res;
     const { memberId } = parsed.data;
     const patch: Record<string, unknown> = { updatedAt: new Date() };
     if (parsed.data.name !== undefined) patch.name = parsed.data.name;
     if (parsed.data.icon !== undefined) patch.icon = parsed.data.icon;
     if (parsed.data.color !== undefined) patch.color = parsed.data.color;
-    if (parsed.data.isBonus !== undefined) patch.isBonus = parsed.data.isBonus;
+    if (parsed.data.boost !== undefined) {
+      patch.boost = parsed.data.boost;
+      patch.isBonus = parsed.data.isBonus ?? parsed.data.boost > 1;
+    } else if (parsed.data.isBonus !== undefined) {
+      // Legacy path: no explicit boost — fall back to the old fixed values.
+      patch.isBonus = parsed.data.isBonus;
+      patch.boost = parsed.data.isBonus ? 5 : 1;
+    }
+    if (parsed.data.skipPenaltyMinor !== undefined)
+      patch.skipPenaltyMinor = parsed.data.skipPenaltyMinor;
     // FIX 2: scope to memberId so a caller cannot edit another child's habit.
     const [row] = await db
       .update(habits)
@@ -268,7 +299,7 @@ export const habitsRouter = new Hono()
     // Scope the habit lookup to this member so a caller cannot place a sticker
     // on another child's habit and credit it to this member's balance.
     const habitRows = await db
-      .select({ id: habits.id, isBonus: habits.isBonus })
+      .select({ id: habits.id, boost: habits.boost })
       .from(habits)
       .where(
         and(eq(habits.tenantId, tenantId), eq(habits.memberId, memberId), eq(habits.id, habitId)),
@@ -277,7 +308,9 @@ export const habitsRouter = new Hono()
     const habit = habitRows[0];
     if (!habit)
       return c.json({ error: 'not found', detail: 'habit not found for this member' }, 404);
-    const stickerValue = habit.isBonus ? 5 : 1;
+    // FHS-512 — a completed day places stickerValue = boost (generalises the
+    // old isBonus ? 5 : 1).
+    const stickerValue = habit.boost;
     await db
       .insert(habitStickers)
       .values({ tenantId, memberId, habitId, weekId, day, sticker, stickerValue })
@@ -385,6 +418,10 @@ function toHabit(row: typeof habits.$inferSelect) {
     description: row.description,
     color: row.color,
     icon: row.icon,
-    isBonus: row.isBonus,
+    // FHS-512 — isBonus is derived from boost so it always agrees with the
+    // real sticker value, even for a row updated only via `boost`.
+    isBonus: row.boost > 1,
+    boost: row.boost,
+    skipPenaltyMinor: row.skipPenaltyMinor,
   });
 }

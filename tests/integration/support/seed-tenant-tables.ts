@@ -22,6 +22,7 @@ import {
   learnProgress,
   mealTemplates,
   members,
+  moneyAdjustments,
   mwInvestments,
   mwLogicCertificates,
   mwLogicProgress,
@@ -287,6 +288,19 @@ export async function seedRow(
       });
       break;
     }
+    case 'money_adjustments': {
+      // FHS-512 — skip-penalty ledger row. habitId nullable so it doesn't
+      // strictly need ctx.habitId, but every real writer sets it.
+      await db.insert(moneyAdjustments).values({
+        tenantId,
+        memberId: ctx.memberId!,
+        habitId: ctx.habitId ?? null,
+        day: '2026-01-06',
+        amountMinor: -25,
+        reason: 'skip',
+      });
+      break;
+    }
     case 'week_actions': {
       await db.insert(weekActions).values({
         tenantId,
@@ -416,6 +430,7 @@ const DEPENDENCY_ORDER = [
   'mw_savings_transactions',
   'mw_investments',
   'mw_week_actions',
+  'money_adjustments',
   'mw_maths_progress',
   'mw_maths_certificates',
   'mw_logic_progress',

@@ -179,7 +179,7 @@ describe('FHS-292 — DELETE /api/habits/:id guards', () => {
 //   day 0 = Mon (past) · day 2 = Wed (today) · day 3 = Thu (later this week).
 describe('FHS-335 — past-day sticker edits are admin-only', () => {
   const WEEK = { startDate: '2026-06-15', isFinalized: false };
-  const HABIT = { id: HABIT_ID, isBonus: false };
+  const HABIT = { id: HABIT_ID, boost: 1 };
   const okInsert = () => ({
     values: () => ({ onConflictDoUpdate: () => Promise.resolve(undefined) }),
   });
@@ -276,5 +276,235 @@ describe('FHS-335 — past-day sticker edits are admin-only', () => {
       json('DELETE', { memberId: MEMBER_ID, weekId: WEEK_ID, day: 0 }),
     );
     expect(res.status).toBe(204);
+  });
+});
+
+// FHS-512 — a completed day places stickerValue = habit.boost (replaces the
+// old hardcoded isBonus ? 5 : 1). MONEY-CRITICAL: this is what determines how
+// many stickers (and therefore how much money) a completion is worth.
+describe('FHS-512 — sticker value comes from habit.boost', () => {
+  const WEEK = { startDate: '2026-06-15', isFinalized: false };
+
+  function placeOn(habit: { id: string; boost: number }) {
+    let insertedValues: Record<string, unknown> | undefined;
+    const app = buildApp({
+      memberChecks: [[{ id: 'caller', role: 'admin' }], [{ id: MEMBER_ID }], [WEEK], [habit]],
+    });
+    dbMock.insert.mockImplementation(() => ({
+      values: (v: Record<string, unknown>) => {
+        insertedValues = v;
+        return { onConflictDoUpdate: () => Promise.resolve(undefined) };
+      },
+    }));
+    return app
+      .request(
+        `/api/habits/${HABIT_ID}/stickers`,
+        json('POST', { memberId: MEMBER_ID, weekId: WEEK_ID, day: 2, sticker: 'gold-star' }),
+      )
+      .then(async (res) => ({
+        res,
+        body: (await res.json()) as { stickerValue: number },
+        insertedValues,
+      }));
+  }
+
+  it('a normal (boost=1) habit places a 1-value sticker', async () => {
+    const { res, body, insertedValues } = await placeOn({ id: HABIT_ID, boost: 1 });
+    expect(res.status).toBe(200);
+    expect(body.stickerValue).toBe(1);
+    expect(insertedValues?.stickerValue).toBe(1);
+  });
+
+  it('a boost=5 habit places a 5-value sticker (the old fixed "bonus" value)', async () => {
+    const { res, body, insertedValues } = await placeOn({ id: HABIT_ID, boost: 5 });
+    expect(res.status).toBe(200);
+    expect(body.stickerValue).toBe(5);
+    expect(insertedValues?.stickerValue).toBe(5);
+  });
+
+  it('a boost=3 habit (a UI preset) places a 3-value sticker', async () => {
+    const { body } = await placeOn({ id: HABIT_ID, boost: 3 });
+    expect(body.stickerValue).toBe(3);
+  });
+});
+
+// FHS-512 — habit create/update validation for the new money fields.
+describe('FHS-512 — habit boost + skipPenaltyMinor validation', () => {
+  it('400 when boost is 0 (must be at least 1)', async () => {
+    const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }]] }).request(
+      '/api/habits',
+      json('POST', { memberId: MEMBER_ID, name: 'Read', boost: 0 }),
+    );
+    expect(res.status).toBe(400);
+  });
+  it('400 when boost exceeds the max (20)', async () => {
+    const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }]] }).request(
+      '/api/habits',
+      json('POST', { memberId: MEMBER_ID, name: 'Read', boost: 21 }),
+    );
+    expect(res.status).toBe(400);
+  });
+  it('400 when boost is not an integer', async () => {
+    const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }]] }).request(
+      '/api/habits',
+      json('POST', { memberId: MEMBER_ID, name: 'Read', boost: 2.5 }),
+    );
+    expect(res.status).toBe(400);
+  });
+  it('400 when skipPenaltyMinor is negative', async () => {
+    const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }]] }).request(
+      '/api/habits',
+      json('POST', { memberId: MEMBER_ID, name: 'Read', skipPenaltyMinor: -1 }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  // FIX 3 (BLOCKER) — no upper bound let an oversized penalty reach
+  // Postgres' numeric(12,2) column and 500.
+  it('400 when skipPenaltyMinor exceeds the cap (100000 = 1000.00)', async () => {
+    const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }]] }).request(
+      '/api/habits',
+      json('POST', { memberId: MEMBER_ID, name: 'Read', skipPenaltyMinor: 100001 }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('POST with explicit boost=3 creates the habit with boost=3 and isBonus derived true', async () => {
+    let insertedValues: Record<string, unknown> | undefined;
+    const app = buildApp({
+      memberChecks: [[{ id: 'caller', role: 'admin' }], [{ id: MEMBER_ID }]],
+    });
+    dbMock.insert.mockImplementation(() => ({
+      values: (v: Record<string, unknown>) => {
+        insertedValues = v;
+        return { returning: () => Promise.resolve([{ description: null, ...v, id: HABIT_ID }]) };
+      },
+    }));
+    const res = await app.request(
+      '/api/habits',
+      json('POST', { memberId: MEMBER_ID, name: 'Read', boost: 3, skipPenaltyMinor: 100 }),
+    );
+    expect(res.status).toBe(201);
+    expect(insertedValues?.boost).toBe(3);
+    expect(insertedValues?.skipPenaltyMinor).toBe(100);
+    expect(insertedValues?.isBonus).toBe(true);
+    const body = (await res.json()) as {
+      boost: number;
+      skipPenaltyMinor: number;
+      isBonus: boolean;
+    };
+    expect(body.boost).toBe(3);
+    expect(body.skipPenaltyMinor).toBe(100);
+    expect(body.isBonus).toBe(true);
+  });
+
+  it('POST with legacy isBonus=true and no boost falls back to boost=5 (old fixed bonus value)', async () => {
+    let insertedValues: Record<string, unknown> | undefined;
+    const app = buildApp({
+      memberChecks: [[{ id: 'caller', role: 'admin' }], [{ id: MEMBER_ID }]],
+    });
+    dbMock.insert.mockImplementation(() => ({
+      values: (v: Record<string, unknown>) => {
+        insertedValues = v;
+        return { returning: () => Promise.resolve([{ description: null, ...v, id: HABIT_ID }]) };
+      },
+    }));
+    const res = await app.request(
+      '/api/habits',
+      json('POST', { memberId: MEMBER_ID, name: 'Read', isBonus: true }),
+    );
+    expect(res.status).toBe(201);
+    expect(insertedValues?.boost).toBe(5);
+  });
+
+  it('POST with no boost/isBonus defaults to boost=1, isBonus=false', async () => {
+    let insertedValues: Record<string, unknown> | undefined;
+    const app = buildApp({
+      memberChecks: [[{ id: 'caller', role: 'admin' }], [{ id: MEMBER_ID }]],
+    });
+    dbMock.insert.mockImplementation(() => ({
+      values: (v: Record<string, unknown>) => {
+        insertedValues = v;
+        return { returning: () => Promise.resolve([{ description: null, ...v, id: HABIT_ID }]) };
+      },
+    }));
+    const res = await app.request(
+      '/api/habits',
+      json('POST', { memberId: MEMBER_ID, name: 'Read' }),
+    );
+    expect(res.status).toBe(201);
+    expect(insertedValues?.boost).toBe(1);
+    expect(insertedValues?.skipPenaltyMinor).toBe(0);
+    expect(insertedValues?.isBonus).toBe(false);
+  });
+
+  it('PUT with an explicit boost updates both boost and the derived isBonus', async () => {
+    let setPatch: Record<string, unknown> | undefined;
+    const app = buildApp({
+      memberChecks: [[{ id: 'caller', role: 'admin' }], [{ id: MEMBER_ID }]],
+    });
+    dbMock.update.mockImplementation(() => ({
+      set: (patch: Record<string, unknown>) => {
+        setPatch = patch;
+        return {
+          where: () => ({
+            returning: () =>
+              Promise.resolve([
+                {
+                  id: HABIT_ID,
+                  name: 'Read',
+                  description: null,
+                  color: '#fff',
+                  icon: null,
+                  skipPenaltyMinor: 0,
+                  ...patch,
+                },
+              ]),
+          }),
+        };
+      },
+    }));
+    const res = await app.request(
+      `/api/habits/${HABIT_ID}`,
+      json('PUT', { memberId: MEMBER_ID, boost: 2 }),
+    );
+    expect(res.status).toBe(200);
+    expect(setPatch?.boost).toBe(2);
+    expect(setPatch?.isBonus).toBe(true);
+  });
+
+  it('PUT with boost=1 explicitly derives isBonus=false', async () => {
+    let setPatch: Record<string, unknown> | undefined;
+    const app = buildApp({
+      memberChecks: [[{ id: 'caller', role: 'admin' }], [{ id: MEMBER_ID }]],
+    });
+    dbMock.update.mockImplementation(() => ({
+      set: (patch: Record<string, unknown>) => {
+        setPatch = patch;
+        return {
+          where: () => ({
+            returning: () =>
+              Promise.resolve([
+                {
+                  id: HABIT_ID,
+                  name: 'Read',
+                  description: null,
+                  color: '#fff',
+                  icon: null,
+                  skipPenaltyMinor: 0,
+                  ...patch,
+                },
+              ]),
+          }),
+        };
+      },
+    }));
+    const res = await app.request(
+      `/api/habits/${HABIT_ID}`,
+      json('PUT', { memberId: MEMBER_ID, boost: 1 }),
+    );
+    expect(res.status).toBe(200);
+    expect(setPatch?.boost).toBe(1);
+    expect(setPatch?.isBonus).toBe(false);
   });
 });

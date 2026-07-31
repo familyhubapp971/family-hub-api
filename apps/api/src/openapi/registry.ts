@@ -37,7 +37,12 @@ import {
   certBodySchema,
   mathsProgressRowSchema,
 } from '../routes/kid.js';
-import { listHabitsResponseSchema } from '../routes/habits.js';
+import {
+  listHabitsResponseSchema,
+  habitItemSchema,
+  createHabitRequestSchema,
+  updateHabitRequestSchema,
+} from '../routes/habits.js';
 import {
   decideRedemptionRequestResponseSchema,
   listRedemptionRequestsResponseSchema,
@@ -116,6 +121,10 @@ import {
   createRewardRequestSchema,
   updateRewardRequestSchema,
 } from '../routes/rewards.js';
+import {
+  rewardConfigResponseSchema,
+  rewardConfigPutRequestSchema,
+} from '../routes/reward-config.js';
 
 export interface QueryParamMeta {
   description?: string;
@@ -536,6 +545,42 @@ export const routeMeta: Record<string, RouteMeta> = {
     response: adminSettingsPutResponseSchema,
     responseDesc:
       'For key=currency: { key, value } where value is the 3-letter ISO 4217 code just saved. Otherwise the upserted app_settings row',
+  },
+
+  // My World habits — FHS-292, boost + skip-penalty fields added FHS-512.
+  'GET /api/habits': {
+    summary: "A member's habits + this week's stickers + spendable balance",
+    response: listHabitsResponseSchema,
+    responseDesc:
+      'habits[] (each carries boost + skipPenaltyMinor), stickers[], week, balance, currency',
+  },
+  'POST /api/habits': {
+    summary: 'Create a habit for a member; admin-only',
+    request: createHabitRequestSchema,
+    response: habitItemSchema,
+    responseDesc:
+      'boost (1=normal, 2/3/5=boosted) sets the stickerValue a completion places; skipPenaltyMinor (integer minor units) is deducted at close-week for a due day missed',
+  },
+  'PUT /api/habits/{id}': {
+    summary: 'Update a habit (name/icon/color/boost/skipPenaltyMinor); admin-only',
+    request: updateHabitRequestSchema,
+    response: habitItemSchema,
+  },
+
+  // FHS-512 — configurable reward economy ("Pocket money" settings screen).
+  'GET /api/reward-config': {
+    summary: "The family's sticker rate + each kid's rate override",
+    response: rewardConfigResponseSchema,
+    responseDesc:
+      'currency, familyRateMinor (integer minor units, e.g. 50 = 0.50), and members[] — one row per kid with rateMinor (their override, null = uses the family default) and effectiveRateMinor (the resolved rate actually used)',
+  },
+  'PUT /api/reward-config': {
+    summary:
+      "Update the family's default sticker rate and/or one or more kids' overrides; admin-only",
+    request: rewardConfigPutRequestSchema,
+    response: rewardConfigResponseSchema,
+    responseDesc:
+      'The updated config, same shape as GET. Unknown/foreign memberIds in memberOverrides are silently skipped',
   },
 
   // GDPR — export my data + delete my account (FHS-435).

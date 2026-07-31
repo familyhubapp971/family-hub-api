@@ -70,6 +70,9 @@
       "name": "public"
     },
     {
+      "name": "reward-config"
+    },
+    {
       "name": "rewards"
     },
     {
@@ -1299,7 +1302,7 @@
         "tags": [
           "habits"
         ],
-        "summary": "Get /api/habits",
+        "summary": "A member's habits + this week's stickers + spendable balance",
         "operationId": "get_api_habits",
         "security": [
           {
@@ -1308,7 +1311,144 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "habits[] (each carries boost + skipPenaltyMinor), stickers[], week, balance, currency",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "habits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "color": {
+                            "type": "string"
+                          },
+                          "icon": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "isBonus": {
+                            "type": "boolean"
+                          },
+                          "boost": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "skipPenaltyMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "color",
+                          "icon",
+                          "isBonus",
+                          "boost",
+                          "skipPenaltyMinor"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stickers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "habitId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "day": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 6
+                          },
+                          "sticker": {
+                            "type": "string",
+                            "enum": [
+                              "gold-star",
+                              "heart",
+                              "magic",
+                              "trophy"
+                            ]
+                          },
+                          "stickerValue": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "habitId",
+                          "day",
+                          "sticker",
+                          "stickerValue"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "week": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "weekNumber": {
+                          "type": "integer"
+                        },
+                        "year": {
+                          "type": "integer"
+                        },
+                        "startDate": {
+                          "type": "string"
+                        },
+                        "isFinalized": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "weekNumber",
+                        "year",
+                        "startDate",
+                        "isFinalized"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "balance": {
+                      "type": "integer"
+                    },
+                    "currency": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "habits",
+                    "stickers",
+                    "week",
+                    "balance",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       },
@@ -1316,16 +1456,114 @@
         "tags": [
           "habits"
         ],
-        "summary": "Create /api/habits",
+        "summary": "Create a habit for a member; admin-only",
         "operationId": "post_api_habits",
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "icon": {
+                    "type": "string",
+                    "maxLength": 40,
+                    "nullable": true
+                  },
+                  "color": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "isBonus": {
+                    "type": "boolean"
+                  },
+                  "boost": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20
+                  },
+                  "skipPenaltyMinor": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000
+                  }
+                },
+                "required": [
+                  "memberId",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "boost (1=normal, 2/3/5=boosted) sets the stickerValue a completion places; skipPenaltyMinor (integer minor units) is deducted at close-week for a due day missed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "color": {
+                      "type": "string"
+                    },
+                    "icon": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "isBonus": {
+                      "type": "boolean"
+                    },
+                    "boost": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "skipPenaltyMinor": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "description",
+                    "color",
+                    "icon",
+                    "isBonus",
+                    "boost",
+                    "skipPenaltyMinor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -1362,7 +1600,7 @@
         "tags": [
           "habits"
         ],
-        "summary": "Replace /api/habits/{id}",
+        "summary": "Update a habit (name/icon/color/boost/skipPenaltyMinor); admin-only",
         "operationId": "put_api_habits_id",
         "parameters": [
           {
@@ -1379,9 +1617,106 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "icon": {
+                    "type": "string",
+                    "maxLength": 40,
+                    "nullable": true
+                  },
+                  "color": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "isBonus": {
+                    "type": "boolean"
+                  },
+                  "boost": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20
+                  },
+                  "skipPenaltyMinor": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000
+                  }
+                },
+                "required": [
+                  "memberId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "color": {
+                      "type": "string"
+                    },
+                    "icon": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "isBonus": {
+                      "type": "boolean"
+                    },
+                    "boost": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "skipPenaltyMinor": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "description",
+                    "color",
+                    "icon",
+                    "isBonus",
+                    "boost",
+                    "skipPenaltyMinor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -2042,13 +2377,17 @@
                     },
                     "stickerRate": {
                       "type": "number"
+                    },
+                    "stickerRateMinor": {
+                      "type": "integer"
                     }
                   },
                   "required": [
                     "savedStickers",
                     "savedCash",
                     "currency",
-                    "stickerRate"
+                    "stickerRate",
+                    "stickerRateMinor"
                   ],
                   "additionalProperties": false
                 }
@@ -2103,6 +2442,15 @@
                           },
                           "isBonus": {
                             "type": "boolean"
+                          },
+                          "boost": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "skipPenaltyMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000
                           }
                         },
                         "required": [
@@ -2111,7 +2459,9 @@
                           "description",
                           "color",
                           "icon",
-                          "isBonus"
+                          "isBonus",
+                          "boost",
+                          "skipPenaltyMinor"
                         ],
                         "additionalProperties": false
                       }
@@ -7069,6 +7419,205 @@
                   "required": [
                     "tenant",
                     "member"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reward-config": {
+      "get": {
+        "tags": [
+          "reward-config"
+        ],
+        "summary": "The family's sticker rate + each kid's rate override",
+        "operationId": "get_api_reward_config",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "currency, familyRateMinor (integer minor units, e.g. 50 = 0.50), and members[] — one row per kid with rateMinor (their override, null = uses the family default) and effectiveRateMinor (the resolved rate actually used)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "currency": {
+                      "type": "string"
+                    },
+                    "familyRateMinor": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100000
+                    },
+                    "members": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "memberId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "avatarEmoji": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "rateMinor": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000,
+                            "nullable": true
+                          },
+                          "effectiveRateMinor": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000
+                          }
+                        },
+                        "required": [
+                          "memberId",
+                          "displayName",
+                          "avatarEmoji",
+                          "rateMinor",
+                          "effectiveRateMinor"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "currency",
+                    "familyRateMinor",
+                    "members"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "reward-config"
+        ],
+        "summary": "Update the family's default sticker rate and/or one or more kids' overrides; admin-only",
+        "operationId": "put_api_reward_config",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "familyRateMinor": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000
+                  },
+                  "memberOverrides": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "memberId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "rateMinor": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000,
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "memberId",
+                        "rateMinor"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated config, same shape as GET. Unknown/foreign memberIds in memberOverrides are silently skipped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "currency": {
+                      "type": "string"
+                    },
+                    "familyRateMinor": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100000
+                    },
+                    "members": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "memberId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "avatarEmoji": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "rateMinor": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000,
+                            "nullable": true
+                          },
+                          "effectiveRateMinor": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000
+                          }
+                        },
+                        "required": [
+                          "memberId",
+                          "displayName",
+                          "avatarEmoji",
+                          "rateMinor",
+                          "effectiveRateMinor"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "currency",
+                    "familyRateMinor",
+                    "members"
                   ],
                   "additionalProperties": false
                 }
