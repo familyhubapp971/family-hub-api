@@ -5672,11 +5672,16 @@
                     },
                     "callerRole": {
                       "type": "string"
+                    },
+                    "callerMemberId": {
+                      "type": "string",
+                      "format": "uuid"
                     }
                   },
                   "required": [
                     "members",
-                    "callerRole"
+                    "callerRole",
+                    "callerMemberId"
                   ],
                   "additionalProperties": false
                 }

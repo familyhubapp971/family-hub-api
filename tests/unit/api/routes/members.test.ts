@@ -15,6 +15,7 @@ vi.mock('../../../../apps/api/src/db/client.js', () => ({
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '00000000-0000-4000-8000-000000000777';
+const CALLER_MEMBER_ID = '99999999-9999-4999-8999-999999999999';
 const USER_EMAIL = 'sarah@example.com';
 const FIXED_USER: User = {
   id: USER_ID,
@@ -48,9 +49,7 @@ function buildAppWithSeed(opts: SeedOpts = {}, members: unknown[] = []) {
             // it as `callerRole` for the members page to gate admin-
             // only PIN affordances.
             limit: () =>
-              Promise.resolve(
-                opts.callerMissing ? [] : [{ id: 'caller-member-id', role: 'admin' }],
-              ),
+              Promise.resolve(opts.callerMissing ? [] : [{ id: CALLER_MEMBER_ID, role: 'admin' }]),
           }),
         }),
       };
@@ -135,8 +134,14 @@ describe('FHS-108 — GET /api/members', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       members: Array<{ id: string; status: string; role: string; avatarEmoji: string | null }>;
+      callerRole: string;
+      callerMemberId: string;
     };
     expect(body.members).toHaveLength(2);
+    // FHS-523 — the caller's own member id + role are echoed back so a page can
+    // show the caller's roster name (child-world pill) without a second fetch.
+    expect(body.callerRole).toBe('admin');
+    expect(body.callerMemberId).toBe(CALLER_MEMBER_ID);
     expect(body.members[0]).toMatchObject({
       id: M1,
       role: 'admin',

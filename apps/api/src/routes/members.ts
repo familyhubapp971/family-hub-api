@@ -48,6 +48,10 @@ export const listMembersResponseSchema = z.object({
   // round-trip. Cheap to compute server-side; the auth check
   // already loaded the row.
   callerRole: z.string(),
+  // FHS-523 — the caller's own member id, so a page can find the caller's
+  // roster display name (e.g. the child-world account pill) without leaking
+  // their login email when the JWT carries no full_name.
+  callerMemberId: z.string().uuid(),
 });
 
 export type ListMembersResponse = z.infer<typeof listMembersResponseSchema>;
@@ -83,6 +87,7 @@ export const membersRouter = new Hono().get('/', async (c) => {
     return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
   }
   const callerRole = callerRows[0]!.role;
+  const callerMemberId = callerRows[0]!.id;
 
   // Members list — ordered by creation so the founding admin sits at
   // the top and the most recently added rows trail the list.
@@ -136,6 +141,7 @@ export const membersRouter = new Hono().get('/', async (c) => {
       };
     }),
     callerRole,
+    callerMemberId,
   };
   return c.json(listMembersResponseSchema.parse(response));
 });
