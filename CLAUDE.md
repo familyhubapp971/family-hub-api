@@ -959,14 +959,20 @@ criteria. Template:
    for both unit tests (Vitest) and E2E tests (Playwright). Test names
    should mirror scenario names so traceability is automatic.
 
-### Keep feature docs in sync with what shipped
+### Keep feature docs in sync with what shipped — ALWAYS
 
-**Whenever a feature's requirements change, or a new feature ships, the
-matching `documents/features/<slug>.md` MUST be created or updated in the
-SAME session/PR as the code** — not filed later as a follow-up. Use the
-user-story + Gherkin template above, written from the **shipped behaviour**
-(not the original pitch) so it stays accurate. Cross-link every Jira key the
-feature shipped under and any ADR that governs its design (e.g.
+> **NON-NEGOTIABLE, EVERY TIME behaviour or requirements change.** The moment a
+> feature is built, changed, tightened, redesigned, or has a bug fixed that
+> alters how it behaves, the matching `documents/features/<slug>.md` MUST be
+> created or updated in the SAME session/PR — never "later", never a follow-up
+> ticket. This is a merge gate: a PR that changes behaviour without touching the
+> feature doc (or stating in self-review why none applies) is incomplete. If no
+> doc exists yet for the touched feature, create one. Do this automatically,
+> without being asked.
+
+Use the user-story + Gherkin template above, written from the **shipped
+behaviour** (not the original pitch) so it stays accurate. Cross-link every Jira
+key the feature shipped under and any ADR that governs its design (e.g.
 `**ADR:** [0020 — ...](../decisions/0020-...md)`). When a design change lands
 across several tickets, list them all. **Drift between shipped behaviour and
 `documents/features/` is a bug** — treat it like any other bug: fix it in the
