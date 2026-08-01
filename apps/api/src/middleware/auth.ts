@@ -1,6 +1,6 @@
 import type { Context, MiddlewareHandler } from 'hono';
-import { createRemoteJWKSet, jwtVerify, errors as joseErrors } from 'jose';
-import type { JWTPayload, JWTVerifyGetKey } from 'jose';
+import { createLocalJWKSet, createRemoteJWKSet, jwtVerify, errors as joseErrors } from 'jose';
+import type { JSONWebKeySet, JWTPayload, JWTVerifyGetKey } from 'jose';
 import { config } from '../config.js';
 import type { User } from '../db/schema.js';
 import type { UserMirrorClaims } from '../lib/user-mirror.js';
@@ -106,6 +106,34 @@ let cachedDefaultJwks: JWTVerifyGetKey | undefined;
  */
 function getDefaultJwks(): JWTVerifyGetKey | undefined {
   if (cachedDefaultJwks) return cachedDefaultJwks;
+
+  // FHS-516 — E2E test-only JWKS override. See the E2E_TEST_JWKS comment in
+  // config.ts for the full rationale. STRICTLY test-only: gated on BOTH the
+  // explicit env var AND NODE_ENV === 'test' here (the harness's own
+  // playwright*.config.ts always sets NODE_ENV=test; plain `pnpm dev`
+  // (development) and every real deploy (production, incl. staging) never
+  // do), on top of config.ts's superRefine refusing to even boot ANY
+  // non-test process with this var set. Any deploy that never sets
+  // E2E_TEST_JWKS behaves byte-for-byte like it did before this change —
+  // this whole branch is skipped and getDefaultJwks() falls through to the
+  // real remote-JWKS path below, exactly as always.
+  if (config.E2E_TEST_JWKS && config.NODE_ENV === 'test') {
+    log.warn(
+      'auth: E2E_TEST_JWKS override active — verifying against a local test JWKS instead of ' +
+        'Supabase. This must NEVER be set in production.',
+    );
+    let jwks: JSONWebKeySet;
+    try {
+      jwks = JSON.parse(config.E2E_TEST_JWKS) as JSONWebKeySet;
+    } catch (err) {
+      throw new Error(
+        `E2E_TEST_JWKS is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    cachedDefaultJwks = createLocalJWKSet(jwks);
+    return cachedDefaultJwks;
+  }
+
   if (!config.SUPABASE_URL) return undefined;
 
   const url = new URL('/auth/v1/.well-known/jwks.json', config.SUPABASE_URL);

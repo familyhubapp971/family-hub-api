@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
-const configSchema = z
+// Exported for unit tests (config.test.ts) so the security-sensitive gates
+// (e.g. E2E_TEST_JWKS must never be honoured outside NODE_ENV=test) can be
+// asserted against a synthetic env without touching the real process.env.
+export const configSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().positive().default(3001),
@@ -123,6 +126,27 @@ const configSchema = z
     RESEND_API_KEY: z.string().default(''),
     RESEND_FROM_EMAIL: z.string().default('noreply@fhapp.co'),
     RESEND_FROM_NAME: z.string().default('FamilyHub'),
+    // FHS-516 — E2E auth harness. The Playwright E2E tier runs the api as a
+    // separate HTTP process (unlike the integration tier, which injects a
+    // test JWKS in-process via AuthMiddlewareOptions), so it has no way to
+    // make the running api trust test-minted JWTs — until now. When this is
+    // set, it's a JSON-encoded JWKS (`{"keys":[...]}`) containing ONLY
+    // public key material; middleware/auth.ts trusts it INSTEAD OF fetching
+    // Supabase's real JWKS, so Playwright specs can mint their own valid
+    // ES256 tokens locally (see tests/e2e/support/auth/) without a real
+    // Supabase login round trip. Verification still requires ES256 + the
+    // matching issuer — this only swaps where the trusted keys come from.
+    //
+    // Optional and unset by default, so every existing deploy (and every
+    // deploy that doesn't opt in) behaves exactly as before. The superRefine
+    // guard below additionally REFUSES TO BOOT if this is ever set with
+    // Belt-and-suspenders on top of the middleware's own `NODE_ENV === 'test'`
+    // activation check (auth.ts): the superRefine below refuses to boot ANY
+    // non-test process (development, staging, production) that has this var
+    // set, so neither a stray env var on a real deploy nor a developer's
+    // exported shell var under `pnpm dev` can downgrade real auth. Set only by
+    // tests/e2e/playwright*.config.ts's webServer env (which forces NODE_ENV=test).
+    E2E_TEST_JWKS: z.string().optional(),
   })
   .superRefine((cfg, ctx) => {
     if (!cfg.DATABASE_URL) {
@@ -159,6 +183,16 @@ const configSchema = z
         code: z.ZodIssueCode.custom,
         path: ['CALENDAR_FEED_SECRET'],
         message: 'CALENDAR_FEED_SECRET must be a real secret in production (FHS-445).',
+      });
+    }
+    if (cfg.NODE_ENV !== 'test' && cfg.E2E_TEST_JWKS) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['E2E_TEST_JWKS'],
+        message:
+          'E2E_TEST_JWKS must never be set outside NODE_ENV=test (FHS-516) — it would let ' +
+          'anyone holding the (public) e2e test key sign in as any user. Only the e2e ' +
+          'harness (which forces NODE_ENV=test) may set it. Unset it on this process.',
       });
     }
   })
