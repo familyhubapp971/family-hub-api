@@ -1,7 +1,10 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { mwFinancialRouter } from '../../../../apps/api/src/routes/mw-financial.js';
+import {
+  mwFinancialRouter,
+  createInvestmentRequestSchema,
+} from '../../../../apps/api/src/routes/mw-financial.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
 // FHS-295 — validation + tenant/member guards for /api/mw/financial.
@@ -175,6 +178,47 @@ describe('FHS-296 — POST /api/mw/financial/investments guards', () => {
       }),
     );
     expect(res.status).toBe(403);
+  });
+  // FHS-534 — coefficient is a locked preset; a non-preset value is a 400 at
+  // the schema boundary, before any DB work.
+  it('400 when coefficient is not one of the 1/2/3/5 presets', async () => {
+    const res = await buildApp().request(
+      '/api/mw/financial/investments',
+      json({
+        memberId: MEMBER_ID,
+        habitId: '22222222-2222-4222-8222-222222222222',
+        stickerCount: 10,
+        coefficient: 4,
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
+// FHS-534 — the coefficient preset contract, asserted directly on the schema.
+describe('FHS-534 — createInvestmentRequestSchema coefficient', () => {
+  const base = {
+    memberId: MEMBER_ID,
+    habitId: '22222222-2222-4222-8222-222222222222',
+    stickerCount: 10,
+  };
+  it('accepts each of the 1/2/3/5 presets', () => {
+    for (const c of [1, 2, 3, 5]) {
+      expect(createInvestmentRequestSchema.safeParse({ ...base, coefficient: c }).success).toBe(
+        true,
+      );
+    }
+  });
+  it('rejects any non-preset value (0, 4, negative, fractional, string)', () => {
+    for (const c of [0, 4, -1, 2.5, '5']) {
+      expect(createInvestmentRequestSchema.safeParse({ ...base, coefficient: c }).success).toBe(
+        false,
+      );
+    }
+  });
+  it('defaults the coefficient to 5 when omitted (legacy rate)', () => {
+    const parsed = createInvestmentRequestSchema.parse(base);
+    expect(parsed.coefficient).toBe(5);
   });
 });
 

@@ -113,6 +113,41 @@ describe('investmentValue (sticker-first grow model)', () => {
         .currentValueStickers,
     ).toBe(0);
   });
+
+  // FHS-534 — the per-investment coefficient drives the daily gain.
+  it('defaults the daily gain to 5 when no coefficient is given (legacy rate)', () => {
+    // 10 + 4*5 = 30, identical to pre-FHS-534 behaviour.
+    expect(
+      investmentValue({ investedStickers: 10, completedDays: 4, missedDays: 0 })
+        .currentValueStickers,
+    ).toBe(30);
+  });
+
+  it('grows by `dailyGain` per completed day when a coefficient is supplied', () => {
+    // coefficient 3: 10 + 4*3 = 22 (AC — "grows by 3 per completed day").
+    expect(
+      investmentValue({ investedStickers: 10, completedDays: 4, missedDays: 0, dailyGain: 3 })
+        .currentValueStickers,
+    ).toBe(22);
+    // coefficient 2: 10 + 4*2 = 18.
+    expect(
+      investmentValue({ investedStickers: 10, completedDays: 4, missedDays: 0, dailyGain: 2 })
+        .currentValueStickers,
+    ).toBe(18);
+    // coefficient 1: 10 + 4*1 = 14 (slowest).
+    expect(
+      investmentValue({ investedStickers: 10, completedDays: 4, missedDays: 0, dailyGain: 1 })
+        .currentValueStickers,
+    ).toBe(14);
+  });
+
+  it('keeps the missed-day penalty fixed at 2 regardless of the coefficient', () => {
+    // coefficient 3 gains, but a missed day still costs 2: 10 + 2*3 - 1*2 = 14.
+    expect(
+      investmentValue({ investedStickers: 10, completedDays: 2, missedDays: 1, dailyGain: 3 })
+        .currentValueStickers,
+    ).toBe(14);
+  });
 });
 
 describe('elapsedDaysForWeek', () => {

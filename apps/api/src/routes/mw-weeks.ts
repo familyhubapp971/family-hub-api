@@ -413,6 +413,7 @@ export const mwWeeksRouter = new Hono()
             completedDays,
             missedDays,
             deductible: inv.deductible ?? true,
+            dailyGain: inv.coefficient,
           },
           rate,
         );

@@ -6331,6 +6331,35 @@
                   "deductible": {
                     "type": "boolean",
                     "default": true
+                  },
+                  "coefficient": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "enum": [
+                          1
+                        ]
+                      },
+                      {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      {
+                        "type": "number",
+                        "enum": [
+                          3
+                        ]
+                      },
+                      {
+                        "type": "number",
+                        "enum": [
+                          5
+                        ]
+                      }
+                    ],
+                    "default": 5
                   }
                 },
                 "required": [
@@ -6398,6 +6427,9 @@
                     "deductible": {
                       "type": "boolean"
                     },
+                    "coefficient": {
+                      "type": "integer"
+                    },
                     "finalReturn": {
                       "type": "string"
                     },
@@ -6420,6 +6452,7 @@
                     "isActive",
                     "isResolved",
                     "deductible",
+                    "coefficient",
                     "finalReturn",
                     "createdAt"
                   ],
@@ -6532,6 +6565,9 @@
                     "deductible": {
                       "type": "boolean"
                     },
+                    "coefficient": {
+                      "type": "integer"
+                    },
                     "finalReturn": {
                       "type": "string"
                     },
@@ -6554,6 +6590,7 @@
                     "isActive",
                     "isResolved",
                     "deductible",
+                    "coefficient",
                     "finalReturn",
                     "createdAt"
                   ],

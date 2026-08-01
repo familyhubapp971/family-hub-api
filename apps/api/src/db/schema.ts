@@ -1235,6 +1235,12 @@ export const mwInvestments = pgTable(
     investedAmount: numeric('invested_amount', { precision: 12, scale: 2 }).notNull(),
     investedStickers: integer('invested_stickers').notNull(),
     originalInvestedStickers: integer('original_invested_stickers').notNull(),
+    // FHS-534 — the per-investment coefficient (parent-chosen preset 1/2/3/5).
+    // Drives the daily growth (+coefficient per completed day, replacing the old
+    // hardcoded +5) and is snapshotted at creation, so editing the habit's pay
+    // boost later never changes an in-flight investment. Default 5 = legacy rate;
+    // migration backfills existing rows to 5.
+    coefficient: integer('coefficient').notNull().default(5),
     currentValue: numeric('current_value', { precision: 12, scale: 2 }).notNull().default('0'),
     daysCompleted: integer('days_completed').notNull().default(0),
     daysMissed: integer('days_missed').notNull().default(0),

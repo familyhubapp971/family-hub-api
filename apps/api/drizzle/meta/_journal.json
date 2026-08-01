@@ -309,6 +309,13 @@
       "when": 1783852800000,
       "tag": "0043_member_email_changes",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1783939200000,
+      "tag": "0044_mw_investments_coefficient",
+      "breakpoints": true
     }
   ]
 }

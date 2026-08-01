@@ -61,6 +61,13 @@ export const createInvestmentRequestSchema = z.object({
   // FHS-378 — default true keeps the legacy "missed days lose value" behaviour;
   // false makes missed days count but never penalise.
   deductible: z.boolean().optional().default(true),
+  // FHS-534 — parent-chosen coefficient (preset 1/2/3/5). Sets this
+  // investment's daily growth AND the habit's pay boost. Default 5 keeps the
+  // legacy fixed +5/day rate for any client that doesn't send it.
+  coefficient: z
+    .union([z.literal(1), z.literal(2), z.literal(3), z.literal(5)])
+    .optional()
+    .default(5),
 });
 
 /** Request body for POST /investments/:id/settings (FHS-378). */
@@ -89,6 +96,8 @@ export const investmentRecordSchema = z.object({
   isActive: z.boolean(),
   isResolved: z.boolean(),
   deductible: z.boolean(),
+  // FHS-534 — the per-investment daily-growth coefficient (snapshotted).
+  coefficient: z.number().int(),
   finalReturn: z.string(),
   createdAt: z.string(),
 });
@@ -292,7 +301,7 @@ export const mwFinancialRouter = new Hono()
         400,
       );
     }
-    const { memberId, habitId, stickerCount, deductible } = parsed.data;
+    const { memberId, habitId, stickerCount, deductible, coefficient } = parsed.data;
     const g = await guard(c, memberId);
     if ('res' in g) return g.res;
     const { db, tenantId, rate } = g;
@@ -426,8 +435,18 @@ export const mwFinancialRouter = new Hono()
           isActive: true,
           isResolved: false,
           deductible,
+          coefficient,
         })
         .returning();
+
+      // FHS-534 — the coefficient does double duty: it also sets the habit's
+      // pay boost, so completing an invested habit pays `coefficient` stickers
+      // per day. Editable later in Reward Settings; the investment above keeps
+      // its own snapshotted coefficient regardless of future boost edits.
+      await tx
+        .update(habits)
+        .set({ boost: coefficient, isBonus: coefficient > 1, updatedAt: new Date() })
+        .where(and(eq(habits.tenantId, tenantId), eq(habits.id, habitId)));
 
       await tx.insert(mwWeekActions).values({
         tenantId,
@@ -572,6 +591,7 @@ export const mwFinancialRouter = new Hono()
           completedDays,
           missedDays,
           deductible: inv.deductible ?? true,
+          dailyGain: inv.coefficient,
         },
         rate,
       );
@@ -765,6 +785,7 @@ export const mwFinancialRouter = new Hono()
           completedDays,
           missedDays,
           deductible,
+          dailyGain: inv.coefficient,
         },
         rate,
       );

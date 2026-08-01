@@ -241,6 +241,10 @@ export function elapsedDaysForWeek(
 /**
  * Sticker-first investment value from completed/missed days.
  *
+ * `dailyGain` (FHS-534) is the per-investment coefficient — how many stickers
+ * the investment grows per completed day. Defaults to INVEST_DAILY_GAIN (5),
+ * the legacy fixed rate, so existing callers and pre-FHS-534 rows are unchanged.
+ *
  * `deductible` (default true → legacy behaviour) controls whether missed days
  * cost value: a deductible investment subtracts INVEST_DAILY_PENALTY (−2) per
  * missed day; a non-deductible one (FHS-378) still tracks missed days for
@@ -252,14 +256,16 @@ export function investmentValue(
     completedDays: number;
     missedDays: number;
     deductible?: boolean;
+    dailyGain?: number;
   },
   rate: number = STICKER_TO_CASH,
 ): { currentValueStickers: number; currentValueCash: number } {
   const deductible = params.deductible ?? true;
+  const dailyGain = params.dailyGain ?? INVEST_DAILY_GAIN;
   const penalty = deductible ? params.missedDays * INVEST_DAILY_PENALTY : 0;
   const currentValueStickers = Math.max(
     0,
-    params.investedStickers + params.completedDays * INVEST_DAILY_GAIN - penalty,
+    params.investedStickers + params.completedDays * dailyGain - penalty,
   );
   return { currentValueStickers, currentValueCash: currentValueStickers * rate };
 }
@@ -486,6 +492,9 @@ export interface InvestmentView {
   daysCompleted: number;
   daysMissed: number;
   deductible: boolean;
+  // FHS-534 — the per-investment coefficient (daily growth rate), so the board
+  // badge can show "grows Nx" from the real snapshot, not a hardcoded 5.
+  coefficient: number;
 }
 
 /**
@@ -507,6 +516,7 @@ export async function listInvestments(
       investedStickers: mwInvestments.investedStickers,
       originalInvestedStickers: mwInvestments.originalInvestedStickers,
       deductible: mwInvestments.deductible,
+      coefficient: mwInvestments.coefficient,
       habitName: habits.name,
       habitIcon: habits.icon,
       weekIsFinalized: mwWeeks.isFinalized,
@@ -573,6 +583,7 @@ export async function listInvestments(
         completedDays,
         missedDays,
         deductible,
+        dailyGain: inv.coefficient,
       },
       rate,
     );
@@ -588,6 +599,7 @@ export async function listInvestments(
       daysCompleted: completedDays,
       daysMissed: missedDays,
       deductible,
+      coefficient: inv.coefficient,
     };
   });
 }
