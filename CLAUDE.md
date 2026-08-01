@@ -980,6 +980,17 @@ same change, don't just note it. This is the exception to the
 "never create docs unless asked" local rule: feature docs in
 `documents/features/` are always expected to track reality.
 
+### Keep the ticket's acceptance criteria in sync too
+
+**Every ticket carries Given/When/Then acceptance criteria, and those AC MUST
+track what actually gets built.** Add Gherkin AC when you create or pick up a
+ticket (not just a title), and **when the build refines or changes the
+behaviour, update the ticket's AC to match what shipped** — in the same
+session, before closing. The closing comment then maps each AC to the shipped
+behaviour (pass/fail), so the ticket reads true to what's live. An AC that
+describes behaviour the code doesn't have (or omits behaviour it does) is drift
+— fix it like any other drift. This applies to Stories, Tasks, and Bugs alike.
+
 ---
 
 ## Testing
