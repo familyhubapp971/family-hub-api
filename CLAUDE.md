@@ -120,6 +120,20 @@ These are project-specific cues for when to invoke skills/agents. They do
 
 ## Subagents
 
+> **USE THE MATCHING AGENT — don't do specialist work inline when one fits.**
+> This repo ships a curated set of agents in [`.claude/agents/`](.claude/agents/)
+> (api-designer, backend-developer, code-reviewer, deployment-engineer,
+> devops-engineer, documentation-engineer, frontend-developer,
+> fullstack-developer, multi-agent-coordinator, product-manager, qa-expert,
+> security-auditor, test-automator, typescript-pro). **Whenever a request maps
+> to one of these — API design, a backend/frontend/full-stack build, a code
+> review, a deploy, QA/test authoring, security review, docs, requirements —
+> delegate to that agent via the Task tool rather than doing it inline.** Pick
+> the most specific match; set the agent's model per Operating Rule G (Sonnet
+> for most builds/reviews, Opus for genuinely hard calls). The project agents
+> take precedence; fall back to the global set below for domains they don't
+> cover.
+
 Reference `~/.claude/agents/` for the 135 specialised agents. Most useful
 for this project:
 
