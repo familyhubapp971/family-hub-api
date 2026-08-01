@@ -70,15 +70,15 @@ jobs:
           BROWSER: ${{ matrix.browser }}
         run: |
           case "$BROWSER" in
-            mobile-chrome) npx playwright install --with-deps chromium ;;
-            *) npx playwright install --with-deps "$BROWSER" ;;
+            mobile-chrome) pnpm -F @familyhub/e2e exec playwright install --with-deps chromium ;;
+            *) pnpm -F @familyhub/e2e exec playwright install --with-deps "$BROWSER" ;;
           esac
       - name: Run e2e (project=${{ matrix.browser }})
         env:
           PROJECT: ${{ matrix.browser }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-        run: pnpm exec playwright test --config tests/e2e/playwright.config.ts --project "$PROJECT"
+        run: pnpm -F @familyhub/e2e exec playwright test --config playwright.config.ts --project "$PROJECT"
       - if: always()
         uses: actions/upload-artifact@v4
         with:

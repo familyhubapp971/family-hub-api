@@ -122,11 +122,11 @@ jobs:
             playwright-${{ runner.os }}-
       - name: Install Playwright chromium
         if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
+        run: pnpm -F @familyhub/e2e exec playwright install --with-deps chromium
       - name: Apply DB migrations for the e2e api
         # FHS-277 — see ci-staging.yml: the booted api needs a schema.
         run: pnpm --filter @familyhub/api exec drizzle-kit migrate
-      - run: pnpm test:e2e:critical
+      - run: pnpm -F @familyhub/e2e test:e2e:critical
         env:
           # FHS-277 — the api webServer needs the server-side var too,
           # else auth fail-closes and signed-in @critical flows 401.

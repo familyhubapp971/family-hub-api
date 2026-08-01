@@ -75,8 +75,8 @@ jobs:
         # Map mobile-chrome to chromium binary (Pixel 5 device profile uses chromium).
         run: |
           case "$BROWSER" in
-            mobile-chrome) npx playwright install --with-deps chromium ;;
-            *) npx playwright install --with-deps "$BROWSER" ;;
+            mobile-chrome) pnpm -F @familyhub/e2e exec playwright install --with-deps chromium ;;
+            *) pnpm -F @familyhub/e2e exec playwright install --with-deps "$BROWSER" ;;
           esac
       - name: Apply DB migrations for the e2e api
         # FHS-277 — the api the tests boot ran against an EMPTY service
@@ -87,9 +87,9 @@ jobs:
         # bddgen converts tests/e2e/features/*.feature into runnable
         # .spec.js files under tests/e2e/.features-gen/. Without it,
         # `playwright test` finds 0 tests.
-        run: pnpm exec bddgen test --config tests/e2e/playwright.config.ts
+        run: pnpm -F @familyhub/e2e exec bddgen test --config playwright.config.ts
       - name: Assert bddgen produced specs
-        run: pnpm run _assert-bddgen
+        run: pnpm -F @familyhub/e2e run _assert-bddgen
       - name: Run e2e (project=${{ matrix.browser }})
         env:
           PROJECT: ${{ matrix.browser }}
@@ -101,7 +101,7 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
           E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
-        run: pnpm exec playwright test --config tests/e2e/playwright.config.ts --project "$PROJECT"
+        run: pnpm -F @familyhub/e2e exec playwright test --config playwright.config.ts --project "$PROJECT"
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
