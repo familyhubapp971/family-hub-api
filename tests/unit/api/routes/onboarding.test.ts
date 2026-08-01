@@ -241,6 +241,114 @@ describe('FHS-37 — POST /api/onboarding/complete', () => {
     expect(new Set(insertedTables)).toEqual(new Set([members, habits, rewards]));
   });
 
+  it('FHS-487 — a child/teen with an age persists it; a grown-up age is dropped to null', async () => {
+    const app = buildAppWithSeed();
+    const updated = fixedTenant({ onboardingCompleted: true });
+
+    let capturedMemberValues: unknown;
+    dbMock.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
+      const tx = {
+        insert: (table: unknown) => ({
+          values: (v: unknown) => {
+            if (table === members) capturedMemberValues = v;
+            const rowsForTable =
+              table === habits
+                ? [{ id: 'h1' }, { id: 'h2' }, { id: 'h3' }, { id: 'h4' }, { id: 'h5' }]
+                : table === rewards
+                  ? [{ id: 'r1' }, { id: 'r2' }, { id: 'r3' }]
+                  : table === members
+                    ? [{ id: 'm1' }, { id: 'm2' }, { id: 'm3' }]
+                    : [];
+            return { returning: () => Promise.resolve(rowsForTable) };
+          },
+        }),
+        update: () => ({
+          set: () => ({ where: () => ({ returning: () => Promise.resolve([updated]) }) }),
+        }),
+      };
+      await fn(tx);
+    });
+
+    const res = await app.request('/api/onboarding/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        timezone: 'Asia/Dubai',
+        currency: 'AED',
+        members: [
+          { displayName: 'Iman', role: 'child', age: 6 },
+          { displayName: 'Layla', role: 'teen', age: 15 },
+          // a valid-range age crafted onto a grown-up must be dropped to null
+          { displayName: 'Yusuf', role: 'adult', age: 20 },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(capturedMemberValues).toEqual([
+      expect.objectContaining({ displayName: 'Iman', role: 'child', age: 6 }),
+      expect.objectContaining({ displayName: 'Layla', role: 'teen', age: 15 }),
+      expect.objectContaining({ displayName: 'Yusuf', role: 'adult', age: null }),
+    ]);
+  });
+
+  it('FHS-487 — a child submitted without age persists age as null', async () => {
+    const app = buildAppWithSeed();
+    const updated = fixedTenant({ onboardingCompleted: true });
+
+    let capturedMemberValues: unknown;
+    dbMock.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
+      const tx = {
+        insert: (table: unknown) => ({
+          values: (v: unknown) => {
+            if (table === members) capturedMemberValues = v;
+            const rowsForTable =
+              table === habits
+                ? [{ id: 'h1' }, { id: 'h2' }, { id: 'h3' }, { id: 'h4' }, { id: 'h5' }]
+                : table === rewards
+                  ? [{ id: 'r1' }, { id: 'r2' }, { id: 'r3' }]
+                  : table === members
+                    ? [{ id: 'm1' }]
+                    : [];
+            return { returning: () => Promise.resolve(rowsForTable) };
+          },
+        }),
+        update: () => ({
+          set: () => ({ where: () => ({ returning: () => Promise.resolve([updated]) }) }),
+        }),
+      };
+      await fn(tx);
+    });
+
+    const res = await app.request('/api/onboarding/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        timezone: 'Asia/Dubai',
+        currency: 'AED',
+        members: [{ displayName: 'Iman', role: 'child' }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(capturedMemberValues).toEqual([
+      expect.objectContaining({ displayName: 'Iman', role: 'child', age: null }),
+    ]);
+  });
+
+  it('FHS-487 — age outside 1-25 is rejected with 400', async () => {
+    const app = buildAppWithSeed();
+    const res = await app.request('/api/onboarding/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...VALID_BODY,
+        members: [{ displayName: 'Iman', role: 'child', age: 26 }],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('FHS-275 — invite email on a non-adult member is rejected with 400', async () => {
     const app = buildAppWithSeed({});
     const res = await app.request('/api/onboarding/complete', {
