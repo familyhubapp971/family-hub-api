@@ -27,6 +27,12 @@ const FIXED_USER: User = {
 interface SeedOpts {
   noTenant?: boolean;
   callerMissing?: boolean;
+  /** Caller's role in the tenant — echoed back as `callerRole`. */
+  callerRole?: string;
+  /** Row for the caller's OWN current sign-in email (users select). */
+  ownEmailRow?: { email: string } | null;
+  /** Row for the caller's OWN in-flight pending email change, if any. */
+  ownPendingRow?: { memberId: string; newEmail: string } | null;
 }
 
 function buildAppWithSeed(opts: SeedOpts = {}, members: unknown[] = []) {
@@ -37,7 +43,12 @@ function buildAppWithSeed(opts: SeedOpts = {}, members: unknown[] = []) {
     await next();
   };
 
-  // Two selects: caller-membership lookup + members list.
+  // FHS-510 — self-serve: every request that reaches the members list runs
+  // FIVE selects, in order: caller-membership lookup, members list, pending
+  // invites (FHS-276), then the caller's OWN current sign-in email, then the
+  // caller's OWN in-flight pending email change. There is no admin-only
+  // branch any more — both of the last two selects always fire, and they
+  // only ever resolve the CALLER's own data (see routes/members.ts).
   let selectCallIdx = 0;
   dbMock.select.mockImplementation(() => {
     selectCallIdx += 1;
@@ -49,7 +60,11 @@ function buildAppWithSeed(opts: SeedOpts = {}, members: unknown[] = []) {
             // it as `callerRole` for the members page to gate admin-
             // only PIN affordances.
             limit: () =>
-              Promise.resolve(opts.callerMissing ? [] : [{ id: CALLER_MEMBER_ID, role: 'admin' }]),
+              Promise.resolve(
+                opts.callerMissing
+                  ? []
+                  : [{ id: CALLER_MEMBER_ID, role: opts.callerRole ?? 'admin' }],
+              ),
           }),
         }),
       };
@@ -63,10 +78,30 @@ function buildAppWithSeed(opts: SeedOpts = {}, members: unknown[] = []) {
         }),
       };
     }
-    // 3rd select — FHS-276 pending invites (none in these fixtures).
+    if (selectCallIdx === 3) {
+      // FHS-276 pending invites (none in these fixtures).
+      return {
+        from: () => ({
+          where: () => Promise.resolve([]),
+        }),
+      };
+    }
+    if (selectCallIdx === 4) {
+      // FHS-510 — the caller's own current sign-in email.
+      return {
+        from: () => ({
+          where: () => ({
+            limit: () => Promise.resolve(opts.ownEmailRow ? [opts.ownEmailRow] : []),
+          }),
+        }),
+      };
+    }
+    // FHS-510 — the caller's own in-flight pending email change.
     return {
       from: () => ({
-        where: () => Promise.resolve([]),
+        where: () => ({
+          limit: () => Promise.resolve(opts.ownPendingRow ? [opts.ownPendingRow] : []),
+        }),
       }),
     };
   });
@@ -153,6 +188,92 @@ describe('FHS-108 — GET /api/members', () => {
       role: 'child',
       status: 'unclaimed',
       avatarEmoji: '👧',
+    });
+  });
+
+  // FHS-510 — email / pendingEmail are self-serve: a member sees ONLY their
+  // OWN sign-in email + their OWN in-flight change. There is no "admin sees
+  // everyone's login email" mode any more (FHS-510 pivot).
+  describe('email / pendingEmail gating (FHS-510, self-serve)', () => {
+    const baseDate = new Date('2026-05-02T00:00:00.000Z');
+    // This row's id matches CALLER_MEMBER_ID — it IS the caller's own seat.
+    const OWN_ROW_ID = CALLER_MEMBER_ID;
+    const OTHER_MEMBER_ID = '55555555-5555-4555-8555-555555555555';
+
+    function ownRow(over: Partial<Record<string, unknown>> = {}) {
+      return {
+        id: OWN_ROW_ID,
+        displayName: 'Sarah',
+        role: 'admin',
+        avatarEmoji: '👩',
+        userId: USER_ID,
+        createdAt: baseDate,
+        isChild: false,
+        pinHash: null,
+        ...over,
+      };
+    }
+
+    function otherMemberRow(over: Partial<Record<string, unknown>> = {}) {
+      return {
+        id: OTHER_MEMBER_ID,
+        displayName: 'Yusuf',
+        role: 'adult',
+        avatarEmoji: '👨',
+        userId: '77777777-7777-4777-8777-777777777777',
+        createdAt: baseDate,
+        isChild: false,
+        pinHash: null,
+        ...over,
+      };
+    }
+
+    it("the caller's own row carries their real email + pendingEmail; every other row is always null", async () => {
+      const app = buildAppWithSeed(
+        {
+          ownEmailRow: { email: 'sarah@example.com' },
+          ownPendingRow: { memberId: OWN_ROW_ID, newEmail: 'sarah.new@example.com' },
+        },
+        [ownRow(), otherMemberRow()],
+      );
+      const res = await app.request('/api/members');
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        members: Array<{ id: string; email: string | null; pendingEmail: string | null }>;
+      };
+      expect(body.members[0]).toMatchObject({
+        id: OWN_ROW_ID,
+        email: 'sarah@example.com',
+        pendingEmail: 'sarah.new@example.com',
+      });
+      // Another member's row NEVER carries email/pendingEmail — a grown-up's
+      // private login is not roster data every family member can see.
+      expect(body.members[1]).toMatchObject({
+        id: OTHER_MEMBER_ID,
+        email: null,
+        pendingEmail: null,
+      });
+      // 5 selects, always: caller, members, invites, own email, own pending.
+      expect(dbMock.select).toHaveBeenCalledTimes(5);
+    });
+
+    it("the caller's own row shows email but null pendingEmail when there is no change in flight", async () => {
+      const app = buildAppWithSeed(
+        {
+          ownEmailRow: { email: 'sarah@example.com' },
+          ownPendingRow: null,
+        },
+        [ownRow()],
+      );
+      const res = await app.request('/api/members');
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        members: Array<{ email: string | null; pendingEmail: string | null }>;
+      };
+      expect(body.members[0]).toMatchObject({
+        email: 'sarah@example.com',
+        pendingEmail: null,
+      });
     });
   });
 });

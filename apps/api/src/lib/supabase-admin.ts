@@ -121,3 +121,34 @@ export async function inviteUserByEmail(
   }
   return { id: parsed.id, ...(parsed.email ? { email: parsed.email } : {}) };
 }
+
+/**
+ * Change a Supabase auth user's sign-in email via the admin API (FHS-510).
+ * `email_confirm: true` marks the new address confirmed immediately — we've
+ * already verified ownership ourselves (the user clicked a one-time link
+ * emailed to that exact address), so there's no need for Supabase to send a
+ * SECOND confirmation email on top of ours.
+ *
+ * Maps to `PUT {SUPABASE_URL}/auth/v1/admin/users/{userId}`.
+ */
+export async function updateUserEmailById(userId: string, email: string): Promise<void> {
+  const { url, key } = requireConfig();
+  const res = await fetch(`${url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+    method: 'PUT',
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, email_confirm: true }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new SupabaseAdminError(
+      `Supabase admin update-email failed: ${res.status}`,
+      res.status,
+      text,
+    );
+  }
+}

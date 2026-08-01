@@ -47,6 +47,11 @@ const PUBLIC_PATH_PREFIXES = [
   // Apple / Outlook) fetches it with no bearer token; the signed token in the
   // URL path is the credential, verified in constant time by the handler.
   '/api/public/calendar',
+  // FHS-510 — confirming an admin-initiated email change. The recipient may
+  // not be signed in at all (they may not have used the family's login
+  // before) — the one-time token in the body is the credential, verified
+  // server-side against the stored SHA-256 hash.
+  '/api/members/email-change/confirm',
 ] as const;
 
 declare module 'hono' {

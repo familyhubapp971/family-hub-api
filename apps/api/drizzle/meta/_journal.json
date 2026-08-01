@@ -302,6 +302,13 @@
       "when": 1783766400000,
       "tag": "0042_reward_config",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1783852800000,
+      "tag": "0043_member_email_changes",
+      "breakpoints": true
     }
   ]
 }

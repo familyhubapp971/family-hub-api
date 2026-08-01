@@ -116,6 +116,13 @@ const configSchema = z
       .string()
       .min(32, 'CALENDAR_FEED_SECRET must be at least 32 characters')
       .default('dev-only-calendar-feed-secret-replace-in-production'),
+    // FHS-510 — Resend (email-sending service), used for the admin-initiated
+    // sign-in email change confirmation link. Empty key = the sender logs and
+    // returns an error instead of crashing boot (routes/members.ts handles
+    // that gracefully with a 502).
+    RESEND_API_KEY: z.string().default(''),
+    RESEND_FROM_EMAIL: z.string().default('noreply@fhapp.co'),
+    RESEND_FROM_NAME: z.string().default('FamilyHub'),
   })
   .superRefine((cfg, ctx) => {
     if (!cfg.DATABASE_URL) {

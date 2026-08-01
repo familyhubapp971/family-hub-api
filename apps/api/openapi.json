@@ -5598,7 +5598,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "email and pendingEmail (FHS-510) are admin-only — a non-admin caller always gets null on both, regardless of the member's actual state.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5652,6 +5652,14 @@
                             "type": "string",
                             "format": "uuid",
                             "nullable": true
+                          },
+                          "email": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "pendingEmail": {
+                            "type": "string",
+                            "nullable": true
                           }
                         },
                         "required": [
@@ -5665,7 +5673,9 @@
                           "hasPin",
                           "age",
                           "inviteEmail",
-                          "inviteId"
+                          "inviteId",
+                          "email",
+                          "pendingEmail"
                         ],
                         "additionalProperties": false
                       }
@@ -5838,6 +5848,102 @@
         }
       }
     },
+    "/api/members/{id}/email-change": {
+      "post": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Start changing a grown-up member's sign-in email; admin-only",
+        "operationId": "post_api_members_id_email_change",
+        "description": "Emails a one-time confirm link to the NEW address, plus a best-effort heads-up notice to the OLD address (never blocks this response). The old address keeps working until the link is clicked. 400 NO_LOGIN_EMAIL if the target has no linked login; 409 if the new email already belongs to a Family Hub account, or if a concurrent request for the same member won the race.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 254
+                  }
+                },
+                "required": [
+                  "email"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ pendingEmail } — the address the confirm link was sent to",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pendingEmail": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "pendingEmail"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/members/{id}/email-change/cancel": {
+      "post": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Cancel a pending email change for a member; admin-only",
+        "operationId": "post_api_members_id_email_change_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
     "/api/members/{id}/pin": {
       "delete": {
         "tags": [
@@ -5923,6 +6029,71 @@
                   },
                   "required": [
                     "member"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/members/email-change/confirm": {
+      "post": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Apply a pending email change from the emailed confirm link",
+        "operationId": "post_api_members_email_change_confirm",
+        "description": "PUBLIC — the recipient may not be signed in. The token is the credential (its SHA-256 hash is matched server-side); single-use and expires 24h after the admin started the change. Sends a best-effort completion notice to the OLD address on success (never blocks this response). The web ConfirmEmail screen requires an explicit click before calling this — never auto-fires on page load, so an email link-scanner prefetch cannot burn the token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "token": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "memberId",
+                  "token"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "200 on success. 410 { error: \"expired\" } if the link is missing/used/expired — the recipient should ask an admin for a new one. 502/500 { errorCode: \"EMAIL_CHANGE_APPLY_FAILED\" } on a transient failure (Supabase hiccup, or a post-apply drift) — the token may still be valid, so the caller should retry rather than treat it as expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "newEmail": {
+                      "type": "string"
+                    },
+                    "memberName": {
+                      "type": "string"
+                    },
+                    "tenantSlug": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "newEmail",
+                    "memberName",
+                    "tenantSlug"
                   ],
                   "additionalProperties": false
                 }

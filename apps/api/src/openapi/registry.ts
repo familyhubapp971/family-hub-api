@@ -86,7 +86,11 @@ import { kidPinRequestSchema, kidPinResponseSchema } from '../routes/auth-kid-pi
 import {
   addMemberBodySchema,
   addMemberResponseSchema,
+  confirmEmailChangeBodySchema,
+  confirmEmailChangeResponseSchema,
   listMembersResponseSchema,
+  memberEmailChangeRequestBodySchema,
+  memberEmailChangeRequestResponseSchema,
   setMemberPinResponseSchema,
 } from '../routes/members.js';
 import { listTasksResponseSchema } from '../routes/tasks.js';
@@ -452,7 +456,12 @@ export const routeMeta: Record<string, RouteMeta> = {
   'POST /api/invitations/claim': { summary: 'Claim invites addressed to my email' },
 
   // Members.
-  'GET /api/members': { summary: 'List family members', response: listMembersResponseSchema },
+  'GET /api/members': {
+    summary: 'List family members',
+    response: listMembersResponseSchema,
+    responseDesc:
+      "email and pendingEmail (FHS-510) are admin-only — a non-admin caller always gets null on both, regardless of the member's actual state.",
+  },
   'POST /api/members': {
     summary: 'Add a family member seat (child, teen, or adult) — no login, direct roster insert',
     request: addMemberBodySchema,
@@ -461,6 +470,30 @@ export const routeMeta: Record<string, RouteMeta> = {
   'PUT /api/members/{id}/pin': {
     summary: "Set a kid member's login PIN",
     response: setMemberPinResponseSchema,
+  },
+
+  // FHS-510 — admin-initiated sign-in email change, confirmed by a one-time link.
+  'POST /api/members/{id}/email-change': {
+    summary: "Start changing a grown-up member's sign-in email; admin-only",
+    description:
+      'Emails a one-time confirm link to the NEW address, plus a best-effort heads-up notice to the OLD address (never blocks this response). The old address keeps working until the link is clicked. 400 NO_LOGIN_EMAIL if the target has no linked login; 409 if the new email already belongs to a Family Hub account, or if a concurrent request for the same member won the race.',
+    request: memberEmailChangeRequestBodySchema,
+    response: memberEmailChangeRequestResponseSchema,
+    responseDesc: '{ pendingEmail } — the address the confirm link was sent to',
+  },
+  'POST /api/members/{id}/email-change/cancel': {
+    summary: 'Cancel a pending email change for a member; admin-only',
+    responseDesc: '{ cancelled: true } — always 200, even if there was nothing pending',
+  },
+  'POST /api/members/email-change/confirm': {
+    summary: 'Apply a pending email change from the emailed confirm link',
+    description:
+      'PUBLIC — the recipient may not be signed in. The token is the credential (its SHA-256 hash is matched server-side); single-use and expires 24h after the admin started the change. Sends a best-effort completion notice to the OLD address on success (never blocks this response). The web ConfirmEmail screen requires an explicit click before calling this — never auto-fires on page load, so an email link-scanner prefetch cannot burn the token.',
+    request: confirmEmailChangeBodySchema,
+    response: confirmEmailChangeResponseSchema,
+    responseDesc:
+      '200 on success. 410 { error: "expired" } if the link is missing/used/expired — the recipient should ask an admin for a new one. 502/500 { errorCode: "EMAIL_CHANGE_APPLY_FAILED" } on a transient failure (Supabase hiccup, or a post-apply drift) — the token may still be valid, so the caller should retry rather than treat it as expired.',
+    security: false,
   },
 
   // Notices / tasks.

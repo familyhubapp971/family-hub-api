@@ -19,7 +19,11 @@ import pg from 'pg';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const drizzleDir = path.resolve(here, '..', 'drizzle');
-const FILES = ['0030_rls_read_path_functions.sql'];
+const FILES = [
+  '0030_rls_read_path_functions.sql',
+  // FHS-510 — app_find_email_change reader (push never creates functions).
+  'apply-email-change-function.sql',
+];
 
 const url = process.env.DATABASE_URL;
 if (!url) {

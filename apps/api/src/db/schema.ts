@@ -274,6 +274,52 @@ export type PendingInvitation = typeof pendingInvitations.$inferSelect;
 export type NewPendingInvitation = typeof pendingInvitations.$inferInsert;
 
 /**
+ * `member_email_changes` (FHS-510) — a self-serve, one-time-link
+ * confirmation of a grown-up's new sign-in email. A row is created when a
+ * member requests a change to their OWN email; it's consumed (used_at set)
+ * when they click the emailed link and land on ConfirmEmail. Only the SHA-256 hash of
+ * the token is stored — never the raw value — so a DB read (or leak) can't
+ * hand out a working confirm link. A table (not columns on `members`) so the
+ * link is naturally single-use and the change carries its own audit trail;
+ * the old sign-in email keeps working until the row is consumed.
+ */
+export const memberEmailChanges = pgTable(
+  'member_email_changes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    newEmail: text('new_email').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('member_email_changes_tenant_member_idx').on(t.tenantId, t.memberId),
+    // The confirm endpoint looks up by (member_id, token_hash) with no
+    // tenant context yet (see app_find_email_change in 0043) — this index
+    // makes that lookup a single index scan instead of a member_id-only
+    // scan + filter.
+    index('member_email_changes_member_token_idx').on(t.memberId, t.tokenHash),
+    // Cheap hardening — at most one LIVE (unconfirmed) row per member.
+    // Belt-and-braces alongside the app's delete-then-insert "invalidate
+    // any prior pending row" step; closes the race where two concurrent
+    // requests for the same member both pass that delete and both insert.
+    uniqueIndex('member_email_changes_member_active_uq')
+      .on(t.memberId)
+      .where(sql`used_at is null`),
+  ],
+);
+
+export type MemberEmailChange = typeof memberEmailChanges.$inferSelect;
+export type NewMemberEmailChange = typeof memberEmailChanges.$inferInsert;
+
+/**
  * `weeks` — Mon–Sun tracking unit.
  *
  * Anchors per-week habit/action data. One row per (tenant, start_date).
@@ -1713,6 +1759,7 @@ export type NewPublicFeedback = typeof publicFeedback.$inferInsert;
 export const TENANT_SCOPED_TABLES = [
   members,
   pendingInvitations,
+  memberEmailChanges,
   weeks,
   habits,
   rewards,

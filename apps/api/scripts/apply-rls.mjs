@@ -24,6 +24,9 @@ const FILES = [
   '0027_app_runtime_role.sql',
   '0028_rls_tenant_policies.sql',
   '0029_users_self_rls.sql',
+  // FHS-510 — member_email_changes tenant isolation (push never applies RLS).
+  // After 0028 so app_current_tenant() exists.
+  'apply-email-change-rls.sql',
 ];
 
 const url = process.env.DATABASE_URL;

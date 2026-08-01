@@ -22,6 +22,7 @@ import {
   learnProgress,
   mealTemplates,
   members,
+  memberEmailChanges,
   moneyAdjustments,
   mwInvestments,
   mwLogicCertificates,
@@ -77,6 +78,16 @@ export async function seedRow(
         .values({ tenantId, displayName: `member-${tenantId.slice(0, 4)}` })
         .returning();
       ctx.memberId = r!.id;
+      break;
+    }
+    case 'member_email_changes': {
+      await db.insert(memberEmailChanges).values({
+        tenantId,
+        memberId: ctx.memberId!,
+        newEmail: `new-${tenantId.slice(0, 4)}@example.com`,
+        tokenHash: `seed-token-hash-${tenantId.slice(0, 4)}`,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60_000),
+      });
       break;
     }
     case 'pending_invitations': {
@@ -407,6 +418,7 @@ export async function seedRow(
 // + habit; savings_transactions needs savings; etc.).
 const DEPENDENCY_ORDER = [
   'members',
+  'member_email_changes',
   'pending_invitations',
   'weeks',
   'habits',
