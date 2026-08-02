@@ -57,3 +57,13 @@ Feature: My World — per-investment coefficient (FHS-534)
     And the caller opens investments for "Ali"
     Then "Ali" first investment is worth 45 stickers
     And "Read" habit boost is 2
+
+  # FHS-517 — a placed day-sticker stores stickerValue = the habit's boost at
+  # the time. Re-tapping the same day after the boost changed must re-price it
+  # to the new boost (the onConflictDoUpdate upsert in POST /habits/:id/stickers).
+  Scenario: Re-tapping a day's sticker after the boost changed picks up the new boost
+    Given the caller places a sticker on day 1 of "Read" for "Ali"
+    And the day 1 sticker value for "Read" for "Ali" is 1
+    When the caller sets "Read" habit boost to 5 for "Ali"
+    And the caller places a sticker on day 1 of "Read" for "Ali"
+    Then the day 1 sticker value for "Read" for "Ali" is 5

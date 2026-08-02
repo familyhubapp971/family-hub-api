@@ -407,11 +407,15 @@ export async function redeemReward(
   if (!reward) return { ok: false, reason: 'not-found' };
   const cost = reward.stickerCost;
   const week = await getOrCreateCurrentWeek(db, tenantId, memberId);
-  const rate = rateMinorToDecimal(await getEffectiveRateMinor(db, tenantId, memberId));
   return db.transaction(async (tx) => {
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${memberId}`}, 0))`,
     );
+    // FHS-517 — resolve the effective rate INSIDE the locked txn (via tx), so an
+    // admin changing the family/child rate mid-request can't split one
+    // redemption across two rates (TOCTOU). cashAsStickers + the savedCash
+    // deduction below both read this same locked-in rate.
+    const rate = rateMinorToDecimal(await getEffectiveRateMinor(tx, tenantId, memberId));
     const savings = await getOrCreateSavings(tx, tenantId, memberId);
     const unallocated = await tx
       .select({ id: habitStickers.id, value: habitStickers.stickerValue })
@@ -1295,12 +1299,15 @@ export async function approveRedemptionRequest(
   if (!head[0]) return { ok: false, reason: 'not-found' };
   const memberId = head[0].memberId;
   const week = await getOrCreateCurrentWeek(db, tenantId, memberId);
-  const rate = rateMinorToDecimal(await getEffectiveRateMinor(db, tenantId, memberId));
 
   return db.transaction(async (tx) => {
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${memberId}`}, 0))`,
     );
+    // FHS-517 — resolve the effective rate INSIDE the locked txn (via tx), so an
+    // admin changing the rate mid-request can't split this approval across two
+    // rates (TOCTOU). cashAsStickers + the savedCash deduction read it below.
+    const rate = rateMinorToDecimal(await getEffectiveRateMinor(tx, tenantId, memberId));
     const reqRows = await tx
       .select({
         id: redemptionRequests.id,

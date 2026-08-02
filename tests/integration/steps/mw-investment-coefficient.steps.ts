@@ -19,8 +19,15 @@ import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/m
 import { habitsRouter } from '../../../apps/api/src/routes/habits.js';
 import { mwWeeksRouter } from '../../../apps/api/src/routes/mw-weeks.js';
 import { mwFinancialRouter } from '../../../apps/api/src/routes/mw-financial.js';
-import { tenants, members, habits, mwSavings, users } from '../../../apps/api/src/db/schema.js';
-import { eq } from 'drizzle-orm';
+import {
+  tenants,
+  members,
+  habits,
+  habitStickers,
+  mwSavings,
+  users,
+} from '../../../apps/api/src/db/schema.js';
+import { eq, and } from 'drizzle-orm';
 import type { Database } from '../../../apps/api/src/db/client.js';
 import { getTestDb } from '../support/db.js';
 
@@ -145,6 +152,28 @@ describeFeature(feature, ({ Background, Scenario }) => {
       .where(eq(habits.id, habitIds[habitName]!))
       .limit(1);
     return rows[0]?.boost;
+  }
+
+  // FHS-517 — the stored sticker_value for one (habit, member, day). Placing a
+  // sticker sets stickerValue = the habit's current boost, so re-tapping the
+  // same day after the boost changed upserts the new value.
+  async function dayStickerValue(
+    habitName: string,
+    memberName: string,
+    day: number,
+  ): Promise<number | undefined> {
+    const rows = await db
+      .select({ value: habitStickers.stickerValue })
+      .from(habitStickers)
+      .where(
+        and(
+          eq(habitStickers.habitId, habitIds[habitName]!),
+          eq(habitStickers.memberId, memberIds[memberName]!),
+          eq(habitStickers.day, day),
+        ),
+      )
+      .limit(1);
+    return rows[0]?.value;
   }
 
   async function withdraw(memberName: string, stickers?: number) {
@@ -507,6 +536,30 @@ describeFeature(feature, ({ Background, Scenario }) => {
         // proving snapshot separation, not that the PUT silently no-op'd).
         expect(await habitBoost(h)).toBe(n);
       });
+    },
+  );
+
+  Scenario(
+    "Re-tapping a day's sticker after the boost changed picks up the new boost",
+    ({ Given, And, When, Then }) => {
+      const placeOnDay = async (_c: unknown, day: number, h: string, m: string) => {
+        const res = await placeSticker(h, m, day);
+        expect(res.status).toBe(200);
+      };
+      const assertDayValue = async (_c: unknown, day: number, h: string, m: string, v: number) => {
+        expect(await dayStickerValue(h, m, day)).toBe(v);
+      };
+      Given('the caller places a sticker on day {int} of {string} for {string}', placeOnDay);
+      And('the day {int} sticker value for {string} for {string} is {int}', assertDayValue);
+      When(
+        'the caller sets {string} habit boost to {int} for {string}',
+        async (_c, h: string, n: number, m: string) => {
+          const res = await setHabitBoost(h, m, n);
+          expect(res.status).toBe(200);
+        },
+      );
+      And('the caller places a sticker on day {int} of {string} for {string}', placeOnDay);
+      Then('the day {int} sticker value for {string} for {string} is {int}', assertDayValue);
     },
   );
 });
