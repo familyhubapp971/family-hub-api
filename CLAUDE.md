@@ -402,6 +402,33 @@ If multiple tickets close in quick succession (child close that
 cascades to an epic close), refresh **once at the end**, not per
 transition.
 
+### Demo doc follows every user-visible merge
+
+**Whenever a merged ticket changes what a user can see or do**, refresh
+the shipped-state demo doc in the same session — not just at sprint
+close. Founder request (FHS-552, 2026-08-03): the demo page is the
+founder's single view of the live product and must never lag reality.
+
+- Edit the source `scripts/demo-src/whats-shipped.src.html`: add/update
+  the capability card in the matching section (plain words, persona
+  chips, FHS key chip), bump the "Last updated" stamp and the "current
+  through FHS-XXX" marker in the hero.
+- Render the committed artefact with `node scripts/render-demo-pdf.mjs`
+  → [`documents/demo/whats-shipped.pdf`](documents/demo/whats-shipped.pdf).
+  **Docs folders are PDF-only** (no .html artefacts in `documents/`);
+  commit source + PDF together.
+- Keep it visual and in the design language (kingdom purple, Fredoka
+  One + Nunito, black borders, offset shadows) — it's a demo prop, not
+  a changelog.
+- Internal-only merges (CI, tests, refactors, docs) skip this; if
+  skipped on a user-visible ticket, say why in the close comment.
+- **The QA feature-tour brief follows the same rule.** When shipped
+  features change, update
+  `scripts/doc-src/family-hub-qa-brief-2-feature-tour.html` and
+  re-render `documents/business/family-hub-qa-brief-2-feature-tour.pdf`
+  in the same session, so external testers always hold a current map
+  of the product.
+
 ### Epic status follows its children
 
 An epic's status always mirrors the state of its children:
@@ -723,6 +750,10 @@ across pages. Rules:
 
 ### Code style
 
+- **No em dashes (—), ever.** Not in UI copy, docs, PDFs, commits, Jira
+  comments, README files, or marketing content (founder rule,
+  2026-08-03). Use a comma, colon, parentheses or a period instead.
+  Removal of pre-existing ones across the repo is tracked in FHS-553.
 - TypeScript strict mode everywhere.
 - 2-space indent, LF line endings, UTF-8 (enforced by `.editorconfig`).
 - No comments unless the _why_ is non-obvious.
