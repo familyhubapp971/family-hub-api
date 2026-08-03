@@ -778,6 +778,21 @@ How to apply:
   open Chrome DevTools → device toolbar → toggle iPhone, iPad, Desktop.
 - Include a **"verified across breakpoints"** line in PR self-review
   notes for any UI ticket.
+- **Magic Patterns hand-offs are not exempt.** When a change ports a
+  Magic Patterns design, check whether the generated layout already
+  handles mobile and tablet. If it does, verify it at all three
+  viewports; if it does not (MP output is often desktop-biased), design
+  and build the mobile/tablet behaviour yourself in the same change:
+  stack columns, collapse nav, wrap tables in `overflow-x-auto`, resize
+  tap targets. Never ship the desktop-only interpretation of a mock.
+- **Responsive tests are part of done.** Every UI ticket ships tests
+  that exercise the changed surface at mobile and tablet widths, not
+  just desktop: run the relevant Playwright scenario on the
+  mobile-chrome project (or set a 375px / 768px viewport explicitly)
+  and assert the layout-critical behaviour (no horizontal scroll on the
+  main flow, nav reachable, primary actions visible and tappable).
+  Where a component branches on viewport, unit-test that logic too. A
+  UI PR with desktop-only tests is incomplete.
 
 The "make it look good on Sarah's MacBook" reflex is fine for first
 draft; the responsive sweep is **not optional** before merge — Family
