@@ -402,6 +402,28 @@ If multiple tickets close in quick succession (child close that
 cascades to an epic close), refresh **once at the end**, not per
 transition.
 
+### Document design: low cognitive load (every doc, every time)
+
+Founder rule (2026-08-04): every document produced in this repo
+(briefs, demo decks, strategy PDFs, one-pagers) is built for a reader
+on the move. Non-negotiables when building or editing ANY doc:
+
+- One idea per element: short bullets over paragraphs, labeled
+  micro-sections over run-on prose, tables for enumerable facts.
+- Air is a feature: generous padding between sections, rows and
+  tables. Never squash content to force a page count; add a page
+  instead.
+- Visible hierarchy, deck design language: lavender paper `#F6F1FA`,
+  deep-purple `#3d1065` hero panels with white type, candy pill
+  palette, black borders, hard offset shadows, Fredoka One + Nunito.
+- Body text never below ~9.5pt in the rendered PDF; wide layouts go
+  landscape or split across pages rather than shrinking type.
+- No element may split across a page break; flowing docs render with
+  real top/bottom page margins.
+- Verify like a founder: rasterize every page of the rendered PDF and
+  look at it before shipping. If a page reads as a wall of text,
+  restructure it; don't ship and wait to be told.
+
 ### Demo doc follows every user-visible merge
 
 **Whenever a merged ticket changes what a user can see or do**, refresh
