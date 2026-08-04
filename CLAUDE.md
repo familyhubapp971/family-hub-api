@@ -424,8 +424,8 @@ founder's single view of the live product and must never lag reality.
   skipped on a user-visible ticket, say why in the close comment.
 - **The QA feature-tour brief follows the same rule.** When shipped
   features change, update
-  `scripts/doc-src/family-hub-qa-brief-2-feature-tour.html` and
-  re-render `documents/business/family-hub-qa-brief-2-feature-tour.pdf`
+  `scripts/doc-src/family-hub-qa-brief-feature-tour.html` and
+  re-render `documents/business/family-hub-qa-brief-feature-tour.pdf`
   in the same session, so external testers always hold a current map
   of the product.
 
