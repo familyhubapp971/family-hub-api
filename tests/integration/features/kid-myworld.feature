@@ -1,7 +1,7 @@
 Feature: Kid read-only My World
 
-  A logged-in kid reads their own My World data — weeks, week stats, week
-  actions, financial savings, and financial investments — in read-only mode
+  A logged-in kid reads their own My World data: weeks, week stats, week
+  actions, financial savings, and financial investments: in read-only mode
   (FHS-374). Shapes are byte-identical to the parent endpoints. Sibling-
   isolation is verified on every route: kid A never sees kid B's data.
 

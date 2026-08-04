@@ -16,7 +16,7 @@ const dbMock = {
   execute: vi.fn().mockResolvedValue({ rows: [] }),
   transaction: vi.fn(),
 };
-// FHS-351 — onboarding now wraps tenant+member creation in db.transaction; the
+// FHS-351: onboarding now wraps tenant+member creation in db.transaction; the
 // tx exposes the same insert chain + execute (for the set_config tenant pin).
 dbMock.transaction.mockImplementation((cb: (tx: typeof dbMock) => unknown) => cb(dbMock));
 vi.mock('../../../../apps/api/src/db/client.js', () => ({
@@ -105,7 +105,7 @@ afterEach(() => {
   _resetJwksCacheForTests();
 });
 
-describe('FHS-25 — POST /api/public/tenant', () => {
+describe('FHS-25: POST /api/public/tenant', () => {
   it('returns 401 without an Authorization header', async () => {
     const { publicJwk } = await genKey();
     const app = buildAppWithAuth(publicJwk);
@@ -210,7 +210,7 @@ describe('FHS-25 — POST /api/public/tenant', () => {
     expect(body.member.displayName).toBe('Sarah Khan');
     expect(body.member.role).toBe('admin');
     expect(body.member.tenantId).toBe(tenant.id);
-    // FHS-351 — the founding member is created inside a transaction that pins
+    // FHS-351: the founding member is created inside a transaction that pins
     // app.current_tenant (set_config) so the members RLS WITH CHECK passes.
     expect(dbMock.transaction).toHaveBeenCalledTimes(1);
     expect(dbMock.execute).toHaveBeenCalled();

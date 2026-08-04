@@ -1,5 +1,5 @@
 Feature: GET / POST / PATCH /api/assignments (FHS-231)
-  Real Postgres on :5433 — verifies the assignments list, create,
+  Real Postgres on :5433, verifies the assignments list, create,
   done-toggle, role gate, and tenant isolation.
 
   Background:
@@ -38,7 +38,7 @@ Feature: GET / POST / PATCH /api/assignments (FHS-231)
     Then the PUT response status is 200
     And re-fetching /api/assignments for tenant "khan" shows title "Spelling revised"
 
-  Scenario: Tenant isolation — another tenant's assignments never appear
+  Scenario: Tenant isolation: another tenant's assignments never appear
     Given a second tenant "smith" exists with the caller as an admin member
     And the "smith" tenant has an assignment "Pasta night" due "2026-05-08"
     And separately the "khan" tenant has an assignment "Family dinner" due "2026-05-08"

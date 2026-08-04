@@ -17,7 +17,7 @@ export function corsMiddleware(): MiddlewareHandler {
 
   return cors({
     origin: (origin) => {
-      if (!origin) return undefined; // same-origin / curl — let it through
+      if (!origin) return undefined; // same-origin / curl: let it through
 
       // Explicit allowlist always wins.
       if (explicit.length > 0) {
@@ -30,7 +30,7 @@ export function corsMiddleware(): MiddlewareHandler {
         return null;
       }
 
-      // Production: BASE_DOMAIN apex + any *.subdomain. https only —
+      // Production: BASE_DOMAIN apex + any *.subdomain. https only:
       // a misconfigured proxy or attacker-controlled origin must not
       // get a credentialed allow over plaintext.
       const escaped = config.BASE_DOMAIN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -38,13 +38,13 @@ export function corsMiddleware(): MiddlewareHandler {
       return re.test(origin) ? origin : null;
     },
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    // x-tenant-slug — every tenant-scoped fetch from the web app sets this
+    // x-tenant-slug: every tenant-scoped fetch from the web app sets this
     // (apps/web/.../OnboardingPage.tsx, MembersPage.tsx, every dashboard
     // tab panel) and resolveTenantMiddleware reads it. Missing it from
     // Allow-Headers blocks the OPTIONS preflight on every authenticated
     // call, with the visible failure landing on whichever endpoint the
     // user hits first.
-    // x-request-id — surfaced by request-context middleware; harmless to
+    // x-request-id: surfaced by request-context middleware; harmless to
     // accept from the client (server overrides anyway) and lets the web
     // attach a correlation id for support tickets.
     allowHeaders: ['Content-Type', 'Authorization', 'x-tenant-slug', 'x-request-id'],

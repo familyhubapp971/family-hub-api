@@ -1,5 +1,5 @@
-// FHS-373 — pure DB helpers shared between /api/world-flags (parent) and
-// /api/kid/world-flags (kid). No auth / middleware concerns here — callers
+// FHS-373: pure DB helpers shared between /api/world-flags (parent) and
+// /api/kid/world-flags (kid). No auth / middleware concerns here: callers
 // are responsible for scoping tenantId + memberId to the right principal.
 
 import { z } from 'zod';
@@ -20,7 +20,7 @@ export const CONTINENTS = [
 
 export type Continent = (typeof CONTINENTS)[number];
 
-// ─── Kid-route body schemas (no memberId — identity comes from the token) ─────
+// ─── Kid-route body schemas (no memberId: identity comes from the token) ─────
 
 export const worldFlagsExploreBodySchema = z.object({
   // ISO 3166-1 alpha-2 or alpha-3 (2–3 chars).

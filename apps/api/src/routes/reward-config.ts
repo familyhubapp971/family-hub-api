@@ -7,21 +7,21 @@ import { getAuthenticatedUser } from '../middleware/auth.js';
 import { loadCaller, isAdmin } from '../lib/permissions.js';
 import { effectiveRateMinor } from '../lib/reward-config.js';
 
-// FHS-512 — the "Pocket money" reward-config screen's backing API.
+// FHS-512: the "Pocket money" reward-config screen's backing API.
 //
-// GET  /api/reward-config — any family member can read the current setup
+// GET  /api/reward-config: any family member can read the current setup
 //                            (family default rate + each kid's override).
-// PUT  /api/reward-config — admin-only. Updates the family default rate
+// PUT  /api/reward-config: admin-only. Updates the family default rate
 //                            and/or one or more kids' overrides in one call.
 //
-// MONEY RULE: every rate here is an INTEGER in minor currency units — the
+// MONEY RULE: every rate here is an INTEGER in minor currency units: the
 // request/response schemas reject a float or a fractional value.
 //
-// FIX 2 (BLOCKER) — a rate of 0 makes "1 sticker = free money": every
+// FIX 2 (BLOCKER): a rate of 0 makes "1 sticker = free money": every
 // cash→stickers conversion divides by the rate, so 0 resolves to
 // Infinity/NaN stickers and `balance < cost` never blocks a redemption.
 // Rates are `.min(1)` (never 0), not `.min(0)`.
-// FIX 3 (BLOCKER) — no upper bound let an oversized rate reach Postgres'
+// FIX 3 (BLOCKER): no upper bound let an oversized rate reach Postgres'
 // numeric(12,2) column and 500. `.max(100000)` caps it at 1000.00/sticker,
 // matching the existing `boost.max(20)` pattern.
 const RATE_MINOR_MAX = 100_000; // 1000.00 in the tenant's currency
@@ -113,14 +113,14 @@ async function loadConfig(db: Db, tenantId: string) {
 }
 
 export const rewardConfigRouter = new Hono()
-  // GET — any authenticated family member.
+  // GET: any authenticated family member.
   .get('/', async (c) => {
     const ctx = await guardTenant(c);
     if ('res' in ctx) return ctx.res;
     const { db, tenantId } = ctx;
     return c.json(rewardConfigResponseSchema.parse(await loadConfig(db, tenantId)));
   })
-  // PUT — admin-only.
+  // PUT: admin-only.
   .put('/', async (c) => {
     const ctx = await guardTenant(c);
     if ('res' in ctx) return ctx.res;
@@ -156,7 +156,7 @@ export const rewardConfigRouter = new Hono()
     if (memberOverrides && memberOverrides.length > 0) {
       const memberIds = memberOverrides.map((o) => o.memberId);
       // Scope to this tenant so a caller can never set another family's
-      // member rate — the WHERE below filters by tenantId on every write.
+      // member rate: the WHERE below filters by tenantId on every write.
       const existing = await db
         .select({ id: members.id })
         .from(members)

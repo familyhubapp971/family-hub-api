@@ -21,21 +21,21 @@ import {
   rateMinorToDecimal,
 } from './reward-config.js';
 
-// FHS-290 — shared My World economy helpers.
+// FHS-290: shared My World economy helpers.
 //
 // A child's spendable balance = stickers banked in savings + stickers
 // earned-but-unallocated in their weeks. Weeks are Monday-anchored ISO
 // weeks; one open (non-finalized) week per child.
 
-// FHS-512 — the sticker→cash rate is now CONFIGURABLE per family (and per
+// FHS-512: the sticker→cash rate is now CONFIGURABLE per family (and per
 // child). STICKER_TO_CASH survives only as the legacy default: it's the
 // fallback value for any function param below that isn't given an explicit
 // rate, and it's what the DB column defaults new tenants to (see migration
 // 0042). Every money-computing function in this file now RESOLVES the
 // effective rate via `getEffectiveRateMinor` instead of reading this
-// constant directly — grep for `rate` params before assuming 0.5 anywhere.
+// constant directly: grep for `rate` params before assuming 0.5 anywhere.
 export const STICKER_TO_CASH = 0.5;
-/** @deprecated use STICKER_TO_CASH — kept for any older import. */
+/** @deprecated use STICKER_TO_CASH: kept for any older import. */
 export const STICKER_TO_AED = STICKER_TO_CASH;
 
 // Accept either the pool db or a transaction handle (helpers are called
@@ -93,7 +93,7 @@ export function dayDateOf(startDate: string, day: number): string {
  * rule: only an admin may edit a *past* day; *today* and later days in the
  * current week stay open to a normal user (the legacy "tick the whole week"
  * behaviour). `now` is injectable for tests. NOTE: "today" is computed in UTC,
- * matching how the rest of My World anchors weeks — see the timezone follow-up.
+ * matching how the rest of My World anchors weeks: see the timezone follow-up.
  */
 export function stickerDayRelation(
   startDate: string,
@@ -133,7 +133,7 @@ export async function getOrCreateCurrentWeek(
     .limit(1);
   if (existing[0]) return existing[0];
   // Close weeks in order (ported from legacy): if the child has an earlier
-  // still-open week, DON'T create the new ISO week — stay on the oldest open
+  // still-open week, DON'T create the new ISO week: stay on the oldest open
   // one. Otherwise a calendar rollover would strand the open week and its
   // active investment (new stickers land in a fresh week while the investment
   // keeps pointing at the old one → it shows 0/7 done). The next week is
@@ -157,7 +157,7 @@ export async function getOrCreateCurrentWeek(
     .onConflictDoNothing()
     .returning();
   if (created) return created;
-  // Lost an insert race — re-read.
+  // Lost an insert race: re-read.
   const reread = await db
     .select()
     .from(mwWeeks)
@@ -192,7 +192,7 @@ export async function getSavings(
   };
 }
 
-/** The child's savings row, creating it (0/0) if absent — for writes. */
+/** The child's savings row, creating it (0/0) if absent: for writes. */
 export async function getOrCreateSavings(
   db: Db,
   tenantId: string,
@@ -204,7 +204,7 @@ export async function getOrCreateSavings(
 
 /**
  * Cash savings expressed as whole sticker-equivalents, at the given (decimal)
- * rate. FIX 2 — a rate of 0 must NOT divide (Infinity/NaN stickers would make
+ * rate. FIX 2: a rate of 0 must NOT divide (Infinity/NaN stickers would make
  * every redemption look "free" since `balance < cost` never blocks). The
  * reward-config API now rejects a 0 rate at the source, but this stays
  * defensive for any rate value that reaches here another way.
@@ -214,7 +214,7 @@ export function cashAsStickers(savedCash: number, rate: number = STICKER_TO_CASH
   return Math.floor(savedCash / rate);
 }
 
-// ── Investments (FHS-296) — sticker-first grow model ─────────────────────────
+// ── Investments (FHS-296): sticker-first grow model ─────────────────────────
 // deductible (default, legacy):
 //   currentValueStickers = max(0, investedStickers + completedDays*5 - missedDays*2)
 // non-deductible (FHS-378): missed days are still counted/shown but apply NO
@@ -241,7 +241,7 @@ export function elapsedDaysForWeek(
 /**
  * Sticker-first investment value from completed/missed days.
  *
- * `dailyGain` (FHS-534) is the per-investment coefficient — how many stickers
+ * `dailyGain` (FHS-534) is the per-investment coefficient: how many stickers
  * the investment grows per completed day. Defaults to INVEST_DAILY_GAIN (5),
  * the legacy fixed rate, so existing callers and pre-FHS-534 rows are unchanged.
  *
@@ -300,7 +300,7 @@ export async function stickerBalance(db: Db, tenantId: string, memberId: string)
 /**
  * Batched {@link stickerBalance} for many members in a FIXED two queries,
  * instead of the 2×N you get from calling stickerBalance() per member
- * (FHS-463 — the dashboard fanned this out across every kid on the family's
+ * (FHS-463: the dashboard fanned this out across every kid on the family's
  * hottest screen). The per-member value is identical to stickerBalance():
  * unallocated week stickers + banked saved stickers + saved cash as whole
  * stickers. Members with no rows resolve to 0. Returns a Map keyed by
@@ -336,7 +336,7 @@ export async function stickerBalances(
       })
       .from(mwSavings)
       .where(and(eq(mwSavings.tenantId, tenantId), inArray(mwSavings.memberId, memberIds))),
-    // FHS-512 — one extra query (not N) so this stays a fixed-query batch;
+    // FHS-512: one extra query (not N) so this stays a fixed-query batch;
     // each member's effective rate = their own override, else the family default.
     db
       .select({
@@ -376,7 +376,7 @@ export async function stickerBalances(
   return balances;
 }
 
-// The top-level pool db (has `.transaction`) — redeemReward opens its own.
+// The top-level pool db (has `.transaction`): redeemReward opens its own.
 type PoolDb = ReturnType<typeof getDb>;
 
 export type RedeemOutcome =
@@ -411,7 +411,7 @@ export async function redeemReward(
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${memberId}`}, 0))`,
     );
-    // FHS-517 — resolve the effective rate INSIDE the locked txn (via tx), so an
+    // FHS-517: resolve the effective rate INSIDE the locked txn (via tx), so an
     // admin changing the family/child rate mid-request can't split one
     // redemption across two rates (TOCTOU). cashAsStickers + the savedCash
     // deduction below both read this same locked-in rate.
@@ -496,7 +496,7 @@ export interface InvestmentView {
   daysCompleted: number;
   daysMissed: number;
   deductible: boolean;
-  // FHS-534 — the per-investment coefficient (daily growth rate), so the board
+  // FHS-534: the per-investment coefficient (daily growth rate), so the board
   // badge can show "grows Nx" from the real snapshot, not a hardcoded 5.
   coefficient: number;
 }
@@ -504,7 +504,7 @@ export interface InvestmentView {
 /**
  * A member's active investments with live value recomputed from this week's
  * stickers (FHS-296). Shared by the parent mw-financial route and the kid
- * route. Read-only — does not persist the recomputed value.
+ * route. Read-only: does not persist the recomputed value.
  */
 export async function listInvestments(
   db: Db,
@@ -539,7 +539,7 @@ export async function listInvestments(
   if (rows.length === 0) return [];
   const rate = rateMinorToDecimal(await getEffectiveRateMinor(db, tenantId, memberId));
 
-  // FHS-466 — was 2 count() queries PER investment (an N+1 on the single pinned
+  // FHS-466: was 2 count() queries PER investment (an N+1 on the single pinned
   // connection). Fetch the relevant sticker days ONCE, then count per investment
   // in JS. Same result: completedDays = all stickers for (habit, week);
   // pastDays = those with day < the week's elapsed days.
@@ -719,7 +719,7 @@ export async function computeMemberAnalytics(
   return { stickersPerWeek, habitStats };
 }
 
-// ── Shared loaders (FHS-374) — extracted so kid and parent routes return ─────
+// ── Shared loaders (FHS-374): extracted so kid and parent routes return ─────
 // identical JSON shapes. Each function is pure SELECT (no mutations).
 
 /**
@@ -1062,7 +1062,7 @@ export async function loadRewardsForMember(
   return { rewards: rewardRows, stickerBalance: balance };
 }
 
-// ── Redemption requests (FHS-376) — kid asks, admin approves/declines ────────
+// ── Redemption requests (FHS-376): kid asks, admin approves/declines ────────
 
 export type RequestStatus = 'none' | 'pending' | 'approved' | 'declined';
 
@@ -1133,7 +1133,7 @@ export type CreateRequestOutcome =
  * isn't archived in the tenant, snapshots its sticker cost as `star_cost`, and
  * creates a `pending` row. Idempotent: if a pending request already exists for
  * (member, reward) it returns THAT row instead of creating a duplicate. NEVER
- * deducts — that happens only on an admin approve.
+ * deducts: that happens only on an admin approve.
  */
 export async function createRedemptionRequest(
   db: PoolDb,
@@ -1276,7 +1276,7 @@ export type DecideRequestOutcome =
 /**
  * An admin approves a pending redemption request (FHS-376). Deducts `star_cost`
  * from the kid's banked SAVINGS only (saved stickers first, then saved cash as
- * stickers) — NOT the current week's unallocated stickers. If savings can't
+ * stickers): NOT the current week's unallocated stickers. If savings can't
  * cover the cost, returns 'insufficient-savings' and makes NO change. On
  * success flips status='approved', stamps decided_at + decided_by, and records
  * the redemption (reward_redemptions + a 'claim' week-action) consistent with a
@@ -1304,7 +1304,7 @@ export async function approveRedemptionRequest(
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${memberId}`}, 0))`,
     );
-    // FHS-517 — resolve the effective rate INSIDE the locked txn (via tx), so an
+    // FHS-517: resolve the effective rate INSIDE the locked txn (via tx), so an
     // admin changing the rate mid-request can't split this approval across two
     // rates (TOCTOU). cashAsStickers + the savedCash deduction read it below.
     const rate = rateMinorToDecimal(await getEffectiveRateMinor(tx, tenantId, memberId));
@@ -1334,7 +1334,7 @@ export async function approveRedemptionRequest(
         cost,
       };
     }
-    // Spend saved stickers first, then saved cash (as stickers) — savings only.
+    // Spend saved stickers first, then saved cash (as stickers): savings only.
     let need = cost;
     const fromSavedStickers = Math.min(need, savings.savedStickers);
     need -= fromSavedStickers;

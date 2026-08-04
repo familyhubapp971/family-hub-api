@@ -409,7 +409,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   });
 
   Scenario(
-    "Tenant isolation — another tenant's notices never appear",
+    "Tenant isolation: another tenant's notices never appear",
     ({ Given, And, When, Then }) => {
       let res: Response;
       let body: ListResponse;

@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { configSchema } from '../../../apps/api/src/config';
 
-// FHS-516 — lock the E2E_TEST_JWKS security gate. The var wires a local test
+// FHS-516: lock the E2E_TEST_JWKS security gate. The var wires a local test
 // JWKS into the api's JWT verification so the e2e harness can mint its own
 // tokens. It is fully public (fixed key committed in tests/e2e/support/auth),
-// so it must be honoured ONLY under NODE_ENV=test — never on a real deploy
+// so it must be honoured ONLY under NODE_ENV=test: never on a real deploy
 // (production/staging both run NODE_ENV=production) and never under a
 // developer's plain `pnpm dev` (NODE_ENV=development, which points at the real
 // staging Supabase project). The activation itself lives in auth.ts; here we
@@ -25,7 +25,7 @@ function baseEnv(overrides: Record<string, string>) {
   };
 }
 
-describe('config — E2E_TEST_JWKS gate (FHS-516)', () => {
+describe('config: E2E_TEST_JWKS gate (FHS-516)', () => {
   it('refuses to boot when set under NODE_ENV=production', () => {
     const r = configSchema.safeParse(baseEnv({ NODE_ENV: 'production', E2E_TEST_JWKS: JWKS }));
     expect(r.success).toBe(false);

@@ -10,8 +10,8 @@ import {
   sumAdjustmentsMinor,
 } from '../../../../apps/api/src/lib/reward-config.js';
 
-// FHS-512 — configurable reward economy. MONEY-CRITICAL: every quantity here
-// is an integer minor-unit amount (e.g. 50 = 0.50) — these tests exist to
+// FHS-512: configurable reward economy. MONEY-CRITICAL: every quantity here
+// is an integer minor-unit amount (e.g. 50 = 0.50): these tests exist to
 // catch a float creeping back in or a rate resolving to the wrong value.
 
 const TENANT_ID = 'tenant-1';
@@ -27,13 +27,13 @@ describe('effectiveRateMinor (pure resolver)', () => {
   it("uses the child's own override when set", () => {
     expect(effectiveRateMinor({ stickerRateMinor: 75 }, { stickerRateMinor: 50 })).toBe(75);
   });
-  // FIX 2 (BLOCKER) — a rate of 0 is no longer a valid value ANYWHERE in the
+  // FIX 2 (BLOCKER): a rate of 0 is no longer a valid value ANYWHERE in the
   // system: it makes cashAsStickers divide by 0 (free unlimited redemption).
   // The PUT /api/reward-config schema now rejects 0 at the boundary (see
-  // tests/unit/api/routes/reward-config.test.ts — "400 on a zero
+  // tests/unit/api/routes/reward-config.test.ts: "400 on a zero
   // familyRateMinor" / "400 on a zero memberOverrides rateMinor"), so a
   // stored override of 0 can no longer be written via the API. This resolver
-  // stays a pure, unvalidated arithmetic helper — it is not the enforcement
+  // stays a pure, unvalidated arithmetic helper: it is not the enforcement
   // point.
   it('DEFAULT_STICKER_RATE_MINOR matches the legacy fixed 0.5 rate', () => {
     expect(DEFAULT_STICKER_RATE_MINOR).toBe(50);
@@ -110,13 +110,13 @@ function fakeTx(selectQueue: unknown[][]) {
   return { tx, inserted, updated, deleted };
 }
 
-describe('applySkipPenalties — skip-penalty accrual at close-week', () => {
+describe('applySkipPenalties: skip-penalty accrual at close-week', () => {
   const WEEK = { id: 'week-1', startDate: '2026-06-15' }; // Monday
-  // Habit existed well before this week — every day is due. Every fixture
+  // Habit existed well before this week: every day is due. Every fixture
   // below needs a createdAt (FIX 5 reads it unconditionally per habit).
   const OLD_HABIT_CREATED = new Date('2026-01-01T00:00:00.000Z');
   // A savings balance comfortably above any penalty total used in these
-  // tests, so the FIX 1 floor path never triggers here — floor behaviour has
+  // tests, so the FIX 1 floor path never triggers here: floor behaviour has
   // its own dedicated tests below.
   const AMPLE_SAVINGS = [{ savedCash: '1000.00' }];
 
@@ -209,7 +209,7 @@ describe('applySkipPenalties — skip-penalty accrual at close-week', () => {
     expect(inserted).toHaveLength(1); // one batched insert for both habits
   });
 
-  it('never inserts a positive amountMinor for a skip row — a penalty row is always negative', async () => {
+  it('never inserts a positive amountMinor for a skip row: a penalty row is always negative', async () => {
     const { tx, inserted } = fakeTx([
       [{ id: 'habit-1', skipPenaltyMinor: 30, createdAt: OLD_HABIT_CREATED }],
       [],
@@ -220,7 +220,7 @@ describe('applySkipPenalties — skip-penalty accrual at close-week', () => {
     expect(rows.every((r) => r.amountMinor < 0)).toBe(true);
   });
 
-  // ── FIX 5 — a habit created mid-week owes nothing for days before it existed ──
+  // ── FIX 5: a habit created mid-week owes nothing for days before it existed ──
 
   it('does not penalise days before the habit existed (created mid-week)', async () => {
     // Habit created Wednesday (day 2) of the WEEK Mon 2026-06-15 .. Sun 2026-06-21.
@@ -236,7 +236,7 @@ describe('applySkipPenalties — skip-penalty accrual at close-week', () => {
       AMPLE_SAVINGS,
     ]);
     const result = await applySkipPenalties(tx as never, TENANT_ID, MEMBER_ID, WEEK);
-    // Only Wed..Sun (5 days) are due — Mon/Tue predate the habit.
+    // Only Wed..Sun (5 days) are due: Mon/Tue predate the habit.
     expect(result.adjustmentsInserted).toBe(5);
     expect(result.totalPenaltyMinor).toBe(5 * 25);
     const rows = inserted[0]!.values as Array<{ day: string }>;
@@ -249,7 +249,7 @@ describe('applySkipPenalties — skip-penalty accrual at close-week', () => {
     ]);
   });
 
-  // ── FIX 1 (BLOCKER) — the audit trail must equal what was actually debited ──
+  // ── FIX 1 (BLOCKER): the audit trail must equal what was actually debited ──
 
   it('floors the deduction to available saved_cash and records a compensating "floor" row so the audit trail equals the actual debit', async () => {
     // Penalty totals 175 (7 days × 25) but the child only has 100 (1.00) saved.
@@ -281,15 +281,15 @@ describe('applySkipPenalties — skip-penalty accrual at close-week', () => {
     const { tx, inserted } = fakeTx([
       [{ id: 'habit-1', skipPenaltyMinor: 25, createdAt: OLD_HABIT_CREATED }],
       [],
-      [{ savedCash: '1.75' }], // exactly 175 minor — covers the penalty exactly
+      [{ savedCash: '1.75' }], // exactly 175 minor: covers the penalty exactly
     ]);
     const result = await applySkipPenalties(tx as never, TENANT_ID, MEMBER_ID, WEEK);
     expect(result.totalPenaltyMinor).toBe(175);
-    expect(inserted).toHaveLength(1); // only the skip batch — no floor row
+    expect(inserted).toHaveLength(1); // only the skip batch: no floor row
   });
 });
 
-describe('reverseSkipPenalties — reopen/repair undoes the accrual', () => {
+describe('reverseSkipPenalties: reopen/repair undoes the accrual', () => {
   const WEEK = { startDate: '2026-06-15' };
 
   it('does nothing when no penalty rows exist for the week', async () => {
@@ -315,15 +315,15 @@ describe('reverseSkipPenalties — reopen/repair undoes the accrual', () => {
     expect(updated).toHaveLength(1); // one saved_cash restore
   });
 
-  // FIX 1 (BLOCKER) — a floored week's rows include a positive 'floor'
+  // FIX 1 (BLOCKER): a floored week's rows include a positive 'floor'
   // compensating row alongside the negative 'skip' rows. Reversal must sum
   // BOTH kinds (matched by `reason IN ('skip', 'floor')` in the real query)
-  // so it restores exactly what was debited, not the full nominal penalty —
+  // so it restores exactly what was debited, not the full nominal penalty:
   // otherwise closing then reopening a week fabricates money.
-  it("restores exactly what was applied — not the nominal total — when the week's rows include a 'floor' compensating row", async () => {
+  it("restores exactly what was applied (not the nominal total) when the week's rows include a 'floor' compensating row", async () => {
     const { tx, deleted, updated } = fakeTx([
       [
-        // 7 days × 25 = -175 nominal, but only 100 was actually available —
+        // 7 days × 25 = -175 nominal, but only 100 was actually available:
         // this is what applySkipPenalties would have written for that case.
         { id: 'adj-1', amountMinor: -25 },
         { id: 'adj-2', amountMinor: -25 },

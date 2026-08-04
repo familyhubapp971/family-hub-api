@@ -1,4 +1,4 @@
-// FHS-356 — CI staleness gate. Fails if openapi.json doesn't match the live
+// FHS-356: CI staleness gate. Fails if openapi.json doesn't match the live
 // routes, forcing `pnpm -F api openapi:generate` to be run + committed.
 import { readFileSync } from 'node:fs';
 import { buildApp } from '../src/app.js';
@@ -9,7 +9,7 @@ let committed = '';
 try {
   committed = readFileSync(new URL('../openapi.json', import.meta.url), 'utf8');
 } catch {
-  console.error('openapi.json is missing — run `pnpm -F api openapi:generate` and commit it.');
+  console.error('openapi.json is missing: run `pnpm -F api openapi:generate` and commit it.');
   process.exit(1);
 }
 if (generated !== committed) {

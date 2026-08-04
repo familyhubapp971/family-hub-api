@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-# Arg-count check FIRST — before unbound-var risk under set -u.
+# Arg-count check FIRST: before unbound-var risk under set -u.
 if [ "$#" -lt 1 ]; then
   echo "usage: $0 <scenario.js> [extra k6 args...]" >&2
   exit 64
@@ -28,7 +28,7 @@ fi
 scenario="$1"
 shift
 
-# Resolve report path relative to this script — not CWD.
+# Resolve report path relative to this script, not CWD.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORTS_DIR="$SCRIPT_DIR/../reports"
 mkdir -p "$REPORTS_DIR"

@@ -4,11 +4,11 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { tenants } from '../db/schema.js';
 
-// FHS-27 — GET /api/public/slug-available?slug=khan
+// FHS-27: GET /api/public/slug-available?slug=khan
 //
 // Lightweight read used by the live slug debounce on /signup
 // (FHS-225). Returns whether the slug is free + a couple of suggestions
-// when it isn't. Auth NOT required — slug availability is a yes/no
+// when it isn't. Auth NOT required: slug availability is a yes/no
 // fact about the public DNS-style namespace; leaking which slugs are
 // taken is no worse than letting people try to register them.
 //

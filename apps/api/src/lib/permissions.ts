@@ -2,16 +2,16 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { members } from '../db/schema.js';
 
-// FHS-341 — one home for the family permission checks that every route used to
+// FHS-341: one home for the family permission checks that every route used to
 // re-declare. Behaviour is unchanged from those copies; this just removes the
 // duplication so the admin/normal boundary lives in a single place.
 //
 // Two tiers of access (see ADR 0015):
-//   • canManage  — everyday access: the caller IS the member, or a parent
-//                  (admin/adult). Used for reads + current-day writes.
-//   • isAdmin    — sensitive / historical / irreversible actions only
-//                  (edit a past day, close/reopen a week, change the economy,
-//                   manage members/habits). FHS-335 / FHS-342.
+//   • canManage: everyday access. The caller IS the member, or a parent
+//     (admin/adult). Used for reads + current-day writes.
+//   • isAdmin: sensitive / historical / irreversible actions only
+//     (edit a past day, close/reopen a week, change the economy,
+//     manage members/habits). FHS-335 / FHS-342.
 
 type Db = ReturnType<typeof getDb>;
 
@@ -30,7 +30,7 @@ export async function loadCaller(db: Db, tenantId: string, userId: string): Prom
   return rows[0] ?? null;
 }
 
-/** Everyday access — the caller IS the member, or a parent (admin/adult). */
+/** Everyday access: the caller IS the member, or a parent (admin/adult). */
 export function canManage(caller: Caller, memberId: string): boolean {
   return caller.id === memberId || caller.role === 'admin' || caller.role === 'adult';
 }

@@ -2,11 +2,11 @@
  * Step bindings for tenant-isolation.feature (FHS-6).
  *
  * Three scenarios:
- *  1. Schema audit — introspects schema exports via getTableConfig; fails
+ *  1. Schema audit: introspects schema exports via getTableConfig; fails
  *     loudly if a table with tenant_id is missing from TENANT_SCOPED_TABLES.
- *  2. Cross-tenant query isolation — seeds one fixture row per tenant per
+ *  2. Cross-tenant query isolation: seeds one fixture row per tenant per
  *     table, asserts WHERE tenant_id=A never returns B's row.
- *  3. Total-row sanity — COUNT(*) on each table is 2 (one per tenant).
+ *  3. Total-row sanity: COUNT(*) on each table is 2 (one per tenant).
  */
 
 import { randomUUID } from 'node:crypto';
@@ -44,7 +44,7 @@ import {
   weekActions,
   weeks,
   worldFlagsProgress,
-  // Global tables — not scoped, used to verify they're NOT in the registry.
+  // Global tables: not scoped, used to verify they're NOT in the registry.
   users,
 } from '../../../apps/api/src/db/schema.js';
 import type { Database } from '../../../apps/api/src/db/client.js';
@@ -110,7 +110,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
 
   // ─── Scenario 1: schema audit ────────────────────────────────────────────
 
-  Scenario('Schema audit — registry matches tables with tenant_id', ({ Then, And }) => {
+  Scenario('Schema audit: registry matches tables with tenant_id', ({ Then, And }) => {
     Then('every table in TENANT_SCOPED_TABLES has a tenant_id column', () => {
       for (const table of TENANT_SCOPED_TABLES) {
         const config = getTableConfig(table);
@@ -139,7 +139,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   // ─── Scenario 2: cross-tenant query isolation ─────────────────────────────
 
   Scenario(
-    'Cross-tenant query isolation — tenant A rows never appear for tenant B',
+    'Cross-tenant query isolation: tenant A rows never appear for tenant B',
     ({ Given, Then, And }) => {
       Given(
         'tenant "A" and tenant "B" exist with one fixture row each in every scoped table',
@@ -207,7 +207,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
 
   // ─── Scenario 3: total-row sanity ─────────────────────────────────────────
 
-  Scenario('Total-row sanity — fixture inserts both rows per table', ({ Given, Then }) => {
+  Scenario('Total-row sanity: fixture inserts both rows per table', ({ Given, Then }) => {
     Given(
       'tenant "A" and tenant "B" exist with one fixture row each in every scoped table',
       async () => {

@@ -99,7 +99,7 @@ function buildAppWithProtectedRoute(
   return app;
 }
 
-describe('FHS-191 — auth middleware', () => {
+describe('FHS-191: auth middleware', () => {
   describe('public-path allowlist', () => {
     it('lets /health through without an Authorization header', async () => {
       const { resolve } = makeJwksResolver([]);
@@ -239,7 +239,7 @@ describe('FHS-191 — auth middleware', () => {
         (await app.request('/me', { headers: { Authorization: `Bearer ${tBefore}` } })).status,
       ).toBe(200);
 
-      // Simulate Supabase rotating its signing key — JWKS now publishes both.
+      // Simulate Supabase rotating its signing key: JWKS now publishes both.
       resolver.setKeys([oldKey.publicJwk, newKey.publicJwk]);
       const tAfter = await mintToken(newKey.privateKey, { kid: 'new' });
       expect(

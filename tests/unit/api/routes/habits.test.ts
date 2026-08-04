@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { habitsRouter } from '../../../../apps/api/src/routes/habits.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-292 — auth/tenant/role guards for /api/habits (sticker model). The
+// FHS-292: auth/tenant/role guards for /api/habits (sticker model). The
 // DB-backed behaviour (sticker placement, balance, week creation) is
 // covered by the myworld integration tests.
 
@@ -53,7 +53,7 @@ beforeEach(() => {
   dbMock.delete.mockReset();
 });
 
-describe('FHS-292 — GET /api/habits guards', () => {
+describe('FHS-292: GET /api/habits guards', () => {
   it('400 when no tenant context', async () => {
     const res = await buildApp({ noTenant: true }).request(`/api/habits?memberId=${MEMBER_ID}`);
     expect(res.status).toBe(400);
@@ -80,7 +80,7 @@ describe('FHS-292 — GET /api/habits guards', () => {
   });
 });
 
-describe('FHS-292 — POST /api/habits guards', () => {
+describe('FHS-292: POST /api/habits guards', () => {
   it('400 on an empty name', async () => {
     const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }]] }).request(
       '/api/habits',
@@ -104,7 +104,7 @@ describe('FHS-292 — POST /api/habits guards', () => {
   });
 });
 
-describe('FHS-292 — sticker placement guards', () => {
+describe('FHS-292: sticker placement guards', () => {
   it('400 on an out-of-range day', async () => {
     const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }]] }).request(
       `/api/habits/${HABIT_ID}/stickers`,
@@ -130,9 +130,9 @@ describe('FHS-292 — sticker placement guards', () => {
   });
 });
 
-// FHS-342 — managing the habit list is admin-only. A normal user (adult)
+// FHS-342: managing the habit list is admin-only. A normal user (adult)
 // passes membership but is rejected before the mutation.
-describe('FHS-342 — habit create/update/delete are admin-only', () => {
+describe('FHS-342: habit create/update/delete are admin-only', () => {
   it('POST a habit as a normal user → 403 ADMIN_ONLY', async () => {
     const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'adult' }]] }).request(
       '/api/habits',
@@ -157,7 +157,7 @@ describe('FHS-342 — habit create/update/delete are admin-only', () => {
   });
 });
 
-describe('FHS-292 — DELETE /api/habits/:id guards', () => {
+describe('FHS-292: DELETE /api/habits/:id guards', () => {
   it('400 on a non-UUID id', async () => {
     const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }]] }).request(
       '/api/habits/not-a-uuid',
@@ -173,11 +173,11 @@ describe('FHS-292 — DELETE /api/habits/:id guards', () => {
   });
 });
 
-// FHS-335 — editing a PAST-day sticker is admin-only; today and later days in
+// FHS-335: editing a PAST-day sticker is admin-only; today and later days in
 // the current week stay open to a normal user (adult). System clock is pinned
 // to Wed 2026-06-17, so the week's Monday is 2026-06-15:
 //   day 0 = Mon (past) · day 2 = Wed (today) · day 3 = Thu (later this week).
-describe('FHS-335 — past-day sticker edits are admin-only', () => {
+describe('FHS-335: past-day sticker edits are admin-only', () => {
   const WEEK = { startDate: '2026-06-15', isFinalized: false };
   const HABIT = { id: HABIT_ID, boost: 1 };
   const okInsert = () => ({
@@ -216,7 +216,7 @@ describe('FHS-335 — past-day sticker edits are admin-only', () => {
     expect(((await res.json()) as { errorCode: string }).errorCode).toBe('ADMIN_ONLY');
   });
   it('a child editing their OWN past day is blocked → 403 (the primary case)', async () => {
-    // caller IS the member (self), so canManage passes — the gate must still block.
+    // caller IS the member (self), so canManage passes: the gate must still block.
     const app = buildApp({
       memberChecks: [[{ id: MEMBER_ID, role: 'child' }], [{ id: MEMBER_ID }], [WEEK]],
     });
@@ -279,10 +279,10 @@ describe('FHS-335 — past-day sticker edits are admin-only', () => {
   });
 });
 
-// FHS-512 — a completed day places stickerValue = habit.boost (replaces the
+// FHS-512: a completed day places stickerValue = habit.boost (replaces the
 // old hardcoded isBonus ? 5 : 1). MONEY-CRITICAL: this is what determines how
 // many stickers (and therefore how much money) a completion is worth.
-describe('FHS-512 — sticker value comes from habit.boost', () => {
+describe('FHS-512: sticker value comes from habit.boost', () => {
   const WEEK = { startDate: '2026-06-15', isFinalized: false };
 
   function placeOn(habit: { id: string; boost: number }) {
@@ -328,8 +328,8 @@ describe('FHS-512 — sticker value comes from habit.boost', () => {
   });
 });
 
-// FHS-512 — habit create/update validation for the new money fields.
-describe('FHS-512 — habit boost + skipPenaltyMinor validation', () => {
+// FHS-512: habit create/update validation for the new money fields.
+describe('FHS-512: habit boost + skipPenaltyMinor validation', () => {
   it('400 when boost is 0 (must be at least 1)', async () => {
     const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }]] }).request(
       '/api/habits',
@@ -359,7 +359,7 @@ describe('FHS-512 — habit boost + skipPenaltyMinor validation', () => {
     expect(res.status).toBe(400);
   });
 
-  // FIX 3 (BLOCKER) — no upper bound let an oversized penalty reach
+  // FIX 3 (BLOCKER): no upper bound let an oversized penalty reach
   // Postgres' numeric(12,2) column and 500.
   it('400 when skipPenaltyMinor exceeds the cap (100000 = 1000.00)', async () => {
     const res = await buildApp({ memberChecks: [[{ id: 'caller', role: 'admin' }]] }).request(

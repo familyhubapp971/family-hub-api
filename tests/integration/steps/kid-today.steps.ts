@@ -1,7 +1,7 @@
 /**
  * Step bindings for kid-today.feature (FHS-355).
  *
- * A logged-in kid's Today shows their OWN active habits — never another
+ * A logged-in kid's Today shows their OWN active habits: never another
  * member's, never archived ones. Real kid token against real Postgres.
  */
 
@@ -15,7 +15,7 @@ import { getTestDb } from '../support/db.js';
 
 vi.mock('../../../apps/api/src/db/client.js', () => ({
   getDb: () => getTestDb(),
-  // FHS-354 — pin is a no-op here (tests run as the superuser, which bypasses RLS).
+  // FHS-354: pin is a no-op here (tests run as the superuser, which bypasses RLS).
   pinRequestTenant: async () => {},
 }));
 

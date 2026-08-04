@@ -147,7 +147,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   }
 
   async function seedHabit(slug: string, name: string, memberName: string, isBonus: boolean) {
-    // FHS-512 — stickerValue comes from `boost` now; set it explicitly since
+    // FHS-512: stickerValue comes from `boost` now; set it explicitly since
     // this direct DB insert bypasses the API's isBonus→boost derivation.
     const [row] = await db
       .insert(habits)

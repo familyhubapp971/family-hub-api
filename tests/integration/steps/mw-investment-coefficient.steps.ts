@@ -1,7 +1,7 @@
 /**
  * Step bindings for mw-investment-coefficient.feature (FHS-534).
  *
- * Real Postgres on :5433 — proves the per-investment coefficient behaviour:
+ * Real Postgres on :5433, proves the per-investment coefficient behaviour:
  * a chosen preset (1/2/3/5) is persisted on the mw_investments row AND
  * pushed onto the invested habit's `boost` (the invest→pay link), omitting
  * it falls back to the legacy default of 5, daily growth uses the
@@ -154,7 +154,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     return rows[0]?.boost;
   }
 
-  // FHS-517 — the stored sticker_value for one (habit, member, day). Placing a
+  // FHS-517: the stored sticker_value for one (habit, member, day). Placing a
   // sticker sets stickerValue = the habit's current boost, so re-tapping the
   // same day after the boost changed upserts the new value.
   async function dayStickerValue(
@@ -236,7 +236,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       .returning();
     memberIds[name] = row!.id;
     // Seed saved stickers so the child can fund a 10-sticker investment
-    // without placing 10 habit stickers first — the placed-sticker
+    // without placing 10 habit stickers first: the placed-sticker
     // scenarios below need day counts to stay exactly at the number the
     // maturation assertions expect, while the create endpoint draws the
     // principal savings-first.
@@ -455,14 +455,14 @@ describeFeature(feature, ({ Background, Scenario }) => {
       );
       Then('the withdraw response withdrawn stickers is {int}', (_c, n: number) =>
         // 10 invested + 7 completed*2 (coefficient) - 0 missed = 24 available;
-        // withdrawing 10 must succeed and report exactly 10 — a hardcoded
+        // withdrawing 10 must succeed and report exactly 10: a hardcoded
         // +5/day rate would still allow this (24 or 45 both cover 10), so the
         // remaining-balance assertion below is what actually pins the rate.
         expect(lastWithdraw.body['withdrawnStickers']).toBe(n),
       );
       And('the withdraw response remaining stickers is {int}', (_c, n: number) =>
         // 24 total - 10 withdrawn = 14. A hardcoded +5/day rate would leave
-        // 45 - 10 = 35 instead — this is the assertion that actually proves
+        // 45 - 10 = 35 instead: this is the assertion that actually proves
         // the withdraw recompute used the investment's own coefficient.
         expect(lastWithdraw.body['remainingStickers']).toBe(n),
       );
@@ -527,7 +527,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       });
       Then('{string} first investment is worth {int} stickers', (_c, _m: string, n: number) => {
         // 10 invested + 7 completed*5 (the investment's OWN snapshotted
-        // coefficient) - 0 missed = 45 — unaffected by the habit-boost edit
+        // coefficient) - 0 missed = 45: unaffected by the habit-boost edit
         // below. A leaked boost of 2 would give 10 + 7*2 = 24 instead.
         expect(investmentValueStickers).toBe(n);
       });

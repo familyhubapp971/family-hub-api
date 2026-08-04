@@ -1,10 +1,10 @@
-// FHS-395 — unit tests for apps/api/src/lib/logic-progress.ts
+// FHS-395: unit tests for apps/api/src/lib/logic-progress.ts
 //
 // Tests server-authoritative grading: correct answer increments count,
 // cert awarded at CERTIFICATE_THRESHOLD, wrong answer leaves count unchanged,
 // second cert attempt is idempotent (returns false).
 //
-// No real Postgres — all DB calls use minimal inline mocks.
+// No real Postgres: all DB calls use minimal inline mocks.
 
 import { describe, it, expect, vi } from 'vitest';
 
@@ -45,7 +45,7 @@ const MEMBER = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 // ─── Question bank shape ──────────────────────────────────────────────────────
 
-describe('logic-questions — question bank sanity', () => {
+describe('logic-questions: question bank sanity', () => {
   it('has questions for every gameType × difficulty', () => {
     const counts = getQuestionCounts();
     const gameTypes = ['truefalse', 'patterns', 'oddoneout', 'ifthen', 'sorting'] as const;
@@ -76,7 +76,7 @@ describe('logic-questions — question bank sanity', () => {
 
 // ─── gradeAndRecord ───────────────────────────────────────────────────────────
 
-describe('gradeAndRecord — correct answer increments count', () => {
+describe('gradeAndRecord: correct answer increments count', () => {
   it('increments correctCount on a right answer', async () => {
     // Grab a real question so we can submit the real answer.
     const { getRawQuestions } = await import('../../../../apps/api/src/lib/logic-questions.js');
@@ -157,13 +157,13 @@ describe('gradeAndRecord — correct answer increments count', () => {
     // comboCorrect = existingCount + 0 (delta=0 on wrong answers).
     expect(result.comboCorrect).toBe(existingCount);
     expect(result.certificateEarned).toBe(false);
-    // insert IS now called — to increment totalAttempts.
+    // insert IS now called: to increment totalAttempts.
     expect(insert).toHaveBeenCalledOnce();
     expect(onConflictDoUpdate).toHaveBeenCalledOnce();
   });
 });
 
-describe('gradeAndRecord — certificate at CERTIFICATE_THRESHOLD', () => {
+describe('gradeAndRecord: certificate at CERTIFICATE_THRESHOLD', () => {
   it(`awards a cert when correctCount reaches ${CERTIFICATE_THRESHOLD}`, async () => {
     const { getRawQuestions } = await import('../../../../apps/api/src/lib/logic-questions.js');
     const questions = getRawQuestions('truefalse', 'hard');
@@ -250,7 +250,7 @@ describe('gradeAndRecord — certificate at CERTIFICATE_THRESHOLD', () => {
   });
 });
 
-describe('gradeAndRecord — unknown question throws', () => {
+describe('gradeAndRecord: unknown question throws', () => {
   it('throws with "Question not found" message for bad questionId', async () => {
     const { insert } = makeInsertMock([]);
     const db = {
@@ -264,9 +264,9 @@ describe('gradeAndRecord — unknown question throws', () => {
   });
 });
 
-// ─── upsertProgress — attempt counter (FHS-401) ──────────────────────────────
+// ─── upsertProgress: attempt counter (FHS-401) ──────────────────────────────
 
-describe('upsertProgress — totalAttempts counter', () => {
+describe('upsertProgress: totalAttempts counter', () => {
   it('increments totalAttempts on correct answer (delta=1, attemptsDelta=1)', async () => {
     const { upsertProgress } = await import('../../../../apps/api/src/lib/logic-progress.js');
 
@@ -330,9 +330,9 @@ describe('upsertProgress — totalAttempts counter', () => {
   });
 });
 
-// ─── awardCertificate — idempotency ──────────────────────────────────────────
+// ─── awardCertificate: idempotency ──────────────────────────────────────────
 
-describe('awardCertificate — idempotent', () => {
+describe('awardCertificate: idempotent', () => {
   it('returns false when cert already exists (onConflictDoNothing returns [])', async () => {
     const onConflictDoNothing = vi.fn().mockReturnValue({
       returning: vi.fn().mockResolvedValue([]), // empty = already existed

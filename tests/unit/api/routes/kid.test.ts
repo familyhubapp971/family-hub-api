@@ -4,9 +4,9 @@ import { buildApp } from '../../../../apps/api/src/app.js';
 import { config } from '../../../../apps/api/src/config.js';
 import { KID_ISSUER } from '../../../../apps/api/src/middleware/kid-auth.js';
 
-// FHS-257 — GET /api/kid/me on the REAL app. Proves /api/kid is excluded
+// FHS-257: GET /api/kid/me on the REAL app. Proves /api/kid is excluded
 // from the parent (ES256) auth middleware and served by the kid HS256
-// stack instead — i.e. the issuer↔consumer loop closes end to end.
+// stack instead: i.e. the issuer↔consumer loop closes end to end.
 
 const KEY = new TextEncoder().encode(config.KID_AUTH_SECRET);
 const MEMBER_ID = '44444444-4444-4444-8444-444444444444';
@@ -23,7 +23,7 @@ async function mintKidToken(secondsFromNow = 3600): Promise<string> {
     .sign(KEY);
 }
 
-describe('FHS-257 — GET /api/kid/me (real app wiring)', () => {
+describe('FHS-257: GET /api/kid/me (real app wiring)', () => {
   it('serves a valid kid token without the parent JWKS path', async () => {
     const token = await mintKidToken();
     const res = await buildApp().request('/api/kid/me', {
@@ -61,7 +61,7 @@ describe('FHS-257 — GET /api/kid/me (real app wiring)', () => {
   });
 });
 
-describe('FHS-371 — GET /api/kid/learn/:subject/questions subtopic', () => {
+describe('FHS-371: GET /api/kid/learn/:subject/questions subtopic', () => {
   it('400 for an invalid subtopic value', async () => {
     const token = await mintKidToken();
     const res = await buildApp().request('/api/kid/learn/Logic/questions?subtopic=bogus', {

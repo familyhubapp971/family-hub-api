@@ -184,7 +184,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   }
 
-  // Helper used by several scenarios — seeds a task for the caller's
+  // Helper used by several scenarios: seeds a task for the caller's
   // member id (looked up by user_id).
   async function seedCallerTask(slug: string, title: string, dueDate?: string) {
     const callerRows = await db
@@ -409,7 +409,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   });
 
   Scenario(
-    "Tenant isolation — another tenant's tasks never appear",
+    "Tenant isolation: another tenant's tasks never appear",
     ({ Given, And, When, Then }) => {
       let res: Response;
       let body: ListResponse;

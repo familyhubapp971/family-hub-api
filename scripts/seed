@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ./scripts/seed — populate the dev database with fake tenants + users.
+# ./scripts/seed: populate the dev database with fake tenants + users.
 #
 # Idempotent: safe to re-run. Until Sprint 1 lands the tenants/users
 # tables (ADR 0001), this is a no-op that warns the schema isn't ready.
@@ -14,7 +14,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 if [[ ! -f .env.local ]]; then
-  echo "✗ .env.local missing — run ./scripts/dev first to bootstrap." >&2
+  echo "✗ .env.local missing: run ./scripts/dev first to bootstrap." >&2
   exit 1
 fi
 

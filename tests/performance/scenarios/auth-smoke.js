@@ -1,4 +1,4 @@
-// FHS-197 — k6 auth-smoke scenario.
+// FHS-197: k6 auth-smoke scenario.
 //
 // Logs in once via Supabase password grant (in setup()), then hammers
 // GET /api/me with the bearer token for 30 s. Records p95 baseline so
@@ -13,11 +13,11 @@
 //          tests/performance/scenarios/auth-smoke.js
 //
 // Required env vars (from .env.local for local; CI secrets for runs):
-//   BASE_URL                — api origin (default: http://localhost:3001)
-//   SUPABASE_URL            — Supabase project base URL (or VITE_SUPABASE_URL)
-//   SUPABASE_ANON_KEY       — public anon key (or VITE_SUPABASE_ANON_KEY)
-//   E2E_USER_EMAIL          — synthetic e2e user email
-//   E2E_USER_PASSWORD       — synthetic e2e user password
+//   BASE_URL                : api origin (default: http://localhost:3001)
+//   SUPABASE_URL            : Supabase project base URL (or VITE_SUPABASE_URL)
+//   SUPABASE_ANON_KEY       : public anon key (or VITE_SUPABASE_ANON_KEY)
+//   E2E_USER_EMAIL          : synthetic e2e user email
+//   E2E_USER_PASSWORD       : synthetic e2e user password
 
 import http from 'k6/http';
 import { check, sleep, fail } from 'k6';
@@ -33,7 +33,7 @@ export const options = {
   vus: PROFILES.smoke.vus,
   duration: PROFILES.smoke.duration,
   thresholds: {
-    // Tag-scoped — only /api/me requests count against the read-budget,
+    // Tag-scoped: only /api/me requests count against the read-budget,
     // so the login round-trip in setup() doesn't skew the result.
     'http_req_duration{endpoint:me}': [`p(95)<${THRESHOLDS.p95_response}`],
     'http_req_failed{endpoint:me}': [`rate<${THRESHOLDS.max_error_rate_smoke}`],

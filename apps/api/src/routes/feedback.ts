@@ -4,7 +4,7 @@ import { getDb } from '../db/client.js';
 import { betaFeedback } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 
-// FHS-418 — beta feedback collection.
+// FHS-418: beta feedback collection.
 //
 // Single route: POST /api/feedback
 // Auth: Bearer Supabase token + x-tenant-slug (same as every other authed route).
@@ -45,10 +45,10 @@ export const feedbackResponseSchema = z.object({
 
 export const feedbackRouter = new Hono()
 
-  // POST /api/feedback — submit a beta survey response.
+  // POST /api/feedback: submit a beta survey response.
   .post('/', async (c) => {
     // getAuthenticatedUser throws only if the auth middleware wasn't mounted
-    // (a wiring bug — a 500 is the right signal there). The userRow mirror may
+    // (a wiring bug: a 500 is the right signal there). The userRow mirror may
     // legitimately be absent if the mirror sync hasn't populated yet; store a
     // null id + the auth email rather than 500'ing the submission.
     const user = getAuthenticatedUser(c);

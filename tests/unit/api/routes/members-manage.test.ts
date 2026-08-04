@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { membersRouter } from '../../../../apps/api/src/routes/members.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-276 — POST / PATCH / DELETE /api/members. Admin-only roster
+// FHS-276: POST / PATCH / DELETE /api/members. Admin-only roster
 // mutations with the last-admin guard.
 
 const dbMock = { select: vi.fn(), insert: vi.fn(), update: vi.fn(), delete: vi.fn() };
@@ -84,7 +84,7 @@ beforeEach(() => {
   dbMock.delete.mockReset();
 });
 
-describe('FHS-276 — members roster mutations', () => {
+describe('FHS-276: members roster mutations', () => {
   it('POST adds a child (admin caller) → 201', async () => {
     const app = buildApp({});
     const res = await app.request('/api/members', {
@@ -108,7 +108,7 @@ describe('FHS-276 — members roster mutations', () => {
   });
 
   it('PATCH role by a non-admin (teen) → 403, no escalation (FHS-336)', async () => {
-    // A teen/child can't change roles — including granting themselves admin.
+    // A teen/child can't change roles: including granting themselves admin.
     const app = buildApp({ callerRole: 'teen' });
     const res = await app.request(`/api/members/${TARGET_ID}`, {
       method: 'PATCH',

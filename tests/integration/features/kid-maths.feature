@@ -1,5 +1,5 @@
 Feature: Kid Maths Progression (FHS-394)
-  Real Postgres on :5433 — verifies the kid-scoped maths progress and
+  Real Postgres on :5433, verifies the kid-scoped maths progress and
   certificate endpoints. Kid identity comes from the kid token, not a
   memberId parameter. All data is scoped to tenant + member from the token.
 
@@ -30,7 +30,7 @@ Feature: Kid Maths Progression (FHS-394)
     When "Maya" GETs /api/kid/maths/certificates
     Then the certificates list contains an entry for operation "multiplication" difficulty "3"
 
-  Scenario: placement is idempotent — a second call does not duplicate rows
+  Scenario: placement is idempotent: a second call does not duplicate rows
     When "Maya" POSTs /api/kid/maths/placement with operation "division" and result tableNumber 2 correct true timeSeconds 2
     And "Maya" POSTs /api/kid/maths/placement with operation "division" and result tableNumber 2 correct true timeSeconds 2
     When "Maya" GETs /api/kid/maths/certificates
@@ -46,18 +46,18 @@ Feature: Kid Maths Progression (FHS-394)
     And "Maya" POSTs /api/kid/maths/certificates with operation "addition" difficulty "hard" totalCorrect 10
     Then the cert response has alreadyEarned true
 
-  Scenario: tenant isolation — a kid in another tenant sees zero of Maya's progress
+  Scenario: tenant isolation: a kid in another tenant sees zero of Maya's progress
     When "Maya" PUTs /api/kid/maths/progress with operation "addition" tableNumber 5 learnCompleted true
     When "Omar" GETs /api/kid/maths/progress
     Then the maths progress GET response status is 200
     And the maths progress list is empty
 
-  Scenario: tenant isolation — a kid in another tenant sees zero of Maya's certificates
+  Scenario: tenant isolation: a kid in another tenant sees zero of Maya's certificates
     When "Maya" POSTs /api/kid/maths/certificates with operation "multiplication" difficulty "6" totalCorrect 10
     When "Omar" GETs /api/kid/maths/certificates
     Then the certificates list is empty
 
-  Scenario: same-tenant member isolation — a sibling sees none of Maya's progress
+  Scenario: same-tenant member isolation: a sibling sees none of Maya's progress
     Given a sibling "Lily" in the same tenant as Maya
     When "Maya" PUTs /api/kid/maths/progress with operation "addition" tableNumber 7 learnCompleted true
     And "Maya" POSTs /api/kid/maths/certificates with operation "addition" difficulty "7" totalCorrect 10

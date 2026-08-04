@@ -1,5 +1,5 @@
-Feature: My World — per-investment coefficient (FHS-534)
-  Real Postgres on :5433 — verifies that a parent-chosen coefficient (preset
+Feature: My World: per-investment coefficient (FHS-534)
+  Real Postgres on :5433, verifies that a parent-chosen coefficient (preset
   1/2/3/5) on an investment is persisted on the mw_investments row AND pushed
   onto the invested habit's `boost` (the invest→pay link), that omitting the
   coefficient falls back to the legacy default of 5, that daily growth uses
@@ -58,7 +58,7 @@ Feature: My World — per-investment coefficient (FHS-534)
     Then "Ali" first investment is worth 45 stickers
     And "Read" habit boost is 2
 
-  # FHS-517 — a placed day-sticker stores stickerValue = the habit's boost at
+  # FHS-517: a placed day-sticker stores stickerValue = the habit's boost at
   # the time. Re-tapping the same day after the boost changed must re-price it
   # to the new boost (the onConflictDoUpdate upsert in POST /habits/:id/stickers).
   Scenario: Re-tapping a day's sticker after the boost changed picks up the new boost

@@ -1,8 +1,8 @@
-// FHS-283 — the Learn lesson question bank.
+// FHS-283: the Learn lesson question bank.
 //
 // Server-side so grading is authoritative: the GET endpoint sends questions
 // WITHOUT the answer, and the POST endpoint grades a chosen index against this
-// bank. Subjects with an interactive lesson are Maths / Science / Logic — World
+// bank. Subjects with an interactive lesson are Maths / Science / Logic: World
 // Flags keeps its own dedicated experience (FHS-284 / earlier).
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
@@ -10,7 +10,7 @@ export const DIFFICULTIES: readonly Difficulty[] = ['easy', 'medium', 'hard'];
 
 /**
  * Correct answers needed for a subject's progress to hit 100% + a certificate.
- * MVP note: repeats count — re-answering the same question correctly still
+ * MVP note: repeats count: re-answering the same question correctly still
  * advances progress (the bank is small, so this is deliberate "practice makes
  * the certificate"). Swap to first-correct-per-question dedup once the bank is
  * big enough to require distinct answers.
@@ -21,7 +21,7 @@ export const CERTIFICATE_TARGET = 10;
 export const LESSON_SUBJECTS = ['Maths', 'Science', 'Logic'] as const;
 export type LessonSubject = (typeof LESSON_SUBJECTS)[number];
 
-// FHS-371 — Logic sub-topics.
+// FHS-371: Logic sub-topics.
 export const LOGIC_SUBTOPICS = [
   { slug: 'patterns', label: 'Patterns' },
   { slug: 'odd-one-out', label: 'Odd One Out' },

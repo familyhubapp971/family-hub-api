@@ -3,7 +3,7 @@
   "info": {
     "title": "Family Hub API",
     "version": "0.1.0",
-    "description": "Multi-tenant family-coordination API. This spec is generated from the live Hono route table (FHS-356) — every endpoint here is a real, mounted route."
+    "description": "Multi-tenant family-coordination API. This spec is generated from the live Hono route table (FHS-356): every endpoint here is a real, mounted route."
   },
   "servers": [
     {
@@ -104,7 +104,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "IRREVERSIBLE — permanently deletes the caller's family and all its data; admin-only",
+        "summary": "IRREVERSIBLE: permanently deletes the caller's family and all its data; admin-only",
         "operationId": "post_api_admin_delete_account",
         "security": [
           {
@@ -133,7 +133,7 @@
         },
         "responses": {
           "200": {
-            "description": "{ deleted: true } on success. 400 CONFIRM_MISMATCH if `confirm` does not exactly equal the family name — nothing is deleted in that case",
+            "description": "{ deleted: true } on success. 400 CONFIRM_MISMATCH if `confirm` does not exactly equal the family name: nothing is deleted in that case",
             "content": {
               "application/json": {
                 "schema": {
@@ -171,7 +171,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Content-Disposition: attachment. { exportedAt, family, data } — data has one array per tenant-scoped table (e.g. members, tasks, habits, habitStickers), each row filtered to this tenant only",
+            "description": "Content-Disposition: attachment. { exportedAt, family, data }: data has one array per tenant-scoped table (e.g. members, tasks, habits, habitStickers), each row filtered to this tenant only",
             "content": {
               "application/json": {
                 "schema": {
@@ -282,7 +282,7 @@
         ],
         "responses": {
           "200": {
-            "description": "{ [key]: value } — includes appName/appSubtitle (if set) and always includes currency (from tenants.currency, default USD)",
+            "description": "{ [key]: value }: includes appName/appSubtitle (if set) and always includes currency (from tenants.currency, default USD)",
             "content": {
               "application/json": {
                 "schema": {
@@ -786,7 +786,7 @@
         ],
         "summary": "Create a calendar activity; admin/adult only",
         "operationId": "post_api_events",
-        "description": "Optional recurrenceDays (weekdays 0=Sun..6=Sat) + recurrenceEndDate turn it into a weekly-repeating series anchored on `date`. No occurrence rows are stored — GET expands the series on read.",
+        "description": "Optional recurrenceDays (weekdays 0=Sun..6=Sat) + recurrenceEndDate turn it into a weekly-repeating series anchored on `date`. No occurrence rows are stored: GET expands the series on read.",
         "security": [
           {
             "bearerAuth": []
@@ -874,7 +874,7 @@
         },
         "responses": {
           "200": {
-            "description": "201 — the created event (the series anchor, if recurring)",
+            "description": "201: the created event (the series anchor, if recurring)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1005,7 +1005,7 @@
         ],
         "summary": "Replace an event (full update); admin/adult only",
         "operationId": "put_api_events_id",
-        "description": "For a recurring series this edits the WHOLE series (start date, weekdays, end date, and all other fields) — not a single occurrence. Single-occurrence editing is a follow-up.",
+        "description": "For a recurring series this edits the WHOLE series (start date, weekdays, end date, and all other fields): not a single occurrence. Single-occurrence editing is a follow-up.",
         "parameters": [
           {
             "name": "id",
@@ -1268,7 +1268,7 @@
         },
         "responses": {
           "200": {
-            "description": "201 — the new feedback row id",
+            "description": "201: the new feedback row id",
             "content": {
               "application/json": {
                 "schema": {
@@ -1784,7 +1784,7 @@
         ],
         "summary": "Invite someone to the family",
         "operationId": "post_api_invitations",
-        "description": "role is one of admin | adult | teen | guest (default adult). Granting 'admin' requires the caller to already be an admin (403 otherwise) — FHS-486 / ADR 0019.",
+        "description": "role is one of admin | adult | teen | guest (default adult). Granting 'admin' requires the caller to already be an admin (403 otherwise): FHS-486 / ADR 0019.",
         "security": [
           {
             "bearerAuth": []
@@ -3463,7 +3463,7 @@
         },
         "responses": {
           "200": {
-            "description": "{ correct, correctAnswer, explanation, comboCorrect, certificateEarned } — comboCorrect is the running total for this gameType×difficulty",
+            "description": "{ correct, correctAnswer, explanation, comboCorrect, certificateEarned }: comboCorrect is the running total for this gameType×difficulty",
             "content": {
               "application/json": {
                 "schema": {
@@ -3521,7 +3521,7 @@
         ],
         "responses": {
           "200": {
-            "description": "certificates[] — one row per gameType×difficulty where the kid reached 10 correct answers",
+            "description": "certificates[]: one row per gameType×difficulty where the kid reached 10 correct answers",
             "content": {
               "application/json": {
                 "schema": {
@@ -3605,7 +3605,7 @@
         ],
         "responses": {
           "200": {
-            "description": "questions[] — type-specific fields for the renderer; correct answer not included",
+            "description": "questions[]: type-specific fields for the renderer; correct answer not included",
             "content": {
               "application/json": {
                 "schema": {
@@ -3726,7 +3726,7 @@
         "tags": [
           "kid"
         ],
-        "summary": "Award a certificate (idempotent — returns existing if already earned)",
+        "summary": "Award a certificate (idempotent: returns existing if already earned)",
         "operationId": "post_api_kid_maths_certificates",
         "security": [
           {
@@ -3771,7 +3771,7 @@
         },
         "responses": {
           "200": {
-            "description": "{ certificate, alreadyEarned } — 200 if already earned, 201 if newly created",
+            "description": "{ certificate, alreadyEarned }: 200 if already earned, 201 if newly created",
             "content": {
               "application/json": {
                 "schema": {
@@ -3905,7 +3905,7 @@
         },
         "responses": {
           "200": {
-            "description": "unlocked[] — the table numbers newly mastered by this call (already-mastered tables are excluded)",
+            "description": "unlocked[]: the table numbers newly mastered by this call (already-mastered tables are excluded)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4037,7 +4037,7 @@
         "tags": [
           "kid"
         ],
-        "summary": "Upsert one maths progress row — only supplied fields are updated",
+        "summary": "Upsert one maths progress row: only supplied fields are updated",
         "operationId": "put_api_kid_maths_progress",
         "security": [
           {
@@ -4719,7 +4719,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The pending request row (idempotent — returns an existing pending one)",
+            "description": "The pending request row (idempotent: returns an existing pending one)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5175,7 +5175,7 @@
         },
         "responses": {
           "200": {
-            "description": "{ explored: true } — always, even if already recorded",
+            "description": "{ explored: true }: always, even if already recorded",
             "content": {
               "application/json": {
                 "schema": {
@@ -5287,7 +5287,7 @@
         },
         "responses": {
           "200": {
-            "description": "{ completed: true } — always, even if already recorded",
+            "description": "{ completed: true }: always, even if already recorded",
             "content": {
               "application/json": {
                 "schema": {
@@ -5598,7 +5598,7 @@
         ],
         "responses": {
           "200": {
-            "description": "email and pendingEmail (FHS-510) are admin-only — a non-admin caller always gets null on both, regardless of the member's actual state.",
+            "description": "email and pendingEmail (FHS-510) are admin-only: a non-admin caller always gets null on both, regardless of the member's actual state.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5704,7 +5704,7 @@
         "tags": [
           "members"
         ],
-        "summary": "Add a family member seat (child, teen, or adult) — no login, direct roster insert",
+        "summary": "Add a family member seat (child, teen, or adult): no login, direct roster insert",
         "operationId": "post_api_members",
         "security": [
           {
@@ -5894,7 +5894,7 @@
         },
         "responses": {
           "200": {
-            "description": "{ pendingEmail } — the address the confirm link was sent to",
+            "description": "{ pendingEmail }: the address the confirm link was sent to",
             "content": {
               "application/json": {
                 "schema": {
@@ -6045,7 +6045,7 @@
         ],
         "summary": "Apply a pending email change from the emailed confirm link",
         "operationId": "post_api_members_email_change_confirm",
-        "description": "PUBLIC — the recipient may not be signed in. The token is the credential (its SHA-256 hash is matched server-side); single-use and expires 24h after the admin started the change. Sends a best-effort completion notice to the OLD address on success (never blocks this response). The web ConfirmEmail screen requires an explicit click before calling this — never auto-fires on page load, so an email link-scanner prefetch cannot burn the token.",
+        "description": "PUBLIC: the recipient may not be signed in. The token is the credential (its SHA-256 hash is matched server-side); single-use and expires 24h after the admin started the change. Sends a best-effort completion notice to the OLD address on success (never blocks this response). The web ConfirmEmail screen requires an explicit click before calling this: it never auto-fires on page load, so an email link-scanner prefetch cannot burn the token.",
         "requestBody": {
           "required": true,
           "content": {
@@ -6073,7 +6073,7 @@
         },
         "responses": {
           "200": {
-            "description": "200 on success. 410 { error: \"expired\" } if the link is missing/used/expired — the recipient should ask an admin for a new one. 502/500 { errorCode: \"EMAIL_CHANGE_APPLY_FAILED\" } on a transient failure (Supabase hiccup, or a post-apply drift) — the token may still be valid, so the caller should retry rather than treat it as expired.",
+            "description": "200 on success. 410 { error: \"expired\" } if the link is missing/used/expired: the recipient should ask an admin for a new one. 502/500 { errorCode: \"EMAIL_CHANGE_APPLY_FAILED\" } on a transient failure (Supabase hiccup, or a post-apply drift): the token may still be valid, so the caller should retry rather than treat it as expired.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6222,7 +6222,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Each item carries `deductible` — false means missed days count but apply no penalty",
+            "description": "Each item carries `deductible`: false means missed days count but apply no penalty",
             "content": {
               "application/json": {
                 "schema": {
@@ -6798,7 +6798,7 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Approve a request — admin only; deducts star_cost from the kid's savings",
+        "summary": "Approve a request: admin only; deducts star_cost from the kid's savings",
         "operationId": "post_api_mw_redemption_requests_id_approve",
         "parameters": [
           {
@@ -6852,7 +6852,7 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Decline a request — admin only; no deduction",
+        "summary": "Decline a request: admin only; no deduction",
         "operationId": "post_api_mw_redemption_requests_id_decline",
         "parameters": [
           {
@@ -7378,7 +7378,7 @@
         },
         "responses": {
           "200": {
-            "description": "201 — the new public_feedback row id",
+            "description": "201: the new public_feedback row id",
             "content": {
               "application/json": {
                 "schema": {
@@ -7655,7 +7655,7 @@
         ],
         "responses": {
           "200": {
-            "description": "currency, familyRateMinor (integer minor units, e.g. 50 = 0.50), and members[] — one row per kid with rateMinor (their override, null = uses the family default) and effectiveRateMinor (the resolved rate actually used)",
+            "description": "currency, familyRateMinor (integer minor units, e.g. 50 = 0.50), and members[]: one row per kid with rateMinor (their override, null = uses the family default) and effectiveRateMinor (the resolved rate actually used)",
             "content": {
               "application/json": {
                 "schema": {
@@ -7907,7 +7907,7 @@
         },
         "responses": {
           "200": {
-            "description": "201 — the created reward",
+            "description": "201: the created reward",
             "content": {
               "application/json": {
                 "schema": {

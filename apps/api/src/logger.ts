@@ -3,7 +3,7 @@ import { config } from './config.js';
 
 // Single-line JSON to stdout outside dev. Redaction list keeps obvious
 // secrets out of the log even if a caller passes an entire request /
-// headers object by accident — defence in depth, not a substitute for
+// headers object by accident: defence in depth, not a substitute for
 // never-log-secrets discipline.
 const baseOptions: LoggerOptions = {
   level: config.LOG_LEVEL,

@@ -5,7 +5,7 @@ import { getAuthenticatedUser } from '../middleware/auth.js';
 import { loadCaller, canManage, memberInTenant } from '../lib/permissions.js';
 import { computeMemberAnalytics } from '../lib/myworld.js';
 
-// FHS-298 / FHS-369 — My World analytics (read-only, per child). The query lives
+// FHS-298 / FHS-369: My World analytics (read-only, per child). The query lives
 // in lib/myworld.ts (computeMemberAnalytics) so the parent + kid routes share it.
 
 export const mwAnalyticsResponseSchema = z.object({

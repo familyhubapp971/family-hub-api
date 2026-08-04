@@ -5,7 +5,7 @@ import { onboardingRouter } from '../../../../apps/api/src/routes/onboarding.js'
 import { habits, members, rewards } from '../../../../apps/api/src/db/schema.js';
 import type { Tenant, User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-37 — POST /api/onboarding/complete tests. Same shape as the
+// FHS-37: POST /api/onboarding/complete tests. Same shape as the
 // FHS-91 invitations test: stub DB at the module boundary, seed user +
 // tenant context via a tiny middleware, exercise the route's branches.
 
@@ -109,7 +109,7 @@ const VALID_BODY = {
   ],
 };
 
-describe('FHS-37 — POST /api/onboarding/complete', () => {
+describe('FHS-37: POST /api/onboarding/complete', () => {
   it('returns 400 when no tenant is on the request', async () => {
     const app = buildAppWithSeed({ noTenant: true });
     const res = await app.request('/api/onboarding/complete', {
@@ -235,13 +235,13 @@ describe('FHS-37 — POST /api/onboarding/complete', () => {
     };
     expect(body.tenant.onboardingCompleted).toBe(true);
     expect(body.membersAdded).toBe(2);
-    // FHS-40 — assert the SET of tables touched inside the tx
+    // FHS-40: assert the SET of tables touched inside the tx
     // (members + habits seed + rewards seed). Order-independent so a
     // future reorder doesn't break this test.
     expect(new Set(insertedTables)).toEqual(new Set([members, habits, rewards]));
   });
 
-  it('FHS-487 — a child/teen with an age persists it; a grown-up age is dropped to null', async () => {
+  it('FHS-487: a child/teen with an age persists it; a grown-up age is dropped to null', async () => {
     const app = buildAppWithSeed();
     const updated = fixedTenant({ onboardingCompleted: true });
 
@@ -292,7 +292,7 @@ describe('FHS-37 — POST /api/onboarding/complete', () => {
     ]);
   });
 
-  it('FHS-487 — a child submitted without age persists age as null', async () => {
+  it('FHS-487: a child submitted without age persists age as null', async () => {
     const app = buildAppWithSeed();
     const updated = fixedTenant({ onboardingCompleted: true });
 
@@ -336,7 +336,7 @@ describe('FHS-37 — POST /api/onboarding/complete', () => {
     ]);
   });
 
-  it('FHS-487 — age outside 1-25 is rejected with 400', async () => {
+  it('FHS-487: age outside 1-25 is rejected with 400', async () => {
     const app = buildAppWithSeed();
     const res = await app.request('/api/onboarding/complete', {
       method: 'POST',
@@ -349,7 +349,7 @@ describe('FHS-37 — POST /api/onboarding/complete', () => {
     expect(res.status).toBe(400);
   });
 
-  it('FHS-275 — invite email on a non-adult member is rejected with 400', async () => {
+  it('FHS-275: invite email on a non-adult member is rejected with 400', async () => {
     const app = buildAppWithSeed({});
     const res = await app.request('/api/onboarding/complete', {
       method: 'POST',
@@ -363,7 +363,7 @@ describe('FHS-37 — POST /api/onboarding/complete', () => {
     expect(res.status).toBe(400);
   });
 
-  it('FHS-275 — duplicate invite emails in one submit are rejected with 400', async () => {
+  it('FHS-275: duplicate invite emails in one submit are rejected with 400', async () => {
     const app = buildAppWithSeed({});
     const res = await app.request('/api/onboarding/complete', {
       method: 'POST',
@@ -380,7 +380,7 @@ describe('FHS-37 — POST /api/onboarding/complete', () => {
     expect(res.status).toBe(400);
   });
 
-  it("FHS-275 — inviting the founder's own email is rejected with 400", async () => {
+  it("FHS-275: inviting the founder's own email is rejected with 400", async () => {
     const app = buildAppWithSeed({});
     const res = await app.request('/api/onboarding/complete', {
       method: 'POST',
@@ -394,7 +394,7 @@ describe('FHS-37 — POST /api/onboarding/complete', () => {
     expect(res.status).toBe(400);
   });
 
-  it('FHS-274 — whitespace-only yourName is rejected with 400', async () => {
+  it('FHS-274: whitespace-only yourName is rejected with 400', async () => {
     const app = buildAppWithSeed({});
     const res = await app.request('/api/onboarding/complete', {
       method: 'POST',
@@ -409,7 +409,7 @@ describe('FHS-37 — POST /api/onboarding/complete', () => {
     expect(res.status).toBe(400);
   });
 
-  it('FHS-274 — yourName renames the admin; zero others insert nothing', async () => {
+  it('FHS-274: yourName renames the admin; zero others insert nothing', async () => {
     const updated = fixedTenant();
     updated.onboardingCompleted = true;
     const app = buildAppWithSeed({});

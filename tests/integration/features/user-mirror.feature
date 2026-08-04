@@ -1,7 +1,7 @@
 Feature: users-mirror upsert (real Postgres)
   getOrCreateUser idempotently mirrors Supabase's auth.users into our
   public.users on first authenticated request. Verified end-to-end
-  against real Postgres on :5433 — covers happy path, idempotency, the
+  against real Postgres on :5433, covers happy path, idempotency, the
   email-refresh path, concurrent races, and the unique-email constraint
   edge case.
 
@@ -51,7 +51,7 @@ Feature: users-mirror upsert (real Postgres)
       | a.long.local.part.with.many.segments@example.com |
       | UPPERCASE@example.com                            |
 
-  Scenario: Email uniqueness — two different ids cannot share an email
+  Scenario: Email uniqueness: two different ids cannot share an email
     Given a user has already been created with email "shared@example.com"
     When I call getOrCreateUser with a different fresh id and email "shared@example.com"
     Then the call rejects with a unique-constraint error

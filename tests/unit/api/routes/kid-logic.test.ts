@@ -1,4 +1,4 @@
-// FHS-395 — unit tests for the kid Logic endpoints.
+// FHS-395: unit tests for the kid Logic endpoints.
 //
 // Endpoints under test:
 //   GET  /api/kid/logic/questions?gameType=&difficulty=
@@ -69,7 +69,7 @@ beforeEach(() => {
 
 // ─── Auth guards ──────────────────────────────────────────────────────────────
 
-describe('FHS-395 — auth guards', () => {
+describe('FHS-395: auth guards', () => {
   const endpoints: [string, string, object | undefined][] = [
     ['GET', '/api/kid/logic/questions?gameType=truefalse&difficulty=easy', undefined],
     [
@@ -80,12 +80,12 @@ describe('FHS-395 — auth guards', () => {
     ['GET', '/api/kid/logic/certificates', undefined],
   ];
 
-  it.each(endpoints)('%s %s — 403 with no token', async (method, path) => {
+  it.each(endpoints)('%s %s: 403 with no token', async (method, path) => {
     const res = await buildApp().request(path, { method });
     expect(res.status).toBe(403);
   });
 
-  it.each(endpoints)('%s %s — 401 with expired token', async (method, path, body) => {
+  it.each(endpoints)('%s %s: 401 with expired token', async (method, path, body) => {
     const token = await mintKidToken(-10);
     const res = await buildApp().request(path, {
       method,
@@ -95,7 +95,7 @@ describe('FHS-395 — auth guards', () => {
     expect(res.status).toBe(401);
   });
 
-  it('GET /api/kid/logic/questions — 403 with non-child scope', async () => {
+  it('GET /api/kid/logic/questions: 403 with non-child scope', async () => {
     const token = await mintNonChildToken();
     const res = await buildApp().request(
       '/api/kid/logic/questions?gameType=truefalse&difficulty=easy',
@@ -107,7 +107,7 @@ describe('FHS-395 — auth guards', () => {
 
 // ─── GET /api/kid/logic/questions ────────────────────────────────────────────
 
-describe('FHS-395 — GET /api/kid/logic/questions', () => {
+describe('FHS-395: GET /api/kid/logic/questions', () => {
   it('400 when gameType is missing', async () => {
     const token = await mintKidToken();
     const res = await buildApp().request('/api/kid/logic/questions?difficulty=easy', {
@@ -178,7 +178,7 @@ describe('FHS-395 — GET /api/kid/logic/questions', () => {
 
 // ─── POST /api/kid/logic/answer ──────────────────────────────────────────────
 
-describe('FHS-395 — POST /api/kid/logic/answer', () => {
+describe('FHS-395: POST /api/kid/logic/answer', () => {
   it('400 when body is empty', async () => {
     const token = await mintKidToken();
     const res = await buildApp().request('/api/kid/logic/answer', {
@@ -357,7 +357,7 @@ describe('FHS-395 — POST /api/kid/logic/answer', () => {
     expect(body.correct).toBe(false);
   });
 
-  // #4a — cross-combo boundary: truefalse/easy questionId submitted under sorting/easy → 400
+  // #4a: cross-combo boundary: truefalse/easy questionId submitted under sorting/easy → 400
   it('400 when truefalse/easy questionId is submitted with gameType sorting', async () => {
     const { getRawQuestions } = await import('../../../../apps/api/src/lib/logic-questions.js');
     const tfQ = getRawQuestions('truefalse', 'easy')[0]!;
@@ -366,7 +366,7 @@ describe('FHS-395 — POST /api/kid/logic/answer', () => {
     const res = await buildApp().request('/api/kid/logic/answer', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      // tfQ.id is e.g. "truefalse-easy-1" — won't be found in sorting/easy bank.
+      // tfQ.id is e.g. "truefalse-easy-1": won't be found in sorting/easy bank.
       body: JSON.stringify({
         gameType: 'sorting',
         difficulty: 'easy',
@@ -377,7 +377,7 @@ describe('FHS-395 — POST /api/kid/logic/answer', () => {
     expect(res.status).toBe(400);
   });
 
-  // #4b — replay same correct questionId 10x → comboCorrect 10 + certificateEarned true on 10th
+  // #4b: replay same correct questionId 10x → comboCorrect 10 + certificateEarned true on 10th
   it('replaying same correct questionId 10 times awards cert on 10th', async () => {
     const { getRawQuestions } = await import('../../../../apps/api/src/lib/logic-questions.js');
     const q = getRawQuestions('truefalse', 'easy')[0]!;
@@ -471,12 +471,12 @@ describe('FHS-395 — POST /api/kid/logic/answer', () => {
     expect(lastBody!.certificateEarned).toBe(true);
   });
 
-  // #4c — boolean answer (true) to a string-answer game (sorting) → correct:false
+  // #4c: boolean answer (true) to a string-answer game (sorting) → correct:false
   it('boolean answer against a string-answer sorting question returns correct:false', async () => {
     const { getRawQuestions } = await import('../../../../apps/api/src/lib/logic-questions.js');
     const sortQ = getRawQuestions('sorting', 'easy')[0]!;
 
-    // FHS-401: wrong answers call upsertProgress — mock both select and insert.
+    // FHS-401: wrong answers call upsertProgress: mock both select and insert.
     dbMock.select.mockImplementation(() => ({
       from: () => ({
         where: () => ({
@@ -508,7 +508,7 @@ describe('FHS-395 — POST /api/kid/logic/answer', () => {
     const res = await buildApp().request('/api/kid/logic/answer', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      // Sorting answers are strings (e.g. "Fruits") — boolean true must never match.
+      // Sorting answers are strings (e.g. "Fruits"): boolean true must never match.
       body: JSON.stringify({
         gameType: 'sorting',
         difficulty: 'easy',
@@ -524,7 +524,7 @@ describe('FHS-395 — POST /api/kid/logic/answer', () => {
 
 // ─── GET /api/kid/logic/certificates ─────────────────────────────────────────
 
-describe('FHS-395 — GET /api/kid/logic/certificates', () => {
+describe('FHS-395: GET /api/kid/logic/certificates', () => {
   it('200 + empty array when no certs exist', async () => {
     dbMock.select.mockImplementation(() => ({
       from: () => ({

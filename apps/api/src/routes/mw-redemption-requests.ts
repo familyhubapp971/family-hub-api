@@ -9,13 +9,13 @@ import {
   listRedemptionRequests,
 } from '../lib/myworld.js';
 
-// FHS-376 — parent-facing redemption-request inbox.
+// FHS-376: parent-facing redemption-request inbox.
 //
 // Kids ASK to redeem a reward (POST /api/kid/rewards/:id/request); those land
 // here as pending rows. An admin parent approves (deducts star_cost from the
 // kid's SAVINGS only) or declines. Reads are open to any family member; the
 // approve/decline DECISION is admin-only, SERVER-enforced (not just a hidden
-// button) — a non-admin gets 403.
+// button): a non-admin gets 403.
 //
 // Mounted at /api/mw/redemption-requests behind the normal adult auth + tenant
 // middleware (same stack as /api/mw/financial).
@@ -71,7 +71,7 @@ async function resolveCaller(
 
 export const mwRedemptionRequestsRouter = new Hono()
   // List the family's requests (?status=pending|approved|declined). ANY member
-  // of the tenant may read — no admin gate on the read.
+  // of the tenant may read: no admin gate on the read.
   .get('/', async (c) => {
     const g = await resolveCaller(c);
     if ('res' in g) return g.res;
@@ -90,7 +90,7 @@ export const mwRedemptionRequestsRouter = new Hono()
     const requests = await listRedemptionRequests(g.db, g.tenantId, status);
     return c.json(listRedemptionRequestsResponseSchema.parse({ requests }));
   })
-  // Approve a pending request — ADMIN ONLY (server-enforced). Deducts star_cost
+  // Approve a pending request: ADMIN ONLY (server-enforced). Deducts star_cost
   // from the kid's SAVINGS only; 400 if savings can't cover it (no change).
   .post('/:id/approve', async (c) => {
     const g = await resolveCaller(c);
@@ -134,7 +134,7 @@ export const mwRedemptionRequestsRouter = new Hono()
       decideRedemptionRequestResponseSchema.parse({ id: requestId, status: 'approved' }),
     );
   })
-  // Decline a pending request — ADMIN ONLY (server-enforced). No deduction.
+  // Decline a pending request: ADMIN ONLY (server-enforced). No deduction.
   .post('/:id/decline', async (c) => {
     const g = await resolveCaller(c);
     if ('res' in g) return g.res;

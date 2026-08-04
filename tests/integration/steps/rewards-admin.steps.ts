@@ -2,7 +2,7 @@
  * Step bindings for rewards-admin.feature (FHS-483).
  *
  * Real Postgres + a real signed JWT through authMiddleware (same pattern as
- * admin-panel.steps.ts) — exercises the actual admin-only guard chain
+ * admin-panel.steps.ts): exercises the actual admin-only guard chain
  * (auth -> tenant context -> tenant member -> admin role) rather than a
  * mocked db. Two tenants + two callers cover the mandatory tenant-isolation
  * scenario: a reward created under "khans" must be invisible and
@@ -108,14 +108,12 @@ describeFeature(feature, ({ Background, Scenario }) => {
   }
 
   async function seedAdult(slug: string, name: string) {
-    await db
-      .insert(members)
-      .values({
-        tenantId: tenantIds[slug]!,
-        userId: ADULT_USER_ID,
-        displayName: name,
-        role: 'adult',
-      });
+    await db.insert(members).values({
+      tenantId: tenantIds[slug]!,
+      userId: ADULT_USER_ID,
+      displayName: name,
+      role: 'adult',
+    });
   }
 
   async function ensureUser(userId: string, email: string) {
@@ -174,7 +172,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // Scenario: create ————————————————————————————————————————————————————————
+  // Scenario: create --------------------------------------------------------
 
   Scenario('An admin creates a reward', ({ When, Then, And }) => {
     When(
@@ -206,7 +204,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // Scenario: non-admin rejected on create ————————————————————————————————————
+  // Scenario: non-admin rejected on create ------------------------------------
 
   Scenario('A non-admin adult is rejected on create', ({ Given, When, Then }) => {
     Given(
@@ -234,7 +232,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // Scenario: update ————————————————————————————————————————————————————————
+  // Scenario: update --------------------------------------------------------
 
   Scenario('An admin partially updates a reward', ({ Given, When, Then, And }) => {
     Given(
@@ -272,7 +270,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // Scenario: update 404 ————————————————————————————————————————————————————
+  // Scenario: update 404 ----------------------------------------------------
 
   Scenario('Update returns 404 for a reward id that does not exist', ({ When, Then }) => {
     When('the caller updates an unknown reward id', async () => {
@@ -291,7 +289,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // Scenario: non-admin rejected on update ————————————————————————————————————
+  // Scenario: non-admin rejected on update ------------------------------------
 
   Scenario('A non-admin adult is rejected on update', ({ Given, And, When, Then }) => {
     Given(
@@ -332,7 +330,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // Scenario: archive ———————————————————————————————————————————————————————
+  // Scenario: archive -------------------------------------------------------
 
   Scenario('An admin archives (soft-deletes) a reward', ({ Given, When, Then, And }) => {
     Given(
@@ -364,7 +362,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     And(
       'the reward no longer appears in the family rewards list for tenant {string}',
       async (_c, slug: string) => {
-        // Any tenant member id satisfies GET /api/rewards's memberId param —
+        // Any tenant member id satisfies GET /api/rewards's memberId param:
         // the caller's own membership row is used here.
         const [memberRow] = await db
           .select({ id: members.id })
@@ -384,7 +382,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   });
 
-  // Scenario: delete already-archived returns 404 —————————————————————————————
+  // Scenario: delete already-archived returns 404 -----------------------------
 
   Scenario('Deleting an already-archived reward returns 404', ({ Given, And, When, Then }) => {
     Given(
@@ -425,7 +423,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // Scenario: non-admin rejected on delete ————————————————————————————————————
+  // Scenario: non-admin rejected on delete ------------------------------------
 
   Scenario('A non-admin adult is rejected on delete', ({ Given, And, When, Then }) => {
     Given(
@@ -462,10 +460,10 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // Scenario: tenant isolation ——————————————————————————————————————————————
+  // Scenario: tenant isolation ----------------------------------------------
 
   Scenario(
-    "Tenant isolation — another family cannot edit or delete this family's reward",
+    "Tenant isolation: another family cannot edit or delete this family's reward",
     ({ Given, And, When, Then }) => {
       Given(
         'a second rewards-admin tenant {string} exists with a different admin caller {string}',

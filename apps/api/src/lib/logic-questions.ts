@@ -1,4 +1,4 @@
-// FHS-395 — server-side Logic question bank.
+// FHS-395: server-side Logic question bank.
 //
 // Ported from the legacy frontend/data/logic-questions.ts. All 5 game types ×
 // 3 difficulties. Each question carries a stable `id` and the correct answer so
@@ -157,35 +157,35 @@ const srt = (
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const trueFalseEasy: Unidentified<TrueFalseQuestion>[] = [
-  tf('A dog is an animal', true, 'Yes! Dogs are animals — they are our furry friends! 🐕'),
+  tf('A dog is an animal', true, 'Yes! Dogs are animals: they are our furry friends! 🐕'),
   tf('The sun is blue', false, 'The sun looks yellow or orange, not blue! ☀️'),
   tf('Fish live in water', true, "That's right! Fish need water to breathe and swim! 🐟"),
   tf('Cats can fly', false, 'Cats are great at jumping, but they cannot fly! 🐱'),
   tf('Ice is cold', true, "Yes, ice is frozen water and it's very cold! 🧊"),
-  tf('A triangle has 4 sides', false, 'A triangle has 3 sides — "tri" means three! 🔺'),
+  tf('A triangle has 4 sides', false, 'A triangle has 3 sides: "tri" means three! 🔺'),
   tf('Bananas are yellow', true, 'Ripe bananas are usually yellow! 🍌'),
   tf('Birds have wings', true, 'Yes! All birds have wings, even penguins! 🐦'),
   tf('Elephants are small animals', false, 'Elephants are the biggest land animals! 🐘'),
   tf('The sky is green', false, 'The sky is usually blue during the day! 🌤️'),
   tf('Spiders have 8 legs', true, "That's right! Spiders always have 8 legs! 🕷️"),
   tf('Apples grow on trees', true, 'Yes! Apples grow on apple trees! 🍎'),
-  tf('Fire is cold', false, 'Fire is very hot — never touch it! 🔥'),
+  tf('Fire is cold', false, 'Fire is very hot: never touch it! 🔥'),
   tf('Cows give milk', true, 'Yes! We get milk from cows! 🐄'),
   tf('A circle has corners', false, 'A circle is perfectly round with no corners! ⭕'),
   tf('Snow is white', true, 'Fresh snow is white and fluffy! ❄️'),
   tf('Frogs can jump', true, 'Frogs are amazing jumpers! 🐸'),
-  tf('The moon is a star', false, 'The moon is not a star — it reflects light from the sun! 🌙'),
+  tf('The moon is a star', false, 'The moon is not a star: it reflects light from the sun! 🌙'),
   tf('Horses have hooves', true, 'Yes! Horses walk on their hooves! 🐴'),
   tf('Roses are flowers', true, 'Roses are beautiful flowers! 🌹'),
   tf('Rocks are soft', false, "Rocks are hard! That's what makes them rocks! 🪨"),
   tf('A car has wheels', true, 'Cars roll on wheels to move around! 🚗'),
-  tf('Turtles are fast', false, 'Turtles move very slowly — slow and steady! 🐢'),
+  tf('Turtles are fast', false, 'Turtles move very slowly: slow and steady! 🐢'),
   tf('Rain comes from clouds', true, 'Clouds hold tiny water drops that fall as rain! 🌧️'),
   tf('A square has 4 sides', true, 'A square has four equal sides! ⬛'),
   tf('Penguins live in the desert', false, 'Penguins live in cold places like Antarctica! 🐧'),
   tf('Butterflies have wings', true, 'Butterflies have beautiful colourful wings! 🦋'),
-  tf('Trees can walk', false, "Trees stay rooted in the ground — they don't walk! 🌳"),
-  tf('The ocean is salty', true, "Sea water is salty — don't drink it! 🌊"),
+  tf('Trees can walk', false, "Trees stay rooted in the ground: they don't walk! 🌳"),
+  tf('The ocean is salty', true, "Sea water is salty: don't drink it! 🌊"),
   tf('A clock tells us the time', true, 'Clocks show hours and minutes! ⏰'),
   tf('Carrots are purple', false, 'Most carrots are orange, though some are purple! 🥕'),
 ];
@@ -193,10 +193,10 @@ const trueFalseEasy: Unidentified<TrueFalseQuestion>[] = [
 const trueFalseMedium: Unidentified<TrueFalseQuestion>[] = [
   tf('Penguins can fly', false, 'Penguins are birds but they swim instead of flying! 🐧'),
   tf('Water freezes at 0°C', true, 'Yes! Water turns to ice at 0 degrees Celsius! ❄️'),
-  tf('The Earth is flat', false, 'The Earth is round like a ball — a sphere! 🌍'),
+  tf('The Earth is flat', false, 'The Earth is round like a ball: a sphere! 🌍'),
   tf('Bats are birds', false, 'Bats are actually mammals, not birds! 🦇'),
   tf('Plants need sunlight to grow', true, 'Plants use sunlight to make their food! 🌱'),
-  tf('Dolphins are fish', false, 'Dolphins are mammals — they breathe air! 🐬'),
+  tf('Dolphins are fish', false, 'Dolphins are mammals: they breathe air! 🐬'),
   tf('There are 7 days in a week', true, 'Monday to Sunday makes 7 days! 📅'),
   tf('Camels store water in their humps', false, 'Camel humps store fat, not water! 🐫'),
   tf(
@@ -215,7 +215,7 @@ const trueFalseMedium: Unidentified<TrueFalseQuestion>[] = [
     true,
     'Yes! Diamonds are just carbon squeezed really hard! 💎',
   ),
-  tf('An octopus has 10 arms', false, 'An octopus has 8 arms — "octo" means eight! 🐙'),
+  tf('An octopus has 10 arms', false, 'An octopus has 8 arms: "octo" means eight! 🐙'),
   tf('Sound travels faster than light', false, 'Light is much faster than sound! 💡'),
   tf(
     'The Great Wall of China is visible from space',
@@ -236,9 +236,9 @@ const trueFalseMedium: Unidentified<TrueFalseQuestion>[] = [
   tf(
     'A year on Earth is exactly 365 days',
     false,
-    "It's about 365.25 days — that's why we have leap years! 📆",
+    "It's about 365.25 days: that's why we have leap years! 📆",
   ),
-  tf('Sharks are mammals', false, 'Sharks are fish — they breathe through gills! 🦈'),
+  tf('Sharks are mammals', false, 'Sharks are fish: they breathe through gills! 🦈'),
   tf('Rainbows have 7 colours', true, 'Red, orange, yellow, green, blue, indigo, and violet! 🌈'),
   tf(
     'A snail carries its home on its back',
@@ -255,10 +255,10 @@ const trueFalseMedium: Unidentified<TrueFalseQuestion>[] = [
   tf(
     'Your brain is a muscle',
     false,
-    'The brain is an organ, not a muscle — but it still needs exercise! 🧠',
+    'The brain is an organ, not a muscle, but it still needs exercise! 🧠',
   ),
   tf('Bees make honey', true, 'Bees collect nectar from flowers to make honey! 🐝'),
-  tf('A pentagon has 6 sides', false, 'A pentagon has 5 sides — "penta" means five! ⬠'),
+  tf('A pentagon has 6 sides', false, 'A pentagon has 5 sides: "penta" means five! ⬠'),
   tf('Volcanoes can erupt underwater', true, 'There are many volcanoes on the ocean floor! 🌋'),
   tf('The heart pumps blood', true, 'Your heart beats all day pumping blood through your body! ❤️'),
   tf(
@@ -282,9 +282,9 @@ const trueFalseHard: Unidentified<TrueFalseQuestion>[] = [
   tf(
     'Humans use only 10% of their brains',
     false,
-    'We use all parts of our brain — just not all at once! 🧠',
+    'We use all parts of our brain: just not all at once! 🧠',
   ),
-  tf('Glass is a liquid', false, 'Glass is actually a solid — an amorphous solid! 🪟'),
+  tf('Glass is a liquid', false, 'Glass is actually a solid: an amorphous solid! 🪟'),
   tf('Goldfish have a 3-second memory', false, 'Goldfish can remember things for months! 🐠'),
   tf('All prime numbers are odd', false, "2 is a prime number and it's even! 🔢"),
   tf(
@@ -295,7 +295,7 @@ const trueFalseHard: Unidentified<TrueFalseQuestion>[] = [
   tf(
     'Mount Everest is the tallest mountain from base to peak',
     false,
-    'Mauna Kea in Hawaii is taller from base to peak — most of it is underwater! 🏔️',
+    'Mauna Kea in Hawaii is taller from base to peak: most of it is underwater! 🏔️',
   ),
   tf(
     'Zero is an even number',
@@ -322,7 +322,7 @@ const trueFalseHard: Unidentified<TrueFalseQuestion>[] = [
     false,
     'A square has 4 angles, a pentagon has 5! ⬠',
   ),
-  tf('Peanuts are nuts', false, 'Peanuts are actually legumes — they grow underground! 🥜'),
+  tf('Peanuts are nuts', false, 'Peanuts are actually legumes: they grow underground! 🥜'),
   tf(
     'Your fingernails grow faster than your toenails',
     true,
@@ -346,7 +346,7 @@ const trueFalseHard: Unidentified<TrueFalseQuestion>[] = [
   tf(
     'A kilogram of steel is heavier than a kilogram of feathers',
     false,
-    'They both weigh the same — one kilogram! ⚖️',
+    'They both weigh the same: one kilogram! ⚖️',
   ),
   tf(
     'All squares are rhombuses',
@@ -356,16 +356,16 @@ const trueFalseHard: Unidentified<TrueFalseQuestion>[] = [
   tf(
     'The human body has 206 bones',
     true,
-    'Adult humans have 206 bones — babies have even more! 🦴',
+    'Adult humans have 206 bones: babies have even more! 🦴',
   ),
   tf('Negative numbers are less than zero', true, 'Numbers like -1, -5 are all below zero! 🔢'),
-  tf('A hexagon has 8 sides', false, 'A hexagon has 6 sides — "hex" means six! ⬡'),
+  tf('A hexagon has 8 sides', false, 'A hexagon has 6 sides: "hex" means six! ⬡'),
   tf(
     'Water is the only substance that expands when it freezes',
     true,
     'Most things shrink when cold, but ice takes up more space than water! 🧊',
   ),
-  tf('A leap year has 364 days', false, 'A leap year has 366 days — one extra day in February! 📅'),
+  tf('A leap year has 364 days', false, 'A leap year has 366 days: one extra day in February! 📅'),
   tf(
     'Clouds are made of water vapour',
     true,
@@ -389,9 +389,9 @@ const trueFalseHard: Unidentified<TrueFalseQuestion>[] = [
   tf(
     'Sound can travel through space',
     false,
-    "Space is a vacuum — there's no air for sound waves! 🚀",
+    "Space is a vacuum: there's no air for sound waves! 🚀",
   ),
-  tf('Fungi are plants', false, 'Fungi (like mushrooms) are their own kingdom — not plants! 🍄'),
+  tf('Fungi are plants', false, 'Fungi (like mushrooms) are their own kingdom: not plants! 🍄'),
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -415,13 +415,13 @@ const patternsEasy: Unidentified<PatternQuestion>[] = [
     ['🔴', '🔵', '🔴', '🔵', '?'],
     ['🔴', '🟢', '🔵', '🟡'],
     '🔴',
-    'The pattern goes red, blue, red, blue — so next is red! 🔴',
+    'The pattern goes red, blue, red, blue. So next is red! 🔴',
   ),
   pat(
     ['⭐', '⭐', '🌙', '⭐', '⭐', '?'],
     ['⭐', '🌙', '☀️', '💫'],
     '🌙',
-    'The pattern is star, star, moon — so next is moon! 🌙',
+    'The pattern is star, star, moon. So next is moon! 🌙',
   ),
   pat(
     ['1', '1', '2', '2', '3', '?'],
@@ -433,7 +433,7 @@ const patternsEasy: Unidentified<PatternQuestion>[] = [
     ['🍎', '🍊', '🍎', '🍊', '?'],
     ['🍎', '🍇', '🍌', '🍊'],
     '🍎',
-    'Apple, orange repeats — so next is apple! 🍎',
+    'Apple, orange repeats. So next is apple! 🍎',
   ),
   pat(
     ['10', '20', '30', '?'],
@@ -445,7 +445,7 @@ const patternsEasy: Unidentified<PatternQuestion>[] = [
     ['🌞', '🌧️', '🌞', '🌧️', '?'],
     ['🌞', '❄️', '🌧️', '⛈️'],
     '🌞',
-    'Sunny, rainy repeats — so next is sunny! ☀️',
+    'Sunny, rainy repeats. So next is sunny! ☀️',
   ),
   pat(
     ['5', '10', '15', '?'],
@@ -457,13 +457,13 @@ const patternsEasy: Unidentified<PatternQuestion>[] = [
     ['😊', '😊', '😢', '😊', '😊', '?'],
     ['😊', '😢', '😡', '😴'],
     '😢',
-    'Two happy, one sad repeats — next is sad! Then happy again! 😊',
+    'Two happy, one sad repeats: next is sad! Then happy again! 😊',
   ),
   pat(
     ['🔺', '🔵', '🔺', '🔵', '?'],
     ['🔺', '⬛', '🔵', '🟢'],
     '🔺',
-    'Triangle, circle, triangle, circle — next is triangle! 🔺',
+    'Triangle, circle, triangle, circle: next is triangle! 🔺',
   ),
   pat(['A', 'B', 'C', 'D', '?'], ['E', 'F', 'G', 'A'], 'E', 'The alphabet goes A, B, C, D, E! 📝'),
   pat(['3', '6', '9', '?'], ['10', '11', '12', '15'], '12', 'We add 3 each time: 3, 6, 9, 12! 🔢'),
@@ -471,7 +471,7 @@ const patternsEasy: Unidentified<PatternQuestion>[] = [
     ['🐱', '🐶', '🐱', '🐶', '?'],
     ['🐱', '🐰', '🐶', '🐸'],
     '🐱',
-    'Cat, dog, cat, dog — next is cat! 🐱',
+    'Cat, dog, cat, dog: next is cat! 🐱',
   ),
   pat(['1', '3', '5', '?'], ['6', '7', '8', '9'], '7', 'We count odd numbers: 1, 3, 5, 7! 🌟'),
   pat(
@@ -502,13 +502,13 @@ const patternsEasy: Unidentified<PatternQuestion>[] = [
     ['👋', '👏', '👋', '👏', '?'],
     ['👋', '🤝', '👏', '✌️'],
     '👋',
-    'Wave, clap repeats — next is wave! 👋',
+    'Wave, clap repeats: next is wave! 👋',
   ),
   pat(
     ['🔵', '🔴', '🔵', '🔴', '?'],
     ['🔵', '🟡', '🟢', '🔴'],
     '🔵',
-    'Blue, red alternates — next is blue! 🔵',
+    'Blue, red alternates: next is blue! 🔵',
   ),
   pat(
     ['4', '8', '12', '?'],
@@ -520,7 +520,7 @@ const patternsEasy: Unidentified<PatternQuestion>[] = [
     ['🌕', '🌑', '🌕', '🌑', '?'],
     ['🌕', '⭐', '🌑', '🌞'],
     '🌕',
-    'Full moon, new moon alternates — next is full! 🌕',
+    'Full moon, new moon alternates: next is full! 🌕',
   ),
   pat(
     ['1', '1', '1', '2', '2', '2', '3', '3', '?'],
@@ -614,7 +614,7 @@ const patternsMedium: Unidentified<PatternQuestion>[] = [
     ['🌕', '🌕', '⭐', '🌕', '🌕', '⭐', '?'],
     ['🌕', '⭐', '🌞', '🌙'],
     '🌕',
-    'Moon, moon, star repeats — next is moon! 🌕',
+    'Moon, moon, star repeats: next is moon! 🌕',
   ),
   pat(
     ['3', '6', '12', '24', '?'],
@@ -756,7 +756,7 @@ const patternsHard: Unidentified<PatternQuestion>[] = [
     ['🔴', '🔵', '🔵', '🔴', '🔵', '🔵', '🔵', '?'],
     ['🔴', '🔵', '🟢', '🟡'],
     '🔴',
-    'Red then 2 blues, red then 3 blues — next red starts the next group! 🔴',
+    'Red then 2 blues, red then 3 blues: next red starts the next group! 🔴',
   ),
   pat(
     ['2', '6', '12', '20', '?'],
@@ -804,7 +804,7 @@ const patternsHard: Unidentified<PatternQuestion>[] = [
     ['🔺', '🔺', '⬛', '🔺', '🔺', '🔺', '⬛', '?'],
     ['🔺', '⬛', '🔵', '🟢'],
     '🔺',
-    'The triangles grow: 2 tri, square, 3 tri, square — next starts 4 triangles! 🔺',
+    'The triangles grow: 2 tri, square, 3 tri, square: next starts 4 triangles! 🔺',
   ),
   pat(
     ['10', '11', '13', '16', '20', '?'],
@@ -846,7 +846,7 @@ const patternsHard: Unidentified<PatternQuestion>[] = [
     ['2', '5', '10', '17', '26', '?'],
     ['33', '35', '37', '39'],
     '37',
-    'Differences are 3,5,7,9,11 — next adds 11 = 37! 🧮',
+    'Differences are 3,5,7,9,11: next adds 11 = 37! 🧮',
   ),
   pat(
     ['100', '50', '25', '?'],
@@ -864,7 +864,7 @@ const patternsHard: Unidentified<PatternQuestion>[] = [
     ['🔺', '⬛', '⬛', '🔺', '⬛', '⬛', '⬛', '?'],
     ['🔺', '⬛', '🔵', '🟢'],
     '🔺',
-    'Triangle then 2 squares, triangle then 3 squares — next triangle starts group! 🔺',
+    'Triangle then 2 squares, triangle then 3 squares: next triangle starts group! 🔺',
   ),
   pat(
     ['2', '4', '8', '14', '22', '?'],
@@ -1182,11 +1182,7 @@ const oddOneOutHard: Unidentified<OddOneOutQuestion>[] = [
     '🐙',
     'An octopus is an invertebrate! The others are all vertebrates! 🦴',
   ),
-  odd(
-    ['🎸', '🎻', '🎹', '🥁'],
-    '🥁',
-    'You hit drums — no strings! The others all have strings! 🎵',
-  ),
+  odd(['🎸', '🎻', '🎹', '🥁'], '🥁', 'You hit drums: no strings! The others all have strings! 🎵'),
   odd(
     ['Earth', 'Mars', 'Jupiter', 'Moon'],
     'Moon',
@@ -1383,7 +1379,7 @@ const ifThenEasy: Unidentified<IfThenQuestion>[] = [
   ),
   ift(
     'If you throw a stone in water...',
-    'Stones are heavy — what happens when heavy things go in water? 💦',
+    'Stones are heavy: what happens when heavy things go in water? 💦',
     ['It makes a splash 💦', 'It flies up ⬆️', 'It disappears 💨', 'It sings 🎵'],
     'It makes a splash 💦',
     'Stones are heavy and go splash into the water! 🌊',
@@ -1519,7 +1515,7 @@ const ifThenMedium: Unidentified<IfThenQuestion>[] = [
   ),
   ift(
     'If all fish live in water, and a goldfish is a fish...',
-    'A goldfish belongs to the "fish" group — where do all fish live? 💧',
+    'A goldfish belongs to the "fish" group: where do all fish live? 💧',
     [
       'It lives in water 💧',
       'It lives on land 🏔️',
@@ -1593,7 +1589,7 @@ const ifThenMedium: Unidentified<IfThenQuestion>[] = [
   ),
   ift(
     'If mammals breathe air, and dolphins are mammals...',
-    'Dolphins are in the "mammals" group — what does that mean they do? 🐬',
+    'Dolphins are in the "mammals" group: what does that mean they do? 🐬',
     [
       'Dolphins breathe air',
       'Dolphins breathe water',
@@ -1608,7 +1604,7 @@ const ifThenMedium: Unidentified<IfThenQuestion>[] = [
     'Count the sides! Does it match what a square has? 📐',
     ['Not a square ❌', 'A square ✅', 'A circle ⭕', 'A triangle 🔺'],
     'Not a square ❌',
-    "5 sides means it can't be a square — it might be a pentagon! ⬠",
+    "5 sides means it can't be a square: it might be a pentagon! ⬠",
   ),
   ift(
     'If you eat too many sweets without brushing...',
@@ -1620,7 +1616,7 @@ const ifThenMedium: Unidentified<IfThenQuestion>[] = [
       'Nothing happens 🤷',
     ],
     'You might get cavities 🦷',
-    'Sugar can cause tooth decay — always brush! 🪥',
+    'Sugar can cause tooth decay: always brush! 🪥',
   ),
   ift(
     'If all roses are flowers, and all flowers are plants...',
@@ -1655,10 +1651,10 @@ const ifThenMedium: Unidentified<IfThenQuestion>[] = [
   ),
   ift(
     'If no reptiles have fur, and snakes are reptiles...',
-    'Snakes are in the "reptiles" group — what do reptiles NOT have? 🐍',
+    'Snakes are in the "reptiles" group: what do reptiles NOT have? 🐍',
     ["Snakes don't have fur", 'Snakes have lots of fur', 'Snakes are mammals', 'Snakes are birds'],
     "Snakes don't have fur",
-    "No reptiles have fur, so snakes don't either — they have scales! 🐍",
+    "No reptiles have fur, so snakes don't either: they have scales! 🐍",
   ),
   ift(
     'If the pattern is 2, 4, 6, 8, the next number is...',
@@ -1695,14 +1691,14 @@ const ifThenMedium: Unidentified<IfThenQuestion>[] = [
   ),
   ift(
     'If every child in class has a pencil, and Liam is in the class...',
-    'Liam is one of the children — so what does he have? ✏️',
+    'Liam is one of the children, so what does he have? ✏️',
     ['Liam has a pencil ✏️', 'Liam has a pen 🖊️', 'Liam has nothing ❌', 'Liam is not in class 🚫'],
     'Liam has a pencil ✏️',
     'Every child has one, and Liam is a child in the class! ✏️',
   ),
   ift(
     'If all vehicles have wheels, and a bicycle is a vehicle...',
-    'Bicycles are in the "vehicles" group — what do all vehicles have? 🚲',
+    'Bicycles are in the "vehicles" group: what do all vehicles have? 🚲',
     [
       'A bicycle has wheels 🚲',
       'A bicycle flies ✈️',
@@ -1736,7 +1732,7 @@ const ifThenMedium: Unidentified<IfThenQuestion>[] = [
       'Red things are always trucks',
     ],
     'A fire truck is round? Not necessarily!',
-    'This is tricky! Not all red things are actually round — the rule might be wrong! 🤔',
+    'This is tricky! Not all red things are actually round: the rule might be wrong! 🤔',
   ),
   ift(
     'If there are 12 months, and we are in the 6th month...',
@@ -1779,7 +1775,7 @@ const ifThenMedium: Unidentified<IfThenQuestion>[] = [
       'It will rain',
     ],
     'The ice cream will melt 🍦',
-    'Heat melts ice cream — eat it fast on hot days! ☀️',
+    'Heat melts ice cream: eat it fast on hot days! ☀️',
   ),
   ift(
     'If 10 children share 30 sweets equally...',
@@ -1798,7 +1794,7 @@ const ifThenMedium: Unidentified<IfThenQuestion>[] = [
 const ifThenHard: Unidentified<IfThenQuestion>[] = [
   ift(
     'If no birds are reptiles, and all eagles are birds...',
-    'Eagles are birds — and birds are NOT in the reptile group! 🦅',
+    'Eagles are birds, and birds are NOT in the reptile group! 🦅',
     [
       'No eagles are reptiles',
       'All eagles are reptiles',
@@ -1850,7 +1846,7 @@ const ifThenHard: Unidentified<IfThenQuestion>[] = [
   ),
   ift(
     'If all planets orbit the Sun, and Mars is a planet...',
-    'Mars is in the "planets" group — what do all planets do? ☀️',
+    'Mars is in the "planets" group: what do all planets do? ☀️',
     [
       'Mars orbits the Sun ☀️',
       'Mars orbits the Moon 🌙',
@@ -1862,7 +1858,7 @@ const ifThenHard: Unidentified<IfThenQuestion>[] = [
   ),
   ift(
     'If something is a mammal, it does NOT lay eggs (usually). A chicken lays eggs...',
-    "Mammals don't lay eggs. Chickens DO lay eggs — so what does that tell you? 🐔",
+    "Mammals don't lay eggs. Chickens DO lay eggs, so what does that tell you? 🐔",
     [
       'A chicken is not a mammal',
       'A chicken is a mammal',
@@ -1888,7 +1884,7 @@ const ifThenHard: Unidentified<IfThenQuestion>[] = [
   ),
   ift(
     'If all squares are rectangles, but not all rectangles are squares...',
-    'Squares are special rectangles — but can a rectangle be different from a square? 📐',
+    'Squares are special rectangles, but can a rectangle be different from a square? 📐',
     [
       'A rectangle might not be a square',
       'All rectangles are squares',
@@ -1921,7 +1917,7 @@ const ifThenHard: Unidentified<IfThenQuestion>[] = [
   ),
   ift(
     'If mixing yellow and blue makes green, and you have yellow and blue...',
-    'You have both colours needed — what can you make? 🎨',
+    'You have both colours needed: what can you make? 🎨',
     [
       'You can make green 💚',
       'You can make red ❤️',
@@ -1952,7 +1948,7 @@ const ifThenHard: Unidentified<IfThenQuestion>[] = [
   ),
   ift(
     'If Sarah has 12 sweets and shares equally with 3 friends (4 people total)...',
-    'Be careful! Count Sarah too — 4 people total share 12 sweets! 🍬',
+    'Be careful! Count Sarah too: 4 people total share 12 sweets! 🍬',
     [
       'Each person gets 3 sweets',
       'Each person gets 4 sweets',
@@ -1992,10 +1988,10 @@ const ifThenHard: Unidentified<IfThenQuestion>[] = [
   ),
   ift(
     'If you face north and turn 180 degrees...',
-    '180 degrees is a half turn — you end up facing the opposite way! 🧭',
+    '180 degrees is a half turn: you end up facing the opposite way! 🧭',
     ['You face south', 'You face east', 'You face west', 'You face north'],
     'You face south',
-    '180 degrees is a half turn — north becomes south! 🧭',
+    '180 degrees is a half turn: north becomes south! 🧭',
   ),
   ift(
     'If 2 painters paint a room in 6 hours, 4 painters could paint it in about...',
@@ -2013,7 +2009,7 @@ const ifThenHard: Unidentified<IfThenQuestion>[] = [
   ),
   ift(
     "If it's 3:45pm and you wait 30 minutes...",
-    'Add 30 minutes to 3:45 — what time do you get? ⏰',
+    'Add 30 minutes to 3:45: what time do you get? ⏰',
     ["It's 4:15pm ⏰", "It's 4:45pm ⏰", "It's 3:15pm ⏰", "It's 4:00pm ⏰"],
     "It's 4:15pm ⏰",
     '3:45 + 30 minutes = 4:15! ⏰',
@@ -2023,7 +2019,7 @@ const ifThenHard: Unidentified<IfThenQuestion>[] = [
     'Look at the last digit: what does 137 end in? 🔢',
     ['Odd', 'Even', 'Neither', 'Both'],
     'Odd',
-    "137 ends in 7, which is not in the list — so it's odd! 🔢",
+    "137 ends in 7, which is not in the list, so it's odd! 🔢",
   ),
   ift(
     'If speed = distance ÷ time, and you travel 100km in 2 hours...',
@@ -2072,7 +2068,7 @@ const sortingEasy: Unidentified<SortingQuestion>[] = [
     '🐶 Dog',
     ['🐾 Animals', '🏠 Objects'],
     '🐾 Animals',
-    'Dogs are living animals — our best friends! 🐕',
+    'Dogs are living animals: our best friends! 🐕',
   ),
   srt(
     '🪑 Chair',
@@ -2170,7 +2166,7 @@ const sortingEasy: Unidentified<SortingQuestion>[] = [
     '🐸 Frog',
     ['🐾 Animals', '🏠 Objects'],
     '🐾 Animals',
-    'Frogs are amphibians — they live in water and on land! 🐸',
+    'Frogs are amphibians: they live in water and on land! 🐸',
   ),
   srt(
     '🍑 Peach',
@@ -2235,7 +2231,7 @@ const sortingMedium: Unidentified<SortingQuestion>[] = [
     '🐘 Elephant',
     ['🏡 Land Animals', '🌊 Sea Animals'],
     '🏡 Land Animals',
-    "Elephants walk on land — they're the biggest land animal! 🐘",
+    "Elephants walk on land: they're the biggest land animal! 🐘",
   ),
   srt(
     '☕ Hot Chocolate',
@@ -2247,7 +2243,7 @@ const sortingMedium: Unidentified<SortingQuestion>[] = [
     '🍦 Ice Cream',
     ['🔥 Hot Things', '❄️ Cold Things'],
     '❄️ Cold Things',
-    'Ice cream is frozen and cold — perfect for summer! 🍦',
+    'Ice cream is frozen and cold: perfect for summer! 🍦',
   ),
   srt(
     '🌋 Volcano',
@@ -2259,7 +2255,7 @@ const sortingMedium: Unidentified<SortingQuestion>[] = [
     '❄️ Snowflake',
     ['🔥 Hot Things', '❄️ Cold Things'],
     '❄️ Cold Things',
-    'Snowflakes are frozen ice crystals — very cold! ❄️',
+    'Snowflakes are frozen ice crystals: very cold! ❄️',
   ),
   srt(
     '🐎 Horse',
@@ -2283,7 +2279,7 @@ const sortingMedium: Unidentified<SortingQuestion>[] = [
     '🧊 Ice Cube',
     ['🔥 Hot Things', '❄️ Cold Things'],
     '❄️ Cold Things',
-    'Ice cubes are frozen water — super cold! 🧊',
+    'Ice cubes are frozen water: super cold! 🧊',
   ),
   srt(
     '🐍 Snake',
@@ -2301,7 +2297,7 @@ const sortingMedium: Unidentified<SortingQuestion>[] = [
     '🔥 Campfire',
     ['🔥 Hot Things', '❄️ Cold Things'],
     '🔥 Hot Things',
-    "Campfires are very hot — don't get too close! 🏕️",
+    "Campfires are very hot: don't get too close! 🏕️",
   ),
   srt(
     '🍧 Frozen Yogurt',
@@ -2355,7 +2351,7 @@ const sortingMedium: Unidentified<SortingQuestion>[] = [
     '🐻‍❄️ Polar Bear',
     ['🏡 Land Animals', '🌊 Sea Animals'],
     '🏡 Land Animals',
-    'Polar bears walk on ice and land — they swim but live on shore! 🐻‍❄️',
+    'Polar bears walk on ice and land: they swim but live on shore! 🐻‍❄️',
   ),
   srt(
     '🥤 Iced Lemonade',
@@ -2385,7 +2381,7 @@ const sortingMedium: Unidentified<SortingQuestion>[] = [
     '🧊 Glacier',
     ['🔥 Hot Things', '❄️ Cold Things'],
     '❄️ Cold Things',
-    'Glaciers are massive rivers of ice — extremely cold! 🏔️',
+    'Glaciers are massive rivers of ice: extremely cold! 🏔️',
   ),
 ];
 
@@ -2400,13 +2396,13 @@ const sortingHard: Unidentified<SortingQuestion>[] = [
     '🪨 Rock',
     ['🏊 Things That Float', '⬇️ Things That Sink'],
     '⬇️ Things That Sink',
-    'Rocks are heavy and dense — they sink! 🪨',
+    'Rocks are heavy and dense: they sink! 🪨',
   ),
   srt(
     '🌸 Flower',
     ['🌿 Living Things', '🔩 Non-Living Things'],
     '🌿 Living Things',
-    'Flowers are alive — they grow, drink water, and bloom! 🌺',
+    'Flowers are alive: they grow, drink water, and bloom! 🌺',
   ),
   srt(
     '🪑 Chair',
@@ -2424,19 +2420,19 @@ const sortingHard: Unidentified<SortingQuestion>[] = [
     '🔑 Metal Key',
     ['🏊 Things That Float', '⬇️ Things That Sink'],
     '⬇️ Things That Sink',
-    'Metal is heavy and dense — it sinks! 🔑',
+    'Metal is heavy and dense: it sinks! 🔑',
   ),
   srt(
     '🐛 Caterpillar',
     ['🌿 Living Things', '🔩 Non-Living Things'],
     '🌿 Living Things',
-    'Caterpillars are alive — they eat, move, and become butterflies! 🦋',
+    'Caterpillars are alive: they eat, move, and become butterflies! 🦋',
   ),
   srt(
     '📱 Phone',
     ['🌿 Living Things', '🔩 Non-Living Things'],
     '🔩 Non-Living Things',
-    'Phones are machines made by people — not alive! 📱',
+    'Phones are machines made by people: not alive! 📱',
   ),
   srt(
     '🏐 Beach Ball',
@@ -2454,25 +2450,25 @@ const sortingHard: Unidentified<SortingQuestion>[] = [
     '🌳 Tree',
     ['🌿 Living Things', '🔩 Non-Living Things'],
     '🌿 Living Things',
-    'Trees are alive — they grow, breathe, and provide shade! 🌳',
+    'Trees are alive: they grow, breathe, and provide shade! 🌳',
   ),
   srt(
     '🧱 Brick',
     ['🌿 Living Things', '🔩 Non-Living Things'],
     '🔩 Non-Living Things',
-    'Bricks are made from clay — not alive! 🧱',
+    'Bricks are made from clay: not alive! 🧱',
   ),
   srt(
     '🍂 Leaf',
     ['🏊 Things That Float', '⬇️ Things That Sink'],
     '🏊 Things That Float',
-    'Leaves are light and flat — they float on water! 🍃',
+    'Leaves are light and flat: they float on water! 🍃',
   ),
   srt(
     '⚓ Anchor',
     ['🏊 Things That Float', '⬇️ Things That Sink'],
     '⬇️ Things That Sink',
-    "Anchors are made to be heavy and sink — that's their job! ⚓",
+    "Anchors are made to be heavy and sink: that's their job! ⚓",
   ),
   srt(
     '🐞 Ladybug',
@@ -2496,7 +2492,7 @@ const sortingHard: Unidentified<SortingQuestion>[] = [
     '🌱 Seedling',
     ['🌿 Living Things', '🔩 Non-Living Things'],
     '🌿 Living Things',
-    'Seedlings are baby plants — very much alive! 🌱',
+    'Seedlings are baby plants: very much alive! 🌱',
   ),
   srt(
     '🎈 Balloon',
@@ -2508,19 +2504,19 @@ const sortingHard: Unidentified<SortingQuestion>[] = [
     '🔨 Hammer',
     ['🏊 Things That Float', '⬇️ Things That Sink'],
     '⬇️ Things That Sink',
-    'Hammers are heavy metal tools — they sink! 🔨',
+    'Hammers are heavy metal tools: they sink! 🔨',
   ),
   srt(
     '🦠 Bacteria',
     ['🌿 Living Things', '🔩 Non-Living Things'],
     '🌿 Living Things',
-    'Bacteria are tiny living organisms — too small to see! 🔬',
+    'Bacteria are tiny living organisms: too small to see! 🔬',
   ),
   srt(
     '🧲 Magnet',
     ['🌿 Living Things', '🔩 Non-Living Things'],
     '🔩 Non-Living Things',
-    "Magnets are metal objects — they attract iron but aren't alive! 🧲",
+    "Magnets are metal objects: they attract iron but aren't alive! 🧲",
   ),
   srt(
     '🪶 Feather',
@@ -2550,7 +2546,7 @@ const sortingHard: Unidentified<SortingQuestion>[] = [
     '🍄 Mushroom',
     ['🌿 Living Things', '🔩 Non-Living Things'],
     '🌿 Living Things',
-    'Mushrooms are living fungi — they grow and reproduce! 🍄',
+    'Mushrooms are living fungi: they grow and reproduce! 🍄',
   ),
   srt(
     '🛟 Life Ring',
@@ -2562,7 +2558,7 @@ const sortingHard: Unidentified<SortingQuestion>[] = [
     '💻 Laptop',
     ['🌿 Living Things', '🔩 Non-Living Things'],
     '🔩 Non-Living Things',
-    'Laptops are electronic devices — smart but not alive! 💻',
+    'Laptops are electronic devices: smart but not alive! 💻',
   ),
   srt(
     '🏀 Basketball',
@@ -2578,7 +2574,7 @@ const sortingHard: Unidentified<SortingQuestion>[] = [
 
 /**
  * Stamp stable, scoped IDs onto a builder array.
- * Format: `${gameType}-${difficulty}-${1-based-index}` — stable against
+ * Format: `${gameType}-${difficulty}-${1-based-index}`: stable against
  * reorders and insertions within a combo. A future change to position 3 only
  * shifts ids for that combo, never another, and the grader always looks up by
  * id within the (gameType, difficulty) bank.
@@ -2620,7 +2616,7 @@ const BANK: Record<LogicGameType, Record<LogicDifficulty, LogicQuestion[]>> = {
 };
 
 /**
- * Lookup by (gameType, difficulty). Throws for unknown combos — callers should
+ * Lookup by (gameType, difficulty). Throws for unknown combos: callers should
  * validate inputs with isLogicGameType / isLogicDifficulty first.
  */
 export function getRawQuestions(
@@ -2678,7 +2674,7 @@ export function gradeLogicAnswer(
   };
 }
 
-/** Count of questions per (gameType, difficulty) — useful for testing. */
+/** Count of questions per (gameType, difficulty): useful for testing. */
 export function getQuestionCounts(): Record<LogicGameType, Record<LogicDifficulty, number>> {
   const result = {} as Record<LogicGameType, Record<LogicDifficulty, number>>;
   for (const gt of LOGIC_GAME_TYPES) {

@@ -72,7 +72,7 @@ afterEach(() => {
   _resetJwksCacheForTests();
 });
 
-describe('FHS-194 — GET /api/me', () => {
+describe('FHS-194: GET /api/me', () => {
   it('returns 401 without an Authorization header', async () => {
     const { publicJwk } = await generateEs256Key();
     const app = new Hono();
@@ -120,7 +120,7 @@ describe('FHS-194 — GET /api/me', () => {
     expect(sync).toHaveBeenCalledWith({ id: USER_ID, email: USER_EMAIL });
   });
 
-  it('FHS-357 — falls back to the direct join when app_user_memberships is missing', async () => {
+  it('FHS-357: falls back to the direct join when app_user_memberships is missing', async () => {
     const { privateKey, publicJwk } = await generateEs256Key();
     const sync = vi.fn().mockResolvedValue(FIXED_ROW);
     // The function isn't deployed → execute throws; the route must fall back.

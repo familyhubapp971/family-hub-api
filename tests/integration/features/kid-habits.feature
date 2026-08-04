@@ -1,7 +1,7 @@
 Feature: Kid read-only habits
 
   A logged-in kid reads their OWN weekly habits (FHS-374). Sticker writes
-  were removed in FHS-374 — a kid is now view-only on My World. Real kid
+  were removed in FHS-374: a kid is now view-only on My World. Real kid
   token against real Postgres.
 
   Background:

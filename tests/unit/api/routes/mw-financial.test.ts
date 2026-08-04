@@ -7,7 +7,7 @@ import {
 } from '../../../../apps/api/src/routes/mw-financial.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-295 — validation + tenant/member guards for /api/mw/financial.
+// FHS-295: validation + tenant/member guards for /api/mw/financial.
 // Save/cashout accounting is covered by the integration tier.
 
 const dbMock = { select: vi.fn() };
@@ -31,7 +31,7 @@ function buildApp(opts: { noTenant?: boolean; memberChecks?: unknown[][] } = {})
     await next();
   };
   const queue = [...(opts.memberChecks ?? [])];
-  // FHS-512 — guard() now also resolves the member's effective rate via an
+  // FHS-512: guard() now also resolves the member's effective rate via an
   // innerJoin query; the chain below supports both `.from().where().limit()`
   // and `.from().innerJoin().where().limit()` so every select() (however
   // many hops) draws its result from the same `queue`, in call order.
@@ -60,7 +60,7 @@ const json = (body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-describe('FHS-295 — GET /api/mw/financial/savings guards', () => {
+describe('FHS-295: GET /api/mw/financial/savings guards', () => {
   it('400 when memberId is missing', async () => {
     const res = await buildApp().request('/api/mw/financial/savings');
     expect(res.status).toBe(400);
@@ -91,7 +91,7 @@ describe('FHS-295 — GET /api/mw/financial/savings guards', () => {
   });
 });
 
-describe('FHS-295 — POST save / cashout guards', () => {
+describe('FHS-295: POST save / cashout guards', () => {
   it('save 400 on invalid body (bad type)', async () => {
     const res = await buildApp().request(
       '/api/mw/financial/savings',
@@ -129,8 +129,8 @@ describe('FHS-295 — POST save / cashout guards', () => {
   });
 });
 
-// FHS-296 — investment route guards
-describe('FHS-296 — GET /api/mw/financial/investments guards', () => {
+// FHS-296: investment route guards
+describe('FHS-296: GET /api/mw/financial/investments guards', () => {
   it('400 when memberId is missing', async () => {
     const res = await buildApp().request('/api/mw/financial/investments');
     expect(res.status).toBe(400);
@@ -149,7 +149,7 @@ describe('FHS-296 — GET /api/mw/financial/investments guards', () => {
   });
 });
 
-describe('FHS-296 — POST /api/mw/financial/investments guards', () => {
+describe('FHS-296: POST /api/mw/financial/investments guards', () => {
   it('400 when stickerCount is below 10', async () => {
     const res = await buildApp().request(
       '/api/mw/financial/investments',
@@ -179,7 +179,7 @@ describe('FHS-296 — POST /api/mw/financial/investments guards', () => {
     );
     expect(res.status).toBe(403);
   });
-  // FHS-534 — coefficient is a locked preset; a non-preset value is a 400 at
+  // FHS-534: coefficient is a locked preset; a non-preset value is a 400 at
   // the schema boundary, before any DB work.
   it('400 when coefficient is not one of the 1/2/3/5 presets', async () => {
     const res = await buildApp().request(
@@ -195,8 +195,8 @@ describe('FHS-296 — POST /api/mw/financial/investments guards', () => {
   });
 });
 
-// FHS-534 — the coefficient preset contract, asserted directly on the schema.
-describe('FHS-534 — createInvestmentRequestSchema coefficient', () => {
+// FHS-534: the coefficient preset contract, asserted directly on the schema.
+describe('FHS-534: createInvestmentRequestSchema coefficient', () => {
   const base = {
     memberId: MEMBER_ID,
     habitId: '22222222-2222-4222-8222-222222222222',
@@ -222,7 +222,7 @@ describe('FHS-534 — createInvestmentRequestSchema coefficient', () => {
   });
 });
 
-describe('FHS-296 — POST /api/mw/financial/investments/:id/withdraw guards', () => {
+describe('FHS-296: POST /api/mw/financial/investments/:id/withdraw guards', () => {
   it('403 when the caller is not a member', async () => {
     const res = await buildApp({ memberChecks: [[]] }).request(
       '/api/mw/financial/investments/33333333-3333-4333-8333-333333333333/withdraw',
@@ -232,8 +232,8 @@ describe('FHS-296 — POST /api/mw/financial/investments/:id/withdraw guards', (
   });
 });
 
-// FIX 1 — invest in another child's habit returns 404
-describe('FHS-296 — FIX 1: habit must belong to the requesting member', () => {
+// FIX 1: invest in another child's habit returns 404
+describe('FHS-296: FIX 1: habit must belong to the requesting member', () => {
   it('404 when the habit exists in the tenant but belongs to a different child', async () => {
     // Queue: [callerRow], [memberExistsRow], [rate row], habit lookup returns [] (not found for this member)
     const res = await buildApp({
@@ -257,13 +257,13 @@ describe('FHS-296 — FIX 1: habit must belong to the requesting member', () => 
   });
 });
 
-// FHS-378 — POST /investments/:id/settings (deductible toggle).
+// FHS-378: POST /investments/:id/settings (deductible toggle).
 //
 // Guard + validation paths use the lightweight select-only mock; the 404 / 409
 // / success transaction paths use a transaction-aware mock that drives the
 // select/update chain inside db.transaction(...). The full recalc + roll-over
 // preservation is proven against real Postgres in the integration tier.
-describe('FHS-378 — POST /investments/:id/settings guards + transaction paths', () => {
+describe('FHS-378: POST /investments/:id/settings guards + transaction paths', () => {
   const INV_ID = '33333333-3333-4333-8333-333333333333';
 
   it('400 on invalid body (missing deductible)', async () => {
@@ -389,9 +389,9 @@ describe('FHS-378 — POST /investments/:id/settings guards + transaction paths'
   });
 });
 
-// FHS-335 — manually overwriting a balance (Admin Panel) is admin-only.
+// FHS-335: manually overwriting a balance (Admin Panel) is admin-only.
 // A normal user (adult) passes membership/canManage but is then rejected.
-describe('FHS-335 — balance admin-set is admin-only', () => {
+describe('FHS-335: balance admin-set is admin-only', () => {
   it('PUT /savings/admin-set as a normal user → 403 ADMIN_ONLY', async () => {
     const res = await buildApp({
       memberChecks: [

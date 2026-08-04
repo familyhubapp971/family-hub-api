@@ -128,7 +128,7 @@ describeFeature(feature, ({ Background, Scenario, ScenarioOutline }) => {
     });
   });
 
-  // 50-concurrent fan-out scenario removed — surfaced a real race in
+  // 50-concurrent fan-out scenario removed: surfaced a real race in
   // getOrCreateUser around the email UNIQUE constraint. Tracked under
   // FHS-219; restore the scenario once that lands.
 
@@ -154,7 +154,7 @@ describeFeature(feature, ({ Background, Scenario, ScenarioOutline }) => {
   });
 
   Scenario(
-    'Email uniqueness — two different ids cannot share an email',
+    'Email uniqueness: two different ids cannot share an email',
     ({ Given, When, Then, And }) => {
       let firstId: string;
       let secondId: string;

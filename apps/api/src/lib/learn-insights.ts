@@ -1,4 +1,4 @@
-// FHS-384 — Pure aggregation helpers for the parent Learn Insights endpoint.
+// FHS-384: Pure aggregation helpers for the parent Learn Insights endpoint.
 //
 // No auth / middleware here. The route (routes/learn-insights.ts) handles all
 // auth guards, then calls `computeLearnInsights` with already-scoped
@@ -8,15 +8,15 @@
 // ALL progressPct values use Math.floor (truncate, not round). This ensures
 // the bar never "over-promises": a kid who has earned 6/48 Maths certificates
 // sees 12% (floor(12.5)), not 13% (round). It also makes expected values in
-// tests deterministic: multiply, divide, floor — no half-up surprises.
+// tests deterministic: multiply, divide, floor: no half-up surprises.
 //
 // ── Heuristics ─────────────────────────────────────────────────────────────────
-//   Maths      — ≥5 attempts: accuracy < 0.70 → flagged (certsEarned irrelevant).
+//   Maths     : ≥5 attempts: accuracy < 0.70 → flagged (certsEarned irrelevant).
 //                <5 attempts: progressPct < 25 AND avgProveTime > 10 s (proxy).
-//   Logic      — ≥5 attempts: accuracy < 0.70 → flagged (same pattern as Maths).
+//   Logic     : ≥5 attempts: accuracy < 0.70 → flagged (same pattern as Maths).
 //                <5 attempts: progressPct < 20 (proxy; no flag if 0 certs yet).
-//   Science    — totalAnswered >= 5 AND accuracy < 0.60.
-//   World Flags — 0 < explored < 10 countries (barely started).
+//   Science   : totalAnswered >= 5 AND accuracy < 0.60.
+//   World Flags: 0 < explored < 10 countries (barely started).
 //
 // ── weakest subject ────────────────────────────────────────────────────────────
 // The subject with the lowest progressPct among those with ANY activity
@@ -48,7 +48,7 @@ import type { Database } from '../db/client.js';
 
 /**
  * 4 operations × 12 tables = 48 possible Maths certificates.
- * Only numeric-difficulty rows ('1'..'12') count toward this total —
+ * Only numeric-difficulty rows ('1'..'12') count toward this total:
  * legacy 'easy'|'medium'|'hard' rows are excluded from the cert-count query.
  */
 export const MATHS_CERTS_TOTAL = 48;
@@ -66,7 +66,7 @@ export const WORLD_FLAGS_COUNTRIES_TOTAL = 197;
 /**
  * Number of continents in the World Flags dataset.
  * Matches CONTINENTS array in lib/world-flags.ts (6 entries).
- * Used as certificatesTotal for World Flags — a "certificate" = a fully
+ * Used as certificatesTotal for World Flags: a "certificate" = a fully
  * explored continent.
  */
 export const WORLD_FLAGS_CONTINENTS_TOTAL = 6;
@@ -83,25 +83,25 @@ export interface SubjectInsight {
   lastActive: string | null;
   needsHelp: boolean;
   /**
-   * FHS-401 — per-subject accuracy as a 0–100 integer (floor-rounded), or null
+   * FHS-401: per-subject accuracy as a 0–100 integer (floor-rounded), or null
    * when no attempts have been recorded yet.
    *
    * Maths:        round(totalCorrect / totalAttempts * 100) across all progress rows.
    * Logic:        round(sum(correctCount) / sum(totalAttempts) * 100) across all rows.
    * Science:      round(totalCorrect / totalAnswered * 100) from learn_progress.
-   * World Flags:  null — quiz attempt tracking not yet implemented server-side.
+   * World Flags:  null: quiz attempt tracking not yet implemented server-side.
    */
   accuracyPct: number | null;
   /**
-   * FHS-401 — World Flags only: number of continents the child has started
+   * FHS-401: World Flags only: number of continents the child has started
    * exploring in the Learn path (distinct continents with ≥1 completed chunk
    * in world_flags_learn_progress). Always 0 for non-WF subjects.
    */
   continentsExplored: number;
-  /** FHS-401 — World Flags only: total continents (6). Always 0 for non-WF subjects. */
+  /** FHS-401: World Flags only: total continents (6). Always 0 for non-WF subjects. */
   continentsTotal: number;
   /**
-   * FHS-401 — World Flags only: names of explored continents, e.g. ["Africa", "Asia"].
+   * FHS-401: World Flags only: names of explored continents, e.g. ["Africa", "Asia"].
    * Always [] for non-WF subjects.
    */
   exploredContinents: string[];
@@ -131,9 +131,9 @@ interface MathsRaw {
   lastActive: Date | null;
   /** Average proveAvgTime across all rows where proveAvgTime > 0, or 0 */
   avgProveTime: number;
-  /** FHS-401 — sum of total_correct across all mw_maths_progress rows for this kid. */
+  /** FHS-401: sum of total_correct across all mw_maths_progress rows for this kid. */
   totalCorrect: number;
-  /** FHS-401 — sum of total_attempts across all mw_maths_progress rows for this kid. */
+  /** FHS-401: sum of total_attempts across all mw_maths_progress rows for this kid. */
   totalAttempts: number;
 }
 
@@ -142,9 +142,9 @@ interface LogicRaw {
   lastActive: Date | null;
   correctByGame: Record<string, number>;
   weakestGame: string | null;
-  /** FHS-401 — sum of correct_count across all mw_logic_progress rows for this kid. */
+  /** FHS-401: sum of correct_count across all mw_logic_progress rows for this kid. */
   sumCorrect: number;
-  /** FHS-401 — sum of total_attempts across all mw_logic_progress rows for this kid. */
+  /** FHS-401: sum of total_attempts across all mw_logic_progress rows for this kid. */
   sumAttempts: number;
 }
 
@@ -166,7 +166,7 @@ interface WorldFlagsRaw {
 // ─── Per-subject DB queries ───────────────────────────────────────────────────
 
 async function fetchMaths(db: Database, tenantId: string, memberId: string): Promise<MathsRaw> {
-  // Only count numeric-difficulty certificates ('1'..'12') — excludes legacy
+  // Only count numeric-difficulty certificates ('1'..'12'): excludes legacy
   // 'easy'|'medium'|'hard' rows so certsEarned can never exceed MATHS_CERTS_TOTAL.
   const [certsRow] = await db
     .select({ certsEarned: count() })
@@ -183,7 +183,7 @@ async function fetchMaths(db: Database, tenantId: string, memberId: string): Pro
     .select({
       lastActive: max(mwMathsProgress.updatedAt),
       avgProveTime: sql<number>`coalesce(avg(nullif(${mwMathsProgress.proveAvgTime}, 0)), 0)`,
-      // FHS-401 — sum across all rows for this kid (different rows = different tables).
+      // FHS-401: sum across all rows for this kid (different rows = different tables).
       totalCorrect: sql<number>`coalesce(sum(${mwMathsProgress.totalCorrect}), 0)`,
       totalAttempts: sql<number>`coalesce(sum(${mwMathsProgress.totalAttempts}), 0)`,
     })
@@ -207,7 +207,7 @@ async function fetchLogic(db: Database, tenantId: string, memberId: string): Pro
       and(eq(mwLogicCertificates.tenantId, tenantId), eq(mwLogicCertificates.memberId, memberId)),
     );
 
-  // Progress rows grouped by game_type — for weakest game detection and accuracy sums.
+  // Progress rows grouped by game_type: for weakest game detection and accuracy sums.
   const progressRows = await db
     .select({
       gameType: mwLogicProgress.gameType,
@@ -233,7 +233,7 @@ async function fetchLogic(db: Database, tenantId: string, memberId: string): Pro
 
   const correctByGame: Record<string, number> = {};
   let lastActive: Date | null = null;
-  // FHS-401 — aggregate across all game_type rows for subject-level accuracy.
+  // FHS-401: aggregate across all game_type rows for subject-level accuracy.
   let sumCorrect = 0;
   let sumAttempts = 0;
   for (const r of progressRows) {
@@ -310,14 +310,14 @@ async function fetchWorldFlags(
       and(eq(worldFlagsProgress.tenantId, tenantId), eq(worldFlagsProgress.memberId, memberId)),
     );
 
-  // FHS-401 — distinct continent names the child has touched in the Learn path.
+  // FHS-401: distinct continent names the child has touched in the Learn path.
   // A continent is "explored" as soon as one chunk in it has been completed.
   //
   // IMPORTANT: this second `await` runs sequentially after the first query above.
   // Promise.all (in computeLearnInsights) fires all four fetchXxx concurrently,
   // but WITHIN this function the continent query always starts AFTER the progress
   // row resolves. The unit-test mock call-order (tests/unit/api/lib/learn-insights.test.ts)
-  // depends on this sequentiality — do NOT convert to a concurrent Promise.all
+  // depends on this sequentiality: do NOT convert to a concurrent Promise.all
   // inside fetchWorldFlags without re-deriving the mock slot numbers.
   const continentRows = await db
     .select({
@@ -333,7 +333,7 @@ async function fetchWorldFlags(
     )
     .groupBy(worldFlagsLearnProgress.continent);
 
-  // FHS-422 — the Learn path is activity too. A child who completed Learn chunks
+  // FHS-422: the Learn path is activity too. A child who completed Learn chunks
   // but never used Explore still has rows here; their lastActive must reflect it,
   // otherwise hasActivity stays false and Learning Insights shows "no activity".
   const exploreLastActive = row?.lastActive ?? null;
@@ -368,11 +368,11 @@ function mathsNeedsHelp(
   // FHS-401: when we have enough real signal (≥5 attempts), use accuracy alone.
   // Threshold 0.70: a kid at ~61% is genuinely struggling and should be flagged
   // even if they have 0 certs (the old certsEarned>0 guard was a proxy from
-  // before accuracy data existed — a struggling new kid is exactly who needs help).
+  // before accuracy data existed: a struggling new kid is exactly who needs help).
   if (totalAttempts >= 5) {
     return totalCorrect / totalAttempts < 0.7;
   }
-  // Fallback heuristic (brand-new kid with <5 attempts — not enough signal yet):
+  // Fallback heuristic (brand-new kid with <5 attempts: not enough signal yet):
   // don't flag until there's real data, unless certs+speed signal struggling.
   if (certsEarned === 0) return false;
   const progressPct = Math.floor((certsEarned / MATHS_CERTS_TOTAL) * 100);
@@ -380,7 +380,7 @@ function mathsNeedsHelp(
 }
 
 function logicNeedsHelp(certsEarned: number, sumCorrect: number, sumAttempts: number): boolean {
-  // FHS-401: same pattern as mathsNeedsHelp — real accuracy takes priority when
+  // FHS-401: same pattern as mathsNeedsHelp: real accuracy takes priority when
   // ≥5 attempts recorded. Threshold 0.70 (matches Maths). certsEarned=0 is NOT
   // a guard here: a struggling kid with no certs yet is exactly who needs help.
   if (sumAttempts >= 5) {
@@ -397,14 +397,14 @@ function scienceNeedsHelp(totalAnswered: number, totalCorrect: number): boolean 
 }
 
 function worldFlagsNeedsHelp(explored: number): boolean {
-  // Started exploring but < 10 countries — nudge parent.
+  // Started exploring but < 10 countries: nudge parent.
   return explored > 0 && explored < 10;
 }
 
 // ─── Tip map ─────────────────────────────────────────────────────────────────
 
 const TIPS: Record<string, string> = {
-  Maths: 'Try the Prove stage daily to build speed — even one table a day helps.',
+  Maths: 'Try the Prove stage daily to build speed: even one table a day helps.',
   Logic: 'Play logic games together; talk through the "why" behind each answer.',
   Science: 'Re-read the Learn cards before answering questions to boost accuracy.',
   'World Flags': 'Explore a new continent together and quiz each other on the flags.',
@@ -426,7 +426,7 @@ function gameTypeLabel(gameType: string): string {
 /**
  * Aggregates Learn data from four subjects for one child.
  *
- * Scoped exclusively to (tenantId, memberId) — callers must have already
+ * Scoped exclusively to (tenantId, memberId): callers must have already
  * verified the target member belongs to the caller's tenant AND is a child.
  */
 export async function computeLearnInsights(
@@ -446,7 +446,7 @@ export async function computeLearnInsights(
   // progressPct uses Math.floor (see rounding convention at top of file).
   const mathsPct = Math.min(100, Math.floor((maths.certsEarned / MATHS_CERTS_TOTAL) * 100));
   // FHS-401: accuracy = total_correct / total_attempts, null when no attempts yet.
-  // Clamped to 100 — a client sending more correct than attempts is a bug, not
+  // Clamped to 100: a client sending more correct than attempts is a bug, not
   // a reason to 500 (the Zod response schema declares max(100)).
   const mathsAccuracy =
     maths.totalAttempts > 0
@@ -524,7 +524,7 @@ export async function computeLearnInsights(
   //   since WF has no dedicated cert table; it's coherent: completing a
   //   continent is the natural "achievement". certificatesTotal = 6 continents.
   // hasActivity trigger: lastActive from world_flags_progress (any explore).
-  // FHS-401: World Flags quiz correct/attempts are NOT tracked server-side —
+  // FHS-401: World Flags quiz correct/attempts are NOT tracked server-side:
   //   world_flags_progress only records which countries were explored, not quiz
   //   answers. accuracyPct = null until a quiz-attempts table is added.
   const flagsPct = Math.min(100, Math.floor((flags.explored / WORLD_FLAGS_COUNTRIES_TOTAL) * 100));
@@ -569,7 +569,7 @@ export async function computeLearnInsights(
     if (lowest.subject === 'Logic' && logic.weakestGame) {
       detail = `${gameTypeLabel(logic.weakestGame)} (needs most practice)`;
     } else if (lowest.subject === 'Maths') {
-      detail = 'low certificate count — keep practising tables';
+      detail = 'low certificate count: keep practising tables';
     } else if (lowest.subject === 'Science') {
       const acc =
         science.totalAnswered > 0

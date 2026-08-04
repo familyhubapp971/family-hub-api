@@ -1,5 +1,5 @@
-Feature: My World — Analytics (FHS-298)
-  Real Postgres on :5433 — verifies the per-child analytics aggregation:
+Feature: My World: Analytics (FHS-298)
+  Real Postgres on :5433, verifies the per-child analytics aggregation:
   a weekly potential-value / completion trend and a habit leaderboard,
   scoped per (tenant, member).
 

@@ -6,7 +6,7 @@ afterEach(() => {
   _resetRateLimitForTests();
 });
 
-describe('FHS-170 — security middleware', () => {
+describe('FHS-170: security middleware', () => {
   describe('secure headers (AC #1)', () => {
     it('GET /health response carries the four required headers', async () => {
       const app = buildApp();

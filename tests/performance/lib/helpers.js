@@ -1,8 +1,8 @@
 // Shared k6 helpers. Imported from scenarios/.
 //
-// FHS-460 — replaced the old anonymous-only workload (which only ever hit
-// /health + /hello, and whose tenant helper sent a header —
-// `x-tenant-id` — that resolve-tenant.ts doesn't even read) with two
+// FHS-460: replaced the old anonymous-only workload (which only ever hit
+// /health + /hello, and whose tenant helper sent a header
+// (`x-tenant-id`) that resolve-tenant.ts doesn't even read) with two
 // REAL, authenticated family sessions: kidSession() and parentSession().
 // See scripts/auth.js for how the tokens they need are minted, and
 // scripts/fixtures.js for how a scenario's setup() logs everyone in once.
@@ -24,7 +24,7 @@ export function apiPost(path, body, params = {}) {
 }
 
 // Per-request status check. Latency is asserted at the threshold level
-// (config.js THRESHOLDS) — single source of truth for "what counts as
+// (config.js THRESHOLDS): single source of truth for "what counts as
 // slow", per FHS-153 self-review follow-up.
 export function checkResponse(res, label, expectedStatus = 200) {
   return check(res, {
@@ -34,7 +34,7 @@ export function checkResponse(res, label, expectedStatus = 200) {
 
 // Inline single-request latency check (fast escape valve when you
 // genuinely need a per-call assertion above the global threshold).
-// `maxMs` is required — caller must opt into the budget to avoid the
+// `maxMs` is required: caller must opt into the budget to avoid the
 // "did you mean read or write SLO?" footgun.
 export function checkLatency(res, label, maxMs) {
   if (typeof maxMs !== 'number') {
@@ -47,7 +47,7 @@ export function checkLatency(res, label, maxMs) {
   });
 }
 
-// Monday (UTC) of the week containing `date`, as YYYY-MM-DD — mirrors
+// Monday (UTC) of the week containing `date`, as YYYY-MM-DD: mirrors
 // apps/api/src/lib/myworld.ts mondayOf() exactly, so ?weekStart matches
 // what a real browser client would send for "this week".
 export function mondayOf(date) {
@@ -73,9 +73,9 @@ function parentGet(baseUrl, token, tenantSlug, path, extraTags) {
   });
 }
 
-// FHS-460 — the kid ChildWorld session: every GET the kid dashboard makes
+// FHS-460, the kid ChildWorld session: every GET the kid dashboard makes
 // on open (apps/api/src/routes/kid.ts), in the order a real kid session
-// hits them. 12 requests. /today is the kid's landing screen — tagged
+// hits them. 12 requests. /today is the kid's landing screen, tagged
 // `name:kid-today` so config.js hotScreenThresholds() can budget it
 // separately from the rest.
 export function kidSession(baseUrl, kidToken) {
@@ -105,9 +105,9 @@ export function kidSession(baseUrl, kidToken) {
   });
 }
 
-// FHS-460 — the parent dashboard session: every GET the parent Today tab
+// FHS-460, the parent dashboard session: every GET the parent Today tab
 // + its sibling tabs make on open. 7 requests. /dashboard/today is the
-// parent's landing screen — tagged `name:dashboard`. Parent calls need
+// parent's landing screen, tagged `name:dashboard`. Parent calls need
 // BOTH the Supabase bearer token AND X-Tenant-Slug (see scripts/auth.js
 // header comment for why). `kidMemberId` scopes the habits read to one
 // child, same as the My World tab does for whichever kid card is open.
@@ -133,12 +133,12 @@ export function parentSession(baseUrl, token, tenantSlug, kidMemberId) {
   });
 }
 
-// FHS-460 — fallback workload used ONLY when LOAD_FIXTURES isn't set
+// FHS-460: fallback workload used ONLY when LOAD_FIXTURES isn't set
 // (see scripts/fixtures.js). Keeps the scenario runnable (and the CI
 // wiring intact) without pretending an anonymous /health ping is a real
-// capacity test — loadFixtures() already warns loudly about this.
+// capacity test: loadFixtures() already warns loudly about this.
 export function healthOnlyFallback() {
-  group('Health only (LOAD_FIXTURES not set — not a real capacity test)', () => {
+  group('Health only (LOAD_FIXTURES not set, not a real capacity test)', () => {
     checkResponse(apiGet('/health'), 'health');
   });
 }

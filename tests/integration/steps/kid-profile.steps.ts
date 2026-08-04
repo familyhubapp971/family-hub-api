@@ -2,7 +2,7 @@
  * Step bindings for kid-profile.feature (FHS-362).
  *
  * The kid dashboard header (GET /api/kid/profile) returns the kid's OWN name,
- * avatar, and banked stars/cash — scoped to their member from the kid token,
+ * avatar, and banked stars/cash: scoped to their member from the kid token,
  * never a sibling's. Real kid token against real Postgres.
  */
 
@@ -16,7 +16,7 @@ import { getTestDb } from '../support/db.js';
 
 vi.mock('../../../apps/api/src/db/client.js', () => ({
   getDb: () => getTestDb(),
-  // FHS-354 — pin is a no-op here (tests run as the superuser, which bypasses RLS).
+  // FHS-354: pin is a no-op here (tests run as the superuser, which bypasses RLS).
   pinRequestTenant: async () => {},
 }));
 

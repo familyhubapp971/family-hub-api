@@ -167,10 +167,10 @@ describeFeature(feature, ({ Background, Scenario }) => {
     memberIds[name] = row!.id;
   }
 
-  // FIX 5 — applySkipPenalties now only penalises days on/after a habit's
+  // FIX 5: applySkipPenalties now only penalises days on/after a habit's
   // createdAt. Every OTHER scenario in this file seeds a habit and closes
   // the CURRENT (real) week expecting all 7 days to be due, regardless of
-  // which real-world weekday the test happens to run on — so seedHabit
+  // which real-world weekday the test happens to run on: so seedHabit
   // backdates createdAt well before any week's Monday by default. The
   // FIX 5 scenario passes its own createdAt to exercise the exclusion.
   const HABIT_SAFELY_BEFORE_ANY_WEEK = new Date('2020-01-01T00:00:00.000Z');
@@ -579,11 +579,11 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   });
 
-  // ── FIX 1 (BLOCKER) — floor + reopen must never fabricate money ─────────
+  // ── FIX 1 (BLOCKER): floor + reopen must never fabricate money ─────────
   //
   // The penalty (5.00) exceeds what "Ali" has saved (1.00), so close-week
   // floors the deduction to the available 1.00 and writes a compensating
-  // 'floor' audit row. Reopening must restore exactly that 1.00 — restoring
+  // 'floor' audit row. Reopening must restore exactly that 1.00: restoring
   // the full nominal 5.00 penalty would create money from nothing.
 
   Scenario(

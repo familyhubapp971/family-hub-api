@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { invitationsRouter } from '../../../../apps/api/src/routes/invitations.js';
 import type { User, PendingInvitation } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-91 — POST /api/invitations.
+// FHS-91: POST /api/invitations.
 //
 // Tests the route handler in isolation. The DB client and the Supabase
 // admin client are both stubbed at the module boundary; the resolved
@@ -86,7 +86,7 @@ interface SeedOpts {
 }
 
 function buildAppWithSeed(opts: SeedOpts = {}) {
-  // Tiny stub of (auth + resolveTenant) — sets the context vars the
+  // Tiny stub of (auth + resolveTenant): sets the context vars the
   // route reads. Avoids minting real JWTs / wiring the DB lookup
   // for tenant resolution since neither is what we're testing here.
   const seed: MiddlewareHandler = async (c, next) => {
@@ -129,7 +129,7 @@ beforeEach(() => {
 
 // ─── Tests ────────────────────────────────────────────────────────────
 
-describe('FHS-91 — POST /api/invitations', () => {
+describe('FHS-91: POST /api/invitations', () => {
   it('returns 400 when no tenant is on the request', async () => {
     const app = buildAppWithSeed({ noTenant: true });
     const res = await app.request('/api/invitations', {
@@ -175,7 +175,7 @@ describe('FHS-91 — POST /api/invitations', () => {
   });
 
   it('returns 400 when role is not in the allowlist (e.g. child)', async () => {
-    // 'child' is excluded on purpose — kids use PIN login, never a
+    // 'child' is excluded on purpose: kids use PIN login, never a
     // magic-link invite (ADR 0009 / FHS-234).
     const app = buildAppWithSeed();
     const res = await app.request('/api/invitations', {
@@ -186,7 +186,7 @@ describe('FHS-91 — POST /api/invitations', () => {
     expect(res.status).toBe(400);
   });
 
-  // FHS-486 / ADR 0019 — admin-grant safeguard: only an admin caller may
+  // FHS-486 / ADR 0019: admin-grant safeguard: only an admin caller may
   // invite someone as admin. A non-admin adult trying is a privilege
   // escalation attempt and must be rejected before anything is written.
   it('returns 403 when a non-admin adult tries to invite someone as admin', async () => {
@@ -206,7 +206,7 @@ describe('FHS-91 — POST /api/invitations', () => {
     const app = buildAppWithSeed({ callerRole: 'admin' });
     const inv = fixedInvitation({ role: 'admin', email: 'partner@example.com' });
     // Capture the persisted row (not just the echoed fixture) so the test
-    // actually proves the handler wrote role: 'admin' to the DB — otherwise
+    // actually proves the handler wrote role: 'admin' to the DB: otherwise
     // a regression that silently downgraded the grant to 'adult' would pass.
     let insertedValues: unknown = null;
     dbMock.insert.mockReturnValue({
@@ -257,7 +257,7 @@ describe('FHS-91 — POST /api/invitations', () => {
     const app = buildAppWithSeed();
     const inv = fixedInvitation();
     // Capture the values() arg so we can assert the row written to
-    // the DB has the normalised (lower-cased) email — otherwise a
+    // the DB has the normalised (lower-cased) email: otherwise a
     // regression that lower-cases only on the response would silently
     // break the partial unique index.
     let insertedValues: unknown = null;
@@ -284,7 +284,7 @@ describe('FHS-91 — POST /api/invitations', () => {
     expect(body.invitation.email).toBe('invitee@example.com'); // normalised lower-case
     expect(body.invitation.status).toBe('pending');
 
-    // The DB insert MUST receive the normalised email — the partial
+    // The DB insert MUST receive the normalised email: the partial
     // unique index uses lower(email) so a mixed-case insert would
     // collide on the second attempt only by happy accident.
     expect(insertedValues).toMatchObject({

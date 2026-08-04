@@ -127,7 +127,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   }
 
   async function seedHabit(slug: string, name: string, isBonus = false) {
-    // FHS-512 — stickerValue comes from `boost` now; set it explicitly since
+    // FHS-512: stickerValue comes from `boost` now; set it explicitly since
     // this direct DB insert bypasses the API's isBonus→boost derivation.
     const [row] = await db
       .insert(habits)
@@ -435,7 +435,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   });
 
   Scenario(
-    "Tenant isolation — another tenant's stickers never count",
+    "Tenant isolation: another tenant's stickers never count",
     ({ Given, And, When, Then }) => {
       let res: Response;
       let body: { habits: unknown[]; stickers: unknown[] };

@@ -12,7 +12,7 @@ beforeEach(() => {
 });
 
 function buildApp() {
-  // No auth middleware — slug-available is in PUBLIC_PATH_PREFIXES so
+  // No auth middleware: slug-available is in PUBLIC_PATH_PREFIXES so
   // we test the bare router. Production wiring still mounts auth, which
   // checks the prefix list and skips this path.
   const app = new Hono();
@@ -20,7 +20,7 @@ function buildApp() {
   return app;
 }
 
-describe('FHS-27 — GET /api/public/slug-available', () => {
+describe('FHS-27: GET /api/public/slug-available', () => {
   it('returns 400 when slug query param is missing', async () => {
     const res = await buildApp().request('/api/public/slug-available');
     expect(res.status).toBe(400);

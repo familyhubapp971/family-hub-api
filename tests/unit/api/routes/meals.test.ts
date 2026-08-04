@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mealsRouter } from '../../../../apps/api/src/routes/meals.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-229 — GET + POST /api/meals. DB stubbed at module boundary; user
+// FHS-229: GET + POST /api/meals. DB stubbed at module boundary; user
 // + tenant context set via a tiny middleware. POST exercises the
 // upsert + delete-on-empty paths and the role gate (admin/adult only).
 
@@ -31,7 +31,7 @@ interface SeedOpts {
   noTenant?: boolean;
   callerMissing?: boolean;
   callerRole?: string;
-  // FHS-264 — when a POST carries a memberId, the handler validates it
+  // FHS-264: when a POST carries a memberId, the handler validates it
   // belongs to the tenant. memberMissing simulates a cross-tenant /
   // unknown member (validation query returns no row).
   memberMissing?: boolean;
@@ -52,7 +52,7 @@ function buildAppWithSeed(
   let selectCallIdx = 0;
   dbMock.select.mockImplementation(() => {
     selectCallIdx += 1;
-    // 1 — caller-membership lookup
+    // 1: caller-membership lookup
     if (selectCallIdx === 1) {
       return {
         from: () => ({
@@ -67,7 +67,7 @@ function buildAppWithSeed(
         }),
       };
     }
-    // 2 — GET meals list (.orderBy) OR POST member-validation (.limit).
+    // 2: GET meals list (.orderBy) OR POST member-validation (.limit).
     return {
       from: () => ({
         where: () => ({
@@ -106,7 +106,7 @@ beforeEach(() => {
   dbMock.delete.mockReset();
 });
 
-describe('FHS-229 — GET /api/meals', () => {
+describe('FHS-229: GET /api/meals', () => {
   it('returns 400 when no tenant is on the request', async () => {
     const { app } = buildAppWithSeed({ noTenant: true });
     const res = await app.request('/api/meals');
@@ -174,7 +174,7 @@ describe('FHS-229 — GET /api/meals', () => {
   });
 });
 
-describe('FHS-229 — POST /api/meals', () => {
+describe('FHS-229: POST /api/meals', () => {
   function postBody(body: unknown): RequestInit {
     return {
       method: 'POST',
@@ -326,7 +326,7 @@ describe('FHS-229 — POST /api/meals', () => {
       postBody({ dayOfWeek: 'mon', slot: 'breakfast', name: 'X', memberId: MEMBER }),
     );
     expect(res.status).toBe(400);
-    // No write happened — validation rejected before the upsert.
+    // No write happened: validation rejected before the upsert.
     expect(dbMock.insert).not.toHaveBeenCalled();
   });
 

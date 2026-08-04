@@ -7,7 +7,7 @@ import { getAuthenticatedUser } from '../middleware/auth.js';
 import { loadCaller, canManage, memberInTenant } from '../lib/permissions.js';
 import { loadHabitsForWeek, stickerDayRelation } from '../lib/myworld.js';
 
-// FHS-292 — habits CRUD + weekly typed-sticker grid (My World).
+// FHS-292: habits CRUD + weekly typed-sticker grid (My World).
 //
 // Ported from legacy family-hub: each habit day holds a sticker TYPE
 // (gold-star / heart / magic / trophy) worth `stickerValue` (5 for bonus
@@ -17,7 +17,7 @@ import { loadHabitsForWeek, stickerDayRelation } from '../lib/myworld.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STICKER_TYPES = ['gold-star', 'heart', 'magic', 'trophy'] as const;
-// FIX 3 (BLOCKER) — no upper bound let an oversized skip penalty reach
+// FIX 3 (BLOCKER): no upper bound let an oversized skip penalty reach
 // Postgres' numeric(12,2) money column and 500. Same cap as reward-config's
 // rate fields (1000.00 in minor units).
 const SKIP_PENALTY_MINOR_MAX = 100_000;
@@ -28,7 +28,7 @@ export const habitItemSchema = z.object({
   description: z.string().nullable(),
   color: z.string(),
   icon: z.string().nullable(),
-  // FHS-512 — isBonus is now DERIVED (boost > 1), kept for back-compat.
+  // FHS-512: isBonus is now DERIVED (boost > 1), kept for back-compat.
   isBonus: z.boolean(),
   // A completed day places stickerValue = boost. 1 = normal; the Pocket
   // money screen's presets are 2/3/5.
@@ -57,13 +57,13 @@ export const listHabitsResponseSchema = z.object({
   stickers: z.array(stickerItemSchema),
   week: weekItemSchema,
   balance: z.number().int(),
-  // The family's currency (chosen at registration) — drives the cash
+  // The family's currency (chosen at registration): drives the cash
   // labels in My World (stickers convert at a fixed 0.5 per sticker).
   currency: z.string(),
 });
 
 const memberQuerySchema = z.object({ memberId: z.string().uuid() });
-// FHS-512 — `boost` replaces isBonus as the source of truth for sticker
+// FHS-512: `boost` replaces isBonus as the source of truth for sticker
 // value; isBonus is still accepted for back-compat (a bare `isBonus: true`
 // with no explicit `boost` maps to the legacy fixed bonus value of 5).
 export const createHabitRequestSchema = z.object({
@@ -110,7 +110,7 @@ function badRequest(c: any, error: z.ZodError) {
   );
 }
 
-// FHS-342 — managing the habit list (create/update/delete) is admin-only;
+// FHS-342: managing the habit list (create/update/delete) is admin-only;
 // a normal user can still tick stickers but not reshape the economy.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function adminOnly(c: any) {
@@ -120,9 +120,9 @@ function adminOnly(c: any) {
   );
 }
 
-// FHS-335 — editing a PREVIOUS day's sticker (or any day in a closed/finalized
+// FHS-335: editing a PREVIOUS day's sticker (or any day in a closed/finalized
 // week) is admin-only; that's the leaked legacy privilege we're restoring.
-// Today and the rest of the current week stay open to a normal user — the
+// Today and the rest of the current week stay open to a normal user: the
 // kids' grid lets a family tick the whole week as it's planned, as before.
 // Loads the week (scoped to tenant+member) to read its Monday + finalized flag.
 async function gateStickerDay(
@@ -189,7 +189,7 @@ export const habitsRouter = new Hono()
     const weekIdParam = c.req.query('weekId');
     const result = await loadHabitsForWeek(db, tenantId, memberId, weekIdParam ?? undefined);
     if (!result) {
-      // weekIdParam was supplied but not found — fall back to current week.
+      // weekIdParam was supplied but not found: fall back to current week.
       const fallback = await loadHabitsForWeek(db, tenantId, memberId);
       return c.json(listHabitsResponseSchema.parse(fallback!));
     }
@@ -199,11 +199,11 @@ export const habitsRouter = new Hono()
   .post('/', async (c) => {
     const ctx = await guard(c);
     if ('res' in ctx) return ctx.res;
-    if (ctx.role !== 'admin') return adminOnly(c); // FHS-342 — managing habits is admin-only
+    if (ctx.role !== 'admin') return adminOnly(c); // FHS-342: managing habits is admin-only
     const { db, tenantId, parsed } = await parseBody(c, ctx, createHabitRequestSchema);
     if ('res' in parsed) return parsed.res;
     const { memberId, name, icon, color, isBonus, boost, skipPenaltyMinor } = parsed.data;
-    // FHS-512 — `boost` is the source of truth; a bare legacy `isBonus: true`
+    // FHS-512: `boost` is the source of truth; a bare legacy `isBonus: true`
     // with no explicit boost maps to the old fixed bonus value of 5.
     const resolvedBoost = boost ?? (isBonus ? 5 : 1);
     const [row] = await db
@@ -225,7 +225,7 @@ export const habitsRouter = new Hono()
   .put('/:id', async (c) => {
     const ctx = await guard(c);
     if ('res' in ctx) return ctx.res;
-    if (ctx.role !== 'admin') return adminOnly(c); // FHS-342 — managing habits is admin-only
+    if (ctx.role !== 'admin') return adminOnly(c); // FHS-342: managing habits is admin-only
     const habitId = c.req.param('id');
     if (!UUID_RE.test(habitId)) {
       return c.json({ error: 'invalid id', detail: 'habit id must be a UUID' }, 400);
@@ -241,7 +241,7 @@ export const habitsRouter = new Hono()
       patch.boost = parsed.data.boost;
       patch.isBonus = parsed.data.isBonus ?? parsed.data.boost > 1;
     } else if (parsed.data.isBonus !== undefined) {
-      // Legacy path: no explicit boost — fall back to the old fixed values.
+      // Legacy path: no explicit boost: fall back to the old fixed values.
       patch.isBonus = parsed.data.isBonus;
       patch.boost = parsed.data.isBonus ? 5 : 1;
     }
@@ -262,7 +262,7 @@ export const habitsRouter = new Hono()
   .delete('/:id', async (c) => {
     const ctx = await guard(c);
     if ('res' in ctx) return ctx.res;
-    if (ctx.role !== 'admin') return adminOnly(c); // FHS-342 — managing habits is admin-only
+    if (ctx.role !== 'admin') return adminOnly(c); // FHS-342: managing habits is admin-only
     const habitId = c.req.param('id');
     if (!UUID_RE.test(habitId)) {
       return c.json({ error: 'invalid id', detail: 'habit id must be a UUID' }, 400);
@@ -293,7 +293,7 @@ export const habitsRouter = new Hono()
     const { db, tenantId, parsed } = await parseBody(c, ctx, placeStickerSchema);
     if ('res' in parsed) return parsed.res;
     const { memberId, weekId, day, sticker } = parsed.data;
-    // FHS-335 — editing a past day (or a closed week) is admin-only; future days blocked.
+    // FHS-335: editing a past day (or a closed week) is admin-only; future days blocked.
     const gate = await gateStickerDay(c, db, tenantId, memberId, weekId, day, ctx.role);
     if ('res' in gate) return gate.res;
     // Scope the habit lookup to this member so a caller cannot place a sticker
@@ -308,7 +308,7 @@ export const habitsRouter = new Hono()
     const habit = habitRows[0];
     if (!habit)
       return c.json({ error: 'not found', detail: 'habit not found for this member' }, 404);
-    // FHS-512 — a completed day places stickerValue = boost (generalises the
+    // FHS-512: a completed day places stickerValue = boost (generalises the
     // old isBonus ? 5 : 1).
     const stickerValue = habit.boost;
     await db
@@ -337,7 +337,7 @@ export const habitsRouter = new Hono()
     const { db, tenantId, parsed } = await parseBody(c, ctx, removeStickerSchema);
     if ('res' in parsed) return parsed.res;
     const { memberId, weekId, day } = parsed.data;
-    // FHS-335 — removing a past day's sticker (or one in a closed week) is admin-only.
+    // FHS-335: removing a past day's sticker (or one in a closed week) is admin-only.
     const gate = await gateStickerDay(c, db, tenantId, memberId, weekId, day, ctx.role);
     if ('res' in gate) return gate.res;
     await db
@@ -418,7 +418,7 @@ function toHabit(row: typeof habits.$inferSelect) {
     description: row.description,
     color: row.color,
     icon: row.icon,
-    // FHS-512 — isBonus is derived from boost so it always agrees with the
+    // FHS-512: isBonus is derived from boost so it always agrees with the
     // real sticker value, even for a row updated only via `boost`.
     isBonus: row.boost > 1,
     boost: row.boost,

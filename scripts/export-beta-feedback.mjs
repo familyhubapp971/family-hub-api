@@ -5,8 +5,8 @@
 //   pnpm feedback:export out.csv      # writes CSV to out.csv
 //
 // Sources:
-//   beta_feedback   — authenticated in-app survey (source = 'in_app')
-//   public_feedback — anonymous homepage survey  (source = 'public')
+//   beta_feedback  : authenticated in-app survey (source = 'in_app')
+//   public_feedback: anonymous homepage survey  (source = 'public')
 //
 // Zero-install: uses the `pg` driver already in the repo and reads
 // DATABASE_URL from .env.local (same place the app reads it).
@@ -23,7 +23,7 @@ try {
     }
   }
 } catch {
-  /* no .env.local — rely on the ambient environment */
+  /* no .env.local: rely on the ambient environment */
 }
 
 const connectionString = process.env.DATABASE_URL;

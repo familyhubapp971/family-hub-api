@@ -2,7 +2,7 @@ Feature: RLS enforcement (FHS-348)
 
   Row-Level Security is enabled and forced on every tenant-scoped table, keyed
   on the per-request app.current_tenant. The database returns only the current
-  family's rows — even without a tenant_id filter in the query — rejects writes
+  family's rows (even without a tenant_id filter in the query), rejects writes
   into another family, and returns nothing when no family is pinned.
 
   Background:

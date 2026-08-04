@@ -6,7 +6,7 @@ import { tenants, members, type Tenant, type Member } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 import { createLogger } from '../logger.js';
 
-// FHS-25 — POST /api/public/tenant.
+// FHS-25: POST /api/public/tenant.
 //
 // Called by the web app immediately after the magic-link callback
 // completes. The user is already authenticated (Supabase magic link
@@ -18,7 +18,7 @@ import { createLogger } from '../logger.js';
 // Returns the created tenant + member so the web client can navigate
 // straight to /onboarding without an extra round-trip.
 //
-// "public" in the path is a misnomer — it's the public *namespace* (no
+// "public" in the path is a misnomer: it's the public *namespace* (no
 // tenant context required), but auth IS required because we need a
 // user id to attach to the membership row.
 
@@ -76,7 +76,7 @@ function project(tenant: Tenant, member: Member): CreateTenantResponse {
 
 export const publicTenantRouter = new Hono().post('/', async (c) => {
   // getAuthenticatedUser asserts the request was through authMiddleware.
-  // userRow is the public.users mirror — guaranteed non-null in
+  // userRow is the public.users mirror: guaranteed non-null in
   // production wiring (the auth middleware upserts it on first hit).
   getAuthenticatedUser(c);
   const userRow = c.get('userRow');
@@ -102,7 +102,7 @@ export const publicTenantRouter = new Hono().post('/', async (c) => {
   const db = getDb();
 
   // Slug uniqueness: cheap pre-check + handle the race at insert-time.
-  // The unique index on tenants.slug (FHS-2) is the source of truth —
+  // The unique index on tenants.slug (FHS-2) is the source of truth:
   // the pre-check just lets us return a clean 409 with a useful body
   // when there's no race in flight.
   const existing = await db
@@ -117,7 +117,7 @@ export const publicTenantRouter = new Hono().post('/', async (c) => {
   let tenant: Tenant;
   let member: Member;
   try {
-    // FHS-351 — create the tenant + its founding member atomically, with the
+    // FHS-351: create the tenant + its founding member atomically, with the
     // new tenant pinned so the members RLS WITH CHECK passes. On signup there is
     // no resolved tenant yet (app.current_tenant is the empty sentinel), so
     // once the app runs as app_runtime the founding members INSERT would be
@@ -133,7 +133,7 @@ export const publicTenantRouter = new Hono().post('/', async (c) => {
       if (!t) throw new Error('tenants insert returned no row');
       await tx.execute(sql`select set_config('app.current_tenant', ${t.id}, true)`);
 
-      // The founder always lands as `admin` — they're the person who
+      // The founder always lands as `admin`: they're the person who
       // just created the family and they're the only one who can
       // complete onboarding (onboarding.ts gates Finish on
       // role === 'admin'). Inviting a second adult later assigns them

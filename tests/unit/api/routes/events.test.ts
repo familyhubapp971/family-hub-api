@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createEventRequestSchema, eventsRouter } from '../../../../apps/api/src/routes/events.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-230 — GET + POST /api/events. Same shape as the meals route
+// FHS-230: GET + POST /api/events. Same shape as the meals route
 // test: stub db at module boundary; seed user + tenant context via a
 // tiny middleware. POST exercises validation + role-gate + member
 // ownership check.
@@ -49,7 +49,7 @@ function buildAppWithSeed(
   let selectCallIdx = 0;
   dbMock.select.mockImplementation(() => {
     selectCallIdx += 1;
-    // 1 — caller-membership lookup
+    // 1: caller-membership lookup
     if (selectCallIdx === 1) {
       return {
         from: () => ({
@@ -64,7 +64,7 @@ function buildAppWithSeed(
         }),
       };
     }
-    // 2 — On GET this is the events list. On POST with memberId set it's
+    // 2: On GET this is the events list. On POST with memberId set it's
     //     the member-belongs-to-tenant check; on POST without memberId
     //     it's never called.
     if (selectCallIdx === 2) {
@@ -104,7 +104,7 @@ beforeEach(() => {
   dbMock.insert.mockReset();
 });
 
-describe('FHS-230 — GET /api/events', () => {
+describe('FHS-230: GET /api/events', () => {
   it('returns 400 when no tenant is on the request', async () => {
     const app = buildAppWithSeed({ noTenant: true });
     const res = await app.request('/api/events?weekStart=2026-05-04');
@@ -179,7 +179,7 @@ describe('FHS-230 — GET /api/events', () => {
     });
   });
 
-  // FHS-476 — the mocked select returns rows as-is; this confirms the GET
+  // FHS-476: the mocked select returns rows as-is; this confirms the GET
   // handler threads them through expandWeekOccurrences (the expansion
   // algorithm itself is covered exhaustively in
   // tests/unit/api/lib/recurrence.test.ts) and shapes the response with
@@ -224,7 +224,7 @@ describe('FHS-230 — GET /api/events', () => {
   });
 });
 
-describe('FHS-230 — POST /api/events', () => {
+describe('FHS-230: POST /api/events', () => {
   function postBody(body: unknown): RequestInit {
     return {
       method: 'POST',
@@ -400,8 +400,8 @@ describe('FHS-230 — POST /api/events', () => {
   });
 });
 
-// FHS-476 — validation for the "repeat weekly" fields.
-describe('FHS-476 — POST /api/events recurrence validation', () => {
+// FHS-476: validation for the "repeat weekly" fields.
+describe('FHS-476: POST /api/events recurrence validation', () => {
   function postBody(body: unknown): RequestInit {
     return {
       method: 'POST',
@@ -526,9 +526,9 @@ describe('FHS-476 — POST /api/events recurrence validation', () => {
   });
 });
 
-// FHS-476 — the schema's own dedup + sort transform, tested directly
+// FHS-476: the schema's own dedup + sort transform, tested directly
 // since the route-level mock DB can't observe what gets written.
-describe('createEventRequestSchema — recurrenceDays transform', () => {
+describe('createEventRequestSchema: recurrenceDays transform', () => {
   it('dedupes and sorts recurrenceDays ascending', () => {
     const parsed = createEventRequestSchema.parse({
       date: '2026-05-04',

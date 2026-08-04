@@ -9,7 +9,7 @@ import {
   KID_ISSUER,
 } from '../../../../apps/api/src/middleware/kid-auth.js';
 
-// FHS-257 — kid JWT consumer middleware. Verifies the HS256 kid token,
+// FHS-257: kid JWT consumer middleware. Verifies the HS256 kid token,
 // sets kidAuth, and provides the 403 guards for cross-routing.
 
 const SECRET = 'test-only-kid-auth-secret-at-least-32-chars-long';
@@ -59,7 +59,7 @@ function bearer(token: string): RequestInit {
   return { headers: { Authorization: `Bearer ${token}` } };
 }
 
-describe('FHS-257 — kid-only route (kidAuthMiddleware + requireKidAuth)', () => {
+describe('FHS-257: kid-only route (kidAuthMiddleware + requireKidAuth)', () => {
   it('lets a valid kid token through and populates kidAuth', async () => {
     const token = await mintKidToken();
     const res = await buildApp().request('/kid/me', bearer(token));
@@ -135,7 +135,7 @@ describe('FHS-257 — kid-only route (kidAuthMiddleware + requireKidAuth)', () =
   });
 });
 
-describe('FHS-257 — parent-only route (rejectKidTokens)', () => {
+describe('FHS-257: parent-only route (rejectKidTokens)', () => {
   it('returns 403 KID_ON_PARENT_ROUTE when a kid token hits a parent route', async () => {
     const token = await mintKidToken();
     const res = await buildApp().request('/parent/data', bearer(token));

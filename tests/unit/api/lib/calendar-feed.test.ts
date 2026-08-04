@@ -9,7 +9,7 @@ import {
   type FeedEvent,
 } from '../../../../apps/api/src/lib/calendar-feed.js';
 
-// FHS-445 — calendar sync: signed subscribe tokens + ICS generation.
+// FHS-445: calendar sync: signed subscribe tokens + ICS generation.
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_TENANT_ID = '22222222-2222-4222-8222-222222222222';
@@ -26,7 +26,7 @@ describe('generateFeedKey', () => {
   });
 });
 
-describe('signFeedToken + parseFeedToken + verifyFeedSignature — round trip', () => {
+describe('signFeedToken + parseFeedToken + verifyFeedSignature: round trip', () => {
   it('parses the tenantId back out of a freshly signed token', () => {
     const feedKey = generateFeedKey();
     const token = signFeedToken(TENANT_ID, feedKey, SECRET);
@@ -43,7 +43,7 @@ describe('signFeedToken + parseFeedToken + verifyFeedSignature — round trip', 
   });
 });
 
-describe('verifyFeedSignature — tamper + mismatch cases', () => {
+describe('verifyFeedSignature: tamper + mismatch cases', () => {
   const feedKey = generateFeedKey();
   const token = signFeedToken(TENANT_ID, feedKey, SECRET);
   const parsed = parseFeedToken(token)!;
@@ -74,7 +74,7 @@ describe('verifyFeedSignature — tamper + mismatch cases', () => {
   });
 });
 
-describe('parseFeedToken — malformed input', () => {
+describe('parseFeedToken: malformed input', () => {
   const feedKey = generateFeedKey();
   const token = signFeedToken(TENANT_ID, feedKey, SECRET);
 
@@ -140,7 +140,7 @@ describe('buildIcs', () => {
       now: NOW,
     });
     expect(ics).toContain('DTSTART;VALUE=DATE:20260705');
-    // All-day DTEND is exclusive — the next calendar day.
+    // All-day DTEND is exclusive: the next calendar day.
     expect(ics).toContain('DTEND;VALUE=DATE:20260706');
   });
 
@@ -215,7 +215,7 @@ describe('buildIcs', () => {
   });
 });
 
-describe('feedCutoffDate — the 90-day past window boundary', () => {
+describe('feedCutoffDate: the 90-day past window boundary', () => {
   const NOW = new Date('2026-07-05T12:00:00Z');
 
   it('returns the date exactly N days before now (UTC)', () => {

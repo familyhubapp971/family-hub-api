@@ -46,7 +46,7 @@ async function seed(): Promise<void> {
     .insert(members)
     .values({ tenantId, displayName: 'Admin', role: 'admin' })
     .returning();
-  // Seatless pending invite (member_id null) — claim creates the seat.
+  // Seatless pending invite (member_id null): claim creates the seat.
   await db.insert(pendingInvitations).values({
     tenantId,
     email,

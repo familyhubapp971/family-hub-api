@@ -1,5 +1,5 @@
 Feature: POST /api/invitations (FHS-91)
-  Real Postgres on :5433 — verifies the route inserts a pending
+  Real Postgres on :5433, verifies the route inserts a pending
   invitation row, the partial unique index blocks double-invites
   within a tenant, and a different tenant can still invite the same
   email (cross-tenant isolation).
@@ -9,7 +9,7 @@ Feature: POST /api/invitations (FHS-91)
     And a users mirror row exists for the test inviter
     And a tenant "khan" exists with the inviter as an admin member
 
-  Scenario: Happy path — admin invites a new email, row stored as pending
+  Scenario: Happy path: admin invites a new email, row stored as pending
     When the inviter POSTs an invitation for "invitee@example.com" as "adult"
     Then the response status is 201
     And exactly 1 row exists in pending_invitations with email "invitee@example.com" and status "pending"
@@ -28,7 +28,7 @@ Feature: POST /api/invitations (FHS-91)
     Then the response status is 201
     And exactly 2 rows exist in pending_invitations with email "invitee@example.com" and status "pending"
 
-  Scenario: A failed invite rolls back the seat — no ghost member (FHS-352)
+  Scenario: A failed invite rolls back the seat: no ghost member (FHS-352)
     When the Supabase invite fails and the inviter POSTs a named invitation for "Ghost Seat" at "ghost@example.com"
     Then the response status is 502
     And no member seat remains named "Ghost Seat"

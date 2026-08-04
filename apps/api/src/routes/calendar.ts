@@ -8,7 +8,7 @@ import { loadCaller, isAdmin } from '../lib/permissions.js';
 import { config } from '../config.js';
 import { generateFeedKey, signFeedToken } from '../lib/calendar-feed.js';
 
-// FHS-445 — calendar sync: the family-facing feed-management endpoints.
+// FHS-445: calendar sync: the family-facing feed-management endpoints.
 //
 // GET  /api/calendar/feed         → the family's subscribe URL (creates the
 //                                    per-family feed key on first call). Any
@@ -17,7 +17,7 @@ import { generateFeedKey, signFeedToken } from '../lib/calendar-feed.js';
 //                                    subscriptions stop working immediately.
 //
 // The public ICS endpoint that the URL points at lives in
-// routes/public-calendar.ts (no auth — the signed token is the credential).
+// routes/public-calendar.ts (no auth: the signed token is the credential).
 
 export const calendarFeedResponseSchema = z.object({
   // Absolute webcal/https URL a user pastes into Google / Apple / Outlook.
@@ -73,7 +73,7 @@ function feedUrl(
 }
 
 export const calendarRouter = new Hono()
-  // GET /api/calendar/feed — the family's subscribe URL. Lazily creates the
+  // GET /api/calendar/feed: the family's subscribe URL. Lazily creates the
   // per-family feed key on first access. Any member may read it.
   .get('/feed', async (c) => {
     const ctx = await guardTenant(c);
@@ -95,7 +95,7 @@ export const calendarRouter = new Hono()
     return c.json({ url: feedUrl(c, tenantId, row.key) });
   })
 
-  // POST /api/calendar/feed/rotate — regenerate the key; admin-only. Every
+  // POST /api/calendar/feed/rotate: regenerate the key; admin-only. Every
   // existing subscription (old URL) 404s from here on.
   .post('/feed/rotate', async (c) => {
     const ctx = await guardTenant(c);

@@ -138,7 +138,7 @@ def apply_to(ref: str, token: str, payload: dict, *, dry_run: bool) -> tuple[int
         print(f"  - {k}: {cur!r} -> {new!r}")
 
     if not changed:
-        print(f"[{ref}] already in sync — no PATCH needed")
+        print(f"[{ref}] already in sync, no PATCH needed")
         return 0, total
 
     if dry_run:
@@ -153,7 +153,7 @@ def apply_to(ref: str, token: str, payload: dict, *, dry_run: bool) -> tuple[int
     still_diff = diff_fields(verify, payload)
     if still_diff:
         sys.exit(f"[{ref}] ERROR: {len(still_diff)} fields still differ after PATCH: {still_diff}")
-    print(f"[{ref}] verified — all {total} fields match desired state")
+    print(f"[{ref}] verified, all {total} fields match desired state")
     return len(changed), total
 
 

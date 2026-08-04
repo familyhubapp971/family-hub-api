@@ -342,7 +342,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   });
 
   Scenario(
-    "Tenant isolation — another tenant's assignments never appear",
+    "Tenant isolation: another tenant's assignments never appear",
     ({ Given, And, When, Then }) => {
       let res: Response;
       let body: ListResponse;

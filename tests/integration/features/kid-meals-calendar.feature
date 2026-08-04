@@ -1,7 +1,7 @@
 Feature: Kid meals + calendar
 
   A logged-in kid sees the family meal plan and schedule scoped to themselves +
-  family-wide entries — never a sibling's private meals or events (FHS-365).
+  family-wide entries: never a sibling's private meals or events (FHS-365).
   Real kid token against real Postgres.
 
   Background:

@@ -1,7 +1,7 @@
 Feature: Kid read-only rewards
 
   A logged-in kid sees the family rewards with their own star balance (FHS-374).
-  Redemption is parent-approved in FHS-376 — the kid POST /redeem endpoint was
+  Redemption is parent-approved in FHS-376: the kid POST /redeem endpoint was
   removed. Real kid token against real Postgres.
 
   Background:

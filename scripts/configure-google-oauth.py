@@ -23,9 +23,9 @@ Required env vars:
 Standard library only.
 
 See:
-- ADR 0008 — Supabase environments (staging vs production projects)
-- ADR 0011 — Magic-link + Google OAuth parent auth
-- documents/technical/google-oauth-setup.md — manual click-by-click runbook
+- ADR 0008: Supabase environments (staging vs production projects)
+- ADR 0011: Magic-link + Google OAuth parent auth
+- documents/technical/google-oauth-setup.md: manual click-by-click runbook
 """
 
 import argparse
@@ -35,7 +35,7 @@ import sys
 import urllib.error
 import urllib.request
 
-# Same project refs used by apply-supabase-email-templates.py — keep
+# Same project refs used by apply-supabase-email-templates.py: keep
 # in sync if either file is touched.
 PROJECTS: dict[str, str] = {
     "staging": "maolytpqazmykjzdybtj",
@@ -104,13 +104,13 @@ def diff(current: dict, desired: dict) -> dict:
     """Return only the fields whose desired value differs from current.
 
     Secret fields are write-only on the Supabase API: GET masks them as
-    None/empty/"***". We never include them in the diff — the caller
+    None/empty/"***". We never include them in the diff: the caller
     can pass --rotate-secret to force a rewrite when needed.
     """
     out: dict = {}
     for k, v in desired.items():
         if k.endswith("_secret"):
-            # Always skip — secrets cannot be diffed against a masked value.
+            # Always skip: secrets cannot be diffed against a masked value.
             continue
         if current.get(k) != v:
             out[k] = v
@@ -151,7 +151,7 @@ def configure(project: str, *, check_only: bool, rotate_secret: bool) -> int:
         delta["external_google_secret"] = client_secret
 
     if not delta:
-        print(f"[{project}] ✓ already up-to-date — nothing to do")
+        print(f"[{project}] ✓ already up-to-date: nothing to do")
         return 0
 
     safe_delta = {**delta}

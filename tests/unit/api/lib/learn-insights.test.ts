@@ -1,4 +1,4 @@
-// FHS-384 / FHS-401 — Unit tests for lib/learn-insights.ts
+// FHS-384 / FHS-401: Unit tests for lib/learn-insights.ts
 //
 // Tests cover:
 //   - computeLearnInsights aggregation + needsHelp heuristics per subject
@@ -66,7 +66,7 @@ vi.mock('../../../../apps/api/src/db/client.js', () => ({
  * microtask before fetchWorldFlags's second .where().groupBy() because .groupBy()
  * is called synchronously on the whereResult Promise in the same turn of the
  * event loop as .where(). fetchWorldFlags must first await its first query (call 4)
- * before it can even start the continents query — so the Logic second-query
+ * before it can even start the continents query: so the Logic second-query
  * microtask is queued first.
  */
 function setupDbReturns(
@@ -101,7 +101,7 @@ const MEMBER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 // ─── Empty state ───────────────────────────────────────────────────────────────
 
-describe('computeLearnInsights — empty state (no activity)', () => {
+describe('computeLearnInsights: empty state (no activity)', () => {
   beforeEach(() => {
     setupDbReturns([], [], [], [], [], [], [], []);
   });
@@ -140,10 +140,10 @@ describe('computeLearnInsights — empty state (no activity)', () => {
 
 // ─── FHS-422: World Flags Learn path counts as activity ─────────────────────────
 
-describe('computeLearnInsights — World Flags learn path (FHS-422)', () => {
+describe('computeLearnInsights: World Flags learn path (FHS-422)', () => {
   it('counts a completed Learn chunk as activity even with no Explore', async () => {
     // slot 4 (world_flags_progress / explore) empty; slot 7 (learn continents)
-    // has one completed chunk with a completedAt — this is the Faith case.
+    // has one completed chunk with a completedAt: this is the Faith case.
     setupDbReturns(
       [], // maths certs
       [], // logic certs
@@ -164,7 +164,7 @@ describe('computeLearnInsights — World Flags learn path (FHS-422)', () => {
 
 // ─── Maths needsHelp ──────────────────────────────────────────────────────────
 
-describe('computeLearnInsights — Maths needsHelp heuristic', () => {
+describe('computeLearnInsights: Maths needsHelp heuristic', () => {
   it('needsHelp false when no certs (not started)', async () => {
     setupDbReturns(
       [{ certsEarned: '0' }], // maths certs
@@ -230,7 +230,7 @@ describe('computeLearnInsights — Maths needsHelp heuristic', () => {
   });
 
   it('needsHelp false when accuracy >= 70% with enough attempts', async () => {
-    // 7 correct / 10 attempts = 70% accuracy — exactly at threshold → not flagged.
+    // 7 correct / 10 attempts = 70% accuracy: exactly at threshold → not flagged.
     setupDbReturns(
       [{ certsEarned: '2' }],
       [{ certsEarned: '0' }],
@@ -298,7 +298,7 @@ describe('computeLearnInsights — Maths needsHelp heuristic', () => {
     expect(res.subjects.find((s) => s.subject === 'Maths')!.progressPct).toBe(100);
   });
 
-  it('progressPct uses Math.floor — 6 certs / 48 = floor(12.5) = 12 not 13', async () => {
+  it('progressPct uses Math.floor: 6 certs / 48 = floor(12.5) = 12 not 13', async () => {
     // Rounding convention: floor, not round. 6/48 = 0.125 → 12.5% → floor = 12.
     setupDbReturns(
       [{ certsEarned: '6' }],
@@ -374,7 +374,7 @@ describe('computeLearnInsights — Maths needsHelp heuristic', () => {
 
 // ─── Logic needsHelp ──────────────────────────────────────────────────────────
 
-describe('computeLearnInsights — Logic needsHelp heuristic', () => {
+describe('computeLearnInsights: Logic needsHelp heuristic', () => {
   it('needsHelp true when progressPct < 20 with activity (no attempt data)', async () => {
     // 2 / 15 = floor(13.3) = 13% < 20; no attempt data → fallback heuristic
     setupDbReturns(
@@ -446,7 +446,7 @@ describe('computeLearnInsights — Logic needsHelp heuristic', () => {
   });
 
   it('needsHelp false when accuracy >= 70% with enough attempts', async () => {
-    // 7 correct / 10 attempts = 70% — exactly at threshold → not flagged.
+    // 7 correct / 10 attempts = 70%: exactly at threshold → not flagged.
     setupDbReturns(
       [{ certsEarned: '0' }],
       [{ certsEarned: '3' }],
@@ -586,7 +586,7 @@ describe('computeLearnInsights — Logic needsHelp heuristic', () => {
 
 // ─── Science needsHelp ────────────────────────────────────────────────────────
 
-describe('computeLearnInsights — Science needsHelp heuristic', () => {
+describe('computeLearnInsights: Science needsHelp heuristic', () => {
   it('needsHelp false when totalAnswered < 5', async () => {
     setupDbReturns(
       [{ certsEarned: '0' }],
@@ -683,7 +683,7 @@ describe('computeLearnInsights — Science needsHelp heuristic', () => {
     expect(sci.certificatesTotal).toBe(1);
   });
 
-  it('progressPct is clamped to [0, 100] — defends against corrupt column values', async () => {
+  it('progressPct is clamped to [0, 100]: defends against corrupt column values', async () => {
     setupDbReturns(
       [{ certsEarned: '0' }],
       [{ certsEarned: '0' }],
@@ -773,7 +773,7 @@ describe('computeLearnInsights — Science needsHelp heuristic', () => {
 
 // ─── World Flags ──────────────────────────────────────────────────────────────
 
-describe('computeLearnInsights — World Flags', () => {
+describe('computeLearnInsights: World Flags', () => {
   it('needsHelp true when explored > 0 and < 10', async () => {
     setupDbReturns(
       [{ certsEarned: '0' }],
@@ -856,7 +856,7 @@ describe('computeLearnInsights — World Flags', () => {
 
   // ─── FHS-401: World Flags accuracyPct is always null ────────────────────────
 
-  it('accuracyPct is always null — WF quiz attempts not tracked server-side yet', async () => {
+  it('accuracyPct is always null: WF quiz attempts not tracked server-side yet', async () => {
     setupDbReturns(
       [{ certsEarned: '0' }],
       [{ certsEarned: '0' }],
@@ -925,7 +925,7 @@ describe('computeLearnInsights — World Flags', () => {
         { continent: 'North America' },
         { continent: 'South America' },
         { continent: 'Oceania' },
-        { continent: 'Antarctica' }, // 7th row — should be clamped
+        { continent: 'Antarctica' }, // 7th row: should be clamped
       ], // wf continents
       [], // logic certs per game
     );
@@ -966,7 +966,7 @@ describe('computeLearnInsights — World Flags', () => {
 
 // ─── weakest subject ──────────────────────────────────────────────────────────
 
-describe('computeLearnInsights — weakest subject', () => {
+describe('computeLearnInsights: weakest subject', () => {
   it('weakest is the subject with the lowest progressPct that has activity', async () => {
     // Maths has 6 certs (floor(6/48*100)=12%), Logic has 1 cert (floor(6%)=6%).
     // Logic should be weakest.
@@ -1076,7 +1076,7 @@ describe('computeLearnInsights — weakest subject', () => {
 
 // ─── hasActivity ──────────────────────────────────────────────────────────────
 
-describe('computeLearnInsights — hasActivity', () => {
+describe('computeLearnInsights: hasActivity', () => {
   it('true when maths certs earned > 0', async () => {
     setupDbReturns(
       [{ certsEarned: '1' }],

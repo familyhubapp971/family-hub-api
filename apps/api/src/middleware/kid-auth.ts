@@ -9,7 +9,7 @@ import { createLogger } from '../logger.js';
 // child member: { scope: 'child', sub: memberId, tenantId, tenantSlug,
 // iss: 'family-hub-kid-auth' }. This middleware verifies that token and
 // exposes the kid principal on the request context so kid-scoped routes
-// know who they're serving — WITHOUT going through the parent Supabase
+// know who they're serving: WITHOUT going through the parent Supabase
 // (ES256/JWKS) auth path.
 //
 // Per the FHS-236 verifier note, jwtVerify is pinned to
@@ -18,7 +18,7 @@ import { createLogger } from '../logger.js';
 
 const log = createLogger('kid-auth');
 
-/** Issuer stamped into kid tokens by auth-kid-pin.ts — verified here. */
+/** Issuer stamped into kid tokens by auth-kid-pin.ts: verified here. */
 export const KID_ISSUER = 'family-hub-kid-auth';
 
 export interface KidAuth {
@@ -73,7 +73,7 @@ function invalid(c: Context, reason: string): Response {
  * `c.set('kidAuth', { memberId, tenantId, tenantSlug })`.
  *
  * Lenient: a request with a parent token (or none) passes through with
- * kidAuth unset — pair with `requireKidAuth` on kid-only routes to turn
+ * kidAuth unset: pair with `requireKidAuth` on kid-only routes to turn
  * "no kid principal" into a 403. A token that clearly IS a kid token but
  * fails verification (tampered / expired / wrong secret / missing claim)
  * is rejected 401 with errorCode KID_AUTH_INVALID.
@@ -82,7 +82,7 @@ export function kidAuthMiddleware(opts: KidAuthMiddlewareOptions = {}): Middlewa
   const secret = new TextEncoder().encode(opts.secret ?? config.KID_AUTH_SECRET);
   return async (c, next) => {
     const token = extractBearer(c);
-    // looksLikeKidToken reads UNVERIFIED claims only to route the token —
+    // looksLikeKidToken reads UNVERIFIED claims only to route the token:
     // the strict jwtVerify below (pinned alg + issuer) is what actually
     // authenticates it, so a forged "kid-shaped" token still 401s.
     if (!token || !looksLikeKidToken(token)) {
@@ -139,7 +139,7 @@ export const requireKidAuth: MiddlewareHandler = async (c, next) => {
  * an explicit 403 so a kid hitting a parent endpoint is unambiguous.
  */
 export const rejectKidTokens: MiddlewareHandler = async (c, next) => {
-  // Kid routes legitimately carry a kid token — never reject them here.
+  // Kid routes legitimately carry a kid token: never reject them here.
   const path = c.req.path;
   if (path === '/api/kid' || path.startsWith('/api/kid/')) {
     await next();
@@ -154,14 +154,14 @@ export const rejectKidTokens: MiddlewareHandler = async (c, next) => {
 
 /**
  * Helper for kid route handlers behind `requireKidAuth`. Throws when no
- * kid principal is present — unreachable in production, but makes a
+ * kid principal is present: unreachable in production, but makes a
  * missing-guard mistake loud in development.
  */
 export function getKidAuth(c: Context): KidAuth {
   const kid = c.get('kidAuth');
   if (!kid) {
     throw new Error(
-      'getKidAuth called on a request that did not pass kidAuthMiddleware + requireKidAuth — ' +
+      'getKidAuth called on a request that did not pass kidAuthMiddleware + requireKidAuth: ' +
         'mount both before this handler.',
     );
   }

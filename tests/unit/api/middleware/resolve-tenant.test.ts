@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
 import { resolveTenant } from '../../../../apps/api/src/middleware/resolve-tenant.js';
 
-// FHS-13 + FHS-249 — resolveTenant precedence and edge cases.
+// FHS-13 + FHS-249: resolveTenant precedence and edge cases.
 //
 // We exercise the middleware in isolation rather than through buildApp:
 // it lets us seed the JWT-claim source by hand-setting `c.var.user`
@@ -35,8 +35,8 @@ function makeAppWith({
   return { app, lookupTenantId };
 }
 
-describe('FHS-13 + FHS-249 — resolveTenant', () => {
-  describe('source 1 — JWT custom claim', () => {
+describe('FHS-13 + FHS-249: resolveTenant', () => {
+  describe('source 1: JWT custom claim', () => {
     it('uses app_metadata.tenant_slug when the user is authenticated and the slug exists', async () => {
       const { app, lookupTenantId } = makeAppWith({
         lookups: { khans: 'tenant-uuid-khans' },
@@ -73,7 +73,7 @@ describe('FHS-13 + FHS-249 — resolveTenant', () => {
     });
   });
 
-  describe('source 2 — subdomain', () => {
+  describe('source 2: subdomain', () => {
     it('parses <slug>.<BASE_DOMAIN> when BASE_DOMAIN is a real domain', async () => {
       const { app } = makeAppWith({
         baseDomain: 'familyhub.app',
@@ -119,7 +119,7 @@ describe('FHS-13 + FHS-249 — resolveTenant', () => {
       const res = await app.request('/x', {
         headers: { host: 'foo.khans.familyhub.app' },
       });
-      // candidate would be 'foo.khans' — contains a dot, so we reject it.
+      // candidate would be 'foo.khans': contains a dot, so we reject it.
       expect(await res.json()).toEqual({ tenantId: undefined, tenantSlug: undefined });
       expect(lookupTenantId).not.toHaveBeenCalled();
     });
@@ -135,7 +135,7 @@ describe('FHS-13 + FHS-249 — resolveTenant', () => {
     });
   });
 
-  describe('source 3 — path prefix /t/<slug>/...', () => {
+  describe('source 3: path prefix /t/<slug>/...', () => {
     it('extracts the slug and resolves the tenant', async () => {
       const { app } = makeAppWith({
         lookups: { khans: 'tenant-uuid-khans' },
@@ -147,7 +147,7 @@ describe('FHS-13 + FHS-249 — resolveTenant', () => {
       });
     });
 
-    it('does not match /api/t/khans/... — the prefix must be at the path root', async () => {
+    it('does not match /api/t/khans/...: the prefix must be at the path root', async () => {
       const { app, lookupTenantId } = makeAppWith({
         lookups: { khans: 'tenant-uuid-khans' },
       });
@@ -176,13 +176,13 @@ describe('FHS-13 + FHS-249 — resolveTenant', () => {
   describe('lookup miss', () => {
     it('leaves tenantId/tenantSlug undefined when the slug exists in the URL but not in the table', async () => {
       const { app } = makeAppWith({
-        lookups: {}, // empty — no slug resolves
+        lookups: {}, // empty: no slug resolves
       });
       const res = await app.request('/t/ghost/dashboard');
       expect(await res.json()).toEqual({ tenantId: undefined, tenantSlug: undefined });
     });
 
-    // Regression — Railway staging exposes the API at
+    // Regression: Railway staging exposes the API at
     // `api-staging-5500.up.railway.app`. With BASE_DOMAIN set to the
     // shared `up.railway.app` suffix, the subdomain source matches
     // `api-staging-5500` first, but that slug never exists in the
@@ -205,7 +205,7 @@ describe('FHS-13 + FHS-249 — resolveTenant', () => {
         tenantId: 'tenant-uuid-khans',
         tenantSlug: 'khans',
       });
-      // Both candidates were tried — subdomain first, then header.
+      // Both candidates were tried: subdomain first, then header.
       expect(lookupTenantId).toHaveBeenCalledWith('api-staging-5500');
       expect(lookupTenantId).toHaveBeenCalledWith('khans');
     });

@@ -4,7 +4,7 @@
 // invoked directly.
 //
 // NOTE: textSummary is fetched from k6's jslib at run time. CI without
-// egress to jslib.k6.io will fail this scenario — vendor this in a
+// egress to jslib.k6.io will fail this scenario: vendor this in a
 // follow-up (FHS-183) if that becomes a constraint.
 
 import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.2/index.js';

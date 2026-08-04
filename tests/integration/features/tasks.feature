@@ -1,5 +1,5 @@
 Feature: GET / POST / PATCH / DELETE /api/tasks (FHS-233, FHS-267)
-  Real Postgres on :5433 — verifies the shared family task board
+  Real Postgres on :5433, verifies the shared family task board
   (ADR 0013): family-wide read, owner-scoped write. A member SEES every
   family member's tasks but can only MUTATE their own, even if another
   member's task id is guessed.
@@ -46,7 +46,7 @@ Feature: GET / POST / PATCH / DELETE /api/tasks (FHS-233, FHS-267)
     When the caller PUTs Bilal's task title to "Sneaky edit" in tenant "khan"
     Then the PUT task response status is 404
 
-  Scenario: Tenant isolation — another tenant's tasks never appear
+  Scenario: Tenant isolation: another tenant's tasks never appear
     Given a second tenant "smith" exists with the caller as an admin member
     And the caller has a task "Smith stuff" due "2026-05-08" in tenant "smith"
     And separately the caller has a task "Khan stuff" due "2026-05-08" in tenant "khan"

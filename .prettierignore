@@ -14,6 +14,6 @@
 # would reformat its arrays and make the openapi:check CI gate fail (FHS-356).
 **/openapi.json
 pnpm-lock.yaml
-# Design review artefacts — large self-contained HTML with inline Tailwind.
+# Design review artefacts: large self-contained HTML with inline Tailwind.
 # Prettier reformatting breaks inline layout and the files are generated.
 documents/design/**/*.html

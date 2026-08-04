@@ -1,5 +1,5 @@
 Feature: GET + POST /api/events (FHS-230)
-  Real Postgres on :5433 — verifies the calendar week-view filter +
+  Real Postgres on :5433, verifies the calendar week-view filter +
   POST creation, role gate (only admin/adult writes), member-belongs-
   to-tenant guard, and tenant isolation.
 
@@ -35,7 +35,7 @@ Feature: GET + POST /api/events (FHS-230)
     When the caller POSTs an event "Sneaky" on "2026-05-05" in tenant "khan"
     Then the POST response status is 403
 
-  Scenario: Tenant isolation — another tenant's events never appear
+  Scenario: Tenant isolation: another tenant's events never appear
     Given a second tenant "smith" exists with the caller as an admin member
     And the "smith" tenant has an event "Pasta night" on "2026-05-04"
     And separately the "khan" tenant has an event "Family dinner" on "2026-05-06"

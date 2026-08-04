@@ -5,11 +5,11 @@ import { getDb } from '../db/client.js';
 import { assignments, members } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 
-// FHS-231 — GET / POST / PATCH /api/assignments.
+// FHS-231: GET / POST / PATCH /api/assignments.
 //
 // Backs the Assignments tab. Per-family homework / chore list.
 // GET: returns every assignment, ordered by due date (NULLs last) then
-// created_at — open / overdue assignments sit on top, undated tasks
+// created_at: open / overdue assignments sit on top, undated tasks
 // trail behind.
 // POST: create one assignment (admin/adult only).
 // PATCH /:id: toggle done (admin/adult only). Body: { done: boolean }.

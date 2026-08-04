@@ -1,6 +1,6 @@
 Feature: GET/PATCH /api/kid/tasks (FHS-355)
 
-  A logged-in kid sees and ticks only their OWN tasks — never another member's.
+  A logged-in kid sees and ticks only their OWN tasks: never another member's.
 
   Background:
     Given a family with kid task "Brush teeth" and a grown-up task "Pay bills"

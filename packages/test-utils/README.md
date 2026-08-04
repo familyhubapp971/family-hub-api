@@ -49,7 +49,7 @@ const res = await makeRequest(app, 'GET', '/health', { tenantSlug: 'acme' });
 ```ts
 import { buildTenant, buildUser, buildFamily } from '@familyhub/test-utils';
 
-// Pure object construction — works today.
+// Pure object construction: works today.
 const t = buildTenant({ slug: 'acme' });
 const u = buildUser({ tenantId: t.id });
 
@@ -84,8 +84,8 @@ afterAll(async () => {
 ```ts
 import { renderWithProviders } from '@familyhub/test-utils/web';
 
-renderWithProviders(<MyComponent />); // currently a passthrough wrapper
-                                       // — QueryClient / Router land later
+renderWithProviders(<MyComponent />); // currently a passthrough wrapper,
+                                       //   QueryClient / Router land later
 ```
 
 ### Test JWT

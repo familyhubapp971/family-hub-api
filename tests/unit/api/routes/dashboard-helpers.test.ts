@@ -7,12 +7,12 @@ import {
   weekdayKeyInTimezone,
 } from '../../../../apps/api/src/routes/dashboard.js';
 
-// FHS-262 — pure derivation helpers behind GET /api/dashboard/today.
+// FHS-262: pure derivation helpers behind GET /api/dashboard/today.
 // These carry the non-trivial logic (weekly streaks, status copy,
 // timezone-anchored weekday) so they are unit-tested directly; the
 // route test covers wiring and the integration test covers real SQL.
 
-describe('FHS-262 — computeWeeklyStreak', () => {
+describe('FHS-262: computeWeeklyStreak', () => {
   const W = (n: number) => `week-${n}`;
 
   it('counts consecutive completed weeks from the newest', () => {
@@ -44,7 +44,7 @@ describe('FHS-262 — computeWeeklyStreak', () => {
   });
 });
 
-describe('FHS-262 — deriveStatusText', () => {
+describe('FHS-262: deriveStatusText', () => {
   it('prioritises pending tasks, pluralising correctly', () => {
     expect(deriveStatusText({ tasksPending: 2, habitsDone: 5, habitsTotal: 5 })).toBe(
       '2 tasks left',
@@ -64,7 +64,7 @@ describe('FHS-262 — deriveStatusText', () => {
   });
 });
 
-describe('FHS-262 — weekdayKeyInTimezone', () => {
+describe('FHS-262: weekdayKeyInTimezone', () => {
   it('returns the lowercase 3-letter weekday in UTC', () => {
     expect(weekdayKeyInTimezone(new Date('2026-06-10T12:00:00Z'), 'UTC')).toBe('wed');
   });
@@ -79,7 +79,7 @@ describe('FHS-262 — weekdayKeyInTimezone', () => {
   });
 });
 
-describe('FHS-262 — isoDateInTimezone + deriveGreetingName (regression)', () => {
+describe('FHS-262: isoDateInTimezone + deriveGreetingName (regression)', () => {
   it('anchors the date in the tenant timezone', () => {
     expect(isoDateInTimezone(new Date('2026-05-03T22:00:00.000Z'), 'Asia/Dubai')).toBe(
       '2026-05-04',

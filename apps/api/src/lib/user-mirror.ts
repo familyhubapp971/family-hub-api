@@ -3,9 +3,9 @@ import type { Database } from '../db/client.js';
 import { users, type User } from '../db/schema.js';
 import { config } from '../config.js';
 
-// FHS-465 — the mirror upsert ran as a write TRANSACTION on EVERY authenticated
-// request (a real UPDATE every time — `updated_at = now()` always changes the
-// row — so WAL + row-version churn + a connection checkout on 100% of traffic).
+// FHS-465: the mirror upsert ran as a write TRANSACTION on EVERY authenticated
+// request (a real UPDATE every time: `updated_at = now()` always changes the
+// row, so WAL + row-version churn + a connection checkout on 100% of traffic).
 // Once we've confirmed a given (id, email) pair is mirrored, that fact can't
 // become false during normal operation, so cache it per-replica and skip the DB
 // entirely on the warm path. Keyed by id+email, so a Supabase-side email change
@@ -23,7 +23,7 @@ function cacheEnabled(): boolean {
   return config.NODE_ENV !== 'test' || process.env['USER_MIRROR_CACHE'] === 'on';
 }
 
-/** Test hook — clear the per-replica mirror cache between cases. */
+/** Test hook: clear the per-replica mirror cache between cases. */
 export function resetUserMirrorCache(): void {
   mirrorCache.clear();
 }
@@ -36,7 +36,7 @@ export function resetUserMirrorCache(): void {
 // subsequent requests the row already exists.
 //
 // This module is intentionally _not_ wired into the auth middleware in
-// FHS-192 — that wiring is deferred to a follow-up commit on this
+// FHS-192: that wiring is deferred to a follow-up commit on this
 // branch (or a small follow-on PR) once FHS-191's middleware lands on
 // staging. The integration point is one line inside `authMiddleware`,
 // after token verification and before tenant resolution:
@@ -49,9 +49,9 @@ export function resetUserMirrorCache(): void {
 // callers get the row back in one round-trip.
 
 export interface UserMirrorClaims {
-  /** JWT `sub` claim — the Supabase auth user id. UUID string. */
+  /** JWT `sub` claim: the Supabase auth user id. UUID string. */
   id: string;
-  /** JWT `email` claim — required for the mirror row. */
+  /** JWT `email` claim: required for the mirror row. */
   email: string;
 }
 
@@ -70,7 +70,7 @@ export interface UserMirrorClaims {
  * test deterministically.
  */
 export async function getOrCreateUser(db: Database, claims: UserMirrorClaims): Promise<User> {
-  // FHS-465 — warm path: a confirmed (id, email) pair skips the DB entirely.
+  // FHS-465: warm path: a confirmed (id, email) pair skips the DB entirely.
   const cacheKey = `${claims.id}:${claims.email}`;
   const useCache = cacheEnabled();
   if (useCache) {
@@ -78,11 +78,11 @@ export async function getOrCreateUser(db: Database, claims: UserMirrorClaims): P
     if (hit && hit.expires > Date.now()) return hit.row;
   }
 
-  // FHS-349 — `users` carries self-scoped RLS keyed on app.current_user. This
+  // FHS-349: `users` carries self-scoped RLS keyed on app.current_user. This
   // mirror runs as app_runtime BEFORE the request-scoped tenant context exists,
   // so it pins the caller's own id transaction-locally (set_config is_local=true)
   // so the self-isolation policy permits this upsert + RETURNING. Transaction-
-  // local auto-clears on commit — leak-free even on the shared root pool. The
+  // local auto-clears on commit: leak-free even on the shared root pool. The
   // value is parameterized; app_current_user() also fail-closes on bad input.
   const row = await db.transaction(async (tx) => {
     await tx.execute(sql`select set_config('app.current_user', ${claims.id}, true)`);

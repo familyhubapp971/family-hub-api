@@ -1,19 +1,19 @@
-// Smoke scenario — 30s, 1 VU. Quick sanity check that real authenticated
+// Smoke scenario: 30s, 1 VU. Quick sanity check that real authenticated
 // family sessions (kid + parent) still work end to end. Runs every PR
 // after integration.
 //
-// FHS-460 — logs in once in setup() against seeded synthetic load-test
+// FHS-460: logs in once in setup() against seeded synthetic load-test
 // fixtures, then runs one kid session (+ one parent session when a
 // parent token is available) per iteration. Falls back to a health-only
 // ping (with a loud console.warn) when no fixtures are configured, so
-// the scenario still runs in CI instead of failing outright — but that
+// the scenario still runs in CI instead of failing outright, but that
 // fallback is NOT a real test; see tests/performance/README.md.
 //
-// Run locally (after seeding — see tests/performance/README.md):
+// Run locally (after seeding, see tests/performance/README.md):
 //   node tests/performance/bin/seed-load-tenants.mjs
 //   k6 run -e LOAD_FIXTURES=tests/performance/fixtures/load-tenants.json \
 //          tests/performance/scenarios/smoke.js
-// Health-only fallback (no seeding — NOT a real capacity test):
+// Health-only fallback (no seeding, NOT a real capacity test):
 //   k6 run tests/performance/scenarios/smoke.js
 // Override target:
 //   k6 run -e BASE_URL=https://staging.familyhub.app -e LOAD_FIXTURES=... \

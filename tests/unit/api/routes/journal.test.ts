@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { journalRouter } from '../../../../apps/api/src/routes/journal.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-270 — per-day journal unit tests (mocked DB).
+// FHS-270: per-day journal unit tests (mocked DB).
 // DB-backed behaviour + member-scoping covered by journal.feature integration tests.
 
 // ─── DB mock ─────────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ const SAMPLE_ROW = {
 // ─── App factory ─────────────────────────────────────────────────────────────
 
 /**
- * memberChecks — queue of arrays returned by the mock DB for each
+ * memberChecks: queue of arrays returned by the mock DB for each
  * `.select()...limit()` call, in order:
  *   [0] = loadCaller result (empty [] → 403 "caller not member")
  *   [1] = memberInTenant result (empty [] → 404)
@@ -165,7 +165,7 @@ describe('GET /api/journal (day view) guards', () => {
   });
 });
 
-describe('GET /api/journal (day view) — happy path', () => {
+describe('GET /api/journal (day view): happy path', () => {
   it('returns null entry + quoteIndex when no row exists', async () => {
     // loadCaller → admin, memberInTenant → found, day query → empty
     const queue = [
@@ -330,7 +330,7 @@ describe('PUT /api/journal guards', () => {
   });
 });
 
-describe('PUT /api/journal — happy path', () => {
+describe('PUT /api/journal: happy path', () => {
   it('200 with the saved entry including computed quoteIndex', async () => {
     const queue = [[{ id: 'caller', role: 'admin' }], [{ id: MEMBER_ID }]];
     const app = buildApp({ memberChecks: [] });

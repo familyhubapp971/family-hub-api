@@ -1,4 +1,4 @@
-// FHS-270 — static journal content shared between API and web.
+// FHS-270: static journal content shared between API and web.
 //
 // These arrays are the single source of truth for quotes, creativity
 // questions, and mood options. The API uses them for `GET /api/journal/content`

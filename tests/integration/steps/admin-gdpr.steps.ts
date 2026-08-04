@@ -11,7 +11,7 @@
  *   - a sibling tenant's data is completely untouched either way.
  *
  * Every `.feature` line is bound via the SAME keyword it uses in the file
- * (Given/When/Then/And) — @amiceli/vitest-cucumber matches on the literal
+ * (Given/When/Then/And): @amiceli/vitest-cucumber matches on the literal
  * keyword, not just the step text (see admin-panel.steps.ts / invitations
  * .steps.ts for the same note).
  */
@@ -31,7 +31,7 @@ import { getTestDb } from '../support/db.js';
 import { seedAllTablesForTenant } from '../support/seed-tenant-tables.js';
 
 // The admin router calls getDb() directly (not through the request-scoped
-// AsyncLocalStorage plumbing) — mock it to the real test Postgres pool, same
+// AsyncLocalStorage plumbing): mock it to the real test Postgres pool, same
 // as admin-panel.steps.ts, so every request in this file hits :5433.
 vi.mock('../../../apps/api/src/db/client.js', () => ({ getDb: () => getTestDb() }));
 
@@ -89,7 +89,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   let lastDelete: { status: number; body: Record<string, unknown> };
   // Actual per-table row counts right after seeding, keyed by slug then table
   // name. `members` legitimately has 2 rows per tenant (the seeded admin
-  // "Caller" + the seedAllTablesForTenant fixture row) — snapshotting the
+  // "Caller" + the seedAllTablesForTenant fixture row): snapshotting the
   // real count instead of assuming "1 row everywhere" keeps every assertion
   // below correct without hardcoding that exception per table.
   const baselineCounts: Record<string, Record<string, number>> = {};
@@ -193,7 +193,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
 
     // One combined step for BOTH tenants (rather than the same parametrised
-    // line repeated twice) — @amiceli/vitest-cucumber only satisfies one
+    // line repeated twice): @amiceli/vitest-cucumber only satisfies one
     // occurrence per literal step text within a single Background.
     And(
       'admin-gdpr tenants {string} and {string} each exist with the caller as an admin member',
@@ -370,7 +370,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   });
 
-  // ─── Scenario: delete-account correct confirmation — full cascade ────────
+  // ─── Scenario: delete-account correct confirmation: full cascade ────────
 
   Scenario(
     'Delete-account with the correct confirmation removes the tenant and everything it owns',
@@ -414,7 +414,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       And("the caller's users-mirror row still exists", async () => {
         // Deleting the tenant cascades the `members` row (tenant ↔ user
         // link), but the GLOBAL `users` row (Supabase auth identity) must
-        // survive — this endpoint never touches Supabase auth.
+        // survive: this endpoint never touches Supabase auth.
         const { rows } = await db.execute<{ id: string }>(
           sql.raw(`SELECT id FROM users WHERE id = '${USER_ID}'`),
         );

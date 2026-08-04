@@ -74,7 +74,7 @@ interface EventsResponse {
   }>;
 }
 
-// FHS-476 — "tue,thu" → [2, 4] (0=Sunday..6=Saturday, matching recurrenceDays).
+// FHS-476: "tue,thu" → [2, 4] (0=Sunday..6=Saturday, matching recurrenceDays).
 const WEEKDAY_NAME_TO_NUM: Record<string, number> = {
   sun: 0,
   mon: 1,
@@ -354,7 +354,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   });
 
   Scenario(
-    "Tenant isolation — another tenant's events never appear",
+    "Tenant isolation: another tenant's events never appear",
     ({ Given, And, When, Then }) => {
       let res: Response;
       let body: EventsResponse;
@@ -487,7 +487,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   });
 
-  // FHS-476 — split across three scenarios (one GET each) rather than one
+  // FHS-476: split across three scenarios (one GET each) rather than one
   // scenario with several "When...GET" steps: @amiceli/vitest-cucumber's
   // step matching gets flaky once the identical step text is invoked more
   // than once in a single scenario, so one-GET-per-scenario sidesteps it

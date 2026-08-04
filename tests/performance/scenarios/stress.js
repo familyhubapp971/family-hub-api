@@ -1,14 +1,14 @@
-// Stress scenario — push past expected peak to find breaking point.
+// Stress scenario: push past expected peak to find breaking point.
 // Ramps from 0 → 200 VUs over 10m, then drops back. Run pre-release
 // only (manual / FHS-185 perf.yml on demand).
 //
-// FHS-460 — see config.js's RATE-LIMIT WARNING block: at 200 peak VUs
+// FHS-460: see config.js's RATE-LIMIT WARNING block: at 200 peak VUs
 // this scenario is guaranteed to exhaust the default 100 req/min bucket
 // almost instantly unless RATE_LIMIT_PER_MINUTE is raised on the target
-// for the test window — otherwise you're measuring the rate limiter,
+// for the test window, otherwise you're measuring the rate limiter,
 // not the api's real breaking point.
 //
-// Run locally (after seeding — see tests/performance/README.md):
+// Run locally (after seeding, see tests/performance/README.md):
 //   node tests/performance/bin/seed-load-tenants.mjs
 //   k6 run -e LOAD_FIXTURES=tests/performance/fixtures/load-tenants.json \
 //          tests/performance/scenarios/stress.js

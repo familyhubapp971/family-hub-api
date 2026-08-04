@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { assignmentsRouter } from '../../../../apps/api/src/routes/assignments.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-231 — GET / POST / PATCH /api/assignments. DB stubbed at module
+// FHS-231: GET / POST / PATCH /api/assignments. DB stubbed at module
 // boundary; user + tenant context seeded via tiny middleware.
 
 const dbMock = {
@@ -52,7 +52,7 @@ function buildAppWithSeed(
   let selectCallIdx = 0;
   dbMock.select.mockImplementation(() => {
     selectCallIdx += 1;
-    // 1 — caller-membership lookup
+    // 1: caller-membership lookup
     if (selectCallIdx === 1) {
       return {
         from: () => ({
@@ -67,7 +67,7 @@ function buildAppWithSeed(
         }),
       };
     }
-    // 2 — On GET, the assignments list. On POST with memberId, the
+    // 2: On GET, the assignments list. On POST with memberId, the
     //     member-belongs-to-tenant check.
     if (selectCallIdx === 2) {
       return {
@@ -113,7 +113,7 @@ beforeEach(() => {
   lastUpdateSet = null;
 });
 
-describe('FHS-231 — GET /api/assignments', () => {
+describe('FHS-231: GET /api/assignments', () => {
   it('returns 400 when no tenant', async () => {
     const app = buildAppWithSeed({ noTenant: true });
     const res = await app.request('/api/assignments');
@@ -170,7 +170,7 @@ describe('FHS-231 — GET /api/assignments', () => {
   });
 });
 
-describe('FHS-231 — POST /api/assignments', () => {
+describe('FHS-231: POST /api/assignments', () => {
   function postBody(body: unknown): RequestInit {
     return {
       method: 'POST',
@@ -239,7 +239,7 @@ describe('FHS-231 — POST /api/assignments', () => {
   });
 });
 
-describe('FHS-310 — PUT /api/assignments/:id', () => {
+describe('FHS-310: PUT /api/assignments/:id', () => {
   const A1 = '22222222-2222-4222-8222-222222222222';
 
   function putBody(body: unknown): RequestInit {
@@ -319,14 +319,14 @@ describe('FHS-310 — PUT /api/assignments/:id', () => {
   });
 
   it('returns 404 when assignment id belongs to a different tenant', async () => {
-    // updateReturn is empty — simulates the WHERE tenantId AND id matching nothing.
+    // updateReturn is empty: simulates the WHERE tenantId AND id matching nothing.
     const app = buildAppWithSeed({}, [], [], []);
     const res = await app.request(`/api/assignments/${A1}`, putBody({ title: 'X' }));
     expect(res.status).toBe(404);
   });
 });
 
-describe('FHS-231 — PATCH /api/assignments/:id', () => {
+describe('FHS-231: PATCH /api/assignments/:id', () => {
   const A1 = '22222222-2222-4222-8222-222222222222';
 
   function patchBody(body: unknown): RequestInit {

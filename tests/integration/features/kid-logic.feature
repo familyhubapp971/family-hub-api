@@ -1,5 +1,5 @@
 Feature: Kid Logic Progression (FHS-395)
-  Real Postgres on :5433 — verifies the kid-scoped logic question,
+  Real Postgres on :5433, verifies the kid-scoped logic question,
   answer-grading, and certificate endpoints. Kid identity comes from the
   kid token, not a memberId parameter. All data is scoped to tenant + member.
 
@@ -58,13 +58,13 @@ Feature: Kid Logic Progression (FHS-395)
     When "Alex" POSTs /api/kid/logic/answer with unknown questionId
     Then the logic answer response status is 400
 
-  Scenario: tenant isolation — Sam sees none of Alex's progress or certs
+  Scenario: tenant isolation: Sam sees none of Alex's progress or certs
     Given "Alex" answers 10 truefalse easy questions correctly
     When "Sam" GETs /api/kid/logic/certificates
     Then the logic certificates response status is 200
     And the logic certificates list is empty
 
-  Scenario: same-tenant member isolation — a sibling sees none of Alex's certs
+  Scenario: same-tenant member isolation: a sibling sees none of Alex's certs
     Given a logic sibling "Jordan" in the same tenant as Alex
     And "Alex" answers 10 truefalse easy questions correctly
     When "Jordan" GETs /api/kid/logic/certificates

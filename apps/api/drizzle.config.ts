@@ -2,7 +2,7 @@ import { defineConfig } from 'drizzle-kit';
 
 // drizzle-kit loads this config outside tsx, so it can't resolve our
 // workspace TS imports (e.g. `./src/config.js`). Read DATABASE_URL
-// straight from the environment — populated by `--env-file=` in the
+// straight from the environment: populated by `--env-file=` in the
 // db:push / db:seed scripts (apps/api/package.json) or by Railway in
 // deployed envs.
 const DATABASE_URL = process.env.DATABASE_URL;

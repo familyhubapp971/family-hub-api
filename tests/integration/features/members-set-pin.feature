@@ -1,5 +1,5 @@
 Feature: PUT/DELETE /api/members/:id/pin (FHS-252)
-  Real Postgres on :5433 — admins/adults can set or clear a kid's
+  Real Postgres on :5433, admins/adults can set or clear a kid's
   4-digit PIN. Without this, the kid-login flow shipped in
   FHS-235..FHS-238 is unreachable from product (kids can't log in
   unless someone runs SQL by hand).
@@ -9,21 +9,21 @@ Feature: PUT/DELETE /api/members/:id/pin (FHS-252)
     And a users mirror row exists for the test caller
     And a tenant "khan" exists with the caller as an admin member
 
-  Scenario: Admin sets a fresh PIN on a kid member — verifies via /api/auth/kid-pin
+  Scenario: Admin sets a fresh PIN on a kid member: verifies via /api/auth/kid-pin
     Given a kid member "Iman" exists in tenant "khan" with no PIN
     When the admin PUTs PIN "1234" for "Iman"
     Then the response status is 200
     And the response body marks "Iman" as isChild "true" and hasPin "true"
     And kid-login with PIN "1234" for "Iman" succeeds
 
-  Scenario: Admin resets an existing PIN — old PIN stops working
+  Scenario: Admin resets an existing PIN: old PIN stops working
     Given a kid member "Iman" exists in tenant "khan" with PIN "1234"
     When the admin PUTs PIN "5678" for "Iman"
     Then the response status is 200
     And kid-login with PIN "1234" for "Iman" fails
     And kid-login with PIN "5678" for "Iman" succeeds
 
-  Scenario: Admin DELETEs a kid's PIN — kid is no longer eligible
+  Scenario: Admin DELETEs a kid's PIN: kid is no longer eligible
     Given a kid member "Iman" exists in tenant "khan" with PIN "1234"
     When the admin DELETEs the PIN for "Iman"
     Then the response status is 200

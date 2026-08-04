@@ -1,5 +1,5 @@
 Feature: GET /api/dashboard/today (FHS-228)
-  Real Postgres on :5433 — verifies the home-tab payload bundles
+  Real Postgres on :5433, verifies the home-tab payload bundles
   greeting, today's date, the family roster and counts (members /
   habits / rewards), blocks non-members with 403, and never leaks
   rows across tenants.
@@ -39,7 +39,7 @@ Feature: GET /api/dashboard/today (FHS-228)
     And the response goal "Hajj fund" shows progress 250 and target 5000
     And the response recent activity includes "completed a habit"
 
-  Scenario: FHS-306 — My World sticker earns habitsDone and mw_week_action appears in activity
+  Scenario: FHS-306: My World sticker earns habitsDone and mw_week_action appears in activity
     Given the "khan" tenant has a child member "Iman" with no linked user
     And "Iman" has an open mw_week with 1 sticker placed in "khan"
     And the "khan" tenant has a mw_week_action "claim" for "Iman" with reward "Ice cream"
@@ -48,7 +48,7 @@ Feature: GET /api/dashboard/today (FHS-228)
     And the member "Iman" shows habitsDone 1 and starBalance at least 1
     And the recent activity includes a "claimed Ice cream" entry for "Iman"
 
-  Scenario: FHS-439 — meals, calendar events, habit stickers, and approved rewards feed Recent Activity
+  Scenario: FHS-439: meals, calendar events, habit stickers, and approved rewards feed Recent Activity
     Given the "khan" tenant has a child member "Iman" with no linked user
     And the "khan" tenant has a meal planned for today
     And the "khan" tenant has a calendar event "Swimming lesson"
@@ -65,7 +65,7 @@ Feature: GET /api/dashboard/today (FHS-228)
     When the caller GETs /api/dashboard/today for tenant "smith"
     Then the response status is 403
 
-  Scenario: Tenant isolation — counts and members never leak across tenants
+  Scenario: Tenant isolation: counts and members never leak across tenants
     Given a second tenant "smith" exists with the caller as an admin member
     And the "smith" tenant has a child member "Zaid" with no linked user
     And the "smith" tenant has 4 starter habits and 2 starter rewards

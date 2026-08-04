@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 
-// FHS-445 — calendar sync via a per-family "subscribe link" (iCalendar/ICS feed).
+// FHS-445: calendar sync via a per-family "subscribe link" (iCalendar/ICS feed).
 //
 // The subscribe URL carries a signed token instead of a database-stored one, so
 // the public feed endpoint can resolve + authorise a family with a single
@@ -15,7 +15,7 @@ import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 //
 // The token is a bearer credential (a family's schedule is sensitive on a
 // kids' product), so verification is constant-time and happens BEFORE any
-// event row is read — a forged/edited token never reaches the calendar data.
+// event row is read: a forged/edited token never reaches the calendar data.
 
 const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -154,7 +154,7 @@ function tzOffsetMs(tz: string, at: Date): number {
 
 // Convert a wall-clock date+time IN the family's timezone to the absolute UTC
 // instant, so every timed event is emitted as `...Z` and renders at the right
-// local time in EVERY calendar app (Google, Apple, and Outlook — which
+// local time in EVERY calendar app (Google, Apple, and Outlook: which
 // mishandles bare IANA TZIDs). Two-step to settle DST offset boundaries.
 function zonedWallTimeToUtc(date: string, time: string, tz: string): Date {
   const [y, mo, d] = date.split('-').map(Number);

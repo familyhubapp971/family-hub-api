@@ -1,8 +1,8 @@
-// FHS-382 — GAP 4: kid reading-log validation unit tests.
+// FHS-382: GAP 4: kid reading-log validation unit tests.
 //
 // Mirrors the deleted reading-log.test.ts cases against the kid route.
 // Uses the real kidRouter with a mocked DB (same pattern as kid-world-flags.test.ts).
-// No real Postgres needed — all 400s fire before the DB is touched.
+// No real Postgres needed: all 400s fire before the DB is touched.
 
 import { SignJWT } from 'jose';
 import { Hono } from 'hono';
@@ -57,9 +57,9 @@ beforeEach(() => {
   dbMock.delete.mockReset();
 });
 
-// ─── POST /api/kid/reading-log — body validation ─────────────────────────────
+// ─── POST /api/kid/reading-log: body validation ─────────────────────────────
 
-describe('FHS-382 — POST /api/kid/reading-log validation', () => {
+describe('FHS-382: POST /api/kid/reading-log validation', () => {
   it('400 when title is missing from the body', async () => {
     const token = await mintKidToken();
     const res = await buildLocalApp().request('/api/kid/reading-log', {
@@ -109,9 +109,9 @@ describe('FHS-382 — POST /api/kid/reading-log validation', () => {
   });
 });
 
-// ─── PATCH /api/kid/reading-log/:id — body validation ────────────────────────
+// ─── PATCH /api/kid/reading-log/:id: body validation ────────────────────────
 
-describe('FHS-382 — PATCH /api/kid/reading-log/:id validation', () => {
+describe('FHS-382: PATCH /api/kid/reading-log/:id validation', () => {
   it('400 when finished field is missing', async () => {
     const token = await mintKidToken();
     const res = await buildLocalApp().request(`/api/kid/reading-log/${BOOK_ID}`, {
@@ -137,9 +137,9 @@ describe('FHS-382 — PATCH /api/kid/reading-log/:id validation', () => {
   });
 });
 
-// ─── DELETE /api/kid/reading-log/:id — id validation ─────────────────────────
+// ─── DELETE /api/kid/reading-log/:id: id validation ─────────────────────────
 
-describe('FHS-382 — DELETE /api/kid/reading-log/:id validation', () => {
+describe('FHS-382: DELETE /api/kid/reading-log/:id validation', () => {
   it('400 when id is not a valid UUID', async () => {
     const token = await mintKidToken();
     const res = await buildLocalApp().request('/api/kid/reading-log/not-a-uuid', {

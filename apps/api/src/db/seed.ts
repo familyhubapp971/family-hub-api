@@ -2,7 +2,7 @@
  * Local development seed.
  *
  * Inserts the "default" tenant (FHS-2) plus a small fixture of
- * additional family rows for poking at the dev stack. Idempotent —
+ * additional family rows for poking at the dev stack. Idempotent:
  * every insert uses ON CONFLICT DO NOTHING on the slug unique key, so
  * re-runs are safe.
  *
@@ -32,7 +32,7 @@ const SEED_TENANTS: NewTenant[] = [
     timezone: 'UTC',
     currency: 'USD',
   },
-  // Additional fixture families — swap in ones that match local dev needs.
+  // Additional fixture families: swap in ones that match local dev needs.
   { slug: 'kingdom', name: 'The Kingdom Family', timezone: 'Asia/Dubai', currency: 'AED' },
   { slug: 'lighthouse', name: 'Lighthouse Family', timezone: 'America/New_York', currency: 'USD' },
   { slug: 'compass', name: 'Compass Family', timezone: 'Europe/London', currency: 'GBP' },

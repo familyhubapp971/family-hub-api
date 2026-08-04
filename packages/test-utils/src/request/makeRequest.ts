@@ -2,7 +2,7 @@ import type { Hono } from 'hono';
 
 // Hono app.request() wrapper with sensible defaults for integration
 // tests. Resolves the tenant the SAME way prod does (per ADR 0002):
-// subdomain via the Host header — `<tenantSlug>.familyhub.app`. Setting
+// subdomain via the Host header: `<tenantSlug>.familyhub.app`. Setting
 // only `x-tenant-id` would silently fail because the tenant middleware
 // reads from the subdomain.
 //
@@ -23,9 +23,7 @@ export async function makeRequest(
   path: string,
   opts: MakeRequestOptions = {},
 ): Promise<Response> {
-  const url = opts.tenantSlug
-    ? `http://${opts.tenantSlug}.${TEST_HOST_BASE}${path}`
-    : path;
+  const url = opts.tenantSlug ? `http://${opts.tenantSlug}.${TEST_HOST_BASE}${path}` : path;
 
   const headers: Record<string, string> = {
     Accept: 'application/json',

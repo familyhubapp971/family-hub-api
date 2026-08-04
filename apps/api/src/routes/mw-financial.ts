@@ -27,7 +27,7 @@ import {
 } from '../lib/myworld.js';
 import { getEffectiveRateMinor, rateMinorToDecimal } from '../lib/reward-config.js';
 
-// FHS-295 — My World savings / banking.
+// FHS-295: My World savings / banking.
 //
 // Ported from legacy family-hub: a child banks this week's unallocated
 // stickers into savings (as stickers, or as cash at 0.5 each), and can
@@ -46,7 +46,7 @@ const cashoutSchema = z.object({
   amount: z.number().positive(),
 });
 
-// ── Investment schemas (FHS-296 / FHS-378) — exported for OpenAPI enrichment ──
+// ── Investment schemas (FHS-296 / FHS-378): exported for OpenAPI enrichment ──
 
 /** Request body for POST /investments (create an investment). */
 export const createInvestmentRequestSchema = z.object({
@@ -58,10 +58,10 @@ export const createInvestmentRequestSchema = z.object({
     .min(INVEST_MIN_STICKERS, {
       message: `Minimum ${INVEST_MIN_STICKERS} stickers required to invest`,
     }),
-  // FHS-378 — default true keeps the legacy "missed days lose value" behaviour;
+  // FHS-378: default true keeps the legacy "missed days lose value" behaviour;
   // false makes missed days count but never penalise.
   deductible: z.boolean().optional().default(true),
-  // FHS-534 — parent-chosen coefficient (preset 1/2/3/5). Sets this
+  // FHS-534: parent-chosen coefficient (preset 1/2/3/5). Sets this
   // investment's daily growth AND the habit's pay boost. Default 5 keeps the
   // legacy fixed +5/day rate for any client that doesn't send it.
   coefficient: z
@@ -96,7 +96,7 @@ export const investmentRecordSchema = z.object({
   isActive: z.boolean(),
   isResolved: z.boolean(),
   deductible: z.boolean(),
-  // FHS-534 — the per-investment daily-growth coefficient (snapshotted).
+  // FHS-534: the per-investment daily-growth coefficient (snapshotted).
   coefficient: z.number().int(),
   finalReturn: z.string(),
   createdAt: z.string(),
@@ -124,7 +124,7 @@ async function guard(
   if (!canManage(caller, member)) {
     return { res: c.json({ error: 'forbidden', detail: 'not allowed for this member' }, 403) };
   }
-  // FHS-512 — this member's effective rate (their own override, else the
+  // FHS-512: this member's effective rate (their own override, else the
   // family default), resolved once per request; every cash figure below uses it.
   const rate = rateMinorToDecimal(await getEffectiveRateMinor(db, tenantId, member));
   return { db, tenantId, rate };
@@ -160,7 +160,7 @@ export const mwFinancialRouter = new Hono()
     const { db, tenantId, rate } = g;
     const week = await getOrCreateCurrentWeek(db, tenantId, memberId);
     // stickers to draw from this week (cash save converts at this child's rate).
-    // FIX 2 — guard the divide: a rate <= 0 must never be divided by (see
+    // FIX 2: guard the divide: a rate <= 0 must never be divided by (see
     // cashAsStickers' doc comment for why); treat it as needing 0 stickers.
     const stickersNeeded = type === 'cash' ? (rate <= 0 ? 0 : Math.ceil(amount / rate)) : amount;
 
@@ -188,7 +188,7 @@ export const mwFinancialRouter = new Hono()
       const allocateIds: string[] = [];
       // `covered` is the ACTUAL sticker-value banked (a bonus sticker is
       // worth 5). We credit savings by `covered`, not the requested amount,
-      // so a value-5 sticker spent on a 1-sticker save banks the full 5 —
+      // so a value-5 sticker spent on a 1-sticker save banks the full 5:
       // no value is destroyed (conserves the economy).
       let covered = 0;
       for (const r of unallocated) {
@@ -263,9 +263,9 @@ export const mwFinancialRouter = new Hono()
   // ── INVESTMENTS (FHS-296) ──────────────────────────────────────────────────
   //
   // Ported from legacy family-hub. Three routes:
-  //   GET  /investments?memberId=  — active investments for this child
-  //   POST /investments            — create a new investment
-  //   POST /investments/:id/withdraw — full or partial withdrawal
+  //   GET  /investments?memberId= : active investments for this child
+  //   POST /investments           : create a new investment
+  //   POST /investments/:id/withdraw: full or partial withdrawal
   //
   // All are per (tenant, member) and gate through the same `guard` helper used
   // by savings/cashout above. Create + withdraw run inside an advisory-locked
@@ -273,7 +273,7 @@ export const mwFinancialRouter = new Hono()
 
   // GET active investments. For each one, recalculates value on the fly
   // (completed days from habit_stickers, missed days from elapsed time) and
-  // returns it. This is a read-only path — it does NOT persist the recomputed
+  // returns it. This is a read-only path: it does NOT persist the recomputed
   // values, so it can't race a concurrent withdraw and clobber its principal
   // update. The authoritative state is owned by the create/withdraw paths,
   // and value is always derived, never trusted from the stored cache.
@@ -439,7 +439,7 @@ export const mwFinancialRouter = new Hono()
         })
         .returning();
 
-      // FHS-534 — the coefficient does double duty: it also sets the habit's
+      // FHS-534: the coefficient does double duty: it also sets the habit's
       // pay boost, so completing an invested habit pays `coefficient` stickers
       // per day. Editable later in Reward Settings; the investment above keeps
       // its own snapshotted coefficient regardless of future boost edits.
@@ -510,8 +510,8 @@ export const mwFinancialRouter = new Hono()
     const { db, tenantId, rate } = g;
     const now = new Date();
 
-    // Everything that decides the payout — re-reading the investment, recomputing
-    // its current value, and the limit check — happens INSIDE the advisory lock.
+    // Everything that decides the payout: re-reading the investment, recomputing
+    // its current value, and the limit check: happens INSIDE the advisory lock.
     // If the value + limit check ran before the lock (as they used to), two
     // concurrent withdraws could both pass against a stale, higher value and
     // double-spend. Re-reading the row with isActive=true inside the lock also
@@ -616,7 +616,7 @@ export const mwFinancialRouter = new Hono()
         // Reduce the PRINCIPAL by the withdrawn amount. Current value is
         // re-derived as max(0, principal + completed*5 - missed*2) on every
         // read, so when growth pushed value above the original stake the
-        // principal can legitimately go negative — that keeps the formula equal
+        // principal can legitimately go negative: that keeps the formula equal
         // to the true remaining value. Do NOT clamp it to 0: that would re-add
         // the withdrawn growth for free on the next recalc.
         const newPrincipal = inv.investedStickers - toWithdraw;
@@ -682,7 +682,7 @@ export const mwFinancialRouter = new Hono()
     });
   })
 
-  // POST /investments/:id/settings — toggle an ACTIVE investment's deductible flag (FHS-378).
+  // POST /investments/:id/settings: toggle an ACTIVE investment's deductible flag (FHS-378).
   //
   // Same auth/permission gate as create/withdraw (guard → loadCaller + canManage).
   // Recomputes + persists current_value with the new flag and returns the full
@@ -820,7 +820,7 @@ export const mwFinancialRouter = new Hono()
     return c.json(outcome.investment);
   })
 
-  // PUT /savings/admin-set — overwrite a child's savings balance (admin only, FHS-335).
+  // PUT /savings/admin-set: overwrite a child's savings balance (admin only, FHS-335).
   // Used by the Admin Panel to manually correct a child's sticker/cash balance.
   .put('/savings/admin-set', async (c) => {
     const body = (await c.req.json().catch(() => null)) as unknown;
@@ -845,7 +845,7 @@ export const mwFinancialRouter = new Hono()
     if ('res' in g) return g.res;
     const { db, tenantId } = g;
 
-    // FHS-335 — manually rewriting a balance is admin-only (not "can manage"
+    // FHS-335: manually rewriting a balance is admin-only (not "can manage"
     // which includes self, and no longer a non-admin adult).
     const userRow = c.get('userRow') as { id: string } | undefined;
     if (!userRow) throw new Error('financial/admin-set reached without userRow');
@@ -906,13 +906,13 @@ export const mwFinancialRouter = new Hono()
       remaining -= cashDeducted;
       let stickersDeducted = 0;
       let refundCash = 0;
-      // FIX 2 — guard the divide: `totalAvailable` above already means
+      // FIX 2: guard the divide: `totalAvailable` above already means
       // `remaining` is 0 here whenever rate <= 0 (stickers contribute 0 to
-      // totalAvailable when rate <= 0), so this is unreachable in practice —
+      // totalAvailable when rate <= 0), so this is unreachable in practice:
       // guarded anyway so a rate of 0 can never divide-by-zero.
       if (remaining > 0 && s.savedStickers > 0 && rate > 0) {
         // Stickers come in `rate`-sized units; if the remainder isn't a whole
-        // multiple, the rounded-up sticker over-delivers — refund that
+        // multiple, the rounded-up sticker over-delivers: refund that
         // surplus back to saved cash so no value is destroyed.
         stickersDeducted = Math.min(Math.ceil(remaining / rate), s.savedStickers);
         refundCash = stickersDeducted * rate - remaining;

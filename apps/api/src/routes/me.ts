@@ -9,7 +9,7 @@ import { createLogger } from '../logger.js';
 const log = createLogger('me');
 
 // `type` (not `interface`) so it satisfies drizzle's execute<T extends
-// Record<string, unknown>> constraint — interfaces lack the implicit index sig.
+// Record<string, unknown>> constraint: interfaces lack the implicit index sig.
 type MeTenantRow = {
   tenant_id: string;
   slug: string;
@@ -18,7 +18,7 @@ type MeTenantRow = {
   role: string;
 };
 
-// FHS-194 — Protected GET /api/me.
+// FHS-194: Protected GET /api/me.
 //
 // Auth middleware runs upstream and (a) verifies the Supabase JWT,
 // (b) upserts the users-mirror row, (c) attaches both the verified
@@ -48,14 +48,14 @@ export const meResponseSchema = z.object({
 export type MeResponse = z.infer<typeof meResponseSchema>;
 
 export const meRouter = new Hono().get('/', async (c) => {
-  // getAuthenticatedUser asserts the request passed authMiddleware —
+  // getAuthenticatedUser asserts the request passed authMiddleware:
   // throws loudly during dev if someone forgets to mount auth.
   getAuthenticatedUser(c);
 
   const row = c.get('userRow');
   if (!row) {
     // Unreachable when auth middleware ran successfully (it sets userRow
-    // in the same step as user). Throw rather than 500 silently — the
+    // in the same step as user). Throw rather than 500 silently: the
     // onError handler captures + logs + Sentry-reports.
     throw new Error('me handler reached without userRow on context');
   }
@@ -63,7 +63,7 @@ export const meRouter = new Hono().get('/', async (c) => {
   // Pull the user's tenants across families. This is a deliberately
   // cross-tenant read (a user can belong to several families), so it goes
   // through the SECURITY DEFINER function app_user_memberships (FHS-354) rather
-  // than a direct members→tenants join — under RLS (app_runtime) a direct join
+  // than a direct members→tenants join: under RLS (app_runtime) a direct join
   // would return zero rows because there's no single tenant context here.
   const db = getDb();
   let tenantRows: MeTenantRow[];
@@ -73,14 +73,14 @@ export const meRouter = new Hono().get('/', async (c) => {
          from app_user_memberships(${row.id})`)
     ).rows;
   } catch (err) {
-    // FHS-357 — the function is created on boot (apply-functions.mjs), not by
+    // FHS-357: the function is created on boot (apply-functions.mjs), not by
     // drizzle-kit push. If a deploy hasn't created it yet, never strand a user
-    // with a family on the onboarding screen — fall back to the direct join.
+    // with a family on the onboarding screen: fall back to the direct join.
     // Pre-flip the app runs as the owner so this works; post-flip the function
     // is guaranteed present, so this branch won't run.
     log.warn(
       { err: err instanceof Error ? err.message : String(err), userId: row.id },
-      'app_user_memberships unavailable — falling back to direct members→tenants join',
+      'app_user_memberships unavailable: falling back to direct members→tenants join',
     );
     const rows = await db
       .select({

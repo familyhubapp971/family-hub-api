@@ -1,6 +1,6 @@
 Feature: Kid journal (read-only)
 
-  A logged-in kid READS their own journal — a given day and their past entries —
+  A logged-in kid READS their own journal (a given day and their past entries),
   never a sibling's. Kids no longer write; a parent authors entries (FHS-376).
   Real kid token against real Postgres.
 

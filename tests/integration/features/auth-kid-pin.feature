@@ -1,5 +1,5 @@
 Feature: POST /api/auth/kid-pin (FHS-236)
-  Real Postgres on :5433 — verifies the kid-PIN auth path end-to-end:
+  Real Postgres on :5433, verifies the kid-PIN auth path end-to-end:
   bcrypt hash stored on insert + verified on login + a child-scoped
   JWT issued with the right claims.
 

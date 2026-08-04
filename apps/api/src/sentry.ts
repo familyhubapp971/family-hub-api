@@ -4,7 +4,7 @@ import { createLogger } from './logger.js';
 
 const log = createLogger('sentry');
 
-// Initialise as early as possible — must run before any error-catching
+// Initialise as early as possible: must run before any error-catching
 // code paths. import './sentry.js' from index.ts BEFORE './app.js'.
 //
 // Empty DSN = silent no-op (dev, or before the Sentry project is
@@ -15,7 +15,7 @@ const log = createLogger('sentry');
 // a beforeSend hook that reads from the request context.
 export function initSentry(): void {
   if (!config.SENTRY_DSN_API) {
-    log.info('SENTRY_DSN_API not set — Sentry disabled (no-op)');
+    log.info('SENTRY_DSN_API not set: Sentry disabled (no-op)');
     return;
   }
 
@@ -24,11 +24,11 @@ export function initSentry(): void {
     environment: config.NODE_ENV,
     ...(config.SENTRY_RELEASE ? { release: config.SENTRY_RELEASE } : {}),
     tracesSampleRate: config.SENTRY_TRACES_SAMPLE_RATE,
-    // Strip PII at the edge — defence in depth alongside the pino redact list.
+    // Strip PII at the edge: defence in depth alongside the pino redact list.
     sendDefaultPii: false,
     initialScope: {
       tags: {
-        tenant_id: 'null', // placeholder — Sprint 1 sets per-request via beforeSend
+        tenant_id: 'null', // placeholder: Sprint 1 sets per-request via beforeSend
         service: '@familyhub/api',
       },
     },
@@ -51,7 +51,7 @@ export function captureException(err: unknown, context?: Record<string, unknown>
 
 /**
  * Capture a non-exception signal (e.g. a tenant-scoped request that ran with no
- * tenant context — FHS-351 RLS observability). No-op when Sentry is disabled.
+ * tenant context: FHS-351 RLS observability). No-op when Sentry is disabled.
  */
 export function captureMessage(
   message: string,

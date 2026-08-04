@@ -2,7 +2,7 @@
  * Shared integration-test seeding: one minimal fixture row per tenant-scoped
  * table, in FK-dependency order. Extracted from tenant-isolation.steps.ts
  * (FHS-6) so the RLS sweep (FHS-350) can reuse it instead of duplicating ~360
- * lines. Seed with the OWNER (superuser) connection — it bypasses RLS, so it
+ * lines. Seed with the OWNER (superuser) connection: it bypasses RLS, so it
  * can populate both tenants before the limited role reads them back.
  */
 
@@ -60,7 +60,7 @@ interface SeedCtx {
 
 /**
  * Seed one minimal row for `table` under `tenantId`. Parent rows must already
- * be in `ctx` (e.g. week_actions needs member + week + habit) — call via
+ * be in `ctx` (e.g. week_actions needs member + week + habit): call via
  * {@link seedAllTablesForTenant}, which walks the dependency order.
  */
 export async function seedRow(
@@ -300,7 +300,7 @@ export async function seedRow(
       break;
     }
     case 'money_adjustments': {
-      // FHS-512 — skip-penalty ledger row. habitId nullable so it doesn't
+      // FHS-512: skip-penalty ledger row. habitId nullable so it doesn't
       // strictly need ctx.habitId, but every real writer sets it.
       await db.insert(moneyAdjustments).values({
         tenantId,
@@ -414,7 +414,7 @@ export async function seedRow(
   }
 }
 
-// Dependency order — parents before children (week_actions needs member + week
+// Dependency order: parents before children (week_actions needs member + week
 // + habit; savings_transactions needs savings; etc.).
 const DEPENDENCY_ORDER = [
   'members',

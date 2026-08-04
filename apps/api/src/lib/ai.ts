@@ -1,8 +1,8 @@
-// FHS-389 — AI-generated Maths lessons via Anthropic Claude Haiku.
+// FHS-389: AI-generated Maths lessons via Anthropic Claude Haiku.
 //
 // Feature-flagged: aiEnabled() must return true before any Anthropic call
 // is made. When the flag is off the helpers return null / disabled responses
-// without touching the network — safe for local dev with no key.
+// without touching the network: safe for local dev with no key.
 //
 // No child PII is ever sent to Anthropic. Prompts contain only the chosen
 // maths operation, difficulty/table settings, and kid-safe pedagogy.
@@ -60,24 +60,24 @@ const DIFFICULTY_RANGES: Record<string, string> = {
 const DIFFICULTY_PEDAGOGY: Record<string, string> = {
   easy: `\n\nDIFFICULTY: EASY
 - Use the simplest, most concrete examples (fingers, toys, sweets)
-- One-step thinking only — no chaining of ideas
-- Numbers 1-5 — keep totals small enough to count on one hand
+- One-step thinking only: no chaining of ideas
+- Numbers 1-5: keep totals small enough to count on one hand
 - Use "imagine you have..." and "now count..." framing
 - Celebrate every small step ("you did it!")
-- Use very short sentences — no more than 8 words each`,
+- Use very short sentences: no more than 8 words each`,
 
   medium: `\n\nDIFFICULTY: MEDIUM
-- Build on what the child already knows — reference familiar concepts
+- Build on what the child already knows: reference familiar concepts
 - Introduce one new twist per lesson (e.g. carrying, bigger groups)
-- Numbers up to 10 — use two-hand counting and grouping
+- Numbers up to 10: use two-hand counting and grouping
 - Use "remember when..." to connect new concepts to easy-level knowledge
 - Encourage pattern-spotting: "notice how..."
-- Slightly longer explanations are okay — up to 12 words per sentence`,
+- Slightly longer explanations are okay: up to 12 words per sentence`,
 
   hard: `\n\nDIFFICULTY: HARD
 - Challenge with multi-step reasoning
 - Use real-world scenarios (sharing pizza slices, arranging party bags, setting up rows of chairs)
-- Numbers up to 20 — encourage mental strategies like "break it into parts"
+- Numbers up to 20: encourage mental strategies like "break it into parts"
 - Use "what if..." questions to stretch thinking
 - Praise effort and strategy, not just the answer
 - Introduce the idea of checking your work: "let's count again to be sure"`,
@@ -111,20 +111,20 @@ function getTablePedagogy(operation: string, tableNumber: number): string {
   if (tableNumber <= 3) {
     return `\n\nTABLE TIER: BEGINNER (${opLabel})
 - Use the simplest, most concrete examples (fingers, toys, sweets)
-- One-step thinking only — no chaining of ideas
+- One-step thinking only: no chaining of ideas
 - Keep totals small enough to count on fingers
 - Use "imagine you have..." and "now count..." framing
 - Celebrate every small step ("you did it!")
-- Use very short sentences — no more than 8 words each
+- Use very short sentences: no more than 8 words each
 - Focus exclusively on ${opLabel} facts`;
   }
   if (tableNumber <= 6) {
     return `\n\nTABLE TIER: DEVELOPING (${opLabel})
-- Build on what the child already knows — reference earlier numbers
+- Build on what the child already knows: reference earlier numbers
 - Use pattern recognition and counting strategies
 - Use "remember when..." to connect to earlier knowledge
 - Encourage pattern-spotting
-- Slightly longer explanations are okay — up to 12 words per sentence
+- Slightly longer explanations are okay: up to 12 words per sentence
 - Focus exclusively on ${opLabel} facts`;
   }
   if (tableNumber <= 9) {
@@ -141,7 +141,7 @@ function getTablePedagogy(operation: string, tableNumber: number): string {
 - Multi-step reasoning and checking strategies
 - Use real-world scenarios (money, measurements, time)
 - Encourage the child to explain their thinking back
-- Confident tone — they know a lot already
+- Confident tone: they know a lot already
 - Up to 20-word explanations
 - Focus exclusively on ${opLabel} facts`;
 }
@@ -220,7 +220,7 @@ Your approach:
 5. Provide 3 practice questions with visual context
 
 IMPORTANT: This lesson is about ${operation === 'addition' ? 'ADDITION (+)' : operation === 'subtraction' ? 'SUBTRACTION (-)' : operation === 'multiplication' ? 'MULTIPLICATION (×)' : 'DIVISION (÷)'}.
-${operation === 'addition' ? 'Show combining two amounts together. Do NOT show repeated addition or groups — that is multiplication.' : ''}
+${operation === 'addition' ? 'Show combining two amounts together. Do NOT show repeated addition or groups: that is multiplication.' : ''}
 ${operation === 'subtraction' ? 'Show taking away from a starting amount. The result must be non-negative.' : ''}
 ${operation === 'multiplication' ? 'Show equal groups of items.' : ''}
 ${operation === 'division' ? 'Show sharing equally into groups. Use only clean division with no remainders.' : ''}
@@ -232,8 +232,8 @@ NLP rules woven throughout:
 - Tone: warm, unhurried, never corrective
 - Use simple words a 5-year-old understands
 - Talk directly to the child using "you" and "your"
-- Never use the word "children" — always address the child directly with "you"
-- Never refer to the child in third person — speak TO them, not ABOUT them
+- Never use the word "children": always address the child directly with "you"
+- Never refer to the child in third person: speak TO them, not ABOUT them
 
 Return ONLY valid JSON (no markdown fences, no explanation outside the JSON). Use this exact structure:
 

@@ -1,8 +1,8 @@
-// FHS-384 — Integration step definitions for learn-insights.feature.
+// FHS-384: Integration step definitions for learn-insights.feature.
 //
 // Uses real Postgres on :5433. The DB is truncated in Background so each
 // Scenario starts clean. Auth is wired with a real ES256 JWT (same pattern
-// as mw-analytics.steps.ts). The app is built from the real route only —
+// as mw-analytics.steps.ts). The app is built from the real route only:
 // no full-app spin-up needed.
 //
 // @amiceli/vitest-cucumber rule: every step referenced in the feature must be
@@ -80,7 +80,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   let app: Hono;
   let token: string;
   let kidToken: string;
-  // Shared private key — exposed at closure level so kid-caller step can reuse.
+  // Shared private key: exposed at closure level so kid-caller step can reuse.
   let sharedPrivateKey: KeyLike;
   const tenantIds: Record<string, string> = {};
   const memberIds: Record<string, string> = {};
@@ -280,7 +280,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
 
   // ── Scenario: empty state ──────────────────────────────────────────────────
 
-  Scenario('empty state — a child with no Learn activity', ({ When, Then, And }) => {
+  Scenario('empty state: a child with no Learn activity', ({ When, Then, And }) => {
     When(
       'the caller GETs learn insights for {string} in {string}',
       async (_c, name: string, slug: string) => {
@@ -310,23 +310,20 @@ describeFeature(feature, ({ Background, Scenario }) => {
 
   // ── Scenario: tenant isolation ─────────────────────────────────────────────
 
-  Scenario(
-    'tenant isolation — a parent cannot read a child in another tenant',
-    ({ When, Then }) => {
-      When(
-        'the caller GETs learn insights for {string} in {string}',
-        async (_c, name: string, slug: string) => {
-          // Omar is in "other-family"; caller's x-test-tenant header is "insight-family".
-          // The member lookup (tenantId = insight-family, id = Omar.id) returns 0 rows → 404.
-          await getInsights(name, slug);
-        },
-      );
+  Scenario('tenant isolation: a parent cannot read a child in another tenant', ({ When, Then }) => {
+    When(
+      'the caller GETs learn insights for {string} in {string}',
+      async (_c, name: string, slug: string) => {
+        // Omar is in "other-family"; caller's x-test-tenant header is "insight-family".
+        // The member lookup (tenantId = insight-family, id = Omar.id) returns 0 rows → 404.
+        await getInsights(name, slug);
+      },
+    );
 
-      Then('the learn insights response status is {int}', (_c, status: number) => {
-        expect(lastResponse.status).toBe(status);
-      });
-    },
-  );
+    Then('the learn insights response status is {int}', (_c, status: number) => {
+      expect(lastResponse.status).toBe(status);
+    });
+  });
 
   // ── Scenario: kid caller is rejected ──────────────────────────────────────
 
@@ -335,7 +332,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       // Create a child member with its own user identity so we can mint a JWT
       // for it. The role check comes from the DB (members.role = 'child'), not
       // the JWT payload, so we reuse the SAME app and SAME keypair built in
-      // Background — just with a different sub claim (kid's userId).
+      // Background: just with a different sub claim (kid's userId).
       const kidEmail = `${name.toLowerCase()}@example.com`;
 
       // Insert the kid user so userMirrorSync can resolve claims.sub.
@@ -353,7 +350,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       memberIds[name] = KID_USER_ID;
 
       // Mint using the shared parent private key (same JWKS as the existing
-      // app). The sub is the kid's userId — isAdminOrAdult() returns false
+      // app). The sub is the kid's userId: isAdminOrAdult() returns false
       // because members.role = 'child' in the DB → 403 ADULT_REQUIRED.
       kidToken = await mintToken(sharedPrivateKey, KID_USER_ID, kidEmail);
     });

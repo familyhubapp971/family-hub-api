@@ -225,7 +225,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   // ─── Scenario: placement idempotency ─────────────────────────────────────────
 
   Scenario(
-    'placement is idempotent — a second call does not duplicate rows',
+    'placement is idempotent: a second call does not duplicate rows',
     ({ When, Then, And }) => {
       When(
         '"Maya" POSTs /api/kid/maths/placement with operation "division" and result tableNumber 2 correct true timeSeconds 2',
@@ -321,10 +321,10 @@ describeFeature(feature, ({ Background, Scenario }) => {
     },
   );
 
-  // ─── Scenario: tenant isolation — progress ────────────────────────────────────
+  // ─── Scenario: tenant isolation: progress ────────────────────────────────────
 
   Scenario(
-    "tenant isolation — a kid in another tenant sees zero of Maya's progress",
+    "tenant isolation: a kid in another tenant sees zero of Maya's progress",
     ({ When, Then, And }) => {
       When(
         '"Maya" PUTs /api/kid/maths/progress with operation "addition" tableNumber 5 learnCompleted true',
@@ -349,10 +349,10 @@ describeFeature(feature, ({ Background, Scenario }) => {
     },
   );
 
-  // ─── Scenario: tenant isolation — certificates ────────────────────────────────
+  // ─── Scenario: tenant isolation: certificates ────────────────────────────────
 
   Scenario(
-    "tenant isolation — a kid in another tenant sees zero of Maya's certificates",
+    "tenant isolation: a kid in another tenant sees zero of Maya's certificates",
     ({ When, Then }) => {
       When(
         '"Maya" POSTs /api/kid/maths/certificates with operation "multiplication" difficulty "6" totalCorrect 10',
@@ -381,11 +381,11 @@ describeFeature(feature, ({ Background, Scenario }) => {
   // ─── Scenario: same-tenant member isolation ───────────────────────────────────
 
   Scenario(
-    "same-tenant member isolation — a sibling sees none of Maya's progress",
+    "same-tenant member isolation: a sibling sees none of Maya's progress",
     ({ Given, When, Then, And }) => {
       Given('a sibling "Lily" in the same tenant as Maya', async () => {
         // Resolve Maya's tenant from the existing token (tenantId is in the JWT).
-        // We need the real tenantId — look it up from the members table via Maya's token,
+        // We need the real tenantId: look it up from the members table via Maya's token,
         // which we can do by querying the DB for the sole 'maths-fam' tenant inserted in Background.
         const [tenant] = await db.select({ id: tenants.id }).from(tenants).limit(1);
         const [lily] = await db

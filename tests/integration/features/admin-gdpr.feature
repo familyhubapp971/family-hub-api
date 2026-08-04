@@ -1,4 +1,4 @@
-Feature: Admin GDPR — export my data + delete my account (FHS-435)
+Feature: Admin GDPR: export my data + delete my account (FHS-435)
   Real Postgres on :5433. GET /api/admin/export and POST /api/admin/delete-account
   are admin-only and tenant-scoped. Delete-account is IRREVERSIBLE, so every
   scenario here proves both endpoints never touch another family's data, and

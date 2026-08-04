@@ -109,7 +109,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   });
 
-  // ─── GET /api/kid/logic/questions — happy path ────────────────────────────────
+  // ─── GET /api/kid/logic/questions: happy path ────────────────────────────────
 
   Scenario(
     'GET /api/kid/logic/questions returns questions with answers stripped',
@@ -138,7 +138,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     },
   );
 
-  // ─── GET /api/kid/logic/questions — 400 on invalid gameType ──────────────────
+  // ─── GET /api/kid/logic/questions: 400 on invalid gameType ──────────────────
 
   Scenario('400 on invalid gameType', ({ When, Then }) => {
     When(
@@ -153,7 +153,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     Then('the logic questions response status is 400', () => expect(questionsRes.status).toBe(400));
   });
 
-  // ─── GET /api/kid/logic/questions — 400 on invalid difficulty ────────────────
+  // ─── GET /api/kid/logic/questions: 400 on invalid difficulty ────────────────
 
   Scenario('400 on invalid difficulty', ({ When, Then }) => {
     When(
@@ -168,7 +168,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     Then('the logic questions response status is 400', () => expect(questionsRes.status).toBe(400));
   });
 
-  // ─── POST /api/kid/logic/answer — correct answer ─────────────────────────────
+  // ─── POST /api/kid/logic/answer: correct answer ─────────────────────────────
 
   Scenario('correct answer increments combo progress', ({ Given, When, Then, And }) => {
     Given('"Alex" fetches a truefalse easy question', async () => {
@@ -197,7 +197,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // ─── POST /api/kid/logic/answer — wrong answer ───────────────────────────────
+  // ─── POST /api/kid/logic/answer: wrong answer ───────────────────────────────
 
   Scenario('wrong answer does not increment combo progress', ({ Given, When, Then, And }) => {
     Given('"Alex" fetches a truefalse easy question', async () => {
@@ -331,7 +331,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // ─── GET /api/kid/logic/certificates — empty initially ───────────────────────
+  // ─── GET /api/kid/logic/certificates: empty initially ───────────────────────
 
   Scenario(
     'GET /api/kid/logic/certificates returns empty array initially',
@@ -369,10 +369,10 @@ describeFeature(feature, ({ Background, Scenario }) => {
     Then('the logic answer response status is 400', () => expect(answerRes.status).toBe(400));
   });
 
-  // ─── Tenant isolation — Sam sees none of Alex's certs ────────────────────────
+  // ─── Tenant isolation: Sam sees none of Alex's certs ────────────────────────
 
   Scenario(
-    "tenant isolation — Sam sees none of Alex's progress or certs",
+    "tenant isolation: Sam sees none of Alex's progress or certs",
     ({ Given, When, Then, And }) => {
       Given('"Alex" answers 10 truefalse easy questions correctly', async () => {
         const qs = getRawQuestions('truefalse', 'easy');
@@ -406,10 +406,10 @@ describeFeature(feature, ({ Background, Scenario }) => {
   );
 
   // ─── Same-tenant member isolation ────────────────────────────────────────────
-  // Feature keywords: Given / And / When / Then — must match exactly.
+  // Feature keywords: Given / And / When / Then. Must match exactly.
 
   Scenario(
-    "same-tenant member isolation — a sibling sees none of Alex's certs",
+    "same-tenant member isolation: a sibling sees none of Alex's certs",
     ({ Given, And, When, Then }) => {
       Given('a logic sibling "Jordan" in the same tenant as Alex', async () => {
         const allTenants = await db.select({ id: tenants.id, slug: tenants.slug }).from(tenants);
@@ -421,7 +421,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
           .returning();
         tokens.set('Jordan', await mintKidToken(jordan!.id, alexTenant.id, alexTenant.slug));
       });
-      // Feature line 69 uses "And" keyword — must bind with And(), not Given().
+      // Feature line 69 uses "And" keyword: must bind with And(), not Given().
       And('"Alex" answers 10 truefalse easy questions correctly', async () => {
         const qs = getRawQuestions('truefalse', 'easy');
         for (let i = 0; i < 10; i++) {

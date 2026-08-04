@@ -6,7 +6,7 @@ import { members, notices } from '../db/schema.js';
 import { alias } from 'drizzle-orm/pg-core';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 
-// FHS-232 — GET / POST / DELETE /api/notices.
+// FHS-232: GET / POST / DELETE /api/notices.
 //
 // Backs the Noticeboard tab. Family bulletin board: short notes,
 // optionally pinned. Pinned notes float to the top, rest is
@@ -21,7 +21,7 @@ export const noticeItemSchema = z.object({
   body: z.string(),
   pinned: z.boolean(),
   authorMemberId: z.string().uuid().nullable(),
-  // FHS-266 — post-it card fields: who posted it + an optional emoji.
+  // FHS-266: post-it card fields: who posted it + an optional emoji.
   authorName: z.string().nullable(),
   icon: z.string().nullable(),
   createdAt: z.string().datetime(),
@@ -37,7 +37,7 @@ const createNoticeRequestSchema = z.object({
   body: z.string().trim().min(1, 'body is required').max(2000),
   pinned: z.boolean().optional(),
   // A single emoji / short glyph. Length-capped, not strictly validated
-  // as an emoji — the UI offers a fixed palette.
+  // as an emoji: the UI offers a fixed palette.
   icon: z.string().trim().min(1).max(8).optional(),
 });
 
@@ -209,7 +209,7 @@ export const noticesRouter = new Hono()
     return c.body(null, 204);
   })
   // Edit a notice (body/pinned/icon). Admin + adult only; tenant-scoped.
-  // authorMemberId is preserved — editing never reassigns authorship.
+  // authorMemberId is preserved: editing never reassigns authorship.
   // Role gate runs before the UUID check, same info-leak shape as DELETE.
   .put('/:id', async (c) => {
     getAuthenticatedUser(c);

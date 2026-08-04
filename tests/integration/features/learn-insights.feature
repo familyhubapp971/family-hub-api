@@ -1,5 +1,5 @@
 Feature: Learn Insights API (FHS-384)
-  Real Postgres on :5433 — verifies the parent-facing GET /api/learn/insights
+  Real Postgres on :5433, verifies the parent-facing GET /api/learn/insights
   endpoint. Checks: data aggregation from real maths/logic/science rows,
   tenant isolation (parent in tenant A cannot read a child in tenant B),
   and the empty-state shape for a child with no Learn activity.
@@ -20,14 +20,14 @@ Feature: Learn Insights API (FHS-384)
     And the learn insights Maths progressPct is 12
     And the learn insights hasActivity is true
 
-  Scenario: empty state — a child with no Learn activity
+  Scenario: empty state: a child with no Learn activity
     When the caller GETs learn insights for "Layla" in "insight-family"
     Then the learn insights response status is 200
     And the learn insights hasActivity is false
     And the learn insights weakest is null
     And every subject has progressPct 0
 
-  Scenario: tenant isolation — a parent cannot read a child in another tenant
+  Scenario: tenant isolation: a parent cannot read a child in another tenant
     When the caller GETs learn insights for "Omar" in "insight-family"
     Then the learn insights response status is 404
 

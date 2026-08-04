@@ -1,10 +1,10 @@
-// FHS-389 — POST /api/kid/learn/maths/ai-lesson
+// FHS-389: POST /api/kid/learn/maths/ai-lesson
 //
 // Tests the flag-off path, input validation, system-prompt routing,
-// and AI-error handling. No real Anthropic calls are made — fetch is mocked.
+// and AI-error handling. No real Anthropic calls are made: fetch is mocked.
 //
 // Architecture note:
-// - Flag OFF + validation tests use buildApp() — no DB needed (endpoint returns
+// - Flag OFF + validation tests use buildApp(): no DB needed (endpoint returns
 //   early before any DB call when disabled, or rejects at body parse).
 // - Flag ON tests use kidRouter directly with a mocked DB client so pinRequestTenant
 //   doesn't try to open a real Postgres connection (same pattern as kid-world-flags.test.ts).
@@ -15,7 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { config } from '../../../../apps/api/src/config.js';
 import { KID_ISSUER } from '../../../../apps/api/src/middleware/kid-auth.js';
 
-// ─── DB mock — scoped to this module ────────────────────────────────────────
+// ─── DB mock: scoped to this module ────────────────────────────────────────
 
 vi.mock('../../../../apps/api/src/db/client.js', () => ({
   getDb: () => ({}),
@@ -58,7 +58,7 @@ const MOCK_LESSON = {
     equation: '3 + 2 = 5',
   },
   stickyPhrase: 'When you add, the number gets bigger!',
-  gapCheck: 'Adding does not mean subtracting — you are making more, not less.',
+  gapCheck: 'Adding does not mean subtracting: you are making more, not less.',
   practice: [
     {
       emoji: '🍎',
@@ -125,9 +125,9 @@ function enableAI() {
   });
 }
 
-// ── GET status probe — cheap, never generates / never calls Anthropic ────────
+// ── GET status probe: cheap, never generates / never calls Anthropic ────────
 
-describe('FHS-389 — GET /learn/maths/ai-lesson/status', () => {
+describe('FHS-389: GET /learn/maths/ai-lesson/status', () => {
   it('returns { enabled: false } when off, with no Anthropic call', async () => {
     const fetchSpy = vi.spyOn(global, 'fetch');
     const token = await mintKidToken();
@@ -159,7 +159,7 @@ describe('FHS-389 — GET /learn/maths/ai-lesson/status', () => {
 
 // ── Flag OFF (default in test env) ──────────────────────────────────────────
 
-describe('FHS-389 — POST /learn/maths/ai-lesson — flag OFF', () => {
+describe('FHS-389: POST /learn/maths/ai-lesson (flag OFF)', () => {
   it('returns 200 { enabled: false } when flag is off', async () => {
     const fetchSpy = vi.spyOn(global, 'fetch');
     const token = await mintKidToken();
@@ -190,7 +190,7 @@ describe('FHS-389 — POST /learn/maths/ai-lesson — flag OFF', () => {
 
 // ── Input validation (flag ON so the endpoint reaches the validation) ────────
 
-describe('FHS-389 — POST /learn/maths/ai-lesson — validation', () => {
+describe('FHS-389: POST /learn/maths/ai-lesson (validation)', () => {
   beforeEach(() => {
     enableAI();
     // Return a valid lesson so validation-passing tests don't error on Anthropic.
@@ -260,9 +260,9 @@ describe('FHS-389 — POST /learn/maths/ai-lesson — validation', () => {
   });
 });
 
-// ── Flag ON — successful AI response ────────────────────────────────────────
+// ── Flag ON: successful AI response ────────────────────────────────────────
 
-describe('FHS-389 — POST /learn/maths/ai-lesson — flag ON, success', () => {
+describe('FHS-389: POST /learn/maths/ai-lesson (flag ON, success)', () => {
   beforeEach(() => enableAI());
 
   it('returns 200 { enabled: true, lesson } when AI responds with valid JSON', async () => {
@@ -361,9 +361,9 @@ describe('FHS-389 — POST /learn/maths/ai-lesson — flag ON, success', () => {
   });
 });
 
-// ── Flag ON — AI failure ─────────────────────────────────────────────────────
+// ── Flag ON: AI failure ─────────────────────────────────────────────────────
 
-describe('FHS-389 — POST /learn/maths/ai-lesson — flag ON, AI failure', () => {
+describe('FHS-389: POST /learn/maths/ai-lesson (flag ON, AI failure)', () => {
   beforeEach(() => enableAI());
 
   it('returns 200 { enabled:true, lesson:null, error } when Anthropic returns 500', async () => {
@@ -419,7 +419,7 @@ describe('FHS-389 — POST /learn/maths/ai-lesson — flag ON, AI failure', () =
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
 
-describe('FHS-389 — POST /learn/maths/ai-lesson — auth', () => {
+describe('FHS-389: POST /learn/maths/ai-lesson (auth)', () => {
   it('returns 403 (KID_REQUIRED) when called without a kid token', async () => {
     // kidRouter runs kidAuthMiddleware + requireKidAuth on every route, so
     // a request with no Bearer token is rejected with 403 before reaching the handler.

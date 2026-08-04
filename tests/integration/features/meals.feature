@@ -1,5 +1,5 @@
 Feature: GET + POST /api/meals (FHS-229)
-  Real Postgres on :5433 — verifies the weekly meal planner returns
+  Real Postgres on :5433, verifies the weekly meal planner returns
   every cell, upserts via the (tenant_id, day_of_week, slot) unique
   index, deletes when name is empty, blocks non-admin/adult callers
   from writing, and never leaks rows across tenants.
@@ -37,7 +37,7 @@ Feature: GET + POST /api/meals (FHS-229)
     When the caller POSTs a meal "Porridge" for "mon" "breakfast" in tenant "khan"
     Then the response status is 403
 
-  Scenario: Tenant isolation — meals never leak across tenants
+  Scenario: Tenant isolation: meals never leak across tenants
     Given a second tenant "smith" exists with the caller as an admin member
     And the "smith" tenant has a meal "Pasta" planned for "wed" "dinner"
     When the caller GETs /api/meals for tenant "khan"

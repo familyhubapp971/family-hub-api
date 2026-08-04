@@ -5,12 +5,12 @@ import { getDb } from '../db/client.js';
 import { members, tasks } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 
-// FHS-233 / FHS-267 — GET / POST / PATCH / DELETE /api/tasks.
+// FHS-233 / FHS-267: GET / POST / PATCH / DELETE /api/tasks.
 //
 // The Tasks tab is a shared-to-see, private-to-edit family board
 // (ADR 0013). GET returns every task in the tenant tagged with its
 // memberId so the UI can render a column per person; POST/PATCH/DELETE
-// stay owner-scoped — a member can see another's column but can only
+// stay owner-scoped: a member can see another's column but can only
 // mutate their own tasks. (Distinct from /api/assignments, the
 // family homework surface.)
 
@@ -72,7 +72,7 @@ function rowToItem(r: {
   };
 }
 
-// FHS-355 — the kid's OWN tasks, newest first. Shared by the kid route
+// FHS-355: the kid's OWN tasks, newest first. Shared by the kid route
 // (GET /api/kid/tasks). Member-scoped so a kid only ever sees their own.
 export async function listTasksForMember(
   db: ReturnType<typeof getDb>,
@@ -93,7 +93,7 @@ export async function listTasksForMember(
   return rows.map(rowToItem);
 }
 
-// FHS-355 — tick/untick one of the member's OWN tasks. Returns false if no task
+// FHS-355: tick/untick one of the member's OWN tasks. Returns false if no task
 // matched (wrong id, other member, or other tenant) so the caller can 404.
 export async function setTaskDoneForMember(
   db: ReturnType<typeof getDb>,
@@ -213,7 +213,7 @@ export const tasksRouter = new Hono()
     }
     const now = new Date();
     // The WHERE includes member_id == caller.id so a member can never
-    // PATCH another member's task — even within the same tenant.
+    // PATCH another member's task: even within the same tenant.
     const [row] = await db
       .update(tasks)
       .set({ doneAt: parsed.data.done ? now : null, updatedAt: now })
@@ -226,7 +226,7 @@ export const tasksRouter = new Hono()
         doneAt: tasks.doneAt,
       });
     if (!row) {
-      // 404 here covers BOTH "wrong owner" and "doesn't exist" — by
+      // 404 here covers BOTH "wrong owner" and "doesn't exist": by
       // design. Splitting into 403/404 would let a probe enumerate
       // task ids belonging to other members. Same shape used in
       // DELETE below; do not split.
@@ -261,7 +261,7 @@ export const tasksRouter = new Hono()
     return c.body(null, 204);
   })
   // Edit a task's title/due date. Owner-scoped (a member edits only their
-  // own tasks) — same WHERE as PATCH/DELETE. memberId and completion
+  // own tasks): same WHERE as PATCH/DELETE. memberId and completion
   // (doneAt) are deliberately not editable here.
   .put('/:id', async (c) => {
     getAuthenticatedUser(c);

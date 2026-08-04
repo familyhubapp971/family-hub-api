@@ -8,7 +8,7 @@ import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/m
 import { invitationsRouter } from '../../../apps/api/src/routes/invitations.js';
 import { tenants, members, users } from '../../../apps/api/src/db/schema.js';
 // The supabase-admin module is mocked below (spreads ...actual), so this is the
-// real SupabaseAdminError class — `instanceof` matches what the handler sees.
+// real SupabaseAdminError class: `instanceof` matches what the handler sees.
 import { SupabaseAdminError } from '../../../apps/api/src/lib/supabase-admin.js';
 import type { Database } from '../../../apps/api/src/db/client.js';
 import { getTestDb } from '../support/db.js';
@@ -35,7 +35,7 @@ vi.mock('../../../apps/api/src/config.js', async () => {
 });
 
 // Mock the Supabase admin call so the integration tests don't hit the
-// real Supabase API — we still exercise the full DB + auth path here.
+// real Supabase API: we still exercise the full DB + auth path here.
 const inviteUserByEmail = vi.fn();
 vi.mock('../../../apps/api/src/lib/supabase-admin.js', async () => {
   const actual = await vi.importActual<
@@ -83,7 +83,7 @@ function makeJwks(publicJwk: JWK) {
   };
 }
 
-// Stub resolveTenant — reads the tenant id from an X-Test-Tenant header
+// Stub resolveTenant: reads the tenant id from an X-Test-Tenant header
 // so each scenario can target a specific tenant without having to wire
 // the real subdomain/path resolution chain.
 const resolveTenantFromHeader: MiddlewareHandler = async (c, next) => {
@@ -108,7 +108,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
         await db.execute(sql`TRUNCATE TABLE tenants RESTART IDENTITY CASCADE`);
         _resetJwksCacheForTests();
         inviteUserByEmail.mockReset();
-        // Default mock — return a stable Supabase user id.
+        // Default mock: return a stable Supabase user id.
         inviteUserByEmail.mockResolvedValue({ id: 'supabase-user-int-uuid' });
         // Reset the tenant-id cache between scenarios.
         for (const k of Object.keys(tenantIds)) delete tenantIds[k];
@@ -162,7 +162,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   });
 
   Scenario(
-    'Happy path — admin invites a new email, row stored as pending',
+    'Happy path: admin invites a new email, row stored as pending',
     ({ When, Then, And }) => {
       let res: Response;
 
@@ -282,7 +282,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       },
     );
 
-    // The .feature uses `And` for the second precondition — bind via
+    // The .feature uses `And` for the second precondition: bind via
     // `And()` not `Given()` so @amiceli/vitest-cucumber matches the
     // keyword exactly (the library is strict about Given vs And).
     And(
@@ -332,7 +332,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   });
 
   Scenario(
-    'A failed invite rolls back the seat — no ghost member (FHS-352)',
+    'A failed invite rolls back the seat: no ghost member (FHS-352)',
     ({ When, Then, And }) => {
       let res: Response;
       When(
@@ -412,7 +412,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     },
   );
 
-  // FHS-486 / ADR 0019 — admin-grant safeguard: only an admin caller may
+  // FHS-486 / ADR 0019, admin-grant safeguard: only an admin caller may
   // invite someone as admin.
   Scenario(
     'A normal user (adult, non-admin) cannot invite someone as admin (FHS-486)',
@@ -420,7 +420,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       let res: Response;
 
       Given(
-        // Cucumber Expressions treat bare `()` as optional-text syntax —
+        // Cucumber Expressions treat bare `()` as optional-text syntax:
         // escape them so "(adult)" matches as literal text, not a group.
         'the inviter is a normal user \\(adult\\), not an admin, in tenant {string}',
         async (_ctx, slug: string) => {
@@ -496,7 +496,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       },
     );
 
-    // Prove the grant actually persisted as admin — not silently downgraded.
+    // Prove the grant actually persisted as admin: not silently downgraded.
     And('that invitation was persisted with role {string}', async (_ctx, role: string) => {
       const { rows } = await db.execute<{ role: string }>(
         sql`SELECT role FROM pending_invitations

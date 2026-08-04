@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { noticesRouter } from '../../../../apps/api/src/routes/notices.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-232 — GET / POST / DELETE /api/notices.
+// FHS-232: GET / POST / DELETE /api/notices.
 
 const dbMock = {
   select: vi.fn(),
@@ -67,8 +67,8 @@ function buildAppWithSeed(
       };
     }
     // selectIdx >= 2 covers two cases:
-    //   • GET list — leftJoin().where().orderBy()
-    //   • PUT author lookup — where().limit()  (no leftJoin, no orderBy)
+    //   • GET list: leftJoin().where().orderBy()
+    //   • PUT author lookup: where().limit()  (no leftJoin, no orderBy)
     return {
       from: () => ({
         leftJoin: () => ({
@@ -109,7 +109,7 @@ beforeEach(() => {
   lastUpdateSet = null;
 });
 
-describe('FHS-232 — GET /api/notices', () => {
+describe('FHS-232: GET /api/notices', () => {
   it('returns 400 when no tenant', async () => {
     const app = buildAppWithSeed({ noTenant: true });
     const res = await app.request('/api/notices');
@@ -158,7 +158,7 @@ describe('FHS-232 — GET /api/notices', () => {
   });
 });
 
-describe('FHS-232 — POST /api/notices', () => {
+describe('FHS-232: POST /api/notices', () => {
   function postBody(body: unknown): RequestInit {
     return {
       method: 'POST',
@@ -235,7 +235,7 @@ describe('FHS-232 — POST /api/notices', () => {
   });
 });
 
-describe('FHS-310 — PUT /api/notices/:id', () => {
+describe('FHS-310: PUT /api/notices/:id', () => {
   const N1 = '22222222-2222-4222-8222-222222222222';
   const created = new Date('2026-05-03T10:00:00.000Z');
   const AUTHOR_MEMBER_ID = '44444444-4444-4444-8444-444444444444';
@@ -282,7 +282,7 @@ describe('FHS-310 — PUT /api/notices/:id', () => {
     expect(body.icon).toBe('🎉');
   });
 
-  it('preserves authorMemberId — PUT never reassigns authorship', async () => {
+  it('preserves authorMemberId: PUT never reassigns authorship', async () => {
     const app = buildAppWithSeed(
       {},
       [],
@@ -322,14 +322,14 @@ describe('FHS-310 — PUT /api/notices/:id', () => {
   });
 
   it('returns 404 when notice does not exist in this tenant', async () => {
-    // updateReturn is empty — WHERE tenantId AND id matches nothing.
+    // updateReturn is empty: WHERE tenantId AND id matches nothing.
     const app = buildAppWithSeed({}, [], [], [], []);
     const res = await app.request(`/api/notices/${N1}`, putBody({ body: 'X' }));
     expect(res.status).toBe(404);
   });
 });
 
-describe('FHS-232 — DELETE /api/notices/:id', () => {
+describe('FHS-232: DELETE /api/notices/:id', () => {
   const N1 = '22222222-2222-4222-8222-222222222222';
 
   it('returns 400 for malformed UUID', async () => {

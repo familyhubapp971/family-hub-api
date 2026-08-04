@@ -1,6 +1,6 @@
 Feature: Kid stats / analytics
 
-  A logged-in kid sees their OWN My World stats — habit success + weekly trend —
+  A logged-in kid sees their OWN My World stats (habit success + weekly trend),
   never a sibling's (FHS-369). Real kid token against real Postgres.
 
   Background:

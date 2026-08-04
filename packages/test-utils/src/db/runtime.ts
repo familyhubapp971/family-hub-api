@@ -1,7 +1,7 @@
 import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 
-// FHS-348/350 — a SECOND test pool that logs in as the limited `app_runtime`
+// FHS-348/350: a SECOND test pool that logs in as the limited `app_runtime`
 // role (no BYPASSRLS), so RLS proof tests see exactly what production will once
 // the app flips to that role (FHS-351). The default getTestDb() logs in as the
 // superuser (fh_test), which BYPASSES RLS and therefore can never prove
@@ -36,7 +36,7 @@ export async function closeRuntimeTestPool(): Promise<void> {
 }
 
 /**
- * A Drizzle instance over the app_runtime pool — for exercising real query
+ * A Drizzle instance over the app_runtime pool, for exercising real query
  * helpers (e.g. getOrCreateUser) under RLS as the limited role, not the
  * superuser. No schema is bound; pass `sql` / table objects as the caller needs.
  */
@@ -46,7 +46,7 @@ export function runtimeTestDb() {
 
 /**
  * Run `fn` on an app_runtime connection with `app.current_user` pinned to
- * `userId` — or cleared (null) for the "no user context → fail closed" case.
+ * `userId`, or cleared (null) for the "no user context → fail closed" case.
  * Mirror of {@link asRuntimeTenant} for the global users table policy (FHS-349).
  */
 export async function asRuntimeUser<T>(
@@ -69,7 +69,7 @@ export async function asRuntimeUser<T>(
 
 /**
  * Run `fn` on an app_runtime connection with `app.current_tenant` pinned to
- * `tenantId` — or cleared (the empty sentinel) when `tenantId` is null, which
+ * `tenantId`, or cleared (the empty sentinel) when `tenantId` is null, which
  * is the "no tenant context → fail closed" case. Mirrors the prod request
  * middleware (FHS-346): always resets the GUC and releases the connection.
  */

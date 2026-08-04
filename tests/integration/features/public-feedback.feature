@@ -1,5 +1,5 @@
 Feature: POST /api/public/feedback (FHS-429)
-  Real Postgres on :5433 — verifies anonymous public feedback storage with no auth required.
+  Real Postgres on :5433, verifies anonymous public feedback storage with no auth required.
 
   Background:
     Given the public_feedback table is clean

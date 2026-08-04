@@ -189,7 +189,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
 
         // Seed ONE past week (week 24 / 2026-06-09) used by all five scenarios.
         // Week 24 is the oldest (and only) open week, so getOrCreateCurrentWeek
-        // returns it when called without a weekId param — the sticker placed in
+        // returns it when called without a weekId param: the sticker placed in
         // scenario 1 and the finalize in scenarios 2 & 5 all land here.
         const [stickerWeek] = await db
           .insert(mwWeeks)
@@ -276,7 +276,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
 
     Then('the parent sticker response status is 200', () => {
-      // POST /api/habits/:id/stickers returns 200 — the route does not pass a
+      // POST /api/habits/:id/stickers returns 200: the route does not pass a
       // status argument so Hono defaults to 200.
       expect(ctx.lastParentStatus).toBe(200);
     });

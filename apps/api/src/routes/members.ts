@@ -14,16 +14,16 @@ import { KID_PIN_BCRYPT_COST, resetKidPinBucketForMember } from './auth-kid-pin.
 
 const log = createLogger('members');
 
-// FHS-108 — GET /api/members.
+// FHS-108: GET /api/members.
 //
 // Returns every member of the resolved tenant. Auth-gated; the caller
 // must be a member of the tenant (any role). Used by the /t/:slug/members
 // page to render the family list with role + status badges.
 //
 // Status is derived per row, not stored:
-//   - active    — user_id IS NOT NULL (a real Supabase user is linked)
-//   - unclaimed — user_id IS NULL (admin added the seat; nobody has
-//     accepted yet — could be a wizard-added member or a pending invite
+//   - active   : user_id IS NOT NULL (a real Supabase user is linked)
+//   - unclaimed: user_id IS NULL (admin added the seat; nobody has
+//     accepted yet: could be a wizard-added member or a pending invite
 //     pre-acceptance)
 
 const memberStatusValues = ['active', 'unclaimed'] as const;
@@ -36,33 +36,33 @@ export const memberItemSchema = z.object({
   avatarEmoji: z.string().nullable(),
   status: z.enum(memberStatusValues),
   createdAt: z.string().datetime(),
-  // FHS-252 — `isChild + hasPin` lets the members page render
+  // FHS-252: `isChild + hasPin` lets the members page render
   // "Set kid PIN" vs "Reset PIN" without leaking the hash itself.
   isChild: z.boolean(),
   hasPin: z.boolean(),
-  // FHS-276 — kid card badge ("Child (6)"); null when not collected.
+  // FHS-276: kid card badge ("Child (6)"); null when not collected.
   age: z.number().int().nullable(),
-  // FHS-276 — latest pending invite for an unclaimed seat, so the page
+  // FHS-276: latest pending invite for an unclaimed seat, so the page
   // can show the email + a Resend button.
   inviteEmail: z.string().nullable(),
   inviteId: z.string().uuid().nullable(),
-  // FHS-510 — the grown-up's current sign-in email (null for kids and
+  // FHS-510: the grown-up's current sign-in email (null for kids and
   // unclaimed seats). Lets Manage Members gate + label "Change email".
   email: z.string().nullable(),
-  // FHS-510 — a new email awaiting confirmation for the caller's OWN row, if
+  // FHS-510: a new email awaiting confirmation for the caller's OWN row, if
   // they have a change in flight. Null otherwise (and always null on other
-  // members' rows — a login email is not roster data).
+  // members' rows: a login email is not roster data).
   pendingEmail: z.string().nullable(),
 });
 
 export const listMembersResponseSchema = z.object({
   members: z.array(memberItemSchema),
-  // FHS-252 — caller's role in this tenant. Lets the members page
+  // FHS-252: caller's role in this tenant. Lets the members page
   // gate admin-only affordances (set/reset kid PIN) without a second
   // round-trip. Cheap to compute server-side; the auth check
   // already loaded the row.
   callerRole: z.string(),
-  // FHS-523 — the caller's own member id, so a page can find the caller's
+  // FHS-523: the caller's own member id, so a page can find the caller's
   // roster display name (e.g. the child-world account pill) without leaking
   // their login email when the JWT carries no full_name.
   callerMemberId: z.string().uuid(),
@@ -103,7 +103,7 @@ export const membersRouter = new Hono().get('/', async (c) => {
   const callerRole = callerRows[0]!.role;
   const callerMemberId = callerRows[0]!.id;
 
-  // Members list — ordered by creation so the founding admin sits at
+  // Members list: ordered by creation so the founding admin sits at
   // the top and the most recently added rows trail the list.
   const rows = await db
     .select({
@@ -121,7 +121,7 @@ export const membersRouter = new Hono().get('/', async (c) => {
     .where(eq(members.tenantId, tenantId))
     .orderBy(asc(members.createdAt));
 
-  // FHS-276 — pending invites keyed by member seat (for unclaimed rows).
+  // FHS-276: pending invites keyed by member seat (for unclaimed rows).
   const inviteRows = await db
     .select({
       id: pendingInvitations.id,
@@ -136,7 +136,7 @@ export const membersRouter = new Hono().get('/', async (c) => {
     inviteRows.filter((r) => r.memberId).map((r) => [r.memberId as string, r]),
   );
 
-  // FHS-510 — self-serve: a member sees ONLY their OWN sign-in email + any
+  // FHS-510: self-serve: a member sees ONLY their OWN sign-in email + any
   // in-flight change of their own. Other members' private login emails are
   // never exposed on the roster. Both maps only ever hold the caller's own row.
   const emailByUserId = new Map<string, string>();
@@ -183,7 +183,7 @@ export const membersRouter = new Hono().get('/', async (c) => {
         age: r.age ?? null,
         inviteEmail: invite?.email ?? null,
         inviteId: invite?.id ?? null,
-        // self only — the caller's own row carries email + pendingEmail; others null.
+        // self only: the caller's own row carries email + pendingEmail; others null.
         email: r.id === callerMemberId ? (emailByUserId.get(userRow.id) ?? null) : null,
         pendingEmail: r.id === callerMemberId ? (pendingEmailByMember.get(r.id) ?? null) : null,
       };
@@ -194,7 +194,7 @@ export const membersRouter = new Hono().get('/', async (c) => {
   return c.json(listMembersResponseSchema.parse(response));
 });
 
-// FHS-252 — PUT /api/members/:id/pin and DELETE /api/members/:id/pin.
+// FHS-252: PUT /api/members/:id/pin and DELETE /api/members/:id/pin.
 //
 // Lets an admin/adult set or clear a kid's 4-digit PIN, plus the
 // is_child flag that gates kid-login eligibility. Without this the
@@ -203,7 +203,7 @@ export const membersRouter = new Hono().get('/', async (c) => {
 // (kids can't log in unless somebody runs SQL by hand).
 //
 // Auth: caller must be admin or adult. Kids cannot change their own
-// PIN — parents reset it for them. Same tenant scope as GET.
+// PIN: parents reset it for them. Same tenant scope as GET.
 //
 // On every write we also clear the per-memberId lockout bucket so
 // resetting a locked-out kid's PIN immediately unblocks them.
@@ -228,7 +228,7 @@ export const setMemberPinResponseSchema = z.object({
 export type SetMemberPinResponse = z.infer<typeof setMemberPinResponseSchema>;
 
 const ADMIN_OR_ADULT_ROLES = new Set(['admin', 'adult']);
-// FHS-252 — only child/teen members can have a kid-login PIN.
+// FHS-252: only child/teen members can have a kid-login PIN.
 // Defence-in-depth: the page UI gates the affordance already, but a
 // direct curl could otherwise PIN-flag an admin and surface them on
 // the kid-login avatar grid.
@@ -390,24 +390,24 @@ membersRouter.delete('/:id/pin', async (c) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FHS-276 / FHS-473 — Manage Members mutations.
+// FHS-276 / FHS-473: Manage Members mutations.
 //
-// POST   /api/members        — add a child/teen/adult seat (name + optional
+// POST   /api/members       : add a child/teen/adult seat (name + optional
 //                               age). Same direct-insert, no-login creation
 //                               onboarding uses for a plain adult row (no
-//                               email) — this endpoint is that path reused
+//                               email): this endpoint is that path reused
 //                               for the Manage Members "Add member" flow.
-// PATCH  /api/members/:id    — rename, and/or toggle admin on parent rows.
-// DELETE /api/members/:id    — remove a member (their content cascades).
+// PATCH  /api/members/:id   : rename, and/or toggle admin on parent rows.
+// DELETE /api/members/:id   : remove a member (their content cascades).
 //
 // All three are admin-only (managing the family roster is an admin job;
 // adults can still invite via onboarding/invitations). The last admin
-// can never be demoted or removed — a family must always have one.
+// can never be demoted or removed: a family must always have one.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const memberIdParamsSchema = z.object({ id: z.string().uuid('member id must be a UUID') });
 
-// FHS-473 — 'adult' added alongside 'child'/'teen' so Manage Members can add
+// FHS-473: 'adult' added alongside 'child'/'teen' so Manage Members can add
 // any non-login family member type, not just kids. isChild stays keyed off
 // role (below) since only child/teen seats use PIN login.
 export const addMemberBodySchema = z.object({
@@ -491,7 +491,7 @@ membersRouter.post('/', async (c) => {
       role: parsed.data.role,
       age: parsed.data.age ?? null,
       avatarEmoji: parsed.data.avatarEmoji ?? null,
-      // FHS-473 — only child/teen seats are kid-PIN-login eligible; an
+      // FHS-473: only child/teen seats are kid-PIN-login eligible; an
       // adult added here is a plain roster entry, same as onboarding's
       // no-email adult row.
       isChild: parsed.data.role !== 'adult',
@@ -544,15 +544,15 @@ membersRouter.patch('/:id', async (c) => {
         400,
       );
     }
-    // FHS-278 — no admin rights before a real login is attached: a
+    // FHS-278: no admin rights before a real login is attached: a
     // pending (unclaimed) seat can't be promoted.
     if (parsed.data.role === 'admin' && target.userId === null) {
       return c.json(
-        { error: 'forbidden', detail: "they haven't signed up yet — admin comes after they join" },
+        { error: 'forbidden', detail: "they haven't signed up yet: admin comes after they join" },
         400,
       );
     }
-    // An admin can't demote THEMSELF — another admin must do it, so a
+    // An admin can't demote THEMSELF: another admin must do it, so a
     // mis-tap can't lock the family's owner out of management.
     if (target.id === caller.id && target.role === 'admin' && parsed.data.role === 'adult') {
       return c.json(
@@ -625,25 +625,25 @@ membersRouter.delete('/:id', async (c) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FHS-510 — admin changes a grown-up's sign-in email, confirmed by a one-time
+// FHS-510: admin changes a grown-up's sign-in email, confirmed by a one-time
 // emailed link.
 //
-// POST /api/members/:id/email-change          — self-serve. A member starts a
+// POST /api/members/:id/email-change          : self-serve. A member starts a
 //   change of their OWN sign-in email: emails a confirm link to the NEW
 //   address; the old address keeps working until it's clicked.
-// POST /api/members/email-change/confirm       — PUBLIC (no auth — the
+// POST /api/members/email-change/confirm       : PUBLIC (no auth, since the
 //   recipient may not be signed in). Applies the change if the token is
 //   valid, unexpired, and unused.
-// POST /api/members/:id/email-change/cancel    — self-serve. Drops the caller's
+// POST /api/members/:id/email-change/cancel    : self-serve. Drops the caller's
 //   OWN pending row so they can start over.
 //
 // Security (do not relax without re-reading this block):
-//   - The raw token is NEVER stored or logged — only its SHA-256 hash
+//   - The raw token is NEVER stored or logged: only its SHA-256 hash
 //     (member_email_changes.token_hash).
 //   - The confirm endpoint is public (see PUBLIC_PATH_PREFIXES in
 //     middleware/auth.ts) but only acts on a row matched by
 //     (member_id, token_hash) via the app_find_email_change() SECURITY
-//     DEFINER function (0043_member_email_changes.sql) — same pattern as
+//     DEFINER function (0043_member_email_changes.sql): same pattern as
 //     the invite-claim flow's app_claimable_invitations(). It is single-use
 //     (used_at set) and tenant-scoped from the ROW, never from client input.
 //     A partial unique index (member_id WHERE used_at IS NULL) stops two
@@ -651,18 +651,18 @@ membersRouter.delete('/:id', async (c) => {
 //   - Self-serve ONLY: a member can start or cancel a change for their OWN
 //     row and no other (the start/cancel handlers 403 unless the target is
 //     the caller's own member row). `email`/`pendingEmail` on GET
-//     /api/members are returned ONLY for the caller's own row — a grown-up's
+//     /api/members are returned ONLY for the caller's own row: a grown-up's
 //     login email is not roster data other family members should see.
-//   - The CURRENT (old) email is notified on start AND on completion — if a
+//   - The CURRENT (old) email is notified on start AND on completion: if a
 //     hijacked session repoints the owner's own login, the real owner still
 //     gets a heads-up at the old address. Both notices are best-effort: a
 //     send failure is logged, never blocks or rolls back the main flow.
 //   - Every value spliced into an email HTML template goes through
-//     escapeHtml() first — displayName is user-controlled.
+//     escapeHtml() first: displayName is user-controlled.
 //   - New-email uniqueness is checked against `users` before the email
 //     is sent.
 //   - The web ConfirmEmail screen requires an explicit click before it
-//     POSTs the token (never auto-fires on page load) — an email link-
+//     POSTs the token (never auto-fires on page load): an email link-
 //     scanner (Safe Links/Proofpoint) that prefetches the URL would
 //     otherwise burn the single-use token before the real recipient sees it.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -682,7 +682,7 @@ export type MemberEmailChangeRequestResponse = z.infer<
 const EMAIL_CHANGE_TOKEN_TTL_MS = 24 * 60 * 60_000;
 
 // Every value below is user-controlled at some remove (displayName is set by
-// an admin, emails come from the request body) — escapeHtml() on ALL of them
+// an admin, emails come from the request body): escapeHtml() on ALL of them
 // is what stops a crafted name/email from injecting markup or a fake link
 // into a branded, trusted-looking auth email. Never splice a raw value into
 // these templates.
@@ -694,7 +694,7 @@ function emailChangeHtml(opts: {
   confirmUrl: string;
 }): string {
   // Modelled on apps/api/auth/email-templates/email_change.html (the
-  // Supabase-side template for a user-initiated change) — self-serve, so the
+  // Supabase-side template for a user-initiated change): self-serve, so the
   // recipient of this email is the person who asked for the change.
   const displayName = escapeHtml(opts.displayName);
   const currentEmail = opts.currentEmail ? escapeHtml(opts.currentEmail) : null;
@@ -712,15 +712,15 @@ function emailChangeHtml(opts: {
     </p>
     <p>If the button doesn't work, paste this link into your browser:</p>
     <p><a href="${confirmUrl}">${confirmUrl}</a></p>
-    <p>${currentEmail ? `Your old email (${currentEmail}) keeps working until you click the link above.` : ''} If you didn't request this, you can safely ignore this email — nothing changes until this link is clicked.</p>
-    <p>— The Family Hub team</p>
+    <p>${currentEmail ? `Your old email (${currentEmail}) keeps working until you click the link above.` : ''} If you didn't request this, you can safely ignore this email: nothing changes until this link is clicked.</p>
+    <p>The Family Hub team</p>
   `.trim();
 }
 
-// FHS-510 blocker #2 — the CURRENT (old) email is always notified, so if a
+// FHS-510 blocker #2: the CURRENT (old) email is always notified, so if a
 // hijacked session repoints the owner's own login, the real owner still gets a
 // heads-up at the address they still control. Two notices, sent best-effort (a
-// failure here never blocks or rolls back the main flow — see the call sites).
+// failure here never blocks or rolls back the main flow: see the call sites).
 
 function emailChangeStartedOldEmailHtml(opts: { displayName: string; newEmail: string }): string {
   const displayName = escapeHtml(opts.displayName);
@@ -729,8 +729,8 @@ function emailChangeStartedOldEmailHtml(opts: { displayName: string; newEmail: s
     <h1>Your Family Hub sign-in email is changing</h1>
     <p>Hi ${displayName},</p>
     <p>A request was made to change your Family Hub sign-in email to <strong>${newEmail}</strong>. It only takes effect when the link sent to the new address is confirmed.</p>
-    <p>If this wasn't you, don't confirm anything — change your password to secure your account.</p>
-    <p>— The Family Hub team</p>
+    <p>If this wasn't you, don't confirm anything: change your password to secure your account.</p>
+    <p>The Family Hub team</p>
   `.trim();
 }
 
@@ -742,11 +742,11 @@ function emailChangeCompletedOldEmailHtml(opts: { displayName: string; newEmail:
     <p>Hi ${displayName},</p>
     <p>Your Family Hub sign-in email was changed to <strong>${newEmail}</strong>.</p>
     <p>If this wasn't you, change your password to secure your account.</p>
-    <p>— The Family Hub team</p>
+    <p>The Family Hub team</p>
   `.trim();
 }
 
-// POST /api/members/:id/email-change — self-serve: a member changes their OWN
+// POST /api/members/:id/email-change: self-serve: a member changes their OWN
 // sign-in email (403 for any other target). See the security block above.
 membersRouter.post('/:id/email-change', async (c) => {
   getAuthenticatedUser(c);
@@ -764,7 +764,7 @@ membersRouter.post('/:id/email-change', async (c) => {
   if (!caller) {
     return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
   }
-  // FHS-510 — self-serve only: a member may change ONLY their OWN sign-in email
+  // FHS-510: self-serve only: a member may change ONLY their OWN sign-in email
   // (never an admin changing someone else's). The self-check runs after the
   // target row is loaded (target.userId must be the caller's own user id).
 
@@ -781,7 +781,7 @@ membersRouter.post('/:id/email-change', async (c) => {
 
   const baseUrl = config.APP_BASE_URL;
   if (!baseUrl) {
-    log.error({ tenantId }, 'APP_BASE_URL not configured — refusing to start an email change');
+    log.error({ tenantId }, 'APP_BASE_URL not configured: refusing to start an email change');
     return c.json({ error: 'server misconfigured', detail: 'APP_BASE_URL is required' }, 500);
   }
 
@@ -792,7 +792,7 @@ membersRouter.post('/:id/email-change', async (c) => {
     .limit(1);
   const target = targetRows[0];
   if (!target) return c.json({ error: 'member not found' }, 404);
-  // FHS-510 — self-serve: the target must be the caller's own member row. A
+  // FHS-510: self-serve: the target must be the caller's own member row. A
   // null target.userId (unclaimed seat) can never equal the caller's own
   // non-null user id, so this also covers the "no sign-in email yet" case.
   if (target.userId !== userRow.id) {
@@ -831,7 +831,7 @@ membersRouter.post('/:id/email-change', async (c) => {
   }
 
   // Invalidate any prior unconfirmed request for this member before
-  // starting a new one — at most one active row per member at a time.
+  // starting a new one: at most one active row per member at a time.
   await db
     .delete(memberEmailChanges)
     .where(
@@ -890,7 +890,7 @@ membersRouter.post('/:id/email-change', async (c) => {
   });
 
   if (!result.ok) {
-    // Roll back — an unconfirmable pending row would silently block a retry
+    // Roll back: an unconfirmable pending row would silently block a retry
     // and show the wrong "pendingEmail" on the family roster.
     await db.delete(memberEmailChanges).where(eq(memberEmailChanges.id, changeId));
     log.error(
@@ -906,9 +906,9 @@ membersRouter.post('/:id/email-change', async (c) => {
     );
   }
 
-  // FHS-510 blocker #2 — heads-up the OLD address. Best-effort: a send
+  // FHS-510 blocker #2: heads-up the OLD address. Best-effort: a send
   // failure here is logged but never fails the request or rolls back the
-  // pending row — the primary flow (new-address confirm link) already sent.
+  // pending row: the primary flow (new-address confirm link) already sent.
   if (currentEmail) {
     const notifyResult = await sendEmail({
       to: currentEmail,
@@ -927,7 +927,7 @@ membersRouter.post('/:id/email-change', async (c) => {
   return c.json(memberEmailChangeRequestResponseSchema.parse({ pendingEmail: newEmail }), 200);
 });
 
-// POST /api/members/:id/email-change/cancel — self-only.
+// POST /api/members/:id/email-change/cancel: self-only.
 membersRouter.post('/:id/email-change/cancel', async (c) => {
   getAuthenticatedUser(c);
   const userRow = c.get('userRow');
@@ -944,7 +944,7 @@ membersRouter.post('/:id/email-change/cancel', async (c) => {
   if (!caller) {
     return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
   }
-  // FHS-510 — self-serve: you can only cancel your OWN pending email change.
+  // FHS-510: self-serve: you can only cancel your OWN pending email change.
   if (params.data.id !== caller.id) {
     return c.json({ error: 'forbidden', detail: 'you can only cancel your own email change' }, 403);
   }
@@ -974,9 +974,9 @@ export const confirmEmailChangeResponseSchema = z.object({
 
 export type ConfirmEmailChangeResponse = z.infer<typeof confirmEmailChangeResponseSchema>;
 
-// POST /api/members/email-change/confirm — PUBLIC. See PUBLIC_PATH_PREFIXES
+// POST /api/members/email-change/confirm: PUBLIC. See PUBLIC_PATH_PREFIXES
 // in middleware/auth.ts. The recipient may not be signed in at all, so this
-// handler must never call getAuthenticatedUser — the token IS the
+// handler must never call getAuthenticatedUser: the token IS the
 // credential.
 membersRouter.post('/email-change/confirm', async (c) => {
   const db = getDb();
@@ -993,7 +993,7 @@ membersRouter.post('/email-change/confirm', async (c) => {
 
   const tokenHash = createHash('sha256').update(parsed.data.token).digest('hex');
 
-  // SECURITY DEFINER lookup (0043_member_email_changes.sql) — this request
+  // SECURITY DEFINER lookup (0043_member_email_changes.sql): this request
   // has no tenant pinned yet (public route), so a plain SELECT against the
   // RLS-guarded table would return zero rows. Scoped to (member_id,
   // token_hash): only someone holding the emailed link's high-entropy raw
@@ -1026,10 +1026,10 @@ membersRouter.post('/email-change/confirm', async (c) => {
   const target = targetRows[0];
   if (!target || !target.userId) {
     // The member was removed, or unlinked from their login, since the
-    // change was requested — treat exactly like an expired link.
+    // change was requested: treat exactly like an expired link.
     return c.json({ error: 'expired' }, 410);
   }
-  // FHS-510 blocker #2 — capture the OLD email BEFORE anything mutates it,
+  // FHS-510 blocker #2: capture the OLD email BEFORE anything mutates it,
   // for the completion heads-up notice sent below on success.
   const oldUserRows = await db
     .select({ email: users.email })
@@ -1042,7 +1042,7 @@ membersRouter.post('/email-change/confirm', async (c) => {
     await updateUserEmailById(target.userId, row.new_email);
   } catch (err) {
     // Nothing was persisted anywhere yet (Supabase itself rejected the
-    // change), so the token is still valid — this is a transient failure,
+    // change), so the token is still valid: this is a transient failure,
     // NOT an expired link. errorCode lets the frontend tell the two apart.
     log.error(
       {
@@ -1062,15 +1062,15 @@ membersRouter.post('/email-change/confirm', async (c) => {
     );
   }
 
-  // FHS-510 blocker #3 — Supabase now has the new email. If the local apply
+  // FHS-510 blocker #3: Supabase now has the new email. If the local apply
   // below throws, the account is in a DRIFTED state (Supabase changed, our
-  // mirror + used_at did not) — that must be logged distinctly and reported
+  // mirror + used_at did not): that must be logged distinctly and reported
   // to the user as a retryable failure, never silently re-shown as
   // "expired" (which would wrongly suggest nothing happened and the token
   // is dead, when the token may still be safely retryable).
   try {
     await db.transaction(async (tx) => {
-      // FHS-349 — users carries self-scoped RLS keyed on app.current_user;
+      // FHS-349: users carries self-scoped RLS keyed on app.current_user;
       // pin it transaction-locally so this UPDATE passes (same pattern as
       // getOrCreateUser in lib/user-mirror.ts).
       await tx.execute(sql`select set_config('app.current_user', ${target.userId}, true)`);
@@ -1078,7 +1078,7 @@ membersRouter.post('/email-change/confirm', async (c) => {
         .update(users)
         .set({ email: row.new_email, updatedAt: new Date() })
         .where(eq(users.id, target.userId as string));
-      // Mark every unused row for this member as consumed — normally just
+      // Mark every unused row for this member as consumed: normally just
       // this one, but this stays correct even if a stray row ever exists.
       await tx
         .update(memberEmailChanges)
@@ -1095,7 +1095,7 @@ membersRouter.post('/email-change/confirm', async (c) => {
         userId: target.userId,
         err: err instanceof Error ? err.message : String(err),
       },
-      'email-change confirm: DRIFT — Supabase email updated but the local apply (users mirror / used_at) failed',
+      'email-change confirm: DRIFT: Supabase email updated but the local apply (users mirror / used_at) failed',
     );
     return c.json(
       {
@@ -1113,7 +1113,7 @@ membersRouter.post('/email-change/confirm', async (c) => {
     .where(eq(tenants.id, row.tenant_id))
     .limit(1);
 
-  // FHS-510 blocker #2 — completion heads-up to the OLD address.
+  // FHS-510 blocker #2: completion heads-up to the OLD address.
   // Best-effort: logged, never blocks the (already-successful) response.
   if (oldEmail) {
     const notifyResult = await sendEmail({

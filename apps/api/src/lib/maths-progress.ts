@@ -1,4 +1,4 @@
-// FHS-394 — pure DB helpers + business logic for the kid Maths progression.
+// FHS-394: pure DB helpers + business logic for the kid Maths progression.
 //
 // No auth / middleware here. Callers scope every call to (tenantId, memberId)
 // from the verified kid token. Shared between the kid endpoints and the
@@ -22,7 +22,7 @@ export const PROVE_TIME_THRESHOLD = 5;
 
 /**
  * Placement gate: maximum seconds per answer to auto-master a table.
- * Deliberately stricter than PROVE_TIME_THRESHOLD (5s) — placement is a
+ * Deliberately stricter than PROVE_TIME_THRESHOLD (5s): placement is a
  * fast-check shortcut, not a casual prove run. A kid who answers in ≤4s has
  * clearly mastered the table; 4.001s is not penalised in prove, but it does
  * not trigger the placement cascade.
@@ -43,7 +43,7 @@ export const updateProgressBodySchema = z
     practiceCorrect: z.number().int().min(0).optional(),
     proveScore: z.number().int().min(0).optional(),
     proveAvgTime: z.number().min(0).optional(),
-    // FHS-401 — attempt counts for cumulative accuracy tracking.
+    // FHS-401: attempt counts for cumulative accuracy tracking.
     // practiceAttempts: always 10 (MathsTablePractice always asks 10 questions).
     // proveAttempts: total questions answered in the 60s Prove window.
     // These are accumulated into mw_maths_progress.total_correct / total_attempts
@@ -135,7 +135,7 @@ export const mathsProgressRowSchema = z.object({
   proveScore: z.number().int(),
   proveAvgTime: z.number(),
   placementUnlocked: z.boolean(),
-  // FHS-401 — cumulative accuracy counters.
+  // FHS-401: cumulative accuracy counters.
   totalCorrect: z.number().int(),
   totalAttempts: z.number().int(),
   updatedAt: z.string().nullable(),
@@ -248,7 +248,7 @@ export async function upsertProgress(
     practiceCorrect?: number;
     proveScore?: number;
     proveAvgTime?: number;
-    // FHS-401 — accuracy accumulators (optional; omit when no attempt data available).
+    // FHS-401: accuracy accumulators (optional; omit when no attempt data available).
     accuracyDelta?: { correct: number; attempts: number };
   },
 ) {
@@ -280,7 +280,7 @@ export async function upsertProgress(
     newTotalAttempts = (existing?.totalAttempts ?? 0) + updates.accuracyDelta!.attempts;
   }
 
-  // Build the conflict-update set — only include provided fields so a PUT
+  // Build the conflict-update set: only include provided fields so a PUT
   // with only { practiceCorrect } doesn't accidentally reset learnCompleted.
   // totalCorrect/totalAttempts are ONLY updated when hasRealDelta is true.
   const conflictSet: Record<string, unknown> = { updatedAt: sql`now()` };

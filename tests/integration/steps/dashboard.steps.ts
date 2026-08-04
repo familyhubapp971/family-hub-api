@@ -27,9 +27,9 @@ import {
 import type { Database } from '../../../apps/api/src/db/client.js';
 import { getTestDb } from '../support/db.js';
 
-// FHS-228 — integration test for GET /api/dashboard/today. Real
+// FHS-228: integration test for GET /api/dashboard/today. Real
 // Postgres, real JWT; resolveTenant is stubbed via X-Test-Tenant
-// header so each scenario can target a specific tenant — same shape
+// header so each scenario can target a specific tenant: same shape
 // as the FHS-108 /api/members test.
 
 vi.mock('../../../apps/api/src/db/client.js', () => ({
@@ -313,7 +313,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
         'the caller completed both {string} habits in the current week',
         async (_ctx, slug: string) => {
           const tenantId = tenantIds[slug]!;
-          // FHS-306 — habit progress now comes from My World tables:
+          // FHS-306: habit progress now comes from My World tables:
           // mw_weeks (the child's open week) + habit_stickers (one per habit/day).
           // We still insert a legacy `weeks` row so the streak calendar has data.
           const todayIso = new Date().toISOString().slice(0, 10);
@@ -416,7 +416,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
           .values({ tenantId, dayOfWeek: dow, slot: 'dinner', name: 'Biryani' });
       });
 
-      // FHS-264 — a per-member meal in the SAME slot as the family meal.
+      // FHS-264: a per-member meal in the SAME slot as the family meal.
       // mealsPlanned must still count the slot once (distinct slots), not
       // tally both rows.
       And(
@@ -463,7 +463,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       });
 
       And("the caller's member stats show 0 of 0 habits done and 1 task pending", () => {
-        // FHS-306 — the caller is an admin-role member; habits/stickers are
+        // FHS-306: the caller is an admin-role member; habits/stickers are
         // per-kid (My World). Admins always surface habitsDone=0, habitsTotal=0.
         const caller = body.members.find((m) => m.id === callerMemberId)!;
         expect(caller.habitsDone).toBe(0);
@@ -495,7 +495,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   );
 
   Scenario(
-    'FHS-306 — My World sticker earns habitsDone and mw_week_action appears in activity',
+    'FHS-306: My World sticker earns habitsDone and mw_week_action appears in activity',
     ({ Given, And, When, Then }) => {
       let res: Response;
       let body: DashboardResponse;
@@ -636,7 +636,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   );
 
   Scenario(
-    'FHS-439 — meals, calendar events, habit stickers, and approved rewards feed Recent Activity',
+    'FHS-439: meals, calendar events, habit stickers, and approved rewards feed Recent Activity',
     ({ Given, And, When, Then }) => {
       let res: Response;
       let body: DashboardResponse;
@@ -746,7 +746,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       });
 
       // Deliberately avoid embedding literal `"` inside a {string} capture
-      // group here — @amiceli/vitest-cucumber does not decode escaped
+      // group here: @amiceli/vitest-cucumber does not decode escaped
       // quotes within Cucumber Expression parameters, so the expected
       // action text (which itself contains quotes) is built in the step
       // body instead of in the .feature file.
@@ -818,7 +818,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   });
 
   Scenario(
-    'Tenant isolation — counts and members never leak across tenants',
+    'Tenant isolation: counts and members never leak across tenants',
     ({ Given, And, When, Then }) => {
       let res: Response;
       let body: DashboardResponse;
@@ -918,7 +918,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
         },
       );
 
-      // FHS-439 — the two new Recent Activity sources must respect tenant
+      // FHS-439: the two new Recent Activity sources must respect tenant
       // scoping too: a meal/event in "smith" must never surface on "khan"'s
       // dashboard.
       And('the {string} tenant has a meal planned for today', async (_ctx, slug: string) => {

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { rewardsRouter } from '../../../../apps/api/src/routes/rewards.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-268 — validation + tenant guards for /api/rewards. Balance maths +
+// FHS-268: validation + tenant guards for /api/rewards. Balance maths +
 // redemption ledger are covered by the integration test
 // (childworld.feature, real Postgres).
 
@@ -44,7 +44,7 @@ beforeEach(() => {
   dbMock.insert.mockReset();
 });
 
-describe('FHS-268 — GET /api/rewards guards', () => {
+describe('FHS-268: GET /api/rewards guards', () => {
   it('400 when no tenant context', async () => {
     const res = await buildApp({ noTenant: true }).request(`/api/rewards?memberId=${MEMBER_ID}`);
     expect(res.status).toBe(400);
@@ -70,7 +70,7 @@ describe('FHS-268 — GET /api/rewards guards', () => {
   });
 });
 
-describe('FHS-268 — POST /api/rewards/:id/redeem guards', () => {
+describe('FHS-268: POST /api/rewards/:id/redeem guards', () => {
   function post(body: unknown): RequestInit {
     return {
       method: 'POST',

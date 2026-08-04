@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// FHS-262 — response contract for GET /api/dashboard/today.
+// FHS-262: response contract for GET /api/dashboard/today.
 //
 // Bundles everything the redesigned Today screen renders in one request:
 // the family roster with per-member habit progress / streak / pending
@@ -13,18 +13,18 @@ export const dashboardMemberSchema = z.object({
   displayName: z.string(),
   role: z.string(),
   avatarEmoji: z.string().nullable(),
-  // FHS-262 — per-member Today-screen stats.
+  // FHS-262: per-member Today-screen stats.
   habitsDone: z.number().int().nonnegative(),
   habitsTotal: z.number().int().nonnegative(),
   streak: z.number().int().nonnegative(),
   tasksPending: z.number().int().nonnegative(),
   statusText: z.string(),
-  // FHS-263 exact-match — a kid's earned-star balance for the Family
+  // FHS-263 exact-match: a kid's earned-star balance for the Family
   // Goals "Kids' Star Balances" panel. Proxy = total habit completions
   // until a spend/redeem ledger exists. 0 for adults.
   starBalance: z.number().int().nonnegative(),
-  // FHS-273 — true when the member's seat exists but no login is linked
-  // yet (members.user_id IS NULL): renders the "Pending — hasn't signed
+  // FHS-273: true when the member's seat exists but no login is linked
+  // yet (members.user_id IS NULL): renders the "Pending: hasn't signed
   // up" chip on the dashboard card.
   pendingSignup: z.boolean(),
 });
@@ -33,15 +33,15 @@ export const dashboardCountsSchema = z.object({
   members: z.number().int().nonnegative(),
   habits: z.number().int().nonnegative(),
   rewards: z.number().int().nonnegative(),
-  // FHS-262 — Today's Snapshot stat row.
+  // FHS-262: Today's Snapshot stat row.
   tasksDoneToday: z.number().int().nonnegative(),
   mealsPlanned: z.number().int().nonnegative(),
-  // FHS-263 exact-match — denominator for the "Tasks Done X/Y" tile
+  // FHS-263 exact-match: denominator for the "Tasks Done X/Y" tile
   // (total tasks due/done today, family-wide).
   tasksTotalToday: z.number().int().nonnegative(),
 });
 
-// A Family Goal — backed by a savings goal. `target` is nullable for
+// A Family Goal, backed by a savings goal. `target` is nullable for
 // open-ended goals (no target amount). `progress` is deposits minus
 // withdrawals across the goal's transactions.
 export const dashboardGoalSchema = z.object({
@@ -51,11 +51,11 @@ export const dashboardGoalSchema = z.object({
   target: z.number().nullable(),
 });
 
-// A Recent Activity entry — merged from several sources (My World actions,
+// A Recent Activity entry, merged from several sources (My World actions,
 // tasks, meals, calendar events, habit stickers, approved reward requests;
 // see FHS-439). `id` is a plain string rather than `.uuid()` because a
 // single source row can produce two feed entries (e.g. a task "added" and
-// "completed" moment) that share a DB id with a suffix appended — it is
+// "completed" moment) that share a DB id with a suffix appended: it is
 // only ever used as a React list key, never looked up again.
 // `actor` is the acting member's display name, or null when the row
 // was logged without a member (system action / whole-family event).
@@ -69,7 +69,7 @@ export const dashboardActivitySchema = z.object({
 export const dashboardTodayResponseSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   greetingName: z.string(),
-  // FHS-261 — the caller's own member id, so the web can scope
+  // FHS-261: the caller's own member id, so the web can scope
   // "my" stats (e.g. the My Tasks tab badge) without a second lookup.
   callerMemberId: z.string().uuid(),
   members: z.array(dashboardMemberSchema),

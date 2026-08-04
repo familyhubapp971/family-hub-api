@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { rewardsRouter } from '../../../../apps/api/src/routes/rewards.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-483 — parents manage the reward-shop catalogue: POST/PATCH/DELETE
-// /api/rewards[/:id]. Admin-only, tenant-scoped — same guard chain as
+// FHS-483: parents manage the reward-shop catalogue: POST/PATCH/DELETE
+// /api/rewards[/:id]. Admin-only, tenant-scoped: same guard chain as
 // apps/api/src/routes/admin.ts (auth → tenant context → member → admin).
 // DELETE is a soft-delete (archived_at), never a hard DELETE. Real Postgres
 // tenant-isolation + soft-delete-survives-FK coverage lives in the
@@ -106,7 +106,7 @@ function patchJson(body: unknown): RequestInit {
   };
 }
 
-describe('FHS-483 — POST /api/rewards (create)', () => {
+describe('FHS-483: POST /api/rewards (create)', () => {
   it('400 when no tenant context', async () => {
     const { app } = buildApp({ noTenant: true });
     const res = await app.request(
@@ -151,7 +151,7 @@ describe('FHS-483 — POST /api/rewards (create)', () => {
     expect(res.status).toBe(400);
   });
 
-  it('201 for an admin — creates the reward scoped to the caller tenant', async () => {
+  it('201 for an admin: creates the reward scoped to the caller tenant', async () => {
     const { app } = buildApp({ insertReturns: [REWARD_ROW] });
     const res = await app.request(
       '/api/rewards',
@@ -170,7 +170,7 @@ describe('FHS-483 — POST /api/rewards (create)', () => {
   });
 });
 
-describe('FHS-483 — PATCH /api/rewards/:id (update)', () => {
+describe('FHS-483: PATCH /api/rewards/:id (update)', () => {
   it('400 for a malformed reward id', async () => {
     const { app } = buildApp();
     const res = await app.request('/api/rewards/not-a-uuid', patchJson({ name: 'New name' }));
@@ -202,7 +202,7 @@ describe('FHS-483 — PATCH /api/rewards/:id (update)', () => {
     expect(res.status).toBe(404);
   });
 
-  it('200 for an admin — only supplied fields are patched', async () => {
+  it('200 for an admin: only supplied fields are patched', async () => {
     const { app, getLastSetPatch } = buildApp({
       updateReturns: [{ ...REWARD_ROW, stickerCost: 30 }],
     });
@@ -215,7 +215,7 @@ describe('FHS-483 — PATCH /api/rewards/:id (update)', () => {
     expect(body.stickerCost).toBe(30);
   });
 
-  it('200 — an explicit null clears an optional field', async () => {
+  it('200: an explicit null clears an optional field', async () => {
     const { app, getLastSetPatch } = buildApp({
       updateReturns: [{ ...REWARD_ROW, description: null }],
     });
@@ -225,7 +225,7 @@ describe('FHS-483 — PATCH /api/rewards/:id (update)', () => {
   });
 });
 
-describe('FHS-483 — DELETE /api/rewards/:id (archive)', () => {
+describe('FHS-483: DELETE /api/rewards/:id (archive)', () => {
   it('400 for a malformed reward id', async () => {
     const { app } = buildApp();
     const res = await app.request('/api/rewards/not-a-uuid', { method: 'DELETE' });
@@ -251,7 +251,7 @@ describe('FHS-483 — DELETE /api/rewards/:id (archive)', () => {
     expect(res.status).toBe(404);
   });
 
-  it('204 for an admin — soft-deletes via archived_at, not a hard delete', async () => {
+  it('204 for an admin: soft-deletes via archived_at, not a hard delete', async () => {
     const { app, getLastSetPatch } = buildApp({ updateReturns: [{ id: REWARD_ID }] });
     const res = await app.request(`/api/rewards/${REWARD_ID}`, { method: 'DELETE' });
     expect(res.status).toBe(204);

@@ -2,7 +2,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { habits, rewards, type NewHabit, type NewReward } from './schema.js';
 import type * as Schema from './schema.js';
 
-// FHS-40 — starter content seeded once per tenant when onboarding
+// FHS-40: starter content seeded once per tenant when onboarding
 // completes. Called from inside the POST /api/onboarding/complete
 // transaction (FHS-37) so seeded rows roll back together with the
 // tenant.onboarding_completed flip if anything fails.
@@ -12,11 +12,11 @@ import type * as Schema from './schema.js';
 // so this seed never fires twice per tenant.
 //
 // Defaults are intentionally short and culture-neutral. Customisation
-// happens in-app — the family edits/deletes/extends from settings.
+// happens in-app: the family edits/deletes/extends from settings.
 
 // --- Habits ---------------------------------------------------------
 // Five starter habits across reading, tidiness, kindness, exercise,
-// and veggies — covers most family-hub use cases without overwhelming
+// and veggies: covers most family-hub use cases without overwhelming
 // a brand-new tenant.
 export const DEFAULT_HABITS: ReadonlyArray<Omit<NewHabit, 'tenantId'>> = [
   { name: 'Read', description: '20 minutes of reading', cadence: 'daily', color: '#a855f7' },
@@ -61,7 +61,7 @@ export const DEFAULT_REWARDS: ReadonlyArray<Omit<NewReward, 'tenantId'>> = [
 ] as const;
 
 // --- Meal template --------------------------------------------------
-// AC reads "empty weekly meal template" — the meal_templates table is
+// AC reads "empty weekly meal template": the meal_templates table is
 // created by the migration; seed inserts NOTHING. The UI fills the
 // 7-day × 4-slot grid from whatever exists in the table, so an empty
 // table renders as a blank planner the family can fill in.

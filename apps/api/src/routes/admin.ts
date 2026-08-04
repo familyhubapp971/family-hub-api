@@ -7,7 +7,7 @@ import { appSettings, tenants, TENANT_SCOPED_TABLES } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 import { loadCaller, isAdmin } from '../lib/permissions.js';
 
-// FHS-308 — Admin Panel: app_settings endpoints (tenant-scoped key/value config).
+// FHS-308: Admin Panel: app_settings endpoints (tenant-scoped key/value config).
 //
 // GET  /api/admin/settings        → { [key]: value } map for the tenant.
 // PUT  /api/admin/settings/:key   → upsert a setting; admin/adult only.
@@ -18,14 +18,14 @@ import { loadCaller, isAdmin } from '../lib/permissions.js';
 //   3. caller must be a member of this tenant (403)
 //   4. for mutations: caller must be admin or adult (403)
 //
-// FHS-441 — `currency` is a special key in this same map: unlike appName /
+// FHS-441: `currency` is a special key in this same map: unlike appName /
 // appSubtitle (which live in the generic app_settings key/value table), the
-// family's currency is the `tenants.currency` column — the single source of
+// family's currency is the `tenants.currency` column: the single source of
 // truth every other endpoint already reads (habits, kid, mw-financial, …).
 // GET merges it in; PUT writes straight to `tenants` instead of app_settings
 // so nothing else in the app has to learn about a second currency source.
 
-// ISO 4217 currency — three uppercase letters (same rule as onboarding's
+// ISO 4217 currency: three uppercase letters (same rule as onboarding's
 // currencySchema in routes/onboarding.ts).
 const currencySchema = z.string().regex(/^[A-Z]{3}$/, 'currency must be a 3-letter ISO 4217 code');
 
@@ -33,7 +33,7 @@ export const adminSettingsResponseSchema = z.record(z.string(), z.string());
 export const adminSettingsPutRequestSchema = z.object({ value: z.string() });
 export const adminSettingsPutResponseSchema = z.object({ key: z.string() }).passthrough();
 
-// FHS-435 — GDPR: export my data + delete my account.
+// FHS-435: GDPR: export my data + delete my account.
 //
 // GET  /api/admin/export          → the whole family's data as one JSON file.
 // POST /api/admin/delete-account  → IRREVERSIBLE. Deletes the tenant + every
@@ -58,13 +58,13 @@ export const adminExportFamilySchema = z.object({
 export const adminExportResponseSchema = z.object({
   exportedAt: z.string(),
   family: adminExportFamilySchema,
-  // One key per tenant-scoped table (camelCase — e.g. `habitStickers`),
+  // One key per tenant-scoped table (camelCase: e.g. `habitStickers`),
   // each an array of that table's raw rows for this tenant only.
   data: z.record(z.string(), z.array(z.record(z.string(), z.unknown()))),
 });
 
 export const adminDeleteAccountRequestSchema = z.object({
-  // Must equal the tenant's exact name — the confirmation gate for an
+  // Must equal the tenant's exact name: the confirmation gate for an
   // irreversible action. Never delete without it matching.
   confirm: z.string().min(1, 'confirm is required'),
 });
@@ -111,7 +111,7 @@ async function guardTenant(
 }
 
 export const adminRouter = new Hono()
-  // GET /api/admin/settings — full settings map for this tenant, plus the
+  // GET /api/admin/settings: full settings map for this tenant, plus the
   // tenant's currency (FHS-441) merged in under the `currency` key.
   .get('/settings', async (c) => {
     const ctx = await guardTenant(c);
@@ -134,8 +134,8 @@ export const adminRouter = new Hono()
     return c.json(map);
   })
 
-  // PUT /api/admin/settings/:key — upsert a setting value; admin-only (FHS-343).
-  // FHS-441 — `currency` writes to tenants.currency instead of app_settings.
+  // PUT /api/admin/settings/:key: upsert a setting value; admin-only (FHS-343).
+  // FHS-441: `currency` writes to tenants.currency instead of app_settings.
   .put('/settings/:key', async (c) => {
     const ctx = await guardTenant(c);
     if ('res' in ctx) return ctx.res;
@@ -197,7 +197,7 @@ export const adminRouter = new Hono()
     return c.json(row);
   })
 
-  // GET /api/admin/export — FHS-435: a single JSON download of this family's
+  // GET /api/admin/export: FHS-435: a single JSON download of this family's
   // data (GDPR data portability). Admin-only. Every table query is filtered
   // by the caller's own tenantId, so one family can never see another's data
   // through this endpoint.
@@ -226,7 +226,7 @@ export const adminRouter = new Hono()
       );
       data[toCamelCase(name)] = result.rows.map((row) => {
         const camel = camelizeRow(row) as Record<string, unknown>;
-        // FHS-435 — never put the kid PIN hash in a downloadable export: a
+        // FHS-435: never put the kid PIN hash in a downloadable export: a
         // 4-digit PIN is trivially brute-forceable, so the hash must not leave
         // the app in a file the family might share.
         delete camel.pinHash;
@@ -259,22 +259,22 @@ export const adminRouter = new Hono()
     return c.json(payload);
   })
 
-  // POST /api/admin/delete-account — FHS-435: IRREVERSIBLE. Permanently
+  // POST /api/admin/delete-account: FHS-435: IRREVERSIBLE. Permanently
   // deletes the caller's family (tenant) and every row that belongs to it.
   //
   // Every tenant-scoped table's tenant_id foreign key is ON DELETE CASCADE
   // (schema.ts), so one DELETE on the tenants row cascades through all of
-  // them — including tables that reference a tenant-scoped table rather
+  // them: including tables that reference a tenant-scoped table rather
   // than tenants directly (e.g. mw_transaction_stickers), since Postgres
   // walks the whole FK graph. Referential-integrity cascades ALWAYS bypass
   // row-level security (this is documented Postgres behaviour), so this
   // works whether the connection is the limited app_runtime role or a test
-  // superuser — RLS on the child tables can never block the cascade.
+  // superuser: RLS on the child tables can never block the cascade.
   //
-  // Deleting the tenant also cascades the `members` rows for this tenant —
+  // Deleting the tenant also cascades the `members` rows for this tenant:
   // that's the users-mirror ↔ tenant membership link. The global `users`
   // rows (Supabase auth identity) are untouched: this endpoint does NOT
-  // delete the Supabase auth user (that needs the service role) — tracked
+  // delete the Supabase auth user (that needs the service role): tracked
   // as a follow-up.
   .post('/delete-account', async (c) => {
     const ctx = await guardTenant(c);
@@ -308,7 +308,7 @@ export const adminRouter = new Hono()
       return c.json({ error: 'tenant not found' }, 404);
     }
 
-    // Confirmation gate — never delete without the caller typing the exact
+    // Confirmation gate: never delete without the caller typing the exact
     // family name. Trimmed on both sides so incidental leading/trailing
     // whitespace from copy-paste doesn't block a genuine match.
     if (parsed.data.confirm.trim() !== tenantRow.name.trim()) {

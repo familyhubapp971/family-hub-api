@@ -14,7 +14,7 @@ vi.mock('../../../apps/api/src/db/client.js', () => ({
   getDb: () => getTestDb(),
 }));
 
-// FHS-41 — partial-failure rollback scenario needs the seed step to
+// FHS-41: partial-failure rollback scenario needs the seed step to
 // throw mid-transaction. Default: delegate to the real implementation
 // so the existing scenarios still seed habits/rewards. The "Given the
 // seed step will throw" step flips `seedShouldThrow=true` for one
@@ -95,7 +95,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       await db.execute(sql`TRUNCATE TABLE members RESTART IDENTITY CASCADE`);
       await db.execute(sql`TRUNCATE TABLE tenants RESTART IDENTITY CASCADE`);
       _resetJwksCacheForTests();
-      seedShouldThrow = false; // FHS-41 — reset rollback flag per scenario
+      seedShouldThrow = false; // FHS-41: reset rollback flag per scenario
       for (const k of Object.keys(tenantIds)) delete tenantIds[k];
     });
 
@@ -146,7 +146,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  Scenario('Happy path — admin completes onboarding for their tenant', ({ When, Then, And }) => {
+  Scenario('Happy path: admin completes onboarding for their tenant', ({ When, Then, And }) => {
     let res: Response;
 
     When(
@@ -162,7 +162,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
           body: JSON.stringify({
             timezone,
             currency,
-            // FHS-274 — renames the founder's admin row in-place.
+            // FHS-274: renames the founder's admin row in-place.
             yourName: 'Sarah',
             members: [
               { displayName: 'Iman', role: 'child', avatarEmoji: '👧' },
@@ -193,7 +193,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
 
     And('the {string} admin is renamed to {string}', async (_ctx, slug: string, name: string) => {
-      // FHS-274 — yourName updates the founder's existing admin row.
+      // FHS-274: yourName updates the founder's existing admin row.
       const { rows } = await db.execute<{ display_name: string }>(
         sql`SELECT display_name FROM members WHERE tenant_id = ${tenantIds[slug]!} AND role = 'admin'`,
       );
@@ -208,7 +208,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       expect(rows[0]?.onboarding_completed).toBe(false);
     });
 
-    // FHS-40 — verify the seed counts after the happy-path completion.
+    // FHS-40: verify the seed counts after the happy-path completion.
     And('tenant {string} has 5 habits seeded', async (_ctx, slug: string) => {
       const { rows } = await db.execute<{ count: string }>(
         sql`SELECT COUNT(*)::text AS count FROM habits WHERE tenant_id = ${tenantIds[slug]!}`,
@@ -232,7 +232,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   });
 
   Scenario(
-    'Idempotent — second submit returns 200 without duplicating members or seed',
+    'Idempotent: second submit returns 200 without duplicating members or seed',
     ({ Given, When, Then, And }) => {
       let res: Response;
 
@@ -293,7 +293,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
         expect(Number(rows[0]?.count)).toBe(3);
       });
 
-      // FHS-40 — re-submit must NOT re-seed; counts identical to first
+      // FHS-40: re-submit must NOT re-seed; counts identical to first
       // completion. Same step text as the happy-path scenario; closure-
       // scoped binding so each scenario picks up its own copy.
       And('tenant {string} has 5 habits seeded', async (_ctx, slug: string) => {
@@ -312,10 +312,10 @@ describeFeature(feature, ({ Background, Scenario }) => {
     },
   );
 
-  // FHS-41 — atomicity. Forces the seed step to throw mid-transaction
+  // FHS-41: atomicity. Forces the seed step to throw mid-transaction
   // and asserts the route returns 500 + nothing in the DB changed.
   Scenario(
-    'Partial-failure rollback — seed throws, nothing commits',
+    'Partial-failure rollback: seed throws, nothing commits',
     ({ Given, When, Then, And }) => {
       let res: Response;
 

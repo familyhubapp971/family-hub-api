@@ -3,7 +3,7 @@ import { getOrCreateUser, resetUserMirrorCache } from '../../../../apps/api/src/
 import type { Database } from '../../../../apps/api/src/db/client.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-192 — getOrCreateUser unit coverage.
+// FHS-192: getOrCreateUser unit coverage.
 //
 // These tests mock the Drizzle query builder. The integration tier
 // (tests/integration/specs/user-mirror.spec.ts) exercises the real SQL
@@ -18,7 +18,7 @@ interface UpsertChain {
   values: ReturnType<typeof vi.fn>;
   onConflictDoUpdate: ReturnType<typeof vi.fn>;
   returning: ReturnType<typeof vi.fn>;
-  // FHS-349 — set_config('app.current_user', …) inside the mirror transaction.
+  // FHS-349: set_config('app.current_user', …) inside the mirror transaction.
   execute: ReturnType<typeof vi.fn>;
 }
 
@@ -36,7 +36,7 @@ function buildMockDb(returningRows: User[]): { db: Database; chain: UpsertChain 
   chain.values.mockReturnValue({ onConflictDoUpdate: chain.onConflictDoUpdate });
   chain.insert.mockReturnValue({ values: chain.values });
 
-  // FHS-349 — getOrCreateUser now runs inside db.transaction(tx => …); the tx
+  // FHS-349: getOrCreateUser now runs inside db.transaction(tx => …); the tx
   // exposes the same insert chain plus execute() for the set_config GUC pin.
   const tx = { insert: chain.insert, execute: chain.execute };
   const db = {
@@ -52,17 +52,17 @@ const ROW: User = {
   updatedAt: new Date('2026-04-29T00:00:00.000Z'),
 };
 
-describe('FHS-192 — getOrCreateUser (unit)', () => {
+describe('FHS-192: getOrCreateUser (unit)', () => {
   it('upserts via INSERT ... ON CONFLICT DO UPDATE and returns the row', async () => {
     const { db, chain } = buildMockDb([ROW]);
 
     const result = await getOrCreateUser(db, { id: ROW.id, email: ROW.email });
 
     expect(result).toEqual(ROW);
-    // FHS-349 — pins app.current_user (set_config) before the upsert so the
+    // FHS-349: pins app.current_user (set_config) before the upsert so the
     // users RLS self-isolation policy permits it under the app_runtime role.
     expect(chain.execute).toHaveBeenCalledTimes(1);
-    // Single insert call — warm and cold paths share the SQL statement.
+    // Single insert call: warm and cold paths share the SQL statement.
     expect(chain.insert).toHaveBeenCalledTimes(1);
     expect(chain.values).toHaveBeenCalledWith({ id: ROW.id, email: ROW.email });
     // The conflict target is the primary key; the SET refreshes email +
@@ -91,7 +91,7 @@ describe('FHS-192 — getOrCreateUser (unit)', () => {
     expect(result.id).toBe(refreshed.id);
   });
 
-  it('throws when the upsert returns no row (defensive — should be unreachable)', async () => {
+  it('throws when the upsert returns no row (defensive, should be unreachable)', async () => {
     const { db } = buildMockDb([]);
 
     await expect(getOrCreateUser(db, { id: ROW.id, email: ROW.email })).rejects.toThrow(
@@ -100,8 +100,8 @@ describe('FHS-192 — getOrCreateUser (unit)', () => {
   });
 });
 
-// FHS-465 — per-replica cache: once (id, email) is confirmed, skip the DB.
-describe('FHS-465 — getOrCreateUser cache', () => {
+// FHS-465: per-replica cache: once (id, email) is confirmed, skip the DB.
+describe('FHS-465: getOrCreateUser cache', () => {
   beforeEach(() => {
     process.env['USER_MIRROR_CACHE'] = 'on';
     resetUserMirrorCache();

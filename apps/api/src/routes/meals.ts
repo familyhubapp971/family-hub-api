@@ -5,7 +5,7 @@ import { getDb } from '../db/client.js';
 import { mealTemplates, members } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 
-// FHS-229 — GET + POST /api/meals. Expanded in FHS-264.
+// FHS-229: GET + POST /api/meals. Expanded in FHS-264.
 //
 // Backs the Meals tab on /t/:slug/dashboard. The family's repeating
 // weekly meal plan lives in meal_templates (seeded empty by FHS-40).
@@ -16,7 +16,7 @@ import { getAuthenticatedUser } from '../middleware/auth.js';
 // FHS-264: each meal carries `memberId` (null = whole family) and a
 // `recurring` flag. A (day, slot) can hold one whole-family meal plus
 // one per member, so the upsert keys on memberId too (two partial unique
-// indexes back this — see schema.ts).
+// indexes back this: see schema.ts).
 
 export const dayOfWeekValues = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 export const mealSlotValues = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
@@ -28,7 +28,7 @@ export const mealCellSchema = z.object({
   dayOfWeek: z.enum(dayOfWeekValues),
   slot: z.enum(mealSlotValues),
   name: z.string(),
-  // FHS-264 — null = whole family; otherwise the member it's planned for.
+  // FHS-264: null = whole family; otherwise the member it's planned for.
   memberId: z.string().uuid().nullable(),
   recurring: z.boolean(),
 });
@@ -163,7 +163,7 @@ export const mealsRouter = new Hono()
       memberId === null ? isNull(mealTemplates.memberId) : eq(mealTemplates.memberId, memberId);
 
     if (trimmed === '') {
-      // Empty name = delete that specific meal. Idempotent — a delete on
+      // Empty name = delete that specific meal. Idempotent: a delete on
       // an empty slot is a no-op (returns 0 rows).
       await db
         .delete(mealTemplates)
@@ -180,7 +180,7 @@ export const mealsRouter = new Hono()
 
     // Upsert. The conflict target depends on whether this is the
     // whole-family row (everyone partial index) or a per-member row
-    // (member partial index) — see the two partial unique indexes.
+    // (member partial index): see the two partial unique indexes.
     const insert = db.insert(mealTemplates).values({
       tenantId,
       dayOfWeek,

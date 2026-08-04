@@ -1,5 +1,5 @@
 Feature: /api/members (FHS-108, FHS-334)
-  Real Postgres on :5433 — verifies the list route returns every member
+  Real Postgres on :5433, verifies the list route returns every member
   of the resolved tenant with status derived per row, blocks non-members
   with 403, and never leaks rows across tenants; and that admins manage
   the admin↔normal-user role while a child can never be made an admin.
@@ -25,7 +25,7 @@ Feature: /api/members (FHS-108, FHS-334)
     When the caller GETs /api/members for tenant "smith"
     Then the response status is 403
 
-  Scenario: Tenant isolation — listing one tenant never returns rows from another
+  Scenario: Tenant isolation: listing one tenant never returns rows from another
     Given a second tenant "smith" exists with the caller as an admin member
     And the "smith" tenant has a child member "Zaid" with no linked user
     When the caller GETs /api/members for tenant "khan"

@@ -1,10 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    ":semanticCommits",
-    ":timezone(Europe/London)"
-  ],
+  "extends": ["config:recommended", ":semanticCommits", ":timezone(Europe/London)"],
   "baseBranches": ["staging"],
   "schedule": ["before 6am on monday"],
   "prHourlyLimit": 4,
@@ -27,12 +23,7 @@
   "packageRules": [
     {
       "description": "Group React ecosystem updates",
-      "matchPackageNames": [
-        "react",
-        "react-dom",
-        "@types/react",
-        "@types/react-dom"
-      ],
+      "matchPackageNames": ["react", "react-dom", "@types/react", "@types/react-dom"],
       "matchPackagePrefixes": ["@vitejs/plugin-react"],
       "groupName": "react ecosystem"
     },
@@ -83,7 +74,7 @@
       "groupName": "weekly dev minor"
     },
     {
-      "description": "Major version bumps require manual review — never auto-merge, dashboard approval required",
+      "description": "Major version bumps require manual review: never auto-merge, dashboard approval required",
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "labels": ["dependencies", "major-bump"],

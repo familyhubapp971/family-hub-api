@@ -90,7 +90,7 @@ import {
 import { getLogicQuestions, isLogicGameType, isLogicDifficulty } from '../lib/logic-questions.js';
 import { weekdayOfIso } from '../lib/recurrence.js';
 
-// FHS-395 — response schemas exported for OpenAPI registry.
+// FHS-395: response schemas exported for OpenAPI registry.
 import { z as _z } from 'zod';
 export const logicQuestionsResponseSchema = _z.object({
   // Require at least id + type; passthrough preserves game-type-specific fields.
@@ -115,7 +115,7 @@ export const logicCertificatesResponseSchema = _z.object({
   ),
 });
 
-// FHS-374 — week shape that mirrors the full parent GET /mw/weeks shape.
+// FHS-374: week shape that mirrors the full parent GET /mw/weeks shape.
 export const kidWeeksResponseSchema = z.object({
   weeks: z.array(
     z.object({
@@ -132,7 +132,7 @@ export const kidWeeksResponseSchema = z.object({
   ),
 });
 
-// FHS-374 — week stats shape (mirrors GET /mw/weeks/:id/stats).
+// FHS-374: week stats shape (mirrors GET /mw/weeks/:id/stats).
 export const kidWeekStatsResponseSchema = z.object({
   weekId: z.string().uuid(),
   totalStickers: z.number().int(),
@@ -141,9 +141,9 @@ export const kidWeekStatsResponseSchema = z.object({
   cashValue: z.number(),
 });
 
-// FHS-374 — savings shape (mirrors GET /mw/financial/savings).
-// FHS-387 — stickerRate added so the kid UI never hardcodes 0.5.
-// FHS-512 — stickerRate is now the CHILD'S effective (configurable) rate,
+// FHS-374: savings shape (mirrors GET /mw/financial/savings).
+// FHS-387: stickerRate added so the kid UI never hardcodes 0.5.
+// FHS-512: stickerRate is now the CHILD'S effective (configurable) rate,
 // not the old fixed 0.5; stickerRateMinor is the same rate as an integer
 // minor-unit amount for any caller that wants money-safe math.
 export const kidSavingsResponseSchema = z.object({
@@ -154,7 +154,7 @@ export const kidSavingsResponseSchema = z.object({
   stickerRateMinor: z.number().int(),
 });
 
-// FHS-374 — investments shape (mirrors GET /mw/financial/investments).
+// FHS-374: investments shape (mirrors GET /mw/financial/investments).
 export const kidInvestmentSchema = z.object({
   id: z.string().uuid(),
   habitId: z.string().uuid(),
@@ -166,14 +166,14 @@ export const kidInvestmentSchema = z.object({
   currentValueStickers: z.number().int(),
   daysCompleted: z.number().int(),
   daysMissed: z.number().int(),
-  // FHS-378 — false = missed days count but apply no penalty.
+  // FHS-378: false = missed days count but apply no penalty.
   deductible: z.boolean(),
 });
 export const kidInvestmentsResponseSchema = z.object({
   investments: z.array(kidInvestmentSchema),
 });
 
-// FHS-376 — kid rewards list now carries the kid's latest request status per
+// FHS-376: kid rewards list now carries the kid's latest request status per
 // reward. Shape: { rewards: [{id,name,description,stickerCost,icon,requestStatus}], stickerBalance }.
 export const kidRewardItemSchema = z.object({
   id: z.string().uuid(),
@@ -188,7 +188,7 @@ export const kidRewardsResponseSchema = z.object({
   stickerBalance: z.number().int(),
 });
 
-// FHS-376 — the request row the kid gets back when they ask for a reward.
+// FHS-376: the request row the kid gets back when they ask for a reward.
 export const kidRedemptionRequestSchema = z.object({
   id: z.string().uuid(),
   memberId: z.string().uuid(),
@@ -198,7 +198,7 @@ export const kidRedemptionRequestSchema = z.object({
   requestedAt: z.string(),
 });
 
-// FHS-367 — kid learn answer + reading-log writes (memberId from the token).
+// FHS-367: kid learn answer + reading-log writes (memberId from the token).
 export const kidLearnAnswerSchema = z.object({
   questionId: z.string().min(1),
   choiceIndex: z.number().int().min(0),
@@ -225,7 +225,7 @@ export const kidTodayResponseSchema = z.object({
   ),
 });
 
-// FHS-373 — kid world-flags response shapes.
+// FHS-373: kid world-flags response shapes.
 export const kidWorldFlagsExploredResponseSchema = z.object({
   explored: z.array(z.string()),
 });
@@ -233,7 +233,7 @@ export const kidWorldFlagsLearnResponseSchema = z.object({
   progress: z.record(z.array(z.number().int())),
 });
 
-// FHS-394 — Maths progression response shapes (re-exported from the lib for the
+// FHS-394: Maths progression response shapes (re-exported from the lib for the
 // OpenAPI registry; the actual schemas live in lib/maths-progress.ts).
 export {
   listMathsProgressResponseSchema,
@@ -245,7 +245,7 @@ export {
   operationSchema,
 } from '../lib/maths-progress.js';
 
-// FHS-394 — placement + cert response schemas (defined here because they are
+// FHS-394: placement + cert response schemas (defined here because they are
 // specific to the endpoint contract, not the shared lib).
 export const mathsPlacementResponseSchema = z.object({ unlocked: z.array(z.number().int()) });
 export const mathsCertResponseSchema = z.object({
@@ -261,7 +261,7 @@ export const mathsCertResponseSchema = z.object({
   alreadyEarned: z.boolean(),
 });
 
-// FHS-389 — AI Maths lesson request + response shapes.
+// FHS-389: AI Maths lesson request + response shapes.
 export const kidAiMathLessonBodySchema = z
   .object({
     operation: z.enum(['addition', 'subtraction', 'multiplication', 'division']),
@@ -275,22 +275,22 @@ export const kidAiMathLessonBodySchema = z
 // Note: two branches share enabled:true so we use a plain union (not
 // discriminatedUnion, which requires unique discriminator values).
 export const kidAiMathLessonResponseSchema = z.union([
-  // Feature flag is OFF — clean disabled signal, not an error.
+  // Feature flag is OFF: clean disabled signal, not an error.
   z.object({ enabled: z.literal(false) }),
   // Flag is ON, lesson generated successfully.
   z.object({ enabled: z.literal(true), lesson: lessonSchema }),
-  // Flag is ON, but AI call failed — UI shows friendly error.
+  // Flag is ON, but AI call failed: UI shows friendly error.
   z.object({ enabled: z.literal(true), lesson: z.null(), error: z.string() }),
 ]);
 
-// FHS-257 / FHS-355 — kid-scoped API surface.
+// FHS-257 / FHS-355: kid-scoped API surface.
 //
 // Mounted at /api/kid behind [kidAuthMiddleware, requireKidAuth] so every
 // handler here can rely on a verified kid principal via getKidAuth(c). The
 // parent Supabase auth middleware skips /api/kid (it's listed in that
 // middleware's public prefixes), so a kid token never has to survive the ES256
 // path. Every read is scoped to the kid's OWN tenant/member from the verified
-// token — never a slug/header — so a kid can only ever see their own family.
+// token (never a slug/header), so a kid can only ever see their own family.
 
 export const kidMeResponseSchema = z.object({
   memberId: z.string().uuid(),
@@ -298,7 +298,7 @@ export const kidMeResponseSchema = z.object({
   tenantSlug: z.string().min(1),
 });
 
-// FHS-362 — the kid's own profile for the dashboard header: name, avatar, and
+// FHS-362: the kid's own profile for the dashboard header: name, avatar, and
 // banked stars/cash. DB-backed (members + savings), scoped to the kid's own
 // member from the verified token.
 export const kidProfileResponseSchema = z.object({
@@ -313,11 +313,11 @@ export const kidRouter = new Hono()
   .use('*', kidAuthMiddleware())
   .use('*', requireKidAuth)
   .get('/me', (c) => {
-    // No DB — just echoes the verified token claims, so no tenant pin here.
+    // No DB: just echoes the verified token claims, so no tenant pin here.
     const kid = getKidAuth(c);
     return c.json(kidMeResponseSchema.parse(kid));
   })
-  // FHS-362 — the kid's own profile for the dashboard header (name + avatar +
+  // FHS-362: the kid's own profile for the dashboard header (name + avatar +
   // banked stars/cash), scoped to the kid's own member from the token.
   .get('/profile', async (c) => {
     const kid = getKidAuth(c);
@@ -345,14 +345,14 @@ export const kidRouter = new Hono()
       }),
     );
   })
-  // FHS-355 — the kid's OWN tasks (member-scoped from the kid token).
+  // FHS-355: the kid's OWN tasks (member-scoped from the kid token).
   .get('/tasks', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
     const tasks = await listTasksForMember(getDb(), kid.tenantId, kid.memberId);
     return c.json(kidTasksResponseSchema.parse({ tasks }));
   })
-  // FHS-355 — tick/untick one of the kid's OWN tasks. The member+tenant guard in
+  // FHS-355: tick/untick one of the kid's OWN tasks. The member+tenant guard in
   // setTaskDoneForMember means a kid can never touch another member's task.
   .patch('/tasks/:id', async (c) => {
     const kid = getKidAuth(c);
@@ -383,7 +383,7 @@ export const kidRouter = new Hono()
     }
     return c.json({ ok: true });
   })
-  // FHS-355 — the kid's "Today": their own active habits (member-scoped). A
+  // FHS-355: the kid's "Today": their own active habits (member-scoped). A
   // read-only at-a-glance list; full sticker interaction is a follow-up.
   .get('/today', async (c) => {
     const kid = getKidAuth(c);
@@ -406,14 +406,14 @@ export const kidRouter = new Hono()
       .orderBy(asc(habits.createdAt));
     return c.json(kidTodayResponseSchema.parse({ habits: rows }));
   })
-  // FHS-374 — weeks list (full parent shape, identical to GET /mw/weeks).
+  // FHS-374: weeks list (full parent shape, identical to GET /mw/weeks).
   .get('/weeks', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
     const weeks = await loadWeeksForMember(getDb(), kid.tenantId, kid.memberId);
     return c.json(kidWeeksResponseSchema.parse({ weeks }));
   })
-  // FHS-374 — week stats (identical to GET /mw/weeks/:id/stats).
+  // FHS-374: week stats (identical to GET /mw/weeks/:id/stats).
   .get('/weeks/:id/stats', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
@@ -424,7 +424,7 @@ export const kidRouter = new Hono()
     }
     return c.json(kidWeekStatsResponseSchema.parse(stats));
   })
-  // FHS-374 — week action log (identical to GET /mw/weeks/:id/actions).
+  // FHS-374: week action log (identical to GET /mw/weeks/:id/actions).
   .get('/weeks/:id/actions', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
@@ -435,7 +435,7 @@ export const kidRouter = new Hono()
     }
     return c.json({ actions });
   })
-  // FHS-374 — habits + stickers for a week (identical to GET /api/habits).
+  // FHS-374: habits + stickers for a week (identical to GET /api/habits).
   // ?weekId=UUID to navigate to a past week; omit for the current open week.
   // A supplied weekId that isn't this kid's is a 404.
   .get('/habits', async (c) => {
@@ -452,7 +452,7 @@ export const kidRouter = new Hono()
       ),
     );
   })
-  // FHS-374 / FHS-376 — rewards + the kid's spendable balance + the kid's
+  // FHS-374 / FHS-376: rewards + the kid's spendable balance + the kid's
   // latest request status per reward ('none'|'pending'|'approved'|'declined').
   .get('/rewards', async (c) => {
     const kid = getKidAuth(c);
@@ -463,7 +463,7 @@ export const kidRouter = new Hono()
       ),
     );
   })
-  // FHS-376 — the kid ASKS to redeem a reward (no deduction; an admin approves).
+  // FHS-376: the kid ASKS to redeem a reward (no deduction; an admin approves).
   // Self-scoped from the kid token. Idempotent: a duplicate ask while one is
   // still pending returns the existing pending request (200) rather than a new
   // row. FHS-374 removed POST /redeem; this request endpoint replaces it.
@@ -484,7 +484,7 @@ export const kidRouter = new Hono()
     }
     return c.json(kidRedemptionRequestSchema.parse(outcome.request), 200);
   })
-  // FHS-374 — banked savings + currency (identical to GET /mw/financial/savings).
+  // FHS-374: banked savings + currency (identical to GET /mw/financial/savings).
   .get('/financial/savings', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
@@ -494,7 +494,7 @@ export const kidRouter = new Hono()
       ),
     );
   })
-  // FHS-374 — active investments with live value (identical to GET /mw/financial/investments).
+  // FHS-374: active investments with live value (identical to GET /mw/financial/investments).
   .get('/financial/investments', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
@@ -504,7 +504,7 @@ export const kidRouter = new Hono()
       ),
     );
   })
-  // FHS-365 — the kid's meals: the family's meal plan scoped to the kid +
+  // FHS-365: the kid's meals: the family's meal plan scoped to the kid +
   // family-wide entries (server-side, not client-filtered). Read-only.
   .get('/meals', async (c) => {
     const kid = getKidAuth(c);
@@ -538,7 +538,7 @@ export const kidRouter = new Hono()
       }));
     return c.json(listMealsResponseSchema.parse({ meals }));
   })
-  // FHS-365 — the kid's schedule for a week (defaults to this week), scoped to
+  // FHS-365: the kid's schedule for a week (defaults to this week), scoped to
   // the kid + family-wide events. Read-only. Optional ?weekStart=YYYY-MM-DD.
   .get('/events', async (c) => {
     const kid = getKidAuth(c);
@@ -580,11 +580,11 @@ export const kidRouter = new Hono()
         ),
       )
       .orderBy(asc(events.date), asc(events.startTime));
-    // FHS-476 — the kid schedule doesn't expand recurring series across
+    // FHS-476: the kid schedule doesn't expand recurring series across
     // weeks yet (follow-up FHS-495); it still shows a repeating activity's
     // own anchor row when that falls in the requested week. But a recurring
     // row's anchor day only counts if its own weekday is one of the chosen
-    // days (matching the parent-side rule) — otherwise a Tue/Thu series would
+    // days (matching the parent-side rule): otherwise a Tue/Thu series would
     // wrongly appear on its Monday anchor.
     const eventsOut = rows
       .filter((r) =>
@@ -599,7 +599,7 @@ export const kidRouter = new Hono()
       }));
     return c.json(listEventsResponseSchema.parse({ weekStart, events: eventsOut }));
   })
-  // FHS-366 — the kid's journal for a day (or null) + the day's quote index.
+  // FHS-366: the kid's journal for a day (or null) + the day's quote index.
   .get('/journal', async (c) => {
     const kid = getKidAuth(c);
     const date = c.req.query('date');
@@ -625,7 +625,7 @@ export const kidRouter = new Hono()
       }),
     );
   })
-  // FHS-366 — the kid's past journal entries, newest first.
+  // FHS-366: the kid's past journal entries, newest first.
   .get('/journal/entries', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
@@ -638,7 +638,7 @@ export const kidRouter = new Hono()
       .orderBy(desc(journalEntries.entryDate));
     return c.json(journalEntriesResponseSchema.parse({ entries: rows.map(serializeEntry) }));
   })
-  // FHS-366 — the kid's earliest entry date (back-nav lower bound).
+  // FHS-366: the kid's earliest entry date (back-nav lower bound).
   .get('/journal/earliest', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
@@ -650,9 +650,9 @@ export const kidRouter = new Hono()
       );
     return c.json(journalEarliestResponseSchema.parse({ earliestDate: rows[0]?.earliest ?? null }));
   })
-  // FHS-376 — kids are VIEW-ONLY on the journal: PUT /api/kid/journal was
+  // FHS-376: kids are VIEW-ONLY on the journal: PUT /api/kid/journal was
   // removed (kids only READ past entries). The GET reads above stay.
-  // FHS-367 — the kid's lesson subjects (Maths/Science/Logic) + their progress.
+  // FHS-367: the kid's lesson subjects (Maths/Science/Logic) + their progress.
   .get('/learn', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
@@ -669,8 +669,8 @@ export const kidRouter = new Hono()
     }));
     return c.json(listLearnResponseSchema.parse({ subjects }));
   })
-  // FHS-367 — questions for a kid's lesson + their current stats.
-  // FHS-371 — optional ?subtopic= filters Logic questions by sub-topic.
+  // FHS-367: questions for a kid's lesson + their current stats.
+  // FHS-371: optional ?subtopic= filters Logic questions by sub-topic.
   .get('/learn/:subject/questions', async (c) => {
     const kid = getKidAuth(c);
     const subject = decodeURIComponent(c.req.param('subject'));
@@ -710,7 +710,7 @@ export const kidRouter = new Hono()
       }),
     );
   })
-  // FHS-367 — grade one of the kid's answers + persist streak/score/progress.
+  // FHS-367: grade one of the kid's answers + persist streak/score/progress.
   .post('/learn/:subject/answer', async (c) => {
     const kid = getKidAuth(c);
     const subject = decodeURIComponent(c.req.param('subject'));
@@ -780,7 +780,7 @@ export const kidRouter = new Hono()
       }),
     );
   })
-  // FHS-367 — the kid's reading log (their own books, newest first).
+  // FHS-367: the kid's reading log (their own books, newest first).
   .get('/reading-log', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
@@ -807,7 +807,7 @@ export const kidRouter = new Hono()
       }),
     );
   })
-  // FHS-367 — the kid adds a book to their reading log.
+  // FHS-367: the kid adds a book to their reading log.
   .post('/reading-log', async (c) => {
     const kid = getKidAuth(c);
     const parsed = kidReadingCreateSchema.safeParse(await c.req.json().catch(() => null));
@@ -839,7 +839,7 @@ export const kidRouter = new Hono()
       201,
     );
   })
-  // FHS-367 — the kid marks a book finished/unfinished.
+  // FHS-367: the kid marks a book finished/unfinished.
   .patch('/reading-log/:id', async (c) => {
     const kid = getKidAuth(c);
     const id = c.req.param('id');
@@ -873,7 +873,7 @@ export const kidRouter = new Hono()
       }),
     );
   })
-  // FHS-367 — the kid removes a book from their reading log.
+  // FHS-367: the kid removes a book from their reading log.
   .delete('/reading-log/:id', async (c) => {
     const kid = getKidAuth(c);
     const id = c.req.param('id');
@@ -892,7 +892,7 @@ export const kidRouter = new Hono()
       );
     return c.body(null, 204);
   })
-  // FHS-369 — the kid's own My World analytics (stats celebration view).
+  // FHS-369: the kid's own My World analytics (stats celebration view).
   .get('/analytics', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
@@ -902,7 +902,7 @@ export const kidRouter = new Hono()
       ),
     );
   })
-  // FHS-373 — the kid's explored country flags (from token, no memberId param).
+  // FHS-373: the kid's explored country flags (from token, no memberId param).
   .get('/world-flags', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
@@ -912,7 +912,7 @@ export const kidRouter = new Hono()
       }),
     );
   })
-  // FHS-373 — the kid marks a country flag as explored (idempotent).
+  // FHS-373: the kid marks a country flag as explored (idempotent).
   // Body: { countryCode }
   // Returns: { explored: true }
   .post('/world-flags/explore', async (c) => {
@@ -931,7 +931,7 @@ export const kidRouter = new Hono()
     await addExplored(getDb(), kid.tenantId, kid.memberId, parsed.data.countryCode);
     return c.json({ explored: true });
   })
-  // FHS-373 — the kid's world-flags learn progress per continent.
+  // FHS-373: the kid's world-flags learn progress per continent.
   // Returns: { progress: Record<continent, number[]> }
   .get('/world-flags/learn', async (c) => {
     const kid = getKidAuth(c);
@@ -942,7 +942,7 @@ export const kidRouter = new Hono()
       }),
     );
   })
-  // FHS-373 — the kid marks a learn-path set as mastered (idempotent).
+  // FHS-373: the kid marks a learn-path set as mastered (idempotent).
   // Body: { continent, chunkIndex }
   // Returns: { completed: true }
   .post('/world-flags/learn-complete', async (c) => {
@@ -969,11 +969,11 @@ export const kidRouter = new Hono()
     );
     return c.json({ completed: true });
   })
-  // FHS-389 — AI-generated Maths lesson (feature-flagged, default OFF).
-  // Body: { operation, difficulty? | tableNumber? } — one of difficulty/tableNumber required.
+  // FHS-389: AI-generated Maths lesson (feature-flagged, default OFF).
+  // Body: { operation, difficulty? | tableNumber? }: one of difficulty/tableNumber required.
   // Response when disabled: { enabled: false } (200, not an error).
   // Response when enabled + success: { enabled: true, lesson: <Lesson> }.
-  // FHS-389 — cheap availability probe. Returns just the flag state with NO
+  // FHS-389: cheap availability probe. Returns just the flag state with NO
   // Anthropic call, so the UI can decide whether to show the AI button without
   // burning a real (paid) lesson generation on every Maths-tab open.
   .get('/learn/maths/ai-lesson/status', (c) => {
@@ -981,7 +981,7 @@ export const kidRouter = new Hono()
     return c.json({ enabled: aiEnabled() });
   })
   // Response when enabled + AI fails: { enabled: true, lesson: null, error: '...' }.
-  // No child PII is ever sent to Anthropic — only the operation + settings.
+  // No child PII is ever sent to Anthropic: only the operation + settings.
   .post('/learn/maths/ai-lesson', async (c) => {
     const kid = getKidAuth(c);
     await pinRequestTenant(kid.tenantId);
@@ -1018,7 +1018,7 @@ export const kidRouter = new Hono()
 
     return c.json({ enabled: true, lesson });
   })
-  // FHS-394 — GET /api/kid/maths/progress
+  // FHS-394: GET /api/kid/maths/progress
   // Returns all maths progress rows for this kid (all operations + tables).
   .get('/maths/progress', async (c) => {
     const kid = getKidAuth(c);
@@ -1026,7 +1026,7 @@ export const kidRouter = new Hono()
     const progress = await listProgress(getDb(), kid.tenantId, kid.memberId);
     return c.json(listMathsProgressResponseSchema.parse({ progress }));
   })
-  // FHS-394 — PUT /api/kid/maths/progress
+  // FHS-394: PUT /api/kid/maths/progress
   // Upsert one progress row; only supplied fields are updated.
   // Body: { operation, tableNumber, learnCompleted?, practiceCorrect?,
   //         proveScore?, proveAvgTime? }
@@ -1083,7 +1083,7 @@ export const kidRouter = new Hono()
     );
     return c.json(mathsProgressRowSchema.parse(row));
   })
-  // FHS-394 — POST /api/kid/maths/placement
+  // FHS-394: POST /api/kid/maths/placement
   // Applies placement test results and auto-masters qualifying tables.
   // Body: { operation, results: [{ tableNumber, correct, timeSeconds }] }
   // Returns: { unlocked: number[] }
@@ -1109,7 +1109,7 @@ export const kidRouter = new Hono()
     );
     return c.json({ unlocked });
   })
-  // FHS-394 — GET /api/kid/maths/certificates
+  // FHS-394: GET /api/kid/maths/certificates
   // Returns all earned certificates for this kid.
   .get('/maths/certificates', async (c) => {
     const kid = getKidAuth(c);
@@ -1117,8 +1117,8 @@ export const kidRouter = new Hono()
     const certificates = await listCertificates(getDb(), kid.tenantId, kid.memberId);
     return c.json(listMathsCertsResponseSchema.parse({ certificates }));
   })
-  // FHS-394 — POST /api/kid/maths/certificates
-  // Award a certificate (idempotent — returns existing if already earned).
+  // FHS-394: POST /api/kid/maths/certificates
+  // Award a certificate (idempotent: returns existing if already earned).
   // Body: { operation, difficulty, totalCorrect }
   // Returns: { certificate, alreadyEarned }
   .post('/maths/certificates', async (c) => {
@@ -1144,7 +1144,7 @@ export const kidRouter = new Hono()
     );
     return c.json(result, result.alreadyEarned ? 200 : 201);
   })
-  // FHS-395 — GET /api/kid/logic/questions?gameType=&difficulty=
+  // FHS-395: GET /api/kid/logic/questions?gameType=&difficulty=
   // Returns questions for the combo with answers stripped.
   .get('/logic/questions', async (c) => {
     const kid = getKidAuth(c);
@@ -1161,7 +1161,7 @@ export const kidRouter = new Hono()
     const questions = getLogicQuestions(parsed.data.gameType, parsed.data.difficulty);
     return c.json({ questions });
   })
-  // FHS-395 — POST /api/kid/logic/answer
+  // FHS-395: POST /api/kid/logic/answer
   // Server-authoritative grading + cert award.
   // Body: { gameType, difficulty, questionId, answer }
   // Returns: { correct, correctAnswer, explanation, comboCorrect, certificateEarned }
@@ -1197,7 +1197,7 @@ export const kidRouter = new Hono()
       throw err;
     }
   })
-  // FHS-395 — GET /api/kid/logic/certificates
+  // FHS-395: GET /api/kid/logic/certificates
   // Returns all earned logic certificates for this kid.
   .get('/logic/certificates', async (c) => {
     const kid = getKidAuth(c);

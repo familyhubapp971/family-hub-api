@@ -12,7 +12,7 @@ const log = createLogger('rate-limit');
 // Buckets refill linearly at `refillPerSecond = capacity / windowSec`.
 // Steady-state allows `capacity` requests per `windowSec` with bursts up
 // to the full bucket. For "100 req/min" the bucket holds 100 and refills
-// at ~1.67/s — exactly the AC #3 contract.
+// at ~1.67/s: exactly the AC #3 contract.
 
 interface Bucket {
   tokens: number;
@@ -27,7 +27,7 @@ interface Options {
 }
 
 const buckets = new Map<string, Bucket>();
-// Idle bucket sweep — keeps memory bounded under heavy churn (e.g. botnets).
+// Idle bucket sweep: keeps memory bounded under heavy churn (e.g. botnets).
 const SWEEP_INTERVAL_MS = 5 * 60_000;
 let sweepTimer: ReturnType<typeof setInterval> | undefined;
 let warnedMissingIp = false;
@@ -44,7 +44,7 @@ export function rateLimit({
   keyFor = (ip) => ip ?? 'unknown',
 }: Options): MiddlewareHandler {
   if (capacity <= 0) {
-    // Disabled — no-op middleware for tests.
+    // Disabled: no-op middleware for tests.
     return async (_c, next) => {
       await next();
     };
@@ -58,7 +58,7 @@ export function rateLimit({
   }
 
   return async (c, next) => {
-    // /health is exempt — Railway's internal probe hits the container
+    // /health is exempt: Railway's internal probe hits the container
     // direct (no x-forwarded-for), and rate-limiting health checks at
     // 100 req/min would block 1-second probes within seconds anyway.
     if (c.req.path === '/health') {
@@ -73,13 +73,13 @@ export function rateLimit({
 
     // Fail-closed in non-dev when we can't identify the caller. A
     // missing forwarded-for header in production usually means the proxy
-    // chain is misconfigured (header stripped, direct exposure) —
+    // chain is misconfigured (header stripped, direct exposure):
     // collapsing all traffic into one 'unknown' bucket would let 100
     // req/min lock the whole world out.
     if (!ip && config.NODE_ENV !== 'development' && config.NODE_ENV !== 'test') {
       if (!warnedMissingIp) {
         log.warn(
-          'rate-limit: client IP could not be derived (no x-forwarded-for / x-real-ip) — rejecting request. Check the proxy config.',
+          'rate-limit: client IP could not be derived (no x-forwarded-for / x-real-ip): rejecting request. Check the proxy config.',
         );
         warnedMissingIp = true;
       }
@@ -114,7 +114,7 @@ export function rateLimit({
   };
 }
 
-// Test-only — clears all buckets so a Vitest run doesn't carry state across tests.
+// Test-only: clears all buckets so a Vitest run doesn't carry state across tests.
 export function _resetRateLimitForTests(): void {
   buckets.clear();
 }

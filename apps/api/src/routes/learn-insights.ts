@@ -1,16 +1,16 @@
-// FHS-384 — GET /api/learn/insights?memberId=<childMemberId>
+// FHS-384: GET /api/learn/insights?memberId=<childMemberId>
 //
 // Parent/admin-only endpoint that aggregates one child's Learn activity
 // across Maths, Logic, Science, and World Flags into a single insights
 // payload for the parent dashboard.
 //
-// Auth chain (parent token — ES256 JWT, NOT a kid HS256 token):
+// Auth chain (parent token: ES256 JWT, NOT a kid HS256 token):
 //   1. Authenticated user (JWT via authMiddleware).
 //   2. Tenant context resolved (tenantId on context).
 //   3. Caller must be a member of that tenant with role admin or adult.
-//      Kids/teens/guests get 403 — they call their own kid-scoped endpoints.
+//      Kids/teens/guests get 403: they call their own kid-scoped endpoints.
 //   4. The target memberId must belong to the SAME tenant (else 403/404).
-//   5. Caller must canManage the target member — parents can read any child
+//   5. Caller must canManage the target member: parents can read any child
 //      in their family; adults cannot read a sibling adult's data.
 
 import { Hono } from 'hono';
@@ -34,9 +34,9 @@ const subjectInsightSchema = z.object({
   certificatesTotal: z.number().int().min(0),
   lastActive: z.string().datetime().nullable(),
   needsHelp: z.boolean(),
-  // FHS-401 — accuracy percentage (0–100, rounded) or null if no attempts recorded yet.
+  // FHS-401: accuracy percentage (0–100, rounded) or null if no attempts recorded yet.
   accuracyPct: z.number().int().min(0).max(100).nullable(),
-  // FHS-401 — World Flags continent progress (0 for non-WF subjects).
+  // FHS-401: World Flags continent progress (0 for non-WF subjects).
   // continentsExplored and continentsTotal are clamped to WORLD_FLAGS_CONTINENTS_TOTAL (6).
   continentsExplored: z.number().int().min(0).max(6),
   continentsTotal: z.number().int().min(0).max(6),
@@ -68,18 +68,18 @@ const querySchema = z.object({
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export const learnInsightsRouter = new Hono().get('/', async (c) => {
-  // 1 — Authenticated caller.
+  // 1: Authenticated caller.
   getAuthenticatedUser(c);
   const userRow = c.get('userRow');
   if (!userRow) throw new Error('learn-insights handler reached without userRow');
 
-  // 2 — Tenant context.
+  // 2: Tenant context.
   const tenantId = c.get('tenantId') as string | undefined;
   if (!tenantId) {
     return c.json({ error: 'tenant context required', errorCode: 'TENANT_REQUIRED' }, 400);
   }
 
-  // 3 — Parse memberId query param.
+  // 3: Parse memberId query param.
   const parsed = querySchema.safeParse({ memberId: c.req.query('memberId') });
   if (!parsed.success) {
     return c.json(
@@ -94,13 +94,13 @@ export const learnInsightsRouter = new Hono().get('/', async (c) => {
 
   const db = getDb();
 
-  // 4 — Caller must be an authenticated member of this tenant.
+  // 4: Caller must be an authenticated member of this tenant.
   const caller = await loadCaller(db, tenantId, userRow.id);
   if (!caller) {
     return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
   }
 
-  // 5 — Only admin / adult may call this parent endpoint.
+  // 5: Only admin / adult may call this parent endpoint.
   if (!isAdminOrAdult(caller)) {
     return c.json(
       {
@@ -112,7 +112,7 @@ export const learnInsightsRouter = new Hono().get('/', async (c) => {
     );
   }
 
-  // 6 — Target member must exist in the same tenant (cross-tenant → 404).
+  // 6: Target member must exist in the same tenant (cross-tenant → 404).
   const targetRows = await db
     .select({ id: members.id, displayName: members.displayName, role: members.role })
     .from(members)
@@ -123,7 +123,7 @@ export const learnInsightsRouter = new Hono().get('/', async (c) => {
     return c.json({ error: 'not found', detail: 'member not found in this tenant' }, 404);
   }
 
-  // 7 — Learn insights are only meaningful for child members. Requesting
+  // 7: Learn insights are only meaningful for child members. Requesting
   //     analytics for an adult member is not supported and would leak that
   //     member's existence to the caller unnecessarily.
   if (target.role !== 'child') {
@@ -137,7 +137,7 @@ export const learnInsightsRouter = new Hono().get('/', async (c) => {
     );
   }
 
-  // 8 — canManage check (admin/adult can read any member in their tenant).
+  // 8: canManage check (admin/adult can read any member in their tenant).
   if (!canManage(caller, memberId)) {
     return c.json(
       { error: 'forbidden', detail: "not allowed to view this member's insights" },

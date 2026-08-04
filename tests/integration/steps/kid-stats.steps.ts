@@ -1,7 +1,7 @@
 /**
  * Step bindings for kid-stats.feature (FHS-369).
  *
- * The kid's My World analytics, scoped to themselves — never a sibling's. Real
+ * The kid's My World analytics, scoped to themselves: never a sibling's. Real
  * kid token against real Postgres.
  */
 

@@ -5,7 +5,7 @@ import {
   seedTenantDefaults,
 } from '../../../../apps/api/src/db/seed-tenant-defaults.js';
 
-// FHS-40 — pure-helper tests for the onboarding seed function.
+// FHS-40: pure-helper tests for the onboarding seed function.
 // Schema integration (rows actually land in PG with the right
 // tenant_id) is covered by tests/integration/features/onboarding.feature.
 
@@ -26,7 +26,7 @@ function makeFakeDb() {
   return { db, insertCalls };
 }
 
-describe('FHS-40 — seedTenantDefaults', () => {
+describe('FHS-40: seedTenantDefaults', () => {
   it('exposes 5 habits and 3 rewards as the default set', () => {
     expect(DEFAULT_HABITS).toHaveLength(5);
     expect(DEFAULT_REWARDS).toHaveLength(3);
@@ -60,7 +60,7 @@ describe('FHS-40 — seedTenantDefaults', () => {
     }
   });
 
-  it('does not check for existing rows — caller owns idempotency', async () => {
+  it('does not check for existing rows: caller owns idempotency', async () => {
     // Calling twice doubles the inserts; this asserts the contract
     // documented in the helper's docstring (the FHS-37 onboarding
     // endpoint guards against re-runs via the onboarding_completed flag).

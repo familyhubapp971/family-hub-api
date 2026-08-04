@@ -1,8 +1,8 @@
-// FHS-384 — Unit tests for routes/learn-insights.ts
+// FHS-384: Unit tests for routes/learn-insights.ts
 //
 // Tests cover the HTTP layer: auth guards, tenant checks, role enforcement,
 // cross-tenant / non-existent memberId, and empty-state shape.
-// The computeLearnInsights helper is stubbed out — its logic is separately
+// The computeLearnInsights helper is stubbed out: its logic is separately
 // unit-tested in tests/unit/api/lib/learn-insights.test.ts.
 
 import { Hono } from 'hono';
@@ -131,12 +131,12 @@ function buildApp({
         where: () => ({
           limit: () => {
             if (callNo === 1) {
-              // loadCaller — returns a member with the specified caller role
+              // loadCaller: returns a member with the specified caller role
               return Promise.resolve(
                 callerRole ? [{ id: 'caller-member-id', role: callerRole }] : [],
               );
             }
-            // target member lookup — returns the child row (role included)
+            // target member lookup: returns the child row (role included)
             return Promise.resolve(
               targetMemberExists
                 ? [{ id: CHILD_ID, displayName: 'TestChild', role: targetRole }]
@@ -166,7 +166,7 @@ beforeEach(() => {
   mockCompute.mockResolvedValue(STUB_INSIGHTS);
 });
 
-describe('GET /api/learn/insights — tenant guard', () => {
+describe('GET /api/learn/insights: tenant guard', () => {
   it('400 TENANT_REQUIRED when no tenant on context', async () => {
     const res = await buildApp({ callerRole: 'admin', noTenant: true }).request(get(CHILD_ID));
     expect(res.status).toBe(400);
@@ -175,7 +175,7 @@ describe('GET /api/learn/insights — tenant guard', () => {
   });
 });
 
-describe('GET /api/learn/insights — memberId validation', () => {
+describe('GET /api/learn/insights: memberId validation', () => {
   it('400 when memberId is missing', async () => {
     const app = buildApp({ callerRole: 'admin' });
     const res = await app.request('/api/learn/insights');
@@ -189,14 +189,14 @@ describe('GET /api/learn/insights — memberId validation', () => {
   });
 });
 
-describe('GET /api/learn/insights — caller membership', () => {
+describe('GET /api/learn/insights: caller membership', () => {
   it('403 when caller is not a member of the tenant', async () => {
     const res = await buildApp({ callerRole: null }).request(get(CHILD_ID));
     expect(res.status).toBe(403);
   });
 });
 
-describe('GET /api/learn/insights — role enforcement (kids blocked)', () => {
+describe('GET /api/learn/insights: role enforcement (kids blocked)', () => {
   it('403 ADULT_REQUIRED for role=child', async () => {
     const res = await buildApp({ callerRole: 'child' }).request(get(CHILD_ID));
     expect(res.status).toBe(403);
@@ -219,7 +219,7 @@ describe('GET /api/learn/insights — role enforcement (kids blocked)', () => {
   });
 });
 
-describe('GET /api/learn/insights — target member guard', () => {
+describe('GET /api/learn/insights: target member guard', () => {
   it('404 when target member does not exist in this tenant', async () => {
     const res = await buildApp({ callerRole: 'admin', targetMemberExists: false }).request(
       get(CHILD_ID),
@@ -229,7 +229,7 @@ describe('GET /api/learn/insights — target member guard', () => {
 
   it('403 TARGET_NOT_CHILD when target is an adult member', async () => {
     // An admin caller requesting learn insights for another adult member
-    // is not supported — learn insights are child-only.
+    // is not supported: learn insights are child-only.
     const res = await buildApp({ callerRole: 'admin', targetRole: 'adult' }).request(get(CHILD_ID));
     expect(res.status).toBe(403);
     const body = (await res.json()) as { errorCode: string };
@@ -244,7 +244,7 @@ describe('GET /api/learn/insights — target member guard', () => {
   });
 });
 
-describe('GET /api/learn/insights — success path', () => {
+describe('GET /api/learn/insights: success path', () => {
   it('200 for admin caller with correct response shape', async () => {
     const res = await buildApp({ callerRole: 'admin' }).request(get(CHILD_ID));
     expect(res.status).toBe(200);

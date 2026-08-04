@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildApp } from '../../../../apps/api/src/app.js';
 import { buildOpenApiSpec } from '../../../../apps/api/src/openapi/build-spec.js';
 
-// FHS-356 — the OpenAPI spec is generated from the live Hono route table, so
+// FHS-356: the OpenAPI spec is generated from the live Hono route table, so
 // these tests lock the contract: every endpoint is covered, the docs routes are
 // excluded, auth vs public is marked correctly, and the documented endpoints
 // carry their real request/response schemas.
@@ -19,7 +19,7 @@ function operationCount(s: typeof spec): number {
   );
 }
 
-describe('FHS-356 — OpenAPI spec from the live route table', () => {
+describe('FHS-356: OpenAPI spec from the live route table', () => {
   it('is a valid OpenAPI 3.0 document with info + bearer scheme', () => {
     expect(spec.openapi).toBe('3.0.3');
     expect(spec.info['title']).toBe('Family Hub API');
@@ -64,7 +64,7 @@ describe('FHS-356 — OpenAPI spec from the live route table', () => {
   });
 });
 
-describe('FHS-356 — docs are served', () => {
+describe('FHS-356: docs are served', () => {
   it('serves the spec at GET /openapi.json', async () => {
     const res = await app.request('/openapi.json');
     expect(res.status).toBe(200);

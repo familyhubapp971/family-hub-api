@@ -6,7 +6,7 @@ import {
   _resetKidPinBucketsForTests,
 } from '../../../../apps/api/src/routes/auth-kid-pin.js';
 
-// FHS-236 — POST /api/auth/kid-pin. DB stubbed at module boundary.
+// FHS-236: POST /api/auth/kid-pin. DB stubbed at module boundary.
 
 const dbMock = { select: vi.fn() };
 vi.mock('../../../../apps/api/src/db/client.js', () => ({
@@ -101,7 +101,7 @@ function postBody(body: unknown): RequestInit {
   };
 }
 
-describe('FHS-236 — POST /api/auth/kid-pin', () => {
+describe('FHS-236: POST /api/auth/kid-pin', () => {
   it('returns 400 when pin is not 4 digits', async () => {
     const app = buildApp({});
     const res = await app.request(
@@ -204,7 +204,7 @@ describe('FHS-236 — POST /api/auth/kid-pin', () => {
       );
       expect(res.status).toBe(401);
     }
-    // Build a fresh app — buckets persist across `buildApp` calls
+    // Build a fresh app: buckets persist across `buildApp` calls
     // because the module-level Map isn't per-instance.
     const lockedApp = buildApp({ memberHit: false });
     const res = await lockedApp.request(
@@ -236,7 +236,7 @@ describe('FHS-236 — POST /api/auth/kid-pin', () => {
       postBody({ tenantSlug: TENANT_SLUG, memberId: MEMBER_ID, pin: '1234' }),
     );
     expect(ok.status).toBe(200);
-    // Two more failures should NOT lock — counter was cleared
+    // Two more failures should NOT lock: counter was cleared
     const app3 = buildApp({ memberHit: false });
     const r1 = await app3.request(
       '/api/auth/kid-pin',

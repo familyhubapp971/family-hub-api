@@ -1,7 +1,7 @@
 /**
  * Step bindings for kid-habits.feature (FHS-374).
  *
- * The kid reads their OWN weekly habits (read-only since FHS-374 — sticker
+ * The kid reads their OWN weekly habits (read-only since FHS-374: sticker
  * writes were removed). Real kid token against real Postgres.
  */
 

@@ -4,9 +4,9 @@
  * The kid does lessons + keeps a reading log, scoped to themselves. Real kid
  * token against real Postgres.
  *
- * GAP 5 — answer-grading state machine: streak reset, best-streak retention,
+ * GAP 5, answer-grading state machine: streak reset, best-streak retention,
  *          certificate award when CERTIFICATE_TARGET correct answers reached.
- * GAP 6 — cross-TENANT isolation: a kid from family B cannot affect family A.
+ * GAP 6, cross-TENANT isolation: a kid from family B cannot affect family A.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -53,7 +53,7 @@ let addRes: Response;
 let answerRes: Response;
 let siblingRes: Response;
 let subtopicRes: Response;
-// GAP 5 — state machine tracking
+// GAP 5: state machine tracking
 let streakRes: Response;
 let certRes: Response;
 
@@ -281,7 +281,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       let crossTenantRes: Response;
 
       Given('a second family with kid "Omar"', async () => {
-        // Family B is a completely separate tenant — different slug, no shared data.
+        // Family B is a completely separate tenant: different slug, no shared data.
         const [t2] = await db
           .insert(tenants)
           .values({ slug: `kidlearn-b-${randomUUID().slice(0, 8)}`, name: 'Omar Fam' })
@@ -302,7 +302,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
         imanProgressBefore = beforeBody.stats.answered;
 
         // Omar uses his own (family B) kid token but targets the same /api/kid route.
-        // The route scopes entirely from the token — the subject path 'Maths' is
+        // The route scopes entirely from the token: the subject path 'Maths' is
         // shared, but the learnProgress row is keyed by (tenantId, memberId, subject).
         const q = MATHS_EASY_QUESTIONS[0]!;
         crossTenantRes = await app.request('/api/kid/learn/Maths/answer', {
@@ -318,7 +318,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       Then(
         'the cross-tenant answer response does not affect "Iman"\'s Maths progress',
         async () => {
-          // Omar's own answer should succeed (200) — he's a valid kid in his own tenant.
+          // Omar's own answer should succeed (200): he's a valid kid in his own tenant.
           expect(crossTenantRes.status).toBe(200);
 
           // Iman's answered count must be unchanged.

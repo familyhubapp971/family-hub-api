@@ -1,4 +1,4 @@
-// ESLint flat config — root for the whole monorepo. Single source of
+// ESLint flat config: root for the whole monorepo. Single source of
 // truth so apps/api, apps/web, packages/* all lint against the same
 // rules without per-package configs drifting.
 //
@@ -17,7 +17,7 @@ import globals from 'globals';
 import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
-  // 1. Ignored paths — must come first for flat config.
+  // 1. Ignored paths: must come first for flat config.
   {
     ignores: [
       '**/dist/**',
@@ -31,7 +31,7 @@ export default tseslint.config(
       '**/test-results*/**',
       '**/.features-gen*/**',
       '**/tests/performance/reports/**',
-      // Vendored Claude Code skill scripts — not our code, not our lint rules.
+      // Vendored Claude Code skill scripts: not our code, not our lint rules.
       '.claude/**',
       // Generated OpenAPI schema bundle.
       '**/openapi.yaml',
@@ -41,7 +41,7 @@ export default tseslint.config(
   // 2. Baseline JS recommended rules everywhere.
   js.configs.recommended,
 
-  // 3. typescript-eslint recommended (no type-checked variant — too
+  // 3. typescript-eslint recommended (no type-checked variant: too
   //    noisy for Sprint 0; revisit after the schema lands and we have
   //    real types to reason about). Then a small set of cheap, zero-
   //    false-positive rules on top.
@@ -53,7 +53,7 @@ export default tseslint.config(
     },
   },
 
-  // 4. JSX/TSX everywhere — enable the JSX parser feature for any tsx
+  // 4. JSX/TSX everywhere: enable the JSX parser feature for any tsx
   //    file regardless of which workspace, so future tsx outside
   //    web/ui (e.g. in packages/shared) parses correctly. Plugin
   //    registration is scoped to web/ui in the next block.
@@ -88,7 +88,7 @@ export default tseslint.config(
       ...react.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
       ...jsxA11y.configs.recommended.rules,
-      // React 17+ JSX transform — no need for React in scope.
+      // React 17+ JSX transform: no need for React in scope.
       'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'off', // we use TS for prop types
     },
@@ -122,7 +122,7 @@ export default tseslint.config(
     },
   },
 
-  // 6b. k6 perf scripts — k6 injects __ENV / __VU / __ITER / open() into
+  // 6b. k6 perf scripts: k6 injects __ENV / __VU / __ITER / open() into
   //     the VU runtime; they're not Node nor browser globals.
   {
     files: ['tests/performance/**/*.{js,mjs}'],
@@ -137,7 +137,7 @@ export default tseslint.config(
     },
   },
 
-  // 7. Prettier — must be LAST. Disables rules that conflict with
+  // 7. Prettier: must be LAST. Disables rules that conflict with
   //    Prettier's formatter so the two tools don't fight.
   prettier,
 );

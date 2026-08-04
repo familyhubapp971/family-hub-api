@@ -1,5 +1,5 @@
 Feature: Admin Panel endpoints (FHS-308)
-  Real Postgres on :5433 — verifies app_settings CRUD, week cash edit, admin
+  Real Postgres on :5433, verifies app_settings CRUD, week cash edit, admin
   savings-set, week reopen round-trip, week repair, and role-gating.
 
   Background:
@@ -26,17 +26,17 @@ Feature: Admin Panel endpoints (FHS-308)
     And the caller fetches settings for tenant "smith"
     Then the settings map is empty
 
-  Scenario: FHS-441 — currency PUT updates tenants.currency and GET reflects it
+  Scenario: FHS-441: currency PUT updates tenants.currency and GET reflects it
     When the caller puts setting "currency" to "GBP" for tenant "jones"
     Then the settings put response status is 200
     And the caller fetches settings for tenant "jones"
     And the settings map has "currency" equal to "GBP"
 
-  Scenario: FHS-441 — currency PUT rejects an invalid ISO code
+  Scenario: FHS-441: currency PUT rejects an invalid ISO code
     When the caller puts setting "currency" to "gbp" for tenant "jones"
     Then the settings put response status is 400
 
-  Scenario: FHS-441 — currency is tenant-scoped (other tenants keep their own)
+  Scenario: FHS-441: currency is tenant-scoped (other tenants keep their own)
     Given an admin-panel tenant "smith" exists with the caller as an admin member
     When the caller puts setting "currency" to "EUR" for tenant "jones"
     And the caller fetches settings for tenant "smith"
@@ -55,7 +55,7 @@ Feature: Admin Panel endpoints (FHS-308)
     Then the cash-edit response status is 200
     And the cash-edit response week has carriedOverCash 3 and retrievedCash 7
 
-  Scenario: Reopen round-trips finalize — stickers reversed, investment restored
+  Scenario: Reopen round-trips finalize: stickers reversed, investment restored
     Given the caller places a sticker on "Reading" day 0 for "Layla"
     And the caller places a sticker on "Reading" day 1 for "Layla"
     And the caller invests 10 stickers in "Reading" for "Layla"

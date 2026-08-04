@@ -4,17 +4,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mwWeeksRouter } from '../../../../apps/api/src/routes/mw-weeks.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-293 — unit guard tests for /api/mw/weeks.
+// FHS-293: unit guard tests for /api/mw/weeks.
 // DB-backed behaviour + sticker math is covered by integration tests.
 
-// ─── DB mock — every select returns the next item in a queue ─────────────────
+// ─── DB mock: every select returns the next item in a queue ─────────────────
 
 const dbMock = { select: vi.fn(), insert: vi.fn() };
 vi.mock('../../../../apps/api/src/db/client.js', () => ({ getDb: () => dbMock }));
 
 // Stub out getOrCreateCurrentWeek so routes that call it don't need real DB,
 // but keep the real shared loaders (loadWeekActions/Stats/loadWeeksForMember,
-// FHS-374) — they were extracted verbatim from these routes and consume the
+// FHS-374): they were extracted verbatim from these routes and consume the
 // same DB query queue, so the queue-based dbMock still drives them.
 vi.mock('../../../../apps/api/src/lib/myworld.js', async (importActual) => {
   const actual = await importActual<typeof import('../../../../apps/api/src/lib/myworld.js')>();
@@ -57,7 +57,7 @@ const FIXED_USER: User = {
 
 /**
  * memberChecks is an ordered queue of arrays. Each `.select()…limit()` call
- * in the route handler pops the next array from the front — so the order must
+ * in the route handler pops the next array from the front: so the order must
  * match the route's query order:
  *   1. loadCaller  → members (find caller by userId)
  *   2. memberInTenant → members (find target by memberId)
@@ -255,9 +255,9 @@ describe('GET /api/mw/weeks/:id/actions', () => {
   });
 });
 
-// FHS-335 — closing, reopening, and repairing a week are admin-only. A normal
+// FHS-335: closing, reopening, and repairing a week are admin-only. A normal
 // user (adult) passes membership but is rejected before any economy change.
-describe('FHS-335 — week lifecycle is admin-only', () => {
+describe('FHS-335: week lifecycle is admin-only', () => {
   function post(path: string) {
     return buildApp({
       memberChecks: [[{ id: 'caller-id', role: 'adult' }], [{ id: MEMBER_ID }]],

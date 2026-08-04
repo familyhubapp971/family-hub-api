@@ -75,7 +75,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   });
 
-  // FHS-376 — kids are read-only on the journal; a parent writes entries. The
+  // FHS-376: kids are read-only on the journal; a parent writes entries. The
   // test seeds an entry directly, then the kid reads it back.
   const seedEntry = (name: string, body: string) =>
     db.insert(journalEntries).values({

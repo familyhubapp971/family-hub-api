@@ -1,5 +1,5 @@
 Feature: GET /api/public/slug-available (FHS-27)
-  Real Postgres on :5433 — verifies the route reads tenants.slug
+  Real Postgres on :5433, verifies the route reads tenants.slug
   uniqueness directly. No auth required (slug list is a public fact
   about the DNS namespace).
 

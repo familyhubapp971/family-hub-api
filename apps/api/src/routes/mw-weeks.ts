@@ -31,7 +31,7 @@ import {
   reverseSkipPenalties,
 } from '../lib/reward-config.js';
 
-// FHS-293 — My World weeks list / current / stats endpoints.
+// FHS-293: My World weeks list / current / stats endpoints.
 //
 // All three routes share the same auth chain as habits.ts:
 //   1. authenticated user (JWT)
@@ -112,7 +112,7 @@ function toWeek(row: typeof mwWeeks.$inferSelect) {
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const mwWeeksRouter = new Hono()
-  // GET / — all weeks for a member, ordered by startDate ascending.
+  // GET /: all weeks for a member, ordered by startDate ascending.
   // Ensures the current week exists first so the list is never empty.
   .get('/', async (c) => {
     const ctx = await guardQuery(c);
@@ -123,7 +123,7 @@ export const mwWeeksRouter = new Hono()
     return c.json({ weeks });
   })
 
-  // GET /current — get (or create) the current open week for a member.
+  // GET /current: get (or create) the current open week for a member.
   .get('/current', async (c) => {
     const ctx = await guardQuery(c);
     if ('res' in ctx) return ctx.res;
@@ -133,7 +133,7 @@ export const mwWeeksRouter = new Hono()
     return c.json({ week: toWeek(week) });
   })
 
-  // GET /:id/stats — sticker counts + cash value for a specific week.
+  // GET /:id/stats: sticker counts + cash value for a specific week.
   .get('/:id/stats', async (c) => {
     const ctx = await guardQuery(c);
     if ('res' in ctx) return ctx.res;
@@ -146,13 +146,13 @@ export const mwWeeksRouter = new Hono()
     return c.json(stats);
   })
 
-  // POST /:id/finalize — close a week (faithful port of the legacy flow).
+  // POST /:id/finalize: close a week (faithful port of the legacy flow).
   //
   // On close, all per (tenant, member) and inside one advisory-locked tx:
   //   1. snapshot the week (audit) before any mutation,
   //   2. auto-save this week's unallocated stickers from NON-invested habits
   //      into savings (invested-habit stickers are consumed by the investment),
-  //   3. resolve active investments not in `continueInvestmentIds` — their
+  //   3. resolve active investments not in `continueInvestmentIds`: their
   //      matured value (sticker-first: max(0, principal + done*5 − missed*2))
   //      is returned to saved cash,
   //   4. mark the week finalized + store the closure snapshot,
@@ -194,7 +194,7 @@ export const mwWeeksRouter = new Hono()
 
     const weekId = c.req.param('id');
     const now = new Date();
-    // FHS-512 — resolved once per finalize call (child override, else the
+    // FHS-512: resolved once per finalize call (child override, else the
     // family default); every cash figure this handler writes uses it.
     const rateMinor = await getEffectiveRateMinor(db, tenantId, memberId);
     const rate = rateMinorToDecimal(rateMinor);
@@ -361,7 +361,7 @@ export const mwWeeksRouter = new Hono()
         });
       }
 
-      // ── 2b. Skip-penalty accrual (FHS-512) — one negative money_adjustments
+      // ── 2b. Skip-penalty accrual (FHS-512): one negative money_adjustments
       // row per due day missed on a habit with skip_penalty_minor > 0, folded
       // straight into saved_cash. Runs after auto-save/before the finalized
       // flag flips, inside the same advisory lock + transaction.
@@ -406,7 +406,7 @@ export const mwWeeksRouter = new Hono()
           );
         const completedDays = Math.min(cRow?.n ?? 0, 7);
         const missedDays = 7 - completedDays;
-        // FHS-378 — honour the investment's deductible flag when maturing it.
+        // FHS-378: honour the investment's deductible flag when maturing it.
         const { currentValueStickers, currentValueCash } = investmentValue(
           {
             investedStickers: inv.investedStickers,
@@ -594,7 +594,7 @@ export const mwWeeksRouter = new Hono()
     });
   })
 
-  // GET /:id/actions?memberId= — audit log of week actions for a child, newest first.
+  // GET /:id/actions?memberId=: audit log of week actions for a child, newest first.
   .get('/:id/actions', async (c) => {
     const ctx = await guardQuery(c);
     if ('res' in ctx) return ctx.res;
@@ -609,7 +609,7 @@ export const mwWeeksRouter = new Hono()
     return c.json({ actions });
   })
 
-  // PUT /:id/cash — admin-edit of carriedOverCash / retrievedCash on a week.
+  // PUT /:id/cash: admin-edit of carriedOverCash / retrievedCash on a week.
   .put('/:id/cash', async (c) => {
     getAuthenticatedUser(c);
     const userRow = c.get('userRow');
@@ -662,7 +662,7 @@ export const mwWeeksRouter = new Hono()
     return c.json({ week: toWeek(updated) });
   })
 
-  // POST /:id/reopen — reverse a FINALIZED week's economy effects for a child.
+  // POST /:id/reopen: reverse a FINALIZED week's economy effects for a child.
   .post('/:id/reopen', async (c) => {
     getAuthenticatedUser(c);
     const userRow = c.get('userRow');
@@ -740,7 +740,7 @@ export const mwWeeksRouter = new Hono()
     });
   })
 
-  // POST /:id/repair — reverse leftover finalization effects on an ACTIVE (non-finalized) week.
+  // POST /:id/repair: reverse leftover finalization effects on an ACTIVE (non-finalized) week.
   .post('/:id/repair', async (c) => {
     getAuthenticatedUser(c);
     const userRow = c.get('userRow');
@@ -797,7 +797,7 @@ export const mwWeeksRouter = new Hono()
       if (outcome.code === 'NOT_FOUND') {
         return c.json({ error: 'not found', detail: 'week not found for this member' }, 404);
       }
-      return c.json({ error: 'conflict', detail: 'week is finalized — use reopen instead' }, 409);
+      return c.json({ error: 'conflict', detail: 'week is finalized: use reopen instead' }, 409);
     }
 
     return c.json({
@@ -816,7 +816,7 @@ export const mwWeeksRouter = new Hono()
 //   2. Find resolved investments in this week → restore them to active, subtract
 //      their finalReturn from mw_savings.saved_cash.
 //   3. Find invest_continue actions → move the continued investment back to this
-//      week (best-effort — may be gone if already resolved).
+//      week (best-effort: may be gone if already resolved).
 //   4. Delete the auto_save / invest_continue week-action rows for this week.
 //
 // Called inside an advisory-locked transaction from both reopen and repair.
@@ -884,7 +884,7 @@ async function reverseFinalizationEffects(
         );
     }
 
-    // Mark the transaction as reversed (don't delete — keep audit trail).
+    // Mark the transaction as reversed (don't delete: keep audit trail).
     await tx
       .update(mwSavingsTransactions)
       .set({ isReversed: true })

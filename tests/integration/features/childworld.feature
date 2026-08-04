@@ -1,5 +1,5 @@
 Feature: ChildWorld habits + sticker economy (FHS-292)
-  Real Postgres on :5433 — verifies the kid sticker economy: placing a
+  Real Postgres on :5433, verifies the kid sticker economy: placing a
   typed sticker on a habit day earns its value, redeeming a reward spends
   the balance (earned sticker values - redemptions), and everything is
   tenant-scoped.
@@ -57,7 +57,7 @@ Feature: ChildWorld habits + sticker economy (FHS-292)
     Then the sticker response status is 200
     And "Ali" has a sticker balance of 5 in tenant "khan"
 
-  Scenario: Tenant isolation — another tenant's stickers never count
+  Scenario: Tenant isolation: another tenant's stickers never count
     Given a second tenant "smith" exists with the caller as an admin member
     And the "smith" tenant has a child member "Sam"
     And the "smith" tenant has a habit "Read book"

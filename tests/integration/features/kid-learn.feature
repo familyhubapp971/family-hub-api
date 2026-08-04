@@ -1,7 +1,7 @@
 Feature: Kid learn + reading log
 
   A logged-in kid does lessons (Maths/Science/Logic) and keeps a reading log,
-  scoped to themselves — never a sibling's (FHS-367). Real kid token against
+  scoped to themselves: never a sibling's (FHS-367). Real kid token against
   real Postgres.
 
   Background:
@@ -33,7 +33,7 @@ Feature: Kid learn + reading log
     Then the subtopic questions response status is 200
     And all returned questions have subtopic "patterns"
 
-  # GAP 5 — answer-grading state machine
+  # GAP 5: answer-grading state machine
 
   Scenario: a wrong answer resets the streak to 0
     When the kid "Iman" answers a Maths question correctly
@@ -49,7 +49,7 @@ Feature: Kid learn + reading log
     When the kid "Iman" answers enough Maths questions correctly to reach the target
     Then the Maths answer response has certificate true
 
-  # GAP 6 — cross-tenant isolation
+  # GAP 6: cross-tenant isolation
 
   Scenario: a kid from family B cannot affect a lesson for family A's child
     Given a second family with kid "Omar"

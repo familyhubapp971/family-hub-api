@@ -1,4 +1,4 @@
-// FHS-356 — build the OpenAPI 3.0 spec from the LIVE Hono route table.
+// FHS-356: build the OpenAPI 3.0 spec from the LIVE Hono route table.
 //
 // We enumerate `app.routes` rather than hand-listing endpoints, so every
 // mounted route is documented automatically and a new/removed route shows up
@@ -126,7 +126,7 @@ export function buildOpenApiSpec(app: Pick<Hono, 'routes'>): OpenApiSpec {
     const isPublic = meta?.security === false || isPublicByPath(oaPath);
     if (!isPublic) {
       // /api/kid/* authenticate with the kid PIN session token, NOT the
-      // Supabase user JWT — document the right credential.
+      // Supabase user JWT: document the right credential.
       operation['security'] = oaPath.startsWith('/api/kid')
         ? [{ kidAuth: [] }]
         : [{ bearerAuth: [] }];
@@ -158,7 +158,7 @@ export function buildOpenApiSpec(app: Pick<Hono, 'routes'>): OpenApiSpec {
       title: 'Family Hub API',
       version: '0.1.0',
       description:
-        'Multi-tenant family-coordination API. This spec is generated from the live Hono route table (FHS-356) — every endpoint here is a real, mounted route.',
+        'Multi-tenant family-coordination API. This spec is generated from the live Hono route table (FHS-356): every endpoint here is a real, mounted route.',
     },
     servers: [{ url: '/', description: 'current host' }],
     tags: [...tags].sort().map((name) => ({ name })),

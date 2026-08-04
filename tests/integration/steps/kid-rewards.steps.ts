@@ -2,7 +2,7 @@
  * Step bindings for kid-rewards.feature (FHS-374).
  *
  * The kid reads the family rewards + their own star balance (read-only since
- * FHS-374 — POST /redeem was removed; redemption is parent-approved in
+ * FHS-374: POST /redeem was removed; redemption is parent-approved in
  * FHS-376). Real kid token against real Postgres.
  */
 

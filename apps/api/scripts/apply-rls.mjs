@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// FHS-351 — apply the RLS role, policies, and grants idempotently, as the OWNER
+// FHS-351: apply the RLS role, policies, and grants idempotently, as the OWNER
 // (migrate) role.
 //
 // Why this exists: staging/prod boot with `drizzle-kit push --force`, which
-// diffs schema.ts and KNOWS NOTHING about roles, RLS, policies, or grants — so
+// diffs schema.ts and KNOWS NOTHING about roles, RLS, policies, or grants: so
 // it never applies migrations 0027/0028/0029, and worse, if it recreates a
 // table it drops that table's grants to app_runtime. This script re-applies all
 // three RLS migrations (every statement is idempotent: CREATE ROLE guarded,
@@ -24,7 +24,7 @@ const FILES = [
   '0027_app_runtime_role.sql',
   '0028_rls_tenant_policies.sql',
   '0029_users_self_rls.sql',
-  // FHS-510 — member_email_changes tenant isolation (push never applies RLS).
+  // FHS-510: member_email_changes tenant isolation (push never applies RLS).
   // After 0028 so app_current_tenant() exists.
   'apply-email-change-rls.sql',
 ];
@@ -43,7 +43,7 @@ try {
     console.log(`[apply-rls] applying ${file}`);
     await client.query(sql);
   }
-  console.log('[apply-rls] done — RLS role, policies, and grants are in place');
+  console.log('[apply-rls] done: RLS role, policies, and grants are in place');
 } finally {
   await client.end();
 }

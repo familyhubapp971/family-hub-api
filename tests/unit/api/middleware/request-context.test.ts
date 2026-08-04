@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../../../../apps/api/src/app.js';
 
-describe('FHS-167 — request context', () => {
+describe('FHS-167: request context', () => {
   it('mints a UUID request_id when none provided and echoes via X-Request-Id', async () => {
     const app = buildApp();
     const res = await app.request('/health');

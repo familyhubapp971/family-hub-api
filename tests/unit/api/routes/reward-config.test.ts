@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { rewardConfigRouter } from '../../../../apps/api/src/routes/reward-config.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-512 — GET is readable by any family member; PUT (changing the family
+// FHS-512: GET is readable by any family member; PUT (changing the family
 // rate or a kid's override) is admin-only. Both are tenant-scoped: a caller
 // can only ever read/write their OWN family's config.
 
@@ -56,7 +56,7 @@ function buildApp(opts: SeedOpts) {
 
   // Call order for GET (loadConfig): 1 = loadCaller (guardTenant), then
   // Promise.all([tenant row, kid rows]) = 2 and 3 (order not guaranteed by
-  // Promise.all, but our mock just serves each select() call sequentially —
+  // Promise.all, but our mock just serves each select() call sequentially,
   // both queries are independent so index order is deterministic here).
   let idx = 0;
   dbMock.select.mockImplementation(() => {
@@ -85,7 +85,7 @@ describe('GET /api/reward-config', () => {
     expect(res.status).toBe(403);
   });
 
-  it('200 for any member (not just admin) — read access is not gated', async () => {
+  it('200 for any member (not just admin): read access is not gated', async () => {
     const res = await buildApp({ callerRole: 'adult' }).request('/api/reward-config');
     expect(res.status).toBe(200);
   });
@@ -133,7 +133,7 @@ describe('GET /api/reward-config', () => {
   });
 });
 
-describe('PUT /api/reward-config — admin-only', () => {
+describe('PUT /api/reward-config: admin-only', () => {
   const put = (body: unknown): RequestInit => ({
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -166,7 +166,7 @@ describe('PUT /api/reward-config — admin-only', () => {
     expect(res.status).toBe(400);
   });
 
-  it('400 on a non-integer (float) familyRateMinor — money must be an integer', async () => {
+  it('400 on a non-integer (float) familyRateMinor: money must be an integer', async () => {
     const res = await buildApp({ callerRole: 'admin' }).request(
       '/api/reward-config',
       put({ familyRateMinor: 0.5 }),
@@ -182,10 +182,10 @@ describe('PUT /api/reward-config — admin-only', () => {
     expect(res.status).toBe(400);
   });
 
-  // FIX 2 (BLOCKER) — rate 0 makes cashAsStickers divide by 0 (Infinity/NaN
+  // FIX 2 (BLOCKER): rate 0 makes cashAsStickers divide by 0 (Infinity/NaN
   // stickers), so `balance < cost` never blocks a redemption. 0 must be
   // rejected, same as any other invalid rate.
-  it('400 on a zero familyRateMinor — a free rate is rejected, not just a negative one', async () => {
+  it('400 on a zero familyRateMinor: a free rate is rejected, not just a negative one', async () => {
     const res = await buildApp({ callerRole: 'admin' }).request(
       '/api/reward-config',
       put({ familyRateMinor: 0 }),
@@ -201,7 +201,7 @@ describe('PUT /api/reward-config — admin-only', () => {
     expect(res.status).toBe(400);
   });
 
-  // FIX 3 (BLOCKER) — no upper bound let an oversized rate reach Postgres'
+  // FIX 3 (BLOCKER): no upper bound let an oversized rate reach Postgres'
   // numeric(12,2) column and 500.
   it('400 when familyRateMinor exceeds the cap (100000 = 1000.00)', async () => {
     const res = await buildApp({ callerRole: 'admin' }).request(
@@ -250,7 +250,7 @@ describe('PUT /api/reward-config — admin-only', () => {
   });
 
   it('silently skips a memberId that does not belong to this tenant (never trusts client input for scoping)', async () => {
-    // The "existing members" lookup inside the PUT handler returns empty —
+    // The "existing members" lookup inside the PUT handler returns empty:
     // simulate by overriding select just for that one extra call.
     let call = 0;
     dbMock.select.mockImplementation(() => {

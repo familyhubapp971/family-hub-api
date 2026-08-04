@@ -1,9 +1,9 @@
-// FHS-394 — unit tests for apps/api/src/lib/maths-progress.ts
+// FHS-394: unit tests for apps/api/src/lib/maths-progress.ts
 //
 // Covers:
-//  1. applyPlacement — cascade logic (pure, DB mocked)
-//  2. upsertProgress — partial-field update behaviour
-//  3. awardCertificate — idempotency
+//  1. applyPlacement: cascade logic (pure, DB mocked)
+//  2. upsertProgress: partial-field update behaviour
+//  3. awardCertificate: idempotency
 //
 // No real Postgres. All DB calls go through a mock chain.
 
@@ -39,7 +39,7 @@ function makeSelectMock(result: unknown[]) {
 
 // ─── Import helpers after mock setup ─────────────────────────────────────────
 
-// We import directly — no module-level mock needed because the helpers accept
+// We import directly: no module-level mock needed because the helpers accept
 // a `db` argument rather than calling getDb() internally.
 import {
   applyPlacement,
@@ -56,7 +56,7 @@ const MEMBER = '22222222-2222-4222-8222-222222222222';
 
 // ─── applyPlacement ───────────────────────────────────────────────────────────
 
-describe('applyPlacement — cascade logic', () => {
+describe('applyPlacement: cascade logic', () => {
   it('masters a table and all tables below when correct + timeSeconds <= 4', async () => {
     // Simulate a fresh DB: insert returns a row (signalling new insertion).
     const fakeRow = {
@@ -128,7 +128,7 @@ describe('applyPlacement — cascade logic', () => {
     const insertMock = vi.fn().mockReturnValue({
       values: vi.fn().mockReturnValue({
         onConflictDoNothing: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([]), // existing row — no new insert
+          returning: vi.fn().mockResolvedValue([]), // existing row: no new insert
         }),
       }),
     });
@@ -220,7 +220,7 @@ describe('applyPlacement — cascade logic', () => {
     const db = { insert: insertMock } as unknown as Parameters<typeof applyPlacement>[0];
 
     const unlocked = await applyPlacement(db, TENANT, MEMBER, 'addition', [
-      // 4.001 > 4 — should be filtered out before any DB call.
+      // 4.001 > 4: should be filtered out before any DB call.
       { tableNumber: 1, correct: true, timeSeconds: 4.001 },
     ]);
 
@@ -265,9 +265,9 @@ describe('applyPlacement — cascade logic', () => {
   });
 });
 
-// ─── upsertProgress — partial-field updates ───────────────────────────────────
+// ─── upsertProgress: partial-field updates ───────────────────────────────────
 
-describe('upsertProgress — partial-field updates', () => {
+describe('upsertProgress: partial-field updates', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -387,9 +387,9 @@ describe('upsertProgress — partial-field updates', () => {
   });
 });
 
-// ─── awardCertificate — idempotency ──────────────────────────────────────────
+// ─── awardCertificate: idempotency ──────────────────────────────────────────
 
-describe('awardCertificate — idempotency', () => {
+describe('awardCertificate: idempotency', () => {
   it('returns alreadyEarned:true when the cert already exists', async () => {
     const existing = {
       id: 'ccc',
@@ -444,9 +444,9 @@ describe('awardCertificate — idempotency', () => {
   });
 });
 
-// ─── updateProgressBodySchema — cross-field refines (FHS-401) ─────────────────
+// ─── updateProgressBodySchema: cross-field refines (FHS-401) ─────────────────
 
-describe('updateProgressBodySchema — impossible accuracy inputs rejected', () => {
+describe('updateProgressBodySchema: impossible accuracy inputs rejected', () => {
   it('rejects when practiceCorrect > practiceAttempts', () => {
     const result = updateProgressBodySchema.safeParse({
       operation: 'addition',
@@ -491,9 +491,9 @@ describe('updateProgressBodySchema — impossible accuracy inputs rejected', () 
   });
 });
 
-// ─── upsertProgress — SELECT gate (FHS-401) ───────────────────────────────────
+// ─── upsertProgress: SELECT gate (FHS-401) ───────────────────────────────────
 
-describe('upsertProgress — SELECT skipped when no real accuracy delta', () => {
+describe('upsertProgress: SELECT skipped when no real accuracy delta', () => {
   it('does NOT call db.select for a learnCompleted-only PUT (no accuracy fields)', async () => {
     const fakeRow = {
       id: 'e1',
@@ -526,7 +526,7 @@ describe('upsertProgress — SELECT skipped when no real accuracy delta', () => 
 
     await upsertProgress(db, TENANT, MEMBER, 'addition', 1, { learnCompleted: true });
 
-    // No SELECT should have fired — no accuracy delta.
+    // No SELECT should have fired: no accuracy delta.
     expect(selectMock).not.toHaveBeenCalled();
     expect(insertMock).toHaveBeenCalledOnce();
   });

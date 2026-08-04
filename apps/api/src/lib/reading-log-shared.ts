@@ -1,4 +1,4 @@
-// FHS-382 — Shared Reading Log schemas.
+// FHS-382: Shared Reading Log schemas.
 //
 // Extracted from routes/reading-log.ts so kid.ts and registry.ts can import
 // them without pulling in the (now-deleted) parent /api/reading-log router.

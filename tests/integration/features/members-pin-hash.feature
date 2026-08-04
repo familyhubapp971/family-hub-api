@@ -1,5 +1,5 @@
 Feature: members.pin_hash + is_child schema (FHS-235)
-  Real Postgres on :5433 — verifies the new Kid-Auth foundation
+  Real Postgres on :5433, verifies the new Kid-Auth foundation
   columns persist round-trip and the new index is in place.
 
   Background:

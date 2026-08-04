@@ -136,7 +136,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
 
   // ─── Scenario: member isolation (explored) ───────────────────────────────────
 
-  Scenario("a kid only sees their own flags — not their sibling's", ({ When, Then }) => {
+  Scenario("a kid only sees their own flags: not their sibling's", ({ When, Then }) => {
     let explored: string[] = [];
 
     When('"Amira" POSTs /api/kid/world-flags/explore with countryCode "JP"', async () => {
@@ -226,7 +226,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
 
   // ─── Scenario: member isolation (learn) ─────────────────────────────────────
 
-  Scenario("a kid only sees their own learn progress — not their sibling's", ({ When, Then }) => {
+  Scenario("a kid only sees their own learn progress: not their sibling's", ({ When, Then }) => {
     let progress: Record<string, number[]> = {};
 
     When(

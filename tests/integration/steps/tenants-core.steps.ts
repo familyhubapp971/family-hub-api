@@ -110,13 +110,11 @@ describeFeature(feature, ({ Background, Scenario }) => {
       let caught: unknown;
 
       Given('a week exists in "alpha" starting on "2026-05-04"', async () => {
-        await db
-          .insert(weeks)
-          .values({
-            tenantId: tenantIds['alpha']!,
-            startDate: '2026-05-04',
-            endDate: '2026-05-10',
-          });
+        await db.insert(weeks).values({
+          tenantId: tenantIds['alpha']!,
+          startDate: '2026-05-04',
+          endDate: '2026-05-10',
+        });
       });
       When('I insert another week in "alpha" starting on "2026-05-04"', async () => {
         try {
@@ -324,7 +322,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   // ─── tenant isolation ────────────────────────────────────────────────────
 
   Scenario(
-    'Cascade delete — dropping tenant alpha removes all alpha rows; beta survives',
+    'Cascade delete: dropping tenant alpha removes all alpha rows; beta survives',
     ({ Given, And, When, Then }) => {
       async function seedFullTenant(tid: string, prefix: string) {
         const [m] = await db

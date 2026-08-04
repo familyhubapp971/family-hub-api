@@ -5,7 +5,7 @@
 # Replace @familyhubapp971 below with the appropriate user/team handles
 # once a GitHub organization is set up.
 
-# Default owner — fallback for anything not matched below
+# Default owner: fallback for anything not matched below
 *                       @familyhubapp971
 
 # Infrastructure & ops

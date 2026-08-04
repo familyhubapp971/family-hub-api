@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { tasksRouter } from '../../../../apps/api/src/routes/tasks.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-233 / FHS-267 — GET / POST / PATCH / DELETE /api/tasks. Shared-to-
+// FHS-233 / FHS-267: GET / POST / PATCH / DELETE /api/tasks. Shared-to-
 // see, private-to-edit family board (ADR 0013): GET returns every
 // member's tasks (each tagged with memberId) plus callerMemberId;
 // POST/PATCH/DELETE stay owner-scoped (member_id == caller.id).
@@ -100,7 +100,7 @@ beforeEach(() => {
   lastUpdateSet = null;
 });
 
-describe('FHS-233 — GET /api/tasks', () => {
+describe('FHS-233: GET /api/tasks', () => {
   it('returns 400 when no tenant', async () => {
     const res = await buildAppWithSeed({ noTenant: true }).request('/api/tasks');
     expect(res.status).toBe(400);
@@ -144,7 +144,7 @@ describe('FHS-233 — GET /api/tasks', () => {
       tasks: Array<{ id: string; memberId: string; done: boolean; doneAt: string | null }>;
       callerMemberId: string;
     };
-    // Includes another member's task — the defining FHS-267 change.
+    // Includes another member's task: the defining FHS-267 change.
     expect(body.tasks[0]).toMatchObject({ id: T1, memberId: CALLER_MEMBER_ID, done: false });
     expect(body.tasks[1]).toMatchObject({
       id: T2,
@@ -156,7 +156,7 @@ describe('FHS-233 — GET /api/tasks', () => {
   });
 });
 
-describe('FHS-233 — POST /api/tasks', () => {
+describe('FHS-233: POST /api/tasks', () => {
   function postBody(body: unknown): RequestInit {
     return {
       method: 'POST',
@@ -193,7 +193,7 @@ describe('FHS-233 — POST /api/tasks', () => {
   });
 });
 
-describe('FHS-233 — PATCH /api/tasks/:id', () => {
+describe('FHS-233: PATCH /api/tasks/:id', () => {
   const T1 = '22222222-2222-4222-8222-222222222222';
   function patchBody(body: unknown): RequestInit {
     return {
@@ -233,7 +233,7 @@ describe('FHS-233 — PATCH /api/tasks/:id', () => {
   });
 });
 
-describe('FHS-310 — PUT /api/tasks/:id', () => {
+describe('FHS-310: PUT /api/tasks/:id', () => {
   const T1 = '22222222-2222-4222-8222-222222222222';
 
   function putBody(body: unknown): RequestInit {
@@ -299,7 +299,7 @@ describe('FHS-310 — PUT /api/tasks/:id', () => {
   });
 
   it("returns 404 when trying to edit another member's task (owner scope)", async () => {
-    // updateReturn is empty — WHERE includes memberId == caller.id, so
+    // updateReturn is empty: WHERE includes memberId == caller.id, so
     // another member's task matches nothing.
     const app = buildAppWithSeed({}, [], [], []);
     const res = await app.request(`/api/tasks/${T1}`, putBody({ title: 'Sneaky edit' }));
@@ -307,7 +307,7 @@ describe('FHS-310 — PUT /api/tasks/:id', () => {
   });
 });
 
-describe('FHS-233 — DELETE /api/tasks/:id', () => {
+describe('FHS-233: DELETE /api/tasks/:id', () => {
   const T1 = '22222222-2222-4222-8222-222222222222';
 
   it('returns 404 when task does not belong to the caller', async () => {

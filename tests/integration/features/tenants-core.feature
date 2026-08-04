@@ -1,7 +1,7 @@
 Feature: tenants-core schema (FHS-3)
   Verifies the 7 family-scoped tables created by migration 0002_tenants_core
   against real Postgres on :5433. Each table carries tenant_id with an
-  ON DELETE CASCADE FK to tenants — deleting a family wipes all its
+  ON DELETE CASCADE FK to tenants: deleting a family wipes all its
   rows. Covers required-field inserts, FK enforcement, cascade behaviour,
   unique constraints, and the headline tenant-isolation guarantee.
 
@@ -69,7 +69,7 @@ Feature: tenants-core schema (FHS-3)
 
   # ─── tenant isolation (the headline guarantee) ────────────────────────────
 
-  Scenario: Cascade delete — dropping tenant alpha removes all alpha rows; beta survives
+  Scenario: Cascade delete: dropping tenant alpha removes all alpha rows; beta survives
     Given tenant "alpha" has a member, week, habit, week_action, savings, transaction, and investment
     And tenant "beta" has a member, week, habit, week_action, savings, transaction, and investment
     When I delete tenant "alpha"

@@ -56,9 +56,9 @@ describeFeature(feature, ({ Scenario }) => {
     });
   });
 
-  Scenario('Unknown routes still require auth — 401, not 404', ({ When, Then, And }) => {
+  Scenario('Unknown routes still require auth: 401, not 404', ({ When, Then, And }) => {
     // The api auth-gates everything except /health and /hello. So an
-    // unknown route hits the gate first and returns 401 — the notFound
+    // unknown route hits the gate first and returns 401: the notFound
     // handler is never reached. This is intentional: we don't want to
     // leak which routes exist by returning a different code for valid
     // vs invalid paths under the gate.
@@ -80,7 +80,7 @@ describeFeature(feature, ({ Scenario }) => {
     });
   });
 
-  Scenario('/health survives a concurrent burst — 50 calls all 200', ({ When, Then, And }) => {
+  Scenario('/health survives a concurrent burst: 50 calls all 200', ({ When, Then, And }) => {
     let statuses: number[];
 
     When('I GET /health 50 times concurrently', async () => {

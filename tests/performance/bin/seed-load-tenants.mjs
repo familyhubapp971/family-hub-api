@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-// FHS-460 — seeds N synthetic "loadtest-" tenants with REAL rows across
+// FHS-460: seeds N synthetic "loadtest-" tenants with REAL rows across
 // the tables a family actually reads (events, tasks, habits, stickers,
 // meals, savings) and writes a fixtures JSON the k6 scenarios log in
 // with. An empty tenant makes every GET return an empty array, which
-// tells you nothing about real-world latency — a family with 40 events,
+// tells you nothing about real-world latency: a family with 40 events,
 // 25 tasks, and 16 habits behaves very differently under load.
 //
-// WHAT THIS CANNOT DO — parent (Supabase) accounts. Supabase Auth users
+// WHAT THIS CANNOT DO: parent (Supabase) accounts. Supabase Auth users
 // are created via the Supabase Admin API, not this database, and this
 // script deliberately carries no Supabase credentials. So it fully
-// seeds the KID path (no external dependency — the priority per
+// seeds the KID path (no external dependency, the priority per
 // FHS-460) and prints/records the manual step to link a Supabase parent
 // account afterwards. See the console output at the end, and
 // tests/performance/README.md.
@@ -21,7 +21,7 @@
 //
 // Reads DATABASE_URL from the environment, falling back to .env.local
 // (same simple parse as scripts/export-beta-feedback.mjs). Connects as
-// the DB OWNER — bypasses RLS — mirroring
+// the DB OWNER (bypasses RLS), mirroring
 // tests/integration/support/seed-tenant-tables.ts, which seeds with the
 // superuser connection for the same reason: RLS would otherwise block
 // writes with no tenant GUC set.
@@ -31,7 +31,7 @@
 //   DELETE FROM tenants WHERE slug LIKE 'loadtest-%';   -- cascades everywhere
 //
 // Zero-install: uses the `pg` and `bcryptjs` packages already in the
-// repo's root devDependencies (raw SQL, not the Drizzle schema — that's
+// repo's root devDependencies (raw SQL, not the Drizzle schema; that's
 // TypeScript and this is a plain zero-build node script, same tradeoff
 // scripts/export-beta-feedback.mjs already made).
 
@@ -51,7 +51,7 @@ try {
     }
   }
 } catch {
-  /* no .env.local — rely on the ambient environment (e.g. a staging shell) */
+  /* no .env.local: rely on the ambient environment (e.g. a staging shell) */
 }
 
 const connectionString = process.env.DATABASE_URL;
@@ -70,7 +70,7 @@ if (!Number.isInteger(tenantCount) || tenantCount < 1) {
 // Same bcrypt cost the api uses for kid PINs (apps/api/src/routes/
 // auth-kid-pin.ts KID_PIN_BCRYPT_COST) so the seeded hash is shaped
 // exactly like a production one. Every seeded kid gets the SAME known
-// PIN — fine, these are throwaway synthetic tenants, not real families.
+// PIN; that's fine, these are throwaway synthetic tenants, not real families.
 const KID_PIN_BCRYPT_COST = 10;
 const KID_PIN = '1234';
 const KID_PIN_HASH = bcrypt.hashSync(KID_PIN, KID_PIN_BCRYPT_COST);
@@ -218,9 +218,9 @@ async function seedTenant(index) {
     );
   }
 
-  // ── meals — whole-family breakfast + dinner every day, plus a couple of
+  // ── meals: whole-family breakfast + dinner every day, plus a couple of
   //    per-kid lunches. Respects the two partial-unique constraints on
-  //    meal_templates (member_id IS NULL vs IS NOT NULL — see schema.ts). ──
+  //    meal_templates (member_id IS NULL vs IS NOT NULL, see schema.ts). ──
   for (const day of DAY_OF_WEEK) {
     await client.query(
       `INSERT INTO meal_templates (tenant_id, day_of_week, slot, name)
@@ -334,7 +334,7 @@ await client.end();
 const fixtures = results.map((r) => ({
   tenantSlug: r.tenantSlug,
   parent: {
-    // No Supabase account exists yet for this member — see the "Parent
+    // No Supabase account exists yet for this member: see the "Parent
     // accounts" step printed below + tests/performance/README.md.
     // `password: null` makes a scenario fail LOUDLY (not silently) if it
     // tries to log this parent in before the manual step is done.
@@ -355,8 +355,8 @@ writeFileSync(fixturesOutPath, JSON.stringify(fixtures, null, 2) + '\n');
 console.error(`\nWrote ${fixtures.length} tenant fixture(s) to ${fixturesOutPath}`);
 console.error(`\nKid sessions are ready to run right now:`);
 console.error(`  k6 run -e LOAD_FIXTURES=${fixturesOutPath} tests/performance/scenarios/smoke.js`);
-console.error(`\nParent accounts (manual step — only needed for parentSession load testing):`);
-console.error(`  This script CANNOT create Supabase Auth users — no Supabase Admin API`);
+console.error(`\nParent accounts (manual step, only needed for parentSession load testing):`);
+console.error(`  This script CANNOT create Supabase Auth users: no Supabase Admin API`);
 console.error(`  credentials here, by design (FHS-460). For each tenant above:`);
 console.error(`    1. Create a Supabase user (dashboard or Admin API) with the email from`);
 console.error(`       fixtures[].parent.email, in the SAME Supabase project the target api`);

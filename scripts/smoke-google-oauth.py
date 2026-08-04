@@ -48,7 +48,7 @@ def smoke(project: str) -> int:
 
     # The /authorize endpoint expects apikey AND a redirect_to that
     # ends up echoed back in the Google state. Anything that round-
-    # trips will do — the smoke test cares about Google's Location
+    # trips will do: the smoke test cares about Google's Location
     # header, not the redirect target.
     qs = urllib.parse.urlencode(
         {
@@ -69,7 +69,7 @@ def smoke(project: str) -> int:
         },
     )
 
-    # Don't follow the redirect — we want to inspect the Location header.
+    # Don't follow the redirect: we want to inspect the Location header.
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *_, **__):  # noqa: D401
             return None
@@ -90,7 +90,7 @@ def smoke(project: str) -> int:
     if "accounts.google.com" not in location:
         sys.exit(f"[{project}] ✗ Location did not point at Google: {location[:200]}")
 
-    # Sanity-check the client_id is present in the redirect URL —
+    # Sanity-check the client_id is present in the redirect URL ,
     # otherwise Supabase silently used an empty value.
     parsed = urllib.parse.urlparse(location)
     qs_params = urllib.parse.parse_qs(parsed.query)

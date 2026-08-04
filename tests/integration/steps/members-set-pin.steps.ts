@@ -15,7 +15,7 @@ import { tenants, members, users } from '../../../apps/api/src/db/schema.js';
 import type { Database } from '../../../apps/api/src/db/client.js';
 import { getTestDb } from '../support/db.js';
 
-// FHS-252 — integration test for PUT/DELETE /api/members/:id/pin.
+// FHS-252: integration test for PUT/DELETE /api/members/:id/pin.
 // Real Postgres + real JWT + the actual /api/auth/kid-pin endpoint
 // mounted alongside, so each scenario can verify a freshly-set PIN
 // truly logs the kid in (i.e. round-trips through bcrypt + the
@@ -214,7 +214,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   }
 
   Scenario(
-    'Admin sets a fresh PIN on a kid member — verifies via /api/auth/kid-pin',
+    'Admin sets a fresh PIN on a kid member: verifies via /api/auth/kid-pin',
     ({ Given, When, Then, And }) => {
       let res: Response;
       let body: { member: { isChild: boolean; hasPin: boolean } };
@@ -253,7 +253,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     },
   );
 
-  Scenario('Admin resets an existing PIN — old PIN stops working', ({ Given, When, Then, And }) => {
+  Scenario('Admin resets an existing PIN: old PIN stops working', ({ Given, When, Then, And }) => {
     let res: Response;
 
     Given(
@@ -288,45 +288,42 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  Scenario(
-    "Admin DELETEs a kid's PIN — kid is no longer eligible",
-    ({ Given, When, Then, And }) => {
-      let res: Response;
-      let body: { member: { isChild: boolean; hasPin: boolean } };
+  Scenario("Admin DELETEs a kid's PIN: kid is no longer eligible", ({ Given, When, Then, And }) => {
+    let res: Response;
+    let body: { member: { isChild: boolean; hasPin: boolean } };
 
-      Given(
-        'a kid member {string} exists in tenant {string} with PIN {string}',
-        async (_ctx, name: string, slug: string, pin: string) => {
-          await ensureKidMember(slug, name, pin);
-        },
-      );
+    Given(
+      'a kid member {string} exists in tenant {string} with PIN {string}',
+      async (_ctx, name: string, slug: string, pin: string) => {
+        await ensureKidMember(slug, name, pin);
+      },
+    );
 
-      When('the admin DELETEs the PIN for {string}', async (_ctx, name: string) => {
-        res = await deletePinAs(adminToken, 'khan', memberIds[name]!);
-        body = (await res.json()) as typeof body;
-      });
+    When('the admin DELETEs the PIN for {string}', async (_ctx, name: string) => {
+      res = await deletePinAs(adminToken, 'khan', memberIds[name]!);
+      body = (await res.json()) as typeof body;
+    });
 
-      Then('the response status is 200', () => {
-        expect(res.status).toBe(200);
-      });
+    Then('the response status is 200', () => {
+      expect(res.status).toBe(200);
+    });
 
-      And(
-        'the response body marks {string} as isChild {string} and hasPin {string}',
-        (_ctx, _name: string, isChild: string, hasPin: string) => {
-          expect(body.member.isChild).toBe(isChild === 'true');
-          expect(body.member.hasPin).toBe(hasPin === 'true');
-        },
-      );
+    And(
+      'the response body marks {string} as isChild {string} and hasPin {string}',
+      (_ctx, _name: string, isChild: string, hasPin: string) => {
+        expect(body.member.isChild).toBe(isChild === 'true');
+        expect(body.member.hasPin).toBe(hasPin === 'true');
+      },
+    );
 
-      And(
-        'kid-login with PIN {string} for {string} fails',
-        async (_ctx, pin: string, name: string) => {
-          const r = await verifyKidLogin('khan', memberIds[name]!, pin);
-          expect(r.status).toBe(401);
-        },
-      );
-    },
-  );
+    And(
+      'kid-login with PIN {string} for {string} fails',
+      async (_ctx, pin: string, name: string) => {
+        const r = await verifyKidLogin('khan', memberIds[name]!, pin);
+        expect(r.status).toBe(401);
+      },
+    );
+  });
 
   Scenario('Adult member can also set a PIN (not just admin)', ({ Given, And, When, Then }) => {
     let res: Response;
@@ -409,7 +406,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   });
 
-  // FHS-252 — defence-in-depth: even if the page UI is bypassed
+  // FHS-252, defence-in-depth: even if the page UI is bypassed
   // (curl), the API refuses to PIN-flag a non-child/non-teen target.
   Scenario(
     'Setting a PIN on a non-child/non-teen target is rejected with 403',

@@ -10,7 +10,7 @@ import { tenants, members, users } from '../../../apps/api/src/db/schema.js';
 import type { Database } from '../../../apps/api/src/db/client.js';
 import { getTestDb } from '../support/db.js';
 
-// FHS-108 — integration test for GET /api/members. Real Postgres,
+// FHS-108: integration test for GET /api/members. Real Postgres,
 // real JWT, mocked-only at the resolveTenant boundary so each scenario
 // can target a specific tenant via the X-Test-Tenant header (mirrors
 // the invitations.steps wiring).
@@ -275,7 +275,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   });
 
   Scenario(
-    'Tenant isolation — listing one tenant never returns rows from another',
+    'Tenant isolation: listing one tenant never returns rows from another',
     ({ Given, And, When, Then }) => {
       let res: Response;
       let body: { members: MemberRow[] };

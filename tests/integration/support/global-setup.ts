@@ -1,4 +1,4 @@
-// Vitest globalSetup — runs once per `pnpm test:integration` invocation,
+// Vitest globalSetup: runs once per `pnpm test:integration` invocation,
 // BEFORE any spec. Asserts the test DB is reachable and applies all
 // Drizzle migration SQL files so specs see the schema.
 //
@@ -44,7 +44,7 @@ async function applyMigrations(client: pg.Client): Promise<void> {
   if (entries.length === 0) return;
 
   // Drop + recreate the public schema for a clean slate. Per ADR 0001
-  // this is acceptable for the integration test DB — the docker-compose
+  // this is acceptable for the integration test DB: the docker-compose
   // service uses tmpfs, so there's nothing valuable to preserve.
   await client.query('DROP SCHEMA IF EXISTS public CASCADE');
   await client.query('CREATE SCHEMA public');
@@ -82,7 +82,7 @@ export async function setup(): Promise<void> {
   await client.end();
 }
 
-// FHS-348/350 — give the app_runtime role (created by migration 0027) a
+// FHS-348/350: give the app_runtime role (created by migration 0027) a
 // password so the RLS proof tests can log in AS that limited, non-BYPASSRLS
 // role. The default getTestDb() connects as the superuser (fh_test), which
 // bypasses RLS and so can't prove isolation. Test-only; staging provisions this

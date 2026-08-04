@@ -4,7 +4,7 @@
 // guarded by RLS. The `users` mirror table is the one global exception:
 // a user can belong to multiple tenants via tenant_memberships (future
 // ticket), so the user row itself has no tenant_id. RLS is still
-// enabled on users — the policy is "self-read by authenticated user
+// enabled on users: the policy is "self-read by authenticated user
 // id", which keeps the global-table shape consistent with the rest of
 // the schema and stops a misconfigured role from selecting every row.
 
@@ -32,7 +32,7 @@ import {
  *
  * Mirrors the Supabase-managed `auth.users` row into our `public`
  * schema so app tables can FK to a stable user id. Populated lazily on
- * the first authenticated request — see `apps/api/src/lib/user-mirror.ts`.
+ * the first authenticated request: see `apps/api/src/lib/user-mirror.ts`.
  *
  * The `id` column is the same UUID Supabase issued (the JWT `sub`),
  * which means joins back to `auth.users` are direct. `email` is
@@ -53,16 +53,16 @@ export type NewUser = typeof users.$inferInsert;
 /**
  * Tenant lifecycle status.
  *
- * `active` — paying or in trial; full feature surface.
- * `suspended` — admin-paused (billing failure, abuse review). Reads
+ * `active`: paying or in trial; full feature surface.
+ * `suspended`: admin-paused (billing failure, abuse review). Reads
  *   blocked by RLS; writes blocked at the api edge.
- * `archived` — soft-deleted by the family. Hidden from listings but
+ * `archived`: soft-deleted by the family. Hidden from listings but
  *   data preserved for export / restore window (TBD).
  */
 export const tenantStatus = pgEnum('tenant_status', ['active', 'suspended', 'archived']);
 
 /**
- * Tenants table (FHS-2 — Tenant Foundation).
+ * Tenants table (FHS-2: Tenant Foundation).
  *
  * One row per family. Every other family-scoped table in Sprint 1+
  * carries a `tenant_id` foreign key to this row, guarded by Postgres
@@ -88,7 +88,7 @@ export const tenants = pgTable('tenants', {
   slug: varchar('slug', { length: 63 }).notNull().unique(),
   name: text('name').notNull(),
   status: tenantStatus('status').notNull().default('active'),
-  // Stripe plan key (ADR 0004) — `starter | growth | scale | enterprise`.
+  // Stripe plan key (ADR 0004): `starter | growth | scale | enterprise`.
   // Stored as text rather than an enum so adding a tier doesn't require
   // a schema migration; values validated at the api edge by Zod.
   plan: text('plan').notNull().default('starter'),
@@ -102,15 +102,15 @@ export const tenants = pgTable('tenants', {
   // to /dashboard when this is true so a returning user doesn't get
   // the wizard a second time.
   onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
-  // FHS-445 — per-family secret that signs the calendar "subscribe link"
+  // FHS-445: per-family secret that signs the calendar "subscribe link"
   // token (HMAC). Null until the family first opens the sync card; rotating
   // it invalidates every existing subscription. Never leaves the server.
   calendarFeedKey: text('calendar_feed_key'),
-  // FHS-512 — the family's default "1 sticker is worth" rate, in INTEGER
+  // FHS-512: the family's default "1 sticker is worth" rate, in INTEGER
   // MINOR UNITS of `currency` (e.g. 50 = 0.50 AED). Replaces the old
   // hardcoded STICKER_TO_CASH=0.5 constant. A child can override this on
   // their own `members` row; see `effectiveRateMinor` in lib/reward-config.ts.
-  // Never store this as a float — money is minor-unit integers only.
+  // Never store this as a float: money is minor-unit integers only.
   stickerRateMinor: integer('sticker_rate_minor').notNull().default(50),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -123,22 +123,22 @@ export type NewTenant = typeof tenants.$inferInsert;
  * Deterministic UUID for the seeded "default" family. Lets local dev,
  * tests, and the seed script reference the same row across runs
  * without lookups. Frozen here once-and-for-all; do NOT use this as
- * a real-customer id — the seed only inserts it on empty staging/dev DBs.
+ * a real-customer id: the seed only inserts it on empty staging/dev DBs.
  */
 export const SEED_DEFAULT_TENANT_ID = '00000000-0000-4000-8000-000000000001';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tenant-scoped core tables (FHS-3 — Sprint 1, Tenant Foundation).
+// Tenant-scoped core tables (FHS-3: Sprint 1, Tenant Foundation).
 //
 // Plain: every table below belongs to one family. The `tenant_id` column
 // is the link back to the tenants row. Deleting a family wipes all its
 // rows (ON DELETE CASCADE). RLS policies that enforce this at the DB
-// role level land in FHS-8 (Sprint 2 — Tenant Isolation).
+// role level land in FHS-8 (Sprint 2: Tenant Isolation).
 //
 // Design choices baked in here:
 //   - Every PK is uuid + gen_random_uuid() (matches users + tenants).
 //   - tenant_id is uuid not null + FK to tenants(id) on delete cascade.
-//   - Composite index on (tenant_id, id) on every table — RLS-friendly +
+//   - Composite index on (tenant_id, id) on every table: RLS-friendly +
 //     the dominant access pattern. Adds (tenant_id, created_at desc) on
 //     time-ordered tables.
 //   - Minimal columns only. Richer per-feature columns land in the
@@ -148,16 +148,16 @@ export const SEED_DEFAULT_TENANT_ID = '00000000-0000-4000-8000-000000000001';
 /**
  * Family-member role.
  *
- * `admin`   — full control, billing, can remove other members.
- * `adult`   — full read/write on family content; cannot manage billing or admins.
- * `teen`    — restricted write (no financial actions); broad read.
- * `child`   — limited write (their own habits/actions); restricted read.
- * `guest`   — read-only or invite-only access; placeholder for community share-outs.
+ * `admin`  : full control, billing, can remove other members.
+ * `adult`  : full read/write on family content; cannot manage billing or admins.
+ * `teen`   : restricted write (no financial actions); broad read.
+ * `child`  : limited write (their own habits/actions); restricted read.
+ * `guest`  : read-only or invite-only access; placeholder for community share-outs.
  */
 export const memberRole = pgEnum('member_role', ['admin', 'adult', 'teen', 'child', 'guest']);
 
 /**
- * `members` — people inside a family.
+ * `members`: people inside a family.
  *
  * Distinct from `users` (the global Supabase auth identity). A user can
  * be a member of multiple families; an invitee can be a member before
@@ -175,22 +175,22 @@ export const members = pgTable(
     displayName: text('display_name').notNull(),
     role: memberRole('role').notNull().default('adult'),
     avatarEmoji: text('avatar_emoji'),
-    // FHS-235 — Kid-Auth foundation. `pin_hash` holds a bcrypt hash of
+    // FHS-235: Kid-Auth foundation. `pin_hash` holds a bcrypt hash of
     // the kid's 4-digit PIN (null = no PIN set; parents never have
     // one). `is_child` is an explicit flag for the kid-login flow,
     // decoupled from `role` because a family may want a teen to use
-    // PIN-login or an adult-role member to sign in with a PIN — the
+    // PIN-login or an adult-role member to sign in with a PIN: the
     // role enum is about permissions, this flag is about auth flow.
     pinHash: text('pin_hash'),
     isChild: boolean('is_child').notNull().default(false),
-    // FHS-276 — optional age (years) shown on kid cards ("Child (6)").
+    // FHS-276: optional age (years) shown on kid cards ("Child (6)").
     // Collected by the Manage Members "Add a Child" form; not a birthday,
-    // so it goes stale — fine for v1 display purposes.
+    // so it goes stale: fine for v1 display purposes.
     age: integer('age'),
-    // FHS-512 — per-child override of the family's sticker rate, in INTEGER
+    // FHS-512: per-child override of the family's sticker rate, in INTEGER
     // MINOR UNITS (e.g. 75 = 0.75). Null = use the family default
     // (tenants.sticker_rate_minor). See `effectiveRateMinor` in
-    // lib/reward-config.ts — never store this as a float.
+    // lib/reward-config.ts: never store this as a float.
     stickerRateMinor: integer('sticker_rate_minor'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -207,7 +207,7 @@ export type Member = typeof members.$inferSelect;
 export type NewMember = typeof members.$inferInsert;
 
 /**
- * `pending_invitations` (FHS-91) — outstanding invites awaiting accept.
+ * `pending_invitations` (FHS-91): outstanding invites awaiting accept.
  *
  * One row per invite *send*. When an admin clicks "invite Sarah" we
  * INSERT a row here with status='pending', then call
@@ -221,7 +221,7 @@ export type NewMember = typeof members.$inferInsert;
  * out of the members table where it would only ever be useful for
  * rows that haven't accepted yet.
  *
- * Tenant-scoped — the unique partial index below blocks a tenant from
+ * Tenant-scoped: the unique partial index below blocks a tenant from
  * double-inviting the same email while a previous invite is still
  * pending. Different tenants inviting the same email is fine.
  */
@@ -245,13 +245,13 @@ export const pendingInvitations = pgTable(
     email: text('email').notNull(),
     role: memberRole('role').notNull().default('adult'),
     // members.id of the person who sent the invite. Nullable because
-    // the inviter could be removed from the family later — we still
+    // the inviter could be removed from the family later: we still
     // want the invite history.
     invitedBy: uuid('invited_by').references(() => members.id, { onDelete: 'set null' }),
-    // Opaque id returned by Supabase admin invite — used by FHS-93/96
+    // Opaque id returned by Supabase admin invite: used by FHS-93/96
     // for revoke + token-expiry checks.
     supabaseInviteId: text('supabase_invite_id'),
-    // FHS-275 — the unclaimed member seat this invite belongs to. On
+    // FHS-275: the unclaimed member seat this invite belongs to. On
     // first sign-in the claim flow sets members.user_id on THIS row so
     // the invitee becomes the person the wizard created (no duplicate).
     memberId: uuid('member_id').references(() => members.id, { onDelete: 'cascade' }),
@@ -274,11 +274,11 @@ export type PendingInvitation = typeof pendingInvitations.$inferSelect;
 export type NewPendingInvitation = typeof pendingInvitations.$inferInsert;
 
 /**
- * `member_email_changes` (FHS-510) — a self-serve, one-time-link
+ * `member_email_changes` (FHS-510): a self-serve, one-time-link
  * confirmation of a grown-up's new sign-in email. A row is created when a
  * member requests a change to their OWN email; it's consumed (used_at set)
  * when they click the emailed link and land on ConfirmEmail. Only the SHA-256 hash of
- * the token is stored — never the raw value — so a DB read (or leak) can't
+ * the token is stored (never the raw value) so a DB read (or leak) can't
  * hand out a working confirm link. A table (not columns on `members`) so the
  * link is naturally single-use and the change carries its own audit trail;
  * the old sign-in email keeps working until the row is consumed.
@@ -302,11 +302,11 @@ export const memberEmailChanges = pgTable(
   (t) => [
     index('member_email_changes_tenant_member_idx').on(t.tenantId, t.memberId),
     // The confirm endpoint looks up by (member_id, token_hash) with no
-    // tenant context yet (see app_find_email_change in 0043) — this index
+    // tenant context yet (see app_find_email_change in 0043): this index
     // makes that lookup a single index scan instead of a member_id-only
     // scan + filter.
     index('member_email_changes_member_token_idx').on(t.memberId, t.tokenHash),
-    // Cheap hardening — at most one LIVE (unconfirmed) row per member.
+    // Cheap hardening: at most one LIVE (unconfirmed) row per member.
     // Belt-and-braces alongside the app's delete-then-insert "invalidate
     // any prior pending row" step; closes the race where two concurrent
     // requests for the same member both pass that delete and both insert.
@@ -320,7 +320,7 @@ export type MemberEmailChange = typeof memberEmailChanges.$inferSelect;
 export type NewMemberEmailChange = typeof memberEmailChanges.$inferInsert;
 
 /**
- * `weeks` — Mon–Sun tracking unit.
+ * `weeks`: Mon–Sun tracking unit.
  *
  * Anchors per-week habit/action data. One row per (tenant, start_date).
  * The unique index doubles as a fast lookup for "this week's row".
@@ -348,16 +348,16 @@ export type Week = typeof weeks.$inferSelect;
 export type NewWeek = typeof weeks.$inferInsert;
 
 /**
- * Habit cadence — how often a habit recurs.
+ * Habit cadence: how often a habit recurs.
  *
- * `daily`   — tracked per-day inside a week.
- * `weekly`  — single completion per week.
- * `custom`  — caller-defined schedule; interpretation deferred to the feature ticket.
+ * `daily`  : tracked per-day inside a week.
+ * `weekly` : single completion per week.
+ * `custom` : caller-defined schedule; interpretation deferred to the feature ticket.
  */
 export const habitCadence = pgEnum('habit_cadence', ['daily', 'weekly', 'custom']);
 
 /**
- * `habits` — recurring activity a family tracks.
+ * `habits`: recurring activity a family tracks.
  *
  * Soft-deleted via `archived_at` so historical week_actions still
  * reference a valid row.
@@ -369,7 +369,7 @@ export const habits = pgTable(
     tenantId: uuid('tenant_id')
       .notNull()
       .references(() => tenants.id, { onDelete: 'cascade' }),
-    // FHS-296 — My World is per-child: a habit belongs to one child so
+    // FHS-296: My World is per-child: a habit belongs to one child so
     // each child's world shows their own habits (nullable only for the
     // legacy family-finance scaffold rows; My World always sets it).
     memberId: uuid('member_id').references(() => members.id, { onDelete: 'cascade' }),
@@ -378,18 +378,18 @@ export const habits = pgTable(
     cadence: habitCadence('cadence').notNull().default('daily'),
     targetCount: integer('target_count').notNull().default(1),
     color: text('color').notNull().default('#facc15'),
-    // FHS-291 — My World economy: an emoji/lucide key for the habit card,
+    // FHS-291: My World economy: an emoji/lucide key for the habit card,
     // and a bonus flag (bonus habits earn stickerValue 5 instead of 1).
-    // FHS-512 — superseded by `boost` below for the actual sticker VALUE;
+    // FHS-512: superseded by `boost` below for the actual sticker VALUE;
     // `is_bonus` is kept only as a legacy/display flag (see `boost`).
     icon: text('icon'),
     isBonus: boolean('is_bonus').notNull().default(false),
-    // FHS-512 — a completed day places stickerValue = boost (generalises
+    // FHS-512: a completed day places stickerValue = boost (generalises
     // is_bonus: 1 = normal, 2/3/5 = the UI's boost presets). Replaces the
     // hardcoded `isBonus ? 5 : 1`. Migration 0042 backfills boost=5 where
     // is_bonus was true.
     boost: integer('boost').notNull().default(1),
-    // FHS-512 — money (INTEGER MINOR UNITS) deducted from the child's
+    // FHS-512: money (INTEGER MINOR UNITS) deducted from the child's
     // savings when a due day passes with no sticker placed on this habit.
     // 0 = no penalty (default). Applied at close-week; see
     // lib/reward-config.ts `applySkipPenalties`.
@@ -409,7 +409,7 @@ export type Habit = typeof habits.$inferSelect;
 export type NewHabit = typeof habits.$inferInsert;
 
 /**
- * `rewards` (FHS-40) — items kids can redeem with stickers earned from
+ * `rewards` (FHS-40): items kids can redeem with stickers earned from
  * habits + chores. Each tenant has its own list, seeded with 3 starter
  * rewards on onboarding completion.
  *
@@ -444,7 +444,7 @@ export type Reward = typeof rewards.$inferSelect;
 export type NewReward = typeof rewards.$inferInsert;
 
 /**
- * `habit_logs` (FHS-268) — one row per habit a member completed on a
+ * `habit_logs` (FHS-268): one row per habit a member completed on a
  * given day. Each row is worth one sticker; a member's sticker balance
  * is `count(habit_logs) - sum(reward_redemptions.sticker_cost)`.
  *
@@ -478,7 +478,7 @@ export type HabitLog = typeof habitLogs.$inferSelect;
 export type NewHabitLog = typeof habitLogs.$inferInsert;
 
 /**
- * `reward_redemptions` (FHS-268) — a member spending stickers on a
+ * `reward_redemptions` (FHS-268): a member spending stickers on a
  * reward. `sticker_cost` snapshots the reward's cost at redemption time
  * so later edits to the reward don't rewrite history. Balance maths reads
  * this sum against the member's `habit_logs` count.
@@ -527,7 +527,7 @@ export const journalMood = pgEnum('journal_mood', [
 ]);
 
 /**
- * `journal_entries` (FHS-270, per-day model) — one row per (tenant, member,
+ * `journal_entries` (FHS-270, per-day model): one row per (tenant, member,
  * calendar day). Upserted by the child-journal UI so the same day always
  * collapses to a single row. All content fields are nullable so a partial
  * save (e.g. mood only) is valid. `quote_index` is set server-side to the
@@ -549,11 +549,11 @@ export const journalEntries = pgTable(
     memberId: uuid('member_id')
       .notNull()
       .references(() => members.id, { onDelete: 'cascade' }),
-    // Calendar day (YYYY-MM-DD). Unique per (tenant, member) — one entry per day.
+    // Calendar day (YYYY-MM-DD). Unique per (tenant, member): one entry per day.
     entryDate: date('entry_date').notNull(),
     // Emotional state for the day.
     mood: journalMood('mood'),
-    // Up to three gratitude prompts — nullable; filled in any order.
+    // Up to three gratitude prompts: nullable; filled in any order.
     gratitude1: text('gratitude1'),
     gratitude2: text('gratitude2'),
     gratitude3: text('gratitude3'),
@@ -562,7 +562,7 @@ export const journalEntries = pgTable(
     // Answers to creativity questions, keyed by question index.
     // e.g. {"0": "I'd fly!", "3": "Learn everything at once."}
     creativity: jsonb('creativity').$type<Record<string, string>>().default({}),
-    // Free-text "what happened today" (nullable — per-day model allows
+    // Free-text "what happened today" (nullable: per-day model allows
     // entries with only mood / gratitude / creativity).
     body: text('body'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -578,9 +578,9 @@ export type JournalEntry = typeof journalEntries.$inferSelect;
 export type NewJournalEntry = typeof journalEntries.$inferInsert;
 
 /**
- * `learn_progress` (FHS-270) — per-subject progress (0–100) for a child's
+ * `learn_progress` (FHS-270): per-subject progress (0–100) for a child's
  * Learn cards. One row per (member, subject); the actual learning content
- * is a separate epic — this just backs the progress bars.
+ * is a separate epic: this just backs the progress bars.
  */
 export const learnProgress = pgTable(
   'learn_progress',
@@ -594,7 +594,7 @@ export const learnProgress = pgTable(
       .references(() => members.id, { onDelete: 'cascade' }),
     subject: text('subject').notNull(),
     progress: integer('progress').notNull().default(0),
-    // FHS-283 — interactive lesson stats, updated as the child answers questions.
+    // FHS-283: interactive lesson stats, updated as the child answers questions.
     currentStreak: integer('current_streak').notNull().default(0),
     bestStreak: integer('best_streak').notNull().default(0),
     totalCorrect: integer('total_correct').notNull().default(0),
@@ -610,24 +610,24 @@ export type LearnProgress = typeof learnProgress.$inferSelect;
 export type NewLearnProgress = typeof learnProgress.$inferInsert;
 
 /**
- * Day of the week — Mon-first to align with `weeks.start_date` (also
+ * Day of the week: Mon-first to align with `weeks.start_date` (also
  * Monday-anchored across the schema).
  */
 export const dayOfWeek = pgEnum('day_of_week', ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
 
 /**
  * Meal slot inside a day. The four most-common slots families plan
- * around; if a family doesn't eat lunch at home that's fine — the row
+ * around; if a family doesn't eat lunch at home that's fine: the row
  * just stays empty.
  */
 export const mealSlot = pgEnum('meal_slot', ['breakfast', 'lunch', 'dinner', 'snack']);
 
 /**
- * `meal_templates` (FHS-40, expanded FHS-264) — the family's repeating
- * weekly meal plan. Seeded EMPTY at onboarding — the table just exists
+ * `meal_templates` (FHS-40, expanded FHS-264): the family's repeating
+ * weekly meal plan. Seeded EMPTY at onboarding: the table just exists
  * for the UI to write into.
  *
- * FHS-264 adds `member_id` (nullable — null means "everyone") and
+ * FHS-264 adds `member_id` (nullable: null means "everyone") and
  * `recurring` (visual repeat flag). With member_id a single (day, slot)
  * can now hold several meals: one whole-family meal PLUS one per member.
  * Uniqueness is split into two partial indexes so the upsert stays
@@ -649,13 +649,13 @@ export const mealTemplates = pgTable(
     slot: mealSlot('slot').notNull(),
     name: text('name'),
     notes: text('notes'),
-    // FHS-264 — who the meal is for. Null = the whole family. CASCADE on
+    // FHS-264: who the meal is for. Null = the whole family. CASCADE on
     // member delete: a removed member's personal meals are removed too.
     // (SET NULL would turn a per-member row into a second whole-family row
     // and could collide with an existing one under the everyone partial
-    // unique index — so the meal goes, not the family's slot.)
+    // unique index, so the meal goes, not the family's slot.)
     memberId: uuid('member_id').references(() => members.id, { onDelete: 'cascade' }),
-    // FHS-264 — visual "repeats every week" flag. No scheduling behaviour
+    // FHS-264: visual "repeats every week" flag. No scheduling behaviour
     // yet; the UI just shows a repeat icon.
     recurring: boolean('recurring').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -678,13 +678,13 @@ export type MealTemplate = typeof mealTemplates.$inferSelect;
 export type NewMealTemplate = typeof mealTemplates.$inferInsert;
 
 /**
- * Calendar split (FHS-265) — School vs Home activities render under
+ * Calendar split (FHS-265): School vs Home activities render under
  * separate sub-tabs on the Calendar screen.
  */
 export const eventType = pgEnum('event_type', ['school', 'home']);
 
 /**
- * `events` (FHS-230, expanded FHS-265) — calendar entries on the family
+ * `events` (FHS-230, expanded FHS-265): calendar entries on the family
  * Calendar tab. One row per event. `date` is a calendar day (no time
  * zone); the optional `start_time` / `end_time` are HH:MM strings
  * interpreted in the tenant's IANA timezone. `member_id` links the
@@ -692,14 +692,14 @@ export const eventType = pgEnum('event_type', ['school', 'home']);
  * and is nullable for whole-family events.
  *
  * FHS-265 adds `type` (school | home sub-tab), `location` ("where")
- * and `wear` ("what to wear") — both free text, both optional.
+ * and `wear` ("what to wear"): both free text, both optional.
  *
  * FHS-476 adds weekly recurrence via expand-on-read: `recurrence_days`
  * holds the weekdays (0=Sunday..6=Saturday) a series repeats on as a
  * Postgres int array (null/empty = a normal one-off event); `date`
  * stays the series anchor (its first occurrence); `recurrence_end_date`
  * is the last day it repeats (inclusive, null = no end). No row is
- * ever written per occurrence — `GET /api/events` computes the virtual
+ * ever written per occurrence: `GET /api/events` computes the virtual
  * occurrences that fall in the requested week on every read (see
  * `apps/api/src/lib/recurrence.ts`). Editing/deleting a recurring
  * event acts on the whole series; single-occurrence edits are a
@@ -730,7 +730,7 @@ export const events = pgTable(
     index('events_tenant_id_idx').on(t.tenantId, t.id),
     index('events_tenant_date_idx').on(t.tenantId, t.date),
     index('events_tenant_member_idx').on(t.tenantId, t.memberId),
-    // FHS-461 — dashboard "Recent Activity" feed: WHERE tenant_id ORDER BY created_at DESC LIMIT 5.
+    // FHS-461: dashboard "Recent Activity" feed: WHERE tenant_id ORDER BY created_at DESC LIMIT 5.
     index('events_tenant_created_idx').on(t.tenantId, t.createdAt),
   ],
 );
@@ -739,9 +739,9 @@ export type Event = typeof events.$inferSelect;
 export type NewEvent = typeof events.$inferInsert;
 
 /**
- * `assignments` (FHS-231) — homework / chores list on the family
+ * `assignments` (FHS-231): homework / chores list on the family
  * Assignments tab. One row per task. `due_date` is optional (general
- * "to-do") — when set, lists sort earliest-first. `done_at` toggles
+ * "to-do"): when set, lists sort earliest-first. `done_at` toggles
  * completion (timestamp so we can show "completed at" later); UI
  * filters by it. `member_id` assigns the assignment to a specific
  * family member (e.g. "Iman's maths homework") and is nullable for
@@ -773,7 +773,7 @@ export type Assignment = typeof assignments.$inferSelect;
 export type NewAssignment = typeof assignments.$inferInsert;
 
 /**
- * `notices` (FHS-232) — family bulletin board on the Noticeboard tab.
+ * `notices` (FHS-232): family bulletin board on the Noticeboard tab.
  * Pinned notes float to the top of the feed; everything else is in
  * reverse-chronological order. `author_member_id` records who posted
  * the note (FK set null on member delete so deleting a parent doesn't
@@ -788,7 +788,7 @@ export const notices = pgTable(
       .references(() => tenants.id, { onDelete: 'cascade' }),
     body: text('body').notNull(),
     pinned: boolean('pinned').notNull().default(false),
-    // FHS-266 — optional single-emoji icon shown on the post-it card.
+    // FHS-266: optional single-emoji icon shown on the post-it card.
     icon: text('icon'),
     authorMemberId: uuid('author_member_id').references(() => members.id, {
       onDelete: 'set null',
@@ -806,7 +806,7 @@ export type Notice = typeof notices.$inferSelect;
 export type NewNotice = typeof notices.$inferInsert;
 
 /**
- * `tasks` (FHS-233) — per-member personal to-do list on the Tasks tab.
+ * `tasks` (FHS-233): per-member personal to-do list on the Tasks tab.
  * Distinct from `assignments` (family homework): tasks are private to
  * the assigned member; only that member can see / mutate them. The
  * `member_id` FK uses `ON DELETE cascade` because removing a member
@@ -831,7 +831,7 @@ export const tasks = pgTable(
   (t) => [
     index('tasks_tenant_id_idx').on(t.tenantId, t.id),
     index('tasks_tenant_member_done_idx').on(t.tenantId, t.memberId, t.doneAt),
-    // FHS-461 — dashboard taskRows (WHERE tenant_id ORDER BY created_at DESC) and
+    // FHS-461: dashboard taskRows (WHERE tenant_id ORDER BY created_at DESC) and
     // the Tasks board / kid tasks (ORDER BY member_id, created_at DESC).
     index('tasks_tenant_created_idx').on(t.tenantId, t.createdAt),
     index('tasks_tenant_member_created_idx').on(t.tenantId, t.memberId, t.createdAt),
@@ -842,7 +842,7 @@ export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
 
 /**
- * `week_actions` — per-week tracking entry: did `member_id` complete `habit_id`
+ * `week_actions`: per-week tracking entry: did `member_id` complete `habit_id`
  * during `week_id`, and how many times.
  *
  * Unique index prevents duplicate entries for the same (week, member, habit).
@@ -878,9 +878,9 @@ export type WeekAction = typeof weekActions.$inferSelect;
 export type NewWeekAction = typeof weekActions.$inferInsert;
 
 /**
- * `savings` — a family savings goal or account (e.g. "Hajj fund").
+ * `savings`: a family savings goal or account (e.g. "Hajj fund").
  *
- * `target_amount` is nullable — open-ended savings (no goal) is valid.
+ * `target_amount` is nullable: open-ended savings (no goal) is valid.
  * Currency is per-savings to support multi-currency families.
  */
 export const savings = pgTable(
@@ -907,10 +907,10 @@ export type NewSavings = typeof savings.$inferInsert;
 export const savingsTxType = pgEnum('savings_transaction_type', ['deposit', 'withdrawal']);
 
 /**
- * `savings_transactions` — individual deposit or withdrawal entry.
+ * `savings_transactions`: individual deposit or withdrawal entry.
  *
  * `member_id` is nullable so historical entries survive a member being
- * removed. `occurred_on` is a date (not a timestamp) — savings entries
+ * removed. `occurred_on` is a date (not a timestamp): savings entries
  * are journal-style by day, not by minute.
  */
 export const savingsTransactions = pgTable(
@@ -951,7 +951,7 @@ export const investmentAssetType = pgEnum('investment_asset_type', [
 ]);
 
 /**
- * `investments` — family investment position. Placeholder shape; the
+ * `investments`: family investment position. Placeholder shape; the
  * richer model (lots, prices history, P&L) lands in a later epic.
  */
 export const investments = pgTable(
@@ -977,21 +977,21 @@ export type Investment = typeof investments.$inferSelect;
 export type NewInvestment = typeof investments.$inferInsert;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tenant-scoped content tables (FHS-4 — Sprint 1, Tenant Foundation).
+// Tenant-scoped content tables (FHS-4: Sprint 1, Tenant Foundation).
 //
-// Plain: per-family settings + audit trail. Sprint-1 vertical slice only —
+// Plain: per-family settings + audit trail. Sprint-1 vertical slice only:
 // the original ticket listed 12 feature tables (announcements, school work,
 // meals, stickers, etc.) but those land in their own feature PRs alongside
 // the UI that exposes them. RLS in FHS-8.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * `app_settings` — per-family key/value config.
+ * `app_settings`: per-family key/value config.
  *
  * Composite PK on (tenant_id, key): one entry per family per setting key.
  * `value` is jsonb so settings can hold strings, numbers, arrays, or
  * objects without a schema migration. Validation of value shape happens
- * at the api edge (Zod) — the DB only enforces (tenant, key) uniqueness.
+ * at the api edge (Zod): the DB only enforces (tenant, key) uniqueness.
  *
  * Examples: ('theme', '"dark"'), ('default_currency', '"AED"'),
  * ('habit_reminders', '{"enabled": true, "time": "20:00"}').
@@ -1014,7 +1014,7 @@ export type AppSetting = typeof appSettings.$inferSelect;
 export type NewAppSetting = typeof appSettings.$inferInsert;
 
 /**
- * `activity_logs` — append-only audit trail.
+ * `activity_logs`: append-only audit trail.
  *
  * Both actor columns are nullable: system-generated actions (cron jobs,
  * webhooks) have no actor; member-attributed actions set `actor_member_id`
@@ -1047,7 +1047,7 @@ export type ActivityLog = typeof activityLogs.$inferSelect;
 export type NewActivityLog = typeof activityLogs.$inferInsert;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// My World economy (FHS-290 epic) — ported from legacy family-hub, scoped
+// My World economy (FHS-290 epic): ported from legacy family-hub, scoped
 // per (tenant, member) so each child has their own sticker economy. New
 // `mw_`-prefixed tables intentionally sit alongside the generic family
 // `weeks`/`savings`/`investments` stubs (different semantics). 1 sticker =
@@ -1058,7 +1058,7 @@ export type NewActivityLog = typeof activityLogs.$inferInsert;
 export const stickerType = pgEnum('sticker_type', ['gold-star', 'heart', 'magic', 'trophy']);
 
 /**
- * `mw_weeks` — a child's trackable week (Monday-anchored ISO week). One
+ * `mw_weeks`: a child's trackable week (Monday-anchored ISO week). One
  * open (non-finalized) week per child at a time; closing it creates the
  * next. Carried/retrieved columns record investment maturity + savings
  * withdrawals applied during the week; `closure_snapshot` is a JSON audit.
@@ -1096,7 +1096,7 @@ export type MwWeek = typeof mwWeeks.$inferSelect;
 export type NewMwWeek = typeof mwWeeks.$inferInsert;
 
 /**
- * `habit_stickers` — one sticker placed on a (habit, day) within a week.
+ * `habit_stickers`: one sticker placed on a (habit, day) within a week.
  * Replaces the lightweight FHS-268 `habit_logs` tick: each row carries a
  * sticker TYPE + value (5 for bonus habits, else 1) and an `is_allocated`
  * flag set true once the sticker is spent (claim/save/invest).
@@ -1129,8 +1129,8 @@ export const habitStickers = pgTable(
     // habit and each hold their own sticker on the same (week, day).
     uniqueIndex('habit_stickers_unique').on(t.tenantId, t.memberId, t.habitId, t.weekId, t.day),
     index('habit_stickers_member_week_idx').on(t.tenantId, t.memberId, t.weekId),
-    // FHS-461 — dashboard per-week sticker rollup groups by (member_id, week_id)
-    // filtered by (tenant_id, week_id) — the existing indexes lead with member_id,
+    // FHS-461: dashboard per-week sticker rollup groups by (member_id, week_id)
+    // filtered by (tenant_id, week_id): the existing indexes lead with member_id,
     // which that query never filters on. Fastest-growing table, highest-value index.
     index('habit_stickers_tenant_week_idx').on(t.tenantId, t.weekId),
     index('habit_stickers_tenant_created_idx').on(t.tenantId, t.createdAt),
@@ -1140,7 +1140,7 @@ export type HabitSticker = typeof habitStickers.$inferSelect;
 export type NewHabitSticker = typeof habitStickers.$inferInsert;
 
 /**
- * `mw_savings` — a child's saved-sticker + saved-cash balance (one row
+ * `mw_savings`: a child's saved-sticker + saved-cash balance (one row
  * per child). The legacy singleton (id=1) becomes one row per member.
  */
 export const mwSavings = pgTable(
@@ -1167,7 +1167,7 @@ export type NewMwSavings = typeof mwSavings.$inferInsert;
 export const mwSavingsTxType = pgEnum('mw_savings_tx_type', ['stickers', 'cash']);
 
 /**
- * `mw_savings_transactions` — ledger of saves/cashouts for a child.
+ * `mw_savings_transactions`: ledger of saves/cashouts for a child.
  * `mw_transaction_stickers` links a save to the specific habit_stickers it
  * banked, so a reversal knows which to un-allocate.
  */
@@ -1210,7 +1210,7 @@ export type MwTransactionSticker = typeof mwTransactionStickers.$inferSelect;
 export type NewMwTransactionSticker = typeof mwTransactionStickers.$inferInsert;
 
 /**
- * `mw_investments` — a child investing stickers in a habit. Grows +5 per
+ * `mw_investments`: a child investing stickers in a habit. Grows +5 per
  * completed day and −2 per missed day (min 10 to invest, one active per
  * habit). Matured value auto-returns to savings on week close unless
  * continued. `original_invested_stickers` keeps the first principal across
@@ -1235,7 +1235,7 @@ export const mwInvestments = pgTable(
     investedAmount: numeric('invested_amount', { precision: 12, scale: 2 }).notNull(),
     investedStickers: integer('invested_stickers').notNull(),
     originalInvestedStickers: integer('original_invested_stickers').notNull(),
-    // FHS-534 — the per-investment coefficient (parent-chosen preset 1/2/3/5).
+    // FHS-534: the per-investment coefficient (parent-chosen preset 1/2/3/5).
     // Drives the daily growth (+coefficient per completed day, replacing the old
     // hardcoded +5) and is snapshotted at creation, so editing the habit's pay
     // boost later never changes an in-flight investment. Default 5 = legacy rate;
@@ -1246,7 +1246,7 @@ export const mwInvestments = pgTable(
     daysMissed: integer('days_missed').notNull().default(0),
     isActive: boolean('is_active').notNull().default(true),
     isResolved: boolean('is_resolved').notNull().default(false),
-    // FHS-378 — when true (default, legacy behaviour) missed days apply the
+    // FHS-378: when true (default, legacy behaviour) missed days apply the
     // −2/day penalty; when false the investment still tracks missed days but
     // never loses value for them. Existing rows keep deductible=true.
     deductible: boolean('deductible').notNull().default(true),
@@ -1273,7 +1273,7 @@ export const mwWeekActionType = pgEnum('mw_week_action_type', [
 ]);
 
 /**
- * `mw_week_actions` — append-only audit of what a child did with their
+ * `mw_week_actions`: append-only audit of what a child did with their
  * stickers in a week (claim a reward, cash out, save, invest, withdraw,
  * plus the auto-save / invest-continue entries written at close).
  */
@@ -1300,7 +1300,7 @@ export const mwWeekActions = pgTable(
   },
   (t) => [
     index('mw_week_actions_week_idx').on(t.tenantId, t.weekId),
-    // FHS-461 — dashboard "Recent Activity" feed reads this append-only log with
+    // FHS-461: dashboard "Recent Activity" feed reads this append-only log with
     // ORDER BY created_at DESC LIMIT 5 (only index was on week_id).
     index('mw_week_actions_tenant_created_idx').on(t.tenantId, t.createdAt),
   ],
@@ -1311,9 +1311,9 @@ export type NewMwWeekAction = typeof mwWeekActions.$inferInsert;
 /**
  * Status of a kid's reward redemption request (FHS-376).
  *
- * `pending`  — the kid asked; awaiting an admin parent's decision.
- * `approved` — an admin approved; the cost was deducted from savings.
- * `declined` — an admin declined; no deduction.
+ * `pending` : the kid asked; awaiting an admin parent's decision.
+ * `approved`: an admin approved; the cost was deducted from savings.
+ * `declined`: an admin declined; no deduction.
  */
 export const redemptionRequestStatus = pgEnum('redemption_request_status', [
   'pending',
@@ -1322,7 +1322,7 @@ export const redemptionRequestStatus = pgEnum('redemption_request_status', [
 ]);
 
 /**
- * `redemption_requests` (FHS-376) — a kid asks to spend on a reward; an admin
+ * `redemption_requests` (FHS-376): a kid asks to spend on a reward; an admin
  * parent approves or declines. The kid's POST /api/kid/rewards/:id/request
  * creates a `pending` row WITHOUT any deduction. An admin's approve deducts
  * `star_cost` from the kid's banked SAVINGS only (not the week's unallocated
@@ -1360,7 +1360,7 @@ export const redemptionRequests = pgTable(
   (t) => [
     index('redemption_requests_tenant_status_idx').on(t.tenantId, t.status),
     index('redemption_requests_tenant_member_idx').on(t.tenantId, t.memberId),
-    // FHS-461 — dashboard "reward approved" feed (status='approved' ORDER BY
+    // FHS-461: dashboard "reward approved" feed (status='approved' ORDER BY
     // decided_at DESC) + the admin approvals list (status='pending' ORDER BY
     // requested_at DESC). The status-only index still sorts in memory.
     index('redemption_requests_tenant_status_decided_idx').on(t.tenantId, t.status, t.decidedAt),
@@ -1376,20 +1376,20 @@ export type RedemptionRequest = typeof redemptionRequests.$inferSelect;
 export type NewRedemptionRequest = typeof redemptionRequests.$inferInsert;
 
 /**
- * `money_adjustments` (FHS-512) — a standalone ledger entry that moves a
+ * `money_adjustments` (FHS-512): a standalone ledger entry that moves a
  * child's money without a sticker changing hands. Today the only writer is
  * the skip-penalty accrual at close-week (one negative row per due day that
  * passed with no sticker on a habit that has `skip_penalty_minor > 0`), but
  * the shape is generic (`reason` free text) for future adjustment types.
  *
  * `amount_minor` is an INTEGER in the tenant's minor currency unit
- * (negative for a penalty) — never a float. The same amount is folded
+ * (negative for a penalty): never a float. The same amount is folded
  * directly into `mw_savings.saved_cash` at write time (floored at 0) so
  * every existing balance reader (savings, kid view, admin view, close-week
  * summary) reflects the deduction without a second code path; this table is
  * the audit trail + what `reward-config`'s reopen/repair reversal reads.
  *
- * No `week_id` column (not required by the feature spec) — reversal on
+ * No `week_id` column (not required by the feature spec): reversal on
  * reopen/repair matches rows by `day` falling inside the week's Mon–Sun
  * range for (tenant, member). RLS: tenant_isolation policy, same as every
  * other My World table.
@@ -1417,7 +1417,7 @@ export type MoneyAdjustment = typeof moneyAdjustments.$inferSelect;
 export type NewMoneyAdjustment = typeof moneyAdjustments.$inferInsert;
 
 /**
- * `reading_log` — a child's personal book list (Learn Phase 1).
+ * `reading_log`: a child's personal book list (Learn Phase 1).
  *
  * One row per book a child adds. Title is required; author is optional.
  * `finished` toggles read/unread. Member-scoped and tenant-scoped so each
@@ -1434,7 +1434,7 @@ export const readingLog = pgTable(
       .notNull()
       .references(() => members.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
-    // Nullable — author is optional when adding a book.
+    // Nullable: author is optional when adding a book.
     author: text('author'),
     finished: boolean('finished').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1447,7 +1447,7 @@ export type ReadingLog = typeof readingLog.$inferSelect;
 export type NewReadingLog = typeof readingLog.$inferInsert;
 
 /**
- * `world_flags_progress` (Learn Phase 2a) — tracks which country flags a
+ * `world_flags_progress` (Learn Phase 2a): tracks which country flags a
  * child has explored. One row per (tenant, member, country code). The
  * UNIQUE constraint on (tenant_id, member_id, country_code) makes the
  * explore POST idempotent via onConflictDoNothing.
@@ -1478,7 +1478,7 @@ export type WorldFlagsProgress = typeof worldFlagsProgress.$inferSelect;
 export type NewWorldFlagsProgress = typeof worldFlagsProgress.$inferInsert;
 
 /**
- * `world_flags_learn_progress` (Learn Phase 2b) — tracks completed sets in
+ * `world_flags_learn_progress` (Learn Phase 2b): tracks completed sets in
  * the structured World Flags Learn path. Each continent is split into sets
  * of 5 countries; passing a set's quiz (100% correct) records its
  * zero-based index here, which unlocks the next set. One row per
@@ -1516,7 +1516,7 @@ export type WorldFlagsLearnProgress = typeof worldFlagsLearnProgress.$inferSelec
 export type NewWorldFlagsLearnProgress = typeof worldFlagsLearnProgress.$inferInsert;
 
 /**
- * `mw_maths_progress` (FHS-394) — per-kid stage completion for each
+ * `mw_maths_progress` (FHS-394): per-kid stage completion for each
  * maths operation × table number. One row per (tenant, member, operation,
  * table_number). The UNIQUE constraint makes PUT upserts idempotent via
  * onConflictDoUpdate. RLS: tenant_isolation policy gates all reads/writes.
@@ -1538,14 +1538,14 @@ export const mwMathsProgress = pgTable(
     learnCompleted: boolean('learn_completed').notNull().default(false),
     practiceCorrect: integer('practice_correct').notNull().default(0),
     proveScore: integer('prove_score').notNull().default(0),
-    // Postgres REAL (4-byte float) — matches legacy schema.
+    // Postgres REAL (4-byte float): matches legacy schema.
     proveAvgTime: real('prove_avg_time').notNull().default(0),
     placementUnlocked: boolean('placement_unlocked').notNull().default(false),
-    // FHS-401 — cumulative accuracy counters accumulated from PUT body.
+    // FHS-401: cumulative accuracy counters accumulated from PUT body.
     // total_correct += practiceCorrect (practice) or proveScore (prove) per call.
     // total_attempts += practiceAttempts (always 10) or proveAttempts per call.
     // Separate from per-session fields (practiceCorrect/proveScore) that gate
-    // stage completion — these are lifetime sums for the Insights accuracy %.
+    // stage completion: these are lifetime sums for the Insights accuracy %.
     totalCorrect: integer('total_correct').notNull().default(0),
     totalAttempts: integer('total_attempts').notNull().default(0),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
@@ -1565,7 +1565,7 @@ export type MwMathsProgress = typeof mwMathsProgress.$inferSelect;
 export type NewMwMathsProgress = typeof mwMathsProgress.$inferInsert;
 
 /**
- * `mw_maths_certificates` (FHS-394) — per-kid achievement certificates for
+ * `mw_maths_certificates` (FHS-394): per-kid achievement certificates for
  * each operation × difficulty. `difficulty` stores the stringified table
  * number ('1'..'12') for placement certs, or 'easy'|'medium'|'hard' for
  * learn-mode certs. One row per (tenant, member, operation, difficulty); the
@@ -1603,7 +1603,7 @@ export type MwMathsCertificates = typeof mwMathsCertificates.$inferSelect;
 export type NewMwMathsCertificates = typeof mwMathsCertificates.$inferInsert;
 
 /**
- * `mw_logic_progress` (FHS-395) — per-kid correct-answer count for each
+ * `mw_logic_progress` (FHS-395): per-kid correct-answer count for each
  * logic game_type × difficulty. One row per (tenant, member, game_type,
  * difficulty). correct_count is incremented server-side on each correct
  * answer; reaching CERTIFICATE_THRESHOLD (10) triggers a certificate insert.
@@ -1624,7 +1624,7 @@ export const mwLogicProgress = pgTable(
     // 'easy' | 'medium' | 'hard'
     difficulty: text('difficulty').notNull(),
     correctCount: integer('correct_count').notNull().default(0),
-    // FHS-401 — cumulative attempt counter incremented on EVERY answer (correct or wrong).
+    // FHS-401: cumulative attempt counter incremented on EVERY answer (correct or wrong).
     // Enables per-subject accuracy = sum(correctCount) / sum(totalAttempts).
     totalAttempts: integer('total_attempts').notNull().default(0),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
@@ -1644,7 +1644,7 @@ export type MwLogicProgress = typeof mwLogicProgress.$inferSelect;
 export type NewMwLogicProgress = typeof mwLogicProgress.$inferInsert;
 
 /**
- * `mw_logic_certificates` (FHS-395) — per-kid achievement certificates for
+ * `mw_logic_certificates` (FHS-395): per-kid achievement certificates for
  * each game_type × difficulty. Awarded server-side when correct_count reaches
  * CERTIFICATE_THRESHOLD (10). The UNIQUE constraint makes inserts idempotent
  * via onConflictDoNothing. RLS: tenant_isolation policy gates all reads/writes.
@@ -1683,7 +1683,7 @@ export type NewMwLogicCertificates = typeof mwLogicCertificates.$inferInsert;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * `beta_feedback` — one submission per survey response from an authenticated user.
+ * `beta_feedback`: one submission per survey response from an authenticated user.
  *
  * All survey fields are nullable; the API enforces that at least one is present.
  * `submitted_by_email` is a snapshot of the user's email at submission time for
@@ -1702,7 +1702,7 @@ export const betaFeedback = pgTable(
     }),
     // Email snapshot for easy CSV export without a join.
     submittedByEmail: text('submitted_by_email'),
-    // PMF survey — "How disappointed would you be if you could no longer use FamilyHub?"
+    // PMF survey: "How disappointed would you be if you could no longer use FamilyHub?"
     pmfDisappointment: text('pmf_disappointment'),
     // NPS-style 0–10 recommend score.
     recommendScore: integer('recommend_score'),
@@ -1730,10 +1730,10 @@ export type NewBetaFeedback = typeof betaFeedback.$inferInsert;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * `public_feedback` — survey submissions from anonymous (logged-out) visitors
+ * `public_feedback`: survey submissions from anonymous (logged-out) visitors
  * on the public homepage. No tenant_id: these users have no family/account.
  *
- * RLS is intentionally disabled on this table — it is NOT tenant-scoped and
+ * RLS is intentionally disabled on this table: it is NOT tenant-scoped and
  * app_runtime can INSERT freely. The DEFAULT PRIVILEGES grant in migration
  * 0027 covers the table automatically.
  */
@@ -1759,7 +1759,7 @@ export type NewPublicFeedback = typeof publicFeedback.$inferInsert;
 /**
  * Registry of every tenant-scoped table. Drives the cross-tenant leak
  * audit (FHS-6) and any future cross-cutting tooling that needs to walk
- * all family-scoped tables. ADD NEW TABLES HERE when they land — the
+ * all family-scoped tables. ADD NEW TABLES HERE when they land: the
  * audit test fails loudly if a table with `tenant_id` is missing.
  */
 export const TENANT_SCOPED_TABLES = [

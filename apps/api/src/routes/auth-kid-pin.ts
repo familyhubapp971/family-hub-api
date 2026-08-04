@@ -7,22 +7,22 @@ import { config } from '../config.js';
 import { getDb, pinRequestTenant } from '../db/client.js';
 import { members, tenants } from '../db/schema.js';
 
-// FHS-236 — POST /api/auth/kid-pin.
+// FHS-236: POST /api/auth/kid-pin.
 //
 // Family-shared-device auth path: a kid picks their avatar on
 // /login, types a 4-digit PIN, and gets back a child-scoped JWT.
-// Distinct from the parent (Supabase) auth path — this token is
+// Distinct from the parent (Supabase) auth path: this token is
 // signed by the api with KID_AUTH_SECRET and carries `scope: 'child'`
 // so middleware can grant kids access to child-tab routes only.
 //
 // Lockout: a per-memberId bucket counts failed PINs. After
 // KID_PIN_LOCKOUT_MAX_ATTEMPTS the bucket returns 429 for
 // KID_PIN_LOCKOUT_MS. Keying on memberId only (not on ip) means an
-// attacker who rotates X-Forwarded-For can't sidestep the lockout —
+// attacker who rotates X-Forwarded-For can't sidestep the lockout:
 // the realistic UX cost is that one kid's typo storm cools off that
 // kid (only) for 15 min, which is the intended behaviour.
 //
-// Bucket lives in process memory — fine for the single-replica
+// Bucket lives in process memory: fine for the single-replica
 // bootstrap api; tracked under FHS-205 to move to Redis when we
 // scale to multiple api replicas.
 //
@@ -55,20 +55,20 @@ export const kidPinResponseSchema = z.object({
 
 export type KidPinResponse = z.infer<typeof kidPinResponseSchema>;
 
-// Lockout bucket. Keyed on memberId only — see header comment for why.
+// Lockout bucket. Keyed on memberId only: see header comment for why.
 interface Bucket {
   attempts: number;
   lockedUntil: number; // epoch ms; 0 = not locked
 }
 const buckets = new Map<string, Bucket>();
 
-/** Test hook — clears the lockout map between scenarios. */
+/** Test hook: clears the lockout map between scenarios. */
 export function _resetKidPinBucketsForTests(): void {
   buckets.clear();
 }
 
 /**
- * FHS-252 — public hook for the members admin endpoint. When an admin
+ * FHS-252: public hook for the members admin endpoint. When an admin
  * resets a kid's PIN (or clears it entirely), the per-memberId
  * lockout bucket must be cleared too so a kid who tripped the
  * 5-attempts cooldown can immediately try again with the new PIN.
@@ -87,7 +87,7 @@ function recordFail(memberId: string, now: number): Bucket {
   b.attempts += 1;
   if (b.attempts >= config.KID_PIN_LOCKOUT_MAX_ATTEMPTS) {
     b.lockedUntil = now + config.KID_PIN_LOCKOUT_MS;
-    b.attempts = 0; // reset counter — next failure post-cooldown starts fresh
+    b.attempts = 0; // reset counter: next failure post-cooldown starts fresh
   }
   buckets.set(memberId, b);
   return b;
@@ -99,7 +99,7 @@ function clearBucket(memberId: string): void {
 
 // Sweep buckets whose lockout has fully expired AND haven't seen a
 // recent failure. Without this, every memberId that ever fails stays
-// in the map forever. Runs lazily on each request — cheap, bounded,
+// in the map forever. Runs lazily on each request: cheap, bounded,
 // no separate timer needed.
 function sweepExpiredBuckets(now: number): void {
   for (const [k, b] of buckets) {
@@ -170,14 +170,14 @@ export const kidPinRouter = new Hono().post('/', async (c) => {
   // Resolve the tenant by slug + the member by id within that tenant.
   // Two lookups instead of a JOIN so the auth flow can fail with a
   // single specific 401 ("invalid login") regardless of which step
-  // missed — the public-facing message must not enumerate.
+  // missed: the public-facing message must not enumerate.
   const [tenantRow] = await db
     .select({ id: tenants.id, slug: tenants.slug })
     .from(tenants)
     .where(eq(tenants.slug, parsed.data.tenantSlug))
     .limit(1);
 
-  // FHS-354 — pin the resolved tenant so the members read passes RLS once the
+  // FHS-354: pin the resolved tenant so the members read passes RLS once the
   // app runs as app_runtime (the slug is the boundary on this public route).
   if (tenantRow) await pinRequestTenant(tenantRow.id);
 
@@ -197,10 +197,10 @@ export const kidPinRouter = new Hono().post('/', async (c) => {
 
   // Fail-closed when ANY of: tenant missing, member missing, member
   // not flagged as a kid, or no PIN set. Same generic 401 in every
-  // case — never reveal which check failed.
+  // case: never reveal which check failed.
   const eligible = !!tenantRow && !!memberRow && memberRow.isChild && !!memberRow.pinHash;
   // Always run bcrypt.compare on a real hash with the same cost so an
-  // attacker can't time-side-channel "this kid id is real" — the
+  // attacker can't time-side-channel "this kid id is real": the
   // dummy hash is generated once at module load above.
   const passwordOk = await bcrypt.compare(
     parsed.data.pin,
@@ -218,7 +218,7 @@ export const kidPinRouter = new Hono().post('/', async (c) => {
     );
   }
 
-  // Success — clear the bucket + issue a short-lived JWT.
+  // Success: clear the bucket + issue a short-lived JWT.
   clearBucket(parsed.data.memberId);
   const expiresAtMs = now + config.KID_JWT_TTL_MS;
   const token = await signKidJwt({

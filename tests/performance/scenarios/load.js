@@ -1,12 +1,12 @@
-// Load scenario — sustained traffic at expected peak. 50 VUs / 5m.
+// Load scenario: sustained traffic at expected peak. 50 VUs / 5m.
 // Runs nightly against staging via FHS-185 perf.yml workflow.
 //
-// FHS-460 — see config.js's RATE-LIMIT WARNING block before pointing
+// FHS-460: see config.js's RATE-LIMIT WARNING block before pointing
 // this at staging: 50 VUs x ~19 requests/session will blow through the
 // default 100 req/min bucket in seconds unless the limit is raised for
 // the test window.
 //
-// Run locally (after seeding — see tests/performance/README.md):
+// Run locally (after seeding, see tests/performance/README.md):
 //   node tests/performance/bin/seed-load-tenants.mjs
 //   k6 run -e LOAD_FIXTURES=tests/performance/fixtures/load-tenants.json \
 //          tests/performance/scenarios/load.js

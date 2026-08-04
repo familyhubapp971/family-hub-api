@@ -3,10 +3,10 @@ import { z } from 'zod';
 import { getDb } from '../db/client.js';
 import { publicFeedback } from '../db/schema.js';
 
-// FHS-429 — anonymous public feedback collection.
+// FHS-429: anonymous public feedback collection.
 //
 // Single route: POST /api/public/feedback
-// Auth: NONE — called from the logged-out marketing homepage.
+// Auth: NONE: called from the logged-out marketing homepage.
 // All survey fields optional, but at least one survey field must be present
 // (name/email alone do not count).
 
@@ -57,7 +57,7 @@ export const publicFeedbackResponseSchema = z.object({
 
 export const publicFeedbackRouter = new Hono()
 
-  // POST /api/public/feedback — submit an anonymous survey response.
+  // POST /api/public/feedback: submit an anonymous survey response.
   // No auth, no tenant context, no pinRequestTenant.
   .post('/', async (c) => {
     const rawBody = (await c.req.json().catch(() => null)) as unknown;

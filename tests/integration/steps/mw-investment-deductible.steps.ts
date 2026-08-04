@@ -1,7 +1,7 @@
 /**
  * Step bindings for mw-investment-deductible.feature (FHS-378).
  *
- * Real Postgres on :5433 — proves the deductible vs non-deductible investment
+ * Real Postgres on :5433, proves the deductible vs non-deductible investment
  * behaviour: a non-deductible investment counts missed days but never loses
  * value for them, a deductible one drops by −2/missed day, GET returns the
  * flag, the flag survives a close-week continuation, and the settings endpoint
@@ -150,7 +150,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
 
   // Read the active investment row straight from Postgres. After a continuation
   // the matured value becomes the new working principal (invested_stickers), so
-  // this is the deterministic surface to assert the maturation maths on —
+  // this is the deterministic surface to assert the maturation maths on,
   // unlike a fresh GET, which re-derives value against the NEW (real-clock) week.
   async function activeInvestmentRow(
     memberName: string,
@@ -196,7 +196,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       .returning();
     memberIds[name] = row!.id;
     // Seed saved stickers so the child can fund a 10-sticker investment without
-    // placing 10 habit stickers this week — the placed stickers must stay at the
+    // placing 10 habit stickers this week: the placed stickers must stay at the
     // exact count the maturation assertions expect (completed days), while the
     // create endpoint draws the principal savings-first.
     await db.insert(mwSavings).values({

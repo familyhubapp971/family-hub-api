@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dashboardRouter } from '../../../../apps/api/src/routes/dashboard.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-228 / FHS-262 / FHS-306 / FHS-439 / FHS-463 — GET /api/dashboard/today.
+// FHS-228 / FHS-262 / FHS-306 / FHS-439 / FHS-463: GET /api/dashboard/today.
 //
 // The route fires a fixed sequence of select() calls, ONE execute() for the
 // Recent Activity feed, plus a single batched stickerBalances() call. We stub
@@ -14,7 +14,7 @@ import type { User } from '../../../../apps/api/src/db/schema.js';
 // FHS-463 collapsed the six per-source activity SELECTs (activity_logs,
 // mw_week_actions, meals, events, stickers, approved redemptions) into ONE
 // UNION ALL run via db.execute(), and the per-kid stickerBalance fan-out into
-// one batched stickerBalances() call — both to cut round-trips on the app's
+// one batched stickerBalances() call: both to cut round-trips on the app's
 // hottest screen. Neither changes the JSON. Query sequence now:
 //   select 1  caller membership
 //   select 2  members roster
@@ -27,10 +27,10 @@ import type { User } from '../../../../apps/api/src/db/schema.js';
 //   select 9  savings transactions
 //   execute   Recent Activity UNION ALL (six sources, one round-trip)
 //   select 10 meals count (countDistinct slot, today only)
-//   select 11 kid habitsTotal (habits GROUP BY member_id) — only when kids exist
-//   select 12 kid current mw_weeks (earliest non-finalized) — only when kids exist
-//   select 13 kid habit_stickers (countDistinct habit_id per week) — only when open weeks
-//   stickerBalances() — batched per-kid star balance (mocked helper)
+//   select 11 kid habitsTotal (habits GROUP BY member_id): only when kids exist
+//   select 12 kid current mw_weeks (earliest non-finalized): only when kids exist
+//   select 13 kid habit_stickers (countDistinct habit_id per week): only when open weeks
+//   stickerBalances(): batched per-kid star balance (mocked helper)
 
 const dbMock = { select: vi.fn(), execute: vi.fn() };
 vi.mock('../../../../apps/api/src/db/client.js', () => ({
@@ -88,7 +88,7 @@ interface SeedData {
     habitName: string | null;
     createdAt: Date;
   }>;
-  // FHS-439 — the four everyday Recent Activity sources.
+  // FHS-439: the four everyday Recent Activity sources.
   recentMeals?: Array<{
     id: string;
     name: string;
@@ -140,7 +140,7 @@ function chain(rows: unknown): unknown {
   return obj;
 }
 
-// FHS-463 — mirror the handler's Recent Activity UNION ALL: turn the seeded
+// FHS-463: mirror the handler's Recent Activity UNION ALL: turn the seeded
 // per-source arrays into the discriminated { rows } shape db.execute() returns.
 // Every row carries all 15 columns (NULL where a source doesn't set them) plus
 // a `src` tag; the handler filters by `src` and rebuilds its per-source arrays.
@@ -244,7 +244,7 @@ function buildAppWithSeed(opts: SeedOpts = {}, data: SeedData = {}) {
         return chain(opts.callerMissing ? [] : [{ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }]);
       case 2: // members roster
         return chain(data.members ?? []);
-      case 3: // active habit ids (family-level — no member_id filter)
+      case 3: // active habit ids (family-level, no member_id filter)
         return chain((data.habitIds ?? []).map((id) => ({ id })));
       case 4: // rewards count
         return chain([{ n: data.rewardsCount ?? 0 }]);
@@ -258,19 +258,19 @@ function buildAppWithSeed(opts: SeedOpts = {}, data: SeedData = {}) {
         return chain(data.savings ?? []);
       case 9: // savings transactions
         return chain(data.tx ?? []);
-      // FHS-463 — the six activity sources are now one execute() (see below);
+      // FHS-463: the six activity sources are now one execute() (see below);
       // meals count and the kid stats shift up by five select() positions.
       case 10: // meals count
         return chain([{ n: data.mealsCount ?? 0 }]);
-      case 11: // kid habitsTotal (GROUP BY member_id) — only when kids exist
+      case 11: // kid habitsTotal (GROUP BY member_id): only when kids exist
         if (!hasKids) return chain([{ n: 0 }]); // shouldn't be reached, but safe
         return chain((data.kidHabitsTotal ?? []).map((r) => ({ memberId: r.memberId, n: r.n })));
-      case 12: // kid open mw_weeks — only when kids exist
+      case 12: // kid open mw_weeks: only when kids exist
         if (!hasKids) return chain([]);
         return chain(
           (data.kidOpenWeeks ?? []).map((r) => ({ memberId: r.memberId, weekId: r.weekId })),
         );
-      case 13: // kid habit_stickers countDistinct — only when open weeks exist
+      case 13: // kid habit_stickers countDistinct: only when open weeks exist
         if (!hasOpenWeeks) return chain([]);
         return chain(
           (data.kidStickerCounts ?? []).map((r) => ({
@@ -284,7 +284,7 @@ function buildAppWithSeed(opts: SeedOpts = {}, data: SeedData = {}) {
     }
   });
 
-  // FHS-463 — the Recent Activity feed is one UNION ALL run via db.execute().
+  // FHS-463: the Recent Activity feed is one UNION ALL run via db.execute().
   // Reproduce it here: emit the same discriminated rows the real union yields
   // (one row per seeded source item), which the handler splits back into the
   // per-source arrays its JS merge consumes. Postgres returns { rows }.
@@ -312,7 +312,7 @@ beforeEach(() => {
   stickerBalancesMock.mockResolvedValue(new Map());
 });
 
-describe('FHS-228 / FHS-262 / FHS-306 — GET /api/dashboard/today', () => {
+describe('FHS-228 / FHS-262 / FHS-306: GET /api/dashboard/today', () => {
   it('returns 400 when no tenant is on the request', async () => {
     const app = buildAppWithSeed({ noTenant: true });
     const res = await app.request('/api/dashboard/today');
@@ -508,7 +508,7 @@ describe('FHS-228 / FHS-262 / FHS-306 — GET /api/dashboard/today', () => {
       recentActivity: Array<{ id: string; action: string }>;
     };
     // 6 candidate entries sorted desc: event(12:00), save(11:00),
-    // cashout(10:00), mid log(09:00), redemption(08:00) — oldest log
+    // cashout(10:00), mid log(09:00), redemption(08:00): oldest log
     // (06:00) is cut by the top-5 window.
     expect(body.recentActivity).toHaveLength(5);
     expect(body.recentActivity.map((a) => a.id)).toEqual([
@@ -735,7 +735,7 @@ describe('FHS-228 / FHS-262 / FHS-306 — GET /api/dashboard/today', () => {
         mealsPlanned: 2,
       });
       expect(body.goals).toEqual([{ id: G1, label: 'Hajj fund', progress: 250, target: 5000 }]);
-      // FHS-439 — tasks now also feed the merged feed, so the legacy
+      // FHS-439: tasks now also feed the merged feed, so the legacy
       // activityLogs entry is no longer the only one; just confirm it's
       // still present somewhere in the top-5 window.
       expect(body.recentActivity.length).toBeGreaterThan(0);

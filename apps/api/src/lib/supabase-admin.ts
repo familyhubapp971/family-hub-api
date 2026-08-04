@@ -1,7 +1,7 @@
 import { config } from '../config.js';
 
 // Thin wrapper around Supabase's auth admin REST API. We hit /auth/v1
-// directly via fetch rather than pulling in `@supabase/supabase-js` —
+// directly via fetch rather than pulling in `@supabase/supabase-js`:
 // the api only needs a handful of admin endpoints, and avoiding the
 // SDK keeps our dep tree small and the failure surface explicit.
 //
@@ -14,7 +14,7 @@ export interface SupabaseInviteUserOptions {
   /** Where Supabase should redirect after the invitee clicks the link. */
   redirectTo: string;
   /**
-   * Custom claims merged into the user's `user_metadata` — the accept
+   * Custom claims merged into the user's `user_metadata`: the accept
    * handler (FHS-92) reads this to know which invite the redemption
    * applies to.
    */
@@ -30,7 +30,7 @@ export class SupabaseAdminError extends Error {
   // Truncated to 200 chars so a logger that dumps the whole error
   // (Sentry, structured `log.error({ err })`) can't accidentally
   // emit a multi-kilobyte response body. The full body is still
-  // available for the immediate caller via the constructor scope —
+  // available for the immediate caller via the constructor scope:
   // we just don't expose it as a serialised property.
   readonly responseSnippet: string;
 
@@ -59,7 +59,7 @@ export class SupabaseAdminError extends Error {
  * True when a Supabase admin-invite failure means the email already has an auth
  * account. The invite endpoint returns 422 for an existing user; we also match
  * the body markers in case the status code shifts across Supabase versions.
- * (FHS-352 — used to turn a confusing 502 into a clear "already registered".)
+ * (FHS-352: used to turn a confusing 502 into a clear "already registered".)
  */
 export function isEmailAlreadyRegisteredError(err: unknown): boolean {
   if (!(err instanceof SupabaseAdminError)) return false;
@@ -84,7 +84,7 @@ function requireConfig(): { url: string; key: string } {
 
 /**
  * Send a magic-link invitation via Supabase admin. Returns the created
- * (or pre-existing — Supabase upserts) auth user. The invitee receives
+ * (or pre-existing: Supabase upserts) auth user. The invitee receives
  * a Supabase-templated email with a one-time link to `redirectTo`.
  *
  * Maps to FHS-91's POST /api/invitations handler.
@@ -93,7 +93,7 @@ export async function inviteUserByEmail(
   opts: SupabaseInviteUserOptions,
 ): Promise<SupabaseInvitedUser> {
   const { url, key } = requireConfig();
-  // GoTrue's admin invite endpoint is `/auth/v1/invite` — NOT `/auth/v1/admin/invite`,
+  // GoTrue's admin invite endpoint is `/auth/v1/invite`: NOT `/auth/v1/admin/invite`,
   // which 404s (that 404 is why invites never sent; FHS-352). `redirect_to` is a
   // query parameter here, not a body field.
   const inviteUrl = `${url}/auth/v1/invite?redirect_to=${encodeURIComponent(opts.redirectTo)}`;
@@ -124,7 +124,7 @@ export async function inviteUserByEmail(
 
 /**
  * Change a Supabase auth user's sign-in email via the admin API (FHS-510).
- * `email_confirm: true` marks the new address confirmed immediately — we've
+ * `email_confirm: true` marks the new address confirmed immediately: we've
  * already verified ownership ourselves (the user clicked a one-time link
  * emailed to that exact address), so there's no need for Supabase to send a
  * SECOND confirmation email on top of ours.

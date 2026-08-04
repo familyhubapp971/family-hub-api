@@ -6,13 +6,13 @@ import { membersRouter } from '../../../../apps/api/src/routes/members.js';
 import { memberEmailChanges, users } from '../../../../apps/api/src/db/schema.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-510 — a member changes THEIR OWN sign-in email, confirmed by a
+// FHS-510: a member changes THEIR OWN sign-in email, confirmed by a
 // one-time emailed link. Self-serve only: nobody can change someone
 // else's login email, admin or not.
 //
-//   POST /api/members/:id/email-change          — self-serve, starts it.
-//   POST /api/members/email-change/confirm       — PUBLIC, applies it.
-//   POST /api/members/:id/email-change/cancel    — self-serve, drops it.
+//   POST /api/members/:id/email-change         : self-serve, starts it.
+//   POST /api/members/email-change/confirm      : PUBLIC, applies it.
+//   POST /api/members/:id/email-change/cancel   : self-serve, drops it.
 
 const pinRequestTenant = vi.fn(async () => undefined);
 const dbMock = {
@@ -27,7 +27,7 @@ vi.mock('../../../../apps/api/src/db/client.js', () => ({
   pinRequestTenant: (...args: unknown[]) => pinRequestTenant(...args),
 }));
 
-// Mocks ONLY `sendEmail` — `escapeHtml` stays the real implementation so the
+// Mocks ONLY `sendEmail`: `escapeHtml` stays the real implementation so the
 // HTML-escaping tests below exercise the actual escaping logic, not a stub.
 const sendEmail = vi.fn();
 vi.mock('../../../../apps/api/src/lib/email.js', async () => {
@@ -62,7 +62,7 @@ vi.mock('../../../../apps/api/src/config.js', async () => {
 });
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
-// The authenticated caller's Supabase user id (JWT `sub`) — seeded onto
+// The authenticated caller's Supabase user id (JWT `sub`): seeded onto
 // every request by seedAuth() below.
 const CALLER_USER_ID = '00000000-0000-4000-8000-000000000777';
 // TARGET_ID doubles as: (a) the "self" member row id in the START/CANCEL
@@ -70,7 +70,7 @@ const CALLER_USER_ID = '00000000-0000-4000-8000-000000000777';
 // PUBLIC confirm endpoint applies a change to (an unrelated fixture, since
 // that describe block seeds no caller at all).
 const TARGET_ID = '22222222-2222-4222-8222-222222222222';
-// Another member's linked Supabase user id — used only to prove the
+// Another member's linked Supabase user id: used only to prove the
 // self-serve check rejects a caller targeting someone else's row.
 const TARGET_USER_ID = '33333333-3333-4333-8333-333333333333';
 const CHANGE_ID = '44444444-4444-4444-8444-444444444444';
@@ -123,7 +123,7 @@ function seedAuth() {
 }
 
 function publicApp() {
-  // The confirm endpoint is PUBLIC — no seed middleware sets user/userRow/
+  // The confirm endpoint is PUBLIC: no seed middleware sets user/userRow/
   // tenantId, matching production (it's exempted from authMiddleware via
   // PUBLIC_PATH_PREFIXES, which never runs in this unit test at all).
   const app = new Hono();
@@ -146,7 +146,7 @@ beforeEach(() => {
   sendEmail.mockResolvedValue({ ok: true });
 });
 
-describe('FHS-510 — POST /api/members/:id/email-change (self-serve, starts the change)', () => {
+describe('FHS-510: POST /api/members/:id/email-change (self-serve, starts the change)', () => {
   it('caller is not a member of this tenant → 403, nothing written, no email sent', async () => {
     queueSelects([]); // caller lookup empty
     const app = seedAuth();
@@ -163,7 +163,7 @@ describe('FHS-510 — POST /api/members/:id/email-change (self-serve, starts the
   it("caller targeting ANOTHER member's row → 403, nothing written, no email sent (self-serve enforcement)", async () => {
     queueSelects(
       [{ id: 'caller-member-id', role: 'adult' }],
-      // target belongs to someone else — a different linked userId.
+      // target belongs to someone else: a different linked userId.
       [{ id: TARGET_ID, userId: TARGET_USER_ID, displayName: 'Yusuf' }],
     );
     const app = seedAuth();
@@ -217,7 +217,7 @@ describe('FHS-510 — POST /api/members/:id/email-change (self-serve, starts the
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
-  it('happy path — a member changes their OWN email: creates a hashed pending row, emails the NEW address, and heads-up notices the OLD address', async () => {
+  it('happy path: a member changes their OWN email: creates a hashed pending row, emails the NEW address, and heads-up notices the OLD address', async () => {
     queueSelects(
       [{ id: TARGET_ID, role: 'adult' }],
       [{ id: TARGET_ID, userId: CALLER_USER_ID, displayName: 'Yusuf' }],
@@ -256,7 +256,7 @@ describe('FHS-510 — POST /api/members/:id/email-change (self-serve, starts the
     expect(Object.keys(insertedValues as object)).not.toContain('token');
 
     // TWO emails go out: the confirm link to the NEW address, and a
-    // heads-up (no action link) to the OLD address — FHS-510 blocker #2.
+    // heads-up (no action link) to the OLD address: FHS-510 blocker #2.
     expect(sendEmail).toHaveBeenCalledTimes(2);
 
     const primary = sendEmail.mock.calls[0]![0] as { to: string; html: string };
@@ -270,7 +270,7 @@ describe('FHS-510 — POST /api/members/:id/email-change (self-serve, starts the
     const oldAddressNotice = sendEmail.mock.calls[1]![0] as { to: string; html: string };
     expect(oldAddressNotice.to).toBe('yusuf@old.example.com');
     expect(oldAddressNotice.html).toContain('yusuf.new@example.com');
-    // No action link in the heads-up — it's informational only.
+    // No action link in the heads-up: it's informational only.
     expect(oldAddressNotice.html).not.toContain('confirm-email');
   });
 
@@ -314,7 +314,7 @@ describe('FHS-510 — POST /api/members/:id/email-change (self-serve, starts the
     });
     expect(res.status).toBe(200);
     expect(sendEmail).toHaveBeenCalledTimes(2);
-    // delete() is called exactly once here — the "invalidate any prior
+    // delete() is called exactly once here: the "invalidate any prior
     // pending row" step every request makes. The pending row is NOT rolled
     // back on top of that; only the PRIMARY send failing triggers a
     // rollback (see the next test).
@@ -371,7 +371,7 @@ describe('FHS-510 — POST /api/members/:id/email-change (self-serve, starts the
   });
 });
 
-describe('FHS-510 — POST /api/members/:id/email-change/cancel (self-serve)', () => {
+describe('FHS-510: POST /api/members/:id/email-change/cancel (self-serve)', () => {
   it('caller is not a member of this tenant → 403, no delete', async () => {
     queueSelects([]);
     const app = seedAuth();
@@ -384,7 +384,7 @@ describe('FHS-510 — POST /api/members/:id/email-change/cancel (self-serve)', (
 
   it("cancelling ANOTHER member's pending change → 403, no delete", async () => {
     // caller.id ('some-other-member-id') does not match the :id path param
-    // (TARGET_ID) — you can only cancel your own change.
+    // (TARGET_ID): you can only cancel your own change.
     queueSelects([{ id: 'some-other-member-id', role: 'adult' }]);
     const app = seedAuth();
     const res = await app.request(`/api/members/${TARGET_ID}/email-change/cancel`, {
@@ -397,7 +397,7 @@ describe('FHS-510 — POST /api/members/:id/email-change/cancel (self-serve)', (
   });
 
   it('self-cancel → 200 { cancelled: true }, deletes the pending row', async () => {
-    // caller.id matches the :id path param — cancelling your OWN change.
+    // caller.id matches the :id path param: cancelling your OWN change.
     queueSelects([{ id: TARGET_ID, role: 'adult' }]);
     let deletedTable: unknown = null;
     dbMock.delete.mockImplementation((table: unknown) => {
@@ -414,7 +414,7 @@ describe('FHS-510 — POST /api/members/:id/email-change/cancel (self-serve)', (
   });
 });
 
-describe('FHS-510 — POST /api/members/email-change/confirm (PUBLIC)', () => {
+describe('FHS-510: POST /api/members/email-change/confirm (PUBLIC)', () => {
   function txMock(opts: { throws?: Error } = {}) {
     const tx = { execute: vi.fn(async () => ({ rows: [] })), update: vi.fn(() => chain([])) };
     dbMock.transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
@@ -476,7 +476,7 @@ describe('FHS-510 — POST /api/members/email-change/confirm (PUBLIC)', () => {
     expect(updateUserEmailById).not.toHaveBeenCalled();
   });
 
-  it('happy path — pins the tenant, updates Supabase + the mirror, marks used, notifies the OLD address, returns the new email', async () => {
+  it('happy path: pins the tenant, updates Supabase + the mirror, marks used, notifies the OLD address, returns the new email', async () => {
     mockPendingRow();
     // select #1: target member lookup. select #2: the OLD (soon-to-be-
     // replaced) email, captured BEFORE anything mutates it. select #3
@@ -515,7 +515,7 @@ describe('FHS-510 — POST /api/members/email-change/confirm (PUBLIC)', () => {
     const executedSql = dbMock.execute.mock.calls[0]![0] as { queryChunks?: unknown };
     expect(JSON.stringify(executedSql)).toContain(expectedHash);
 
-    // FHS-510 blocker #2 — the OLD address gets a completion notice.
+    // FHS-510 blocker #2: the OLD address gets a completion notice.
     expect(sendEmail).toHaveBeenCalledTimes(1);
     const notice = sendEmail.mock.calls[0]![0] as { to: string; html: string };
     expect(notice.to).toBe('yusuf.old@example.com');
@@ -577,7 +577,7 @@ describe('FHS-510 — POST /api/members/email-change/confirm (PUBLIC)', () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
-  // FHS-510 blocker #3 — Supabase succeeds but the local apply (users
+  // FHS-510 blocker #3: Supabase succeeds but the local apply (users
   // mirror + used_at) throws: this is a DRIFT, must be reported distinctly
   // and NEVER re-shown to the user as "the link expired" (that would
   // suggest nothing happened, when in fact Supabase already changed).
@@ -599,7 +599,7 @@ describe('FHS-510 — POST /api/members/email-change/confirm (PUBLIC)', () => {
     expect(res.status).toBe(500);
     const body = (await res.json()) as { errorCode: string };
     expect(body.errorCode).toBe('EMAIL_CHANGE_APPLY_FAILED');
-    // No completion notice — the local apply never committed.
+    // No completion notice: the local apply never committed.
     expect(sendEmail).not.toHaveBeenCalled();
   });
 });

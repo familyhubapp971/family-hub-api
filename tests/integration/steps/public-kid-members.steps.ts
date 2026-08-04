@@ -10,7 +10,7 @@ import { getTestDb } from '../support/db.js';
 
 vi.mock('../../../apps/api/src/db/client.js', () => ({
   getDb: () => getTestDb(),
-  // FHS-354 — pin is a no-op here (tests run as the superuser, which bypasses RLS).
+  // FHS-354: pin is a no-op here (tests run as the superuser, which bypasses RLS).
   pinRequestTenant: async () => {},
 }));
 
@@ -130,7 +130,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   );
 
   Scenario(
-    'Tenant isolation — kids in another tenant are never returned',
+    'Tenant isolation: kids in another tenant are never returned',
     ({ Given, When, Then, And }) => {
       let res: Response;
       let body: { kids: { displayName: string }[] };

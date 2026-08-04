@@ -98,7 +98,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeAllScenarios, After
     );
   });
 
-  Scenario('Valid token — JWKS fetched and cached', ({ Given, And, When, Then }) => {
+  Scenario('Valid token: JWKS fetched and cached', ({ Given, And, When, Then }) => {
     let app: ReturnType<typeof buildApp>;
     let token: string;
     let last: Response;
@@ -126,7 +126,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeAllScenarios, After
     });
   });
 
-  Scenario('Two valid calls — second one hits the JWKS cache', ({ Given, And, When, Then }) => {
+  Scenario('Two valid calls: second one hits the JWKS cache', ({ Given, And, When, Then }) => {
     let app: ReturnType<typeof buildApp>;
     let t1: string;
     let t2: string;
@@ -298,7 +298,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeAllScenarios, After
     });
   });
 
-  Scenario('/health is public — passes without a token', ({ Given, When, Then }) => {
+  Scenario('/health is public: passes without a token', ({ Given, When, Then }) => {
     let app: ReturnType<typeof buildApp>;
     let last: Response;
 
@@ -313,7 +313,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeAllScenarios, After
     });
   });
 
-  Scenario('JWKS unreachable — fail-closed 401, not 500', ({ Given, And, When, Then }) => {
+  Scenario('JWKS unreachable: fail-closed 401, not 500', ({ Given, And, When, Then }) => {
     let app: ReturnType<typeof buildApp>;
     let token: string;
     let last: Response;
@@ -333,7 +333,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeAllScenarios, After
   });
 
   Scenario(
-    "Oversized token (10 KB email claim) — verifies, doesn't crash",
+    "Oversized token (10 KB email claim): verifies, doesn't crash",
     ({ Given, And, When, Then }) => {
       let app: ReturnType<typeof buildApp>;
       let token: string;

@@ -1,4 +1,4 @@
-// FHS-394 — unit tests for the kid maths progression endpoints.
+// FHS-394: unit tests for the kid maths progression endpoints.
 //
 // Endpoints under test:
 //   GET    /api/kid/maths/progress
@@ -48,7 +48,7 @@ async function mintKidToken(secondsFromNow = 3600): Promise<string> {
     .sign(KEY);
 }
 
-/** A token with scope:'parent' — getKidAuth should reject it with 403. */
+/** A token with scope:'parent': getKidAuth should reject it with 403. */
 async function mintParentScopeToken(): Promise<string> {
   return new SignJWT({ scope: 'parent', tenantId: TENANT_ID, tenantSlug: TENANT_SLUG })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
@@ -72,7 +72,7 @@ beforeEach(() => {
 
 // ─── Auth: no token → 403, expired → 401 ─────────────────────────────────────
 
-describe('FHS-394 — auth guards', () => {
+describe('FHS-394: auth guards', () => {
   const endpoints: [string, string, object | undefined][] = [
     ['GET', '/api/kid/maths/progress', undefined],
     ['PUT', '/api/kid/maths/progress', { operation: 'addition', tableNumber: 1 }],
@@ -85,12 +85,12 @@ describe('FHS-394 — auth guards', () => {
     ],
   ];
 
-  it.each(endpoints)('%s %s — 403 with no token', async (method, path) => {
+  it.each(endpoints)('%s %s: 403 with no token', async (method, path) => {
     const res = await buildApp().request(path, { method });
     expect(res.status).toBe(403);
   });
 
-  it.each(endpoints)('%s %s — 401 with expired token', async (method, path, body) => {
+  it.each(endpoints)('%s %s: 401 with expired token', async (method, path, body) => {
     const token = await mintKidToken(-10);
     const res = await buildApp().request(path, {
       method,
@@ -103,7 +103,7 @@ describe('FHS-394 — auth guards', () => {
 
 // ─── GET /api/kid/maths/progress ─────────────────────────────────────────────
 
-describe('FHS-394 — GET /api/kid/maths/progress', () => {
+describe('FHS-394: GET /api/kid/maths/progress', () => {
   it('200 + empty array when no rows exist', async () => {
     dbMock.select.mockImplementationOnce(() => ({
       from: () => ({ where: () => Promise.resolve([]) }),
@@ -133,7 +133,7 @@ describe('FHS-394 — GET /api/kid/maths/progress', () => {
       totalAttempts: 0,
       updatedAt: new Date(),
     };
-    // listProgress: select().from().where() — no .limit() in that helper.
+    // listProgress: select().from().where(): no .limit() in that helper.
     dbMock.select.mockImplementationOnce(() => ({
       from: () => ({ where: () => Promise.resolve([row]) }),
     }));
@@ -150,7 +150,7 @@ describe('FHS-394 — GET /api/kid/maths/progress', () => {
 
 // ─── PUT /api/kid/maths/progress ─────────────────────────────────────────────
 
-describe('FHS-394 — PUT /api/kid/maths/progress', () => {
+describe('FHS-394: PUT /api/kid/maths/progress', () => {
   it('400 when body is empty', async () => {
     const token = await mintKidToken();
     const res = await buildApp().request('/api/kid/maths/progress', {
@@ -256,7 +256,7 @@ describe('FHS-394 — PUT /api/kid/maths/progress', () => {
 
 // ─── POST /api/kid/maths/placement ───────────────────────────────────────────
 
-describe('FHS-394 — POST /api/kid/maths/placement', () => {
+describe('FHS-394: POST /api/kid/maths/placement', () => {
   it('400 when body is missing operation', async () => {
     const token = await mintKidToken();
     const res = await buildApp().request('/api/kid/maths/placement', {
@@ -295,7 +295,7 @@ describe('FHS-394 — POST /api/kid/maths/placement', () => {
 
 // ─── GET /api/kid/maths/certificates ─────────────────────────────────────────
 
-describe('FHS-394 — GET /api/kid/maths/certificates', () => {
+describe('FHS-394: GET /api/kid/maths/certificates', () => {
   it('200 + empty array when no certs', async () => {
     dbMock.select.mockImplementationOnce(() => ({
       from: () => ({ where: () => Promise.resolve([]) }),
@@ -312,7 +312,7 @@ describe('FHS-394 — GET /api/kid/maths/certificates', () => {
 
 // ─── POST /api/kid/maths/certificates ────────────────────────────────────────
 
-describe('FHS-394 — POST /api/kid/maths/certificates', () => {
+describe('FHS-394: POST /api/kid/maths/certificates', () => {
   it('400 when difficulty is invalid', async () => {
     const token = await mintKidToken();
     const res = await buildApp().request('/api/kid/maths/certificates', {
@@ -408,7 +408,7 @@ describe('FHS-394 — POST /api/kid/maths/certificates', () => {
 
 // ─── PUT progress: at least one stage field required ─────────────────────────
 
-describe('FHS-394 — PUT /api/kid/maths/progress — stage-field requirement', () => {
+describe('FHS-394: PUT /api/kid/maths/progress (stage-field requirement)', () => {
   it('400 when body has operation + tableNumber but no stage field', async () => {
     const token = await mintKidToken();
     const res = await buildApp().request('/api/kid/maths/progress', {
@@ -424,7 +424,7 @@ describe('FHS-394 — PUT /api/kid/maths/progress — stage-field requirement', 
 
 // ─── Auth: parent-scope token is rejected on kid routes ──────────────────────
 
-describe('FHS-394 — parent-scope token rejected on kid maths routes', () => {
+describe('FHS-394: parent-scope token rejected on kid maths routes', () => {
   it('403 when a token with scope:parent hits GET /api/kid/maths/progress', async () => {
     const token = await mintParentScopeToken();
     const res = await buildApp().request('/api/kid/maths/progress', {

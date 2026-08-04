@@ -9,7 +9,7 @@ import { tenants, users } from '../../../apps/api/src/db/schema.js';
 import type { Database } from '../../../apps/api/src/db/client.js';
 import { getTestDb } from '../support/db.js';
 
-// Stub getDb so the route uses the SAME pool as our Background steps —
+// Stub getDb so the route uses the SAME pool as our Background steps:
 // tests/integration/support/db.ts is the canonical test pool.
 vi.mock('../../../apps/api/src/db/client.js', () => ({
   getDb: () => getTestDb(),
@@ -78,7 +78,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
         authMiddleware({
           issuer: ISSUER,
           jwks: makeJwks(publicJwk),
-          // Mirror sync returns the row we just inserted — same id.
+          // Mirror sync returns the row we just inserted: same id.
           userMirrorSync: async () => {
             const rows = await db
               .select()
@@ -94,7 +94,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   });
 
-  Scenario('Happy path — creates tenant and member, returns 201', ({ When, Then, And }) => {
+  Scenario('Happy path: creates tenant and member, returns 201', ({ When, Then, And }) => {
     let res: Response;
     let body: { tenant?: { slug: string } };
 
@@ -133,7 +133,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   });
 
-  Scenario('Slug already taken — returns 409 and inserts nothing', ({ Given, When, Then, And }) => {
+  Scenario('Slug already taken: returns 409 and inserts nothing', ({ Given, When, Then, And }) => {
     let res: Response;
 
     Given('a tenant exists with slug "khan"', async () => {

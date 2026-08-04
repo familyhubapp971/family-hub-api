@@ -3,11 +3,11 @@
  *
  * Covers GET /api/calendar/feed, POST /api/calendar/feed/rotate (both authed,
  * tenant-scoped, rotate is admin-only), and the public ICS endpoint the
- * returned url points at (GET /api/public/calendar/:token — no auth, the
+ * returned url points at (GET /api/public/calendar/:token, no auth, the
  * signed token in the path IS the credential). Proves:
  *   - a member can fetch the url and the public feed lists that family's
  *     events as SUMMARY lines,
- *   - tenant isolation — one family's feed never includes another's events,
+ *   - tenant isolation: one family's feed never includes another's events,
  *   - a forged signature or a malformed token both 404 without leaking which
  *     case it was,
  *   - rotating the key 404s every previously issued url and the new url works,
@@ -28,7 +28,7 @@ import type { Database } from '../../../apps/api/src/db/client.js';
 import { getTestDb } from '../support/db.js';
 
 // The calendar routers call getDb()/pinRequestTenant() directly (not through
-// the request-scoped AsyncLocalStorage plumbing) — mock both to the real test
+// the request-scoped AsyncLocalStorage plumbing): mock both to the real test
 // Postgres pool, same pattern as public-kid-members.steps.ts. Pin is a no-op:
 // tests run as the superuser, which bypasses RLS.
 vi.mock('../../../apps/api/src/db/client.js', () => ({
@@ -98,7 +98,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   const tenantIds: Record<string, string> = {};
 
   // The most recently issued subscribe url (from a GET /feed or a rotate),
-  // and a snapshot taken right before a rotate — so a scenario can assert
+  // and a snapshot taken right before a rotate: so a scenario can assert
   // the OLD url stops working while the NEW one starts working.
   let currentUrl: string;
   let preRotationUrl: string;
@@ -149,7 +149,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       );
       app.use('*', resolveTenantFromHeader);
       app.route('/api/calendar', calendarRouter);
-      // FHS-445 — no-auth public feed; skipped by authMiddleware via
+      // FHS-445: no-auth public feed; skipped by authMiddleware via
       // PUBLIC_PATH_PREFIXES ('/api/public/calendar').
       app.route('/api/public/calendar', publicCalendarRouter);
       token = await mintToken(privateKey, USER_ID, USER_EMAIL);
@@ -230,7 +230,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       });
 
       // A second "includes a ... SUMMARY line" check under the same "And"
-      // keyword needs its OWN literal step text — @amiceli/vitest-cucumber
+      // keyword needs its OWN literal step text: @amiceli/vitest-cucumber
       // resolves a binding to the FIRST parsed step matching (type, text),
       // so two identical (keyword, text) bindings both bind to the SAME
       // parsed step and the second Gherkin line is left unmatched. Same
@@ -245,7 +245,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   // ─── Scenario: tenant isolation ───────────────────────────────────────────
 
   Scenario(
-    "Tenant isolation — a family's feed never includes another family's events",
+    "Tenant isolation: a family's feed never includes another family's events",
     ({ Given, And, When, Then }) => {
       Given(
         'a second tenant {string} exists with the caller as an admin member',
@@ -271,7 +271,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
         },
       );
 
-      // Same-pattern trick as events.steps.ts — a second "And ... has an
+      // Same-pattern trick as events.steps.ts: a second "And ... has an
       // event ..." line needs its own literal text ("separately") so it
       // resolves to the SECOND parsed step, not the first (see the note in
       // the previous scenario).
@@ -412,7 +412,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       });
 
       // Its own literal text (not the shared "the public feed response
-      // status is {int}" below) — same same-pattern-collision reason as the
+      // status is {int}" below): same same-pattern-collision reason as the
       // other scenarios' notes above.
       Then('the pre-rotation public feed response status is {int}', (_c, n: number) => {
         expect(publicRes.status).toBe(n);

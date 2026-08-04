@@ -1,4 +1,4 @@
-// FHS-373 — unit tests for the kid world-flags endpoints.
+// FHS-373: unit tests for the kid world-flags endpoints.
 //
 // /api/kid/world-flags        GET  → { explored: string[] }
 // /api/kid/world-flags/explore POST → { explored: true }
@@ -6,7 +6,7 @@
 // /api/kid/world-flags/learn-complete POST → { completed: true }
 //
 // Auth/body-rejection paths use the real app (buildApp) with a valid kid
-// token — no DB needed. Happy paths use the kidRouter directly with a
+// token: no DB needed. Happy paths use the kidRouter directly with a
 // mocked DB, matching the pattern in world-flags.test.ts.
 
 import { SignJWT } from 'jose';
@@ -62,7 +62,7 @@ beforeEach(() => {
 
 // ─── Auth: expired token is rejected on every endpoint ───────────────────────
 
-describe('FHS-373 — expired kid token is rejected (401)', () => {
+describe('FHS-373: expired kid token is rejected (401)', () => {
   const routes: [string, RequestInit | undefined][] = [
     ['/api/kid/world-flags', undefined],
     [
@@ -87,7 +87,7 @@ describe('FHS-373 — expired kid token is rejected (401)', () => {
 
 // ─── GET /api/kid/world-flags ─────────────────────────────────────────────────
 
-describe('FHS-373 — GET /api/kid/world-flags', () => {
+describe('FHS-373: GET /api/kid/world-flags', () => {
   it('403 when no kid token is presented', async () => {
     const res = await buildLocalApp().request('/api/kid/world-flags');
     expect(res.status).toBe(403);
@@ -125,7 +125,7 @@ describe('FHS-373 — GET /api/kid/world-flags', () => {
 
 // ─── POST /api/kid/world-flags/explore ───────────────────────────────────────
 
-describe('FHS-373 — POST /api/kid/world-flags/explore', () => {
+describe('FHS-373: POST /api/kid/world-flags/explore', () => {
   it('400 when body is missing', async () => {
     const token = await mintKidToken();
     const res = await buildLocalApp().request('/api/kid/world-flags/explore', {
@@ -166,7 +166,7 @@ describe('FHS-373 — POST /api/kid/world-flags/explore', () => {
 
 // ─── GET /api/kid/world-flags/learn ──────────────────────────────────────────
 
-describe('FHS-373 — GET /api/kid/world-flags/learn', () => {
+describe('FHS-373: GET /api/kid/world-flags/learn', () => {
   it('403 when no kid token is presented', async () => {
     const res = await buildLocalApp().request('/api/kid/world-flags/learn');
     expect(res.status).toBe(403);
@@ -207,7 +207,7 @@ describe('FHS-373 — GET /api/kid/world-flags/learn', () => {
 
 // ─── POST /api/kid/world-flags/learn-complete ────────────────────────────────
 
-describe('FHS-373 — POST /api/kid/world-flags/learn-complete', () => {
+describe('FHS-373: POST /api/kid/world-flags/learn-complete', () => {
   it('400 when body is missing', async () => {
     const token = await mintKidToken();
     const res = await buildLocalApp().request('/api/kid/world-flags/learn-complete', {

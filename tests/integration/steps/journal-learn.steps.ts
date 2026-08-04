@@ -172,7 +172,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   });
 
   Scenario(
-    "Tenant isolation — another tenant's journal never appears",
+    "Tenant isolation: another tenant's journal never appears",
     ({ Given, And, When, Then }) => {
       let res: Response;
       let entries: unknown[];

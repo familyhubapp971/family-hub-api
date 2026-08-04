@@ -1,11 +1,11 @@
-Feature: My World — deductible vs non-deductible investments (FHS-378)
-  Real Postgres on :5433 — verifies that a non-deductible investment still
+Feature: My World: deductible vs non-deductible investments (FHS-378)
+  Real Postgres on :5433, verifies that a non-deductible investment still
   counts missed days but loses no value for them, while a deductible one drops
   by the −2/day penalty, that GET returns the flag, and that the flag survives
   a close-week continuation. Scoped per (tenant, member).
 
   The matured value is asserted on the continued investment's new principal
-  (invested_stickers after roll-over), which is deterministic — unlike a fresh
+  (invested_stickers after roll-over), which is deterministic: unlike a fresh
   GET that re-derives value against the new (real-clock) week.
 
   Background:

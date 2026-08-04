@@ -1,5 +1,5 @@
 Feature: Parent-managed reward shop (FHS-483)
-  Real Postgres on :5433 — verifies create/update/archive of the reward
+  Real Postgres on :5433, verifies create/update/archive of the reward
   catalogue, admin-only enforcement, and tenant isolation between families.
 
   Background:
@@ -54,7 +54,7 @@ Feature: Parent-managed reward shop (FHS-483)
     When an adult caller tries to delete the reward
     Then the delete-reward adult response status is 403
 
-  Scenario: Tenant isolation — another family cannot edit or delete this family's reward
+  Scenario: Tenant isolation: another family cannot edit or delete this family's reward
     Given a second rewards-admin tenant "smiths" exists with a different admin caller "Priya"
     And the caller creates a reward "Family trip" costing 50 stickers for tenant "khans"
     When caller "Priya" tries to update the "khans" reward's sticker cost to 1 from tenant "smiths"

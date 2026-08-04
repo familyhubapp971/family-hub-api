@@ -1,14 +1,14 @@
-// FHS-356 — OpenAPI enrichment registry.
+// FHS-356: OpenAPI enrichment registry.
 //
 // Every endpoint is discovered automatically from the live Hono route table
 // (see build-spec.ts), so the spec can never silently miss a route. This map
 // only adds the human-friendly detail on top: a summary plus the request /
-// response shape, reusing the SAME Zod schemas the handlers validate with — so
+// response shape, reusing the SAME Zod schemas the handlers validate with: so
 // the docs can't drift from the contract.
 //
 // Keyed by `${METHOD} ${openApiPath}` where openApiPath uses `{param}` (not
 // Hono's `:param`). Endpoints not listed here still appear in the spec with an
-// auto-generated summary and a generic 200 response — fill them in over time.
+// auto-generated summary and a generic 200 response: fill them in over time.
 
 import { z } from 'zod';
 import type { ZodTypeAny } from 'zod';
@@ -215,7 +215,7 @@ export const routeMeta: Record<string, RouteMeta> = {
   'POST /api/kid/rewards/{id}/request': {
     summary: 'The kid asks to redeem a reward (no deduction; an admin approves)',
     response: kidRedemptionRequestSchema,
-    responseDesc: 'The pending request row (idempotent — returns an existing pending one)',
+    responseDesc: 'The pending request row (idempotent: returns an existing pending one)',
   },
   'GET /api/kid/financial/savings': {
     summary: "The kid's banked savings + currency (identical to parent GET /mw/financial/savings)",
@@ -252,15 +252,15 @@ export const routeMeta: Record<string, RouteMeta> = {
   'POST /api/events': {
     summary: 'Create a calendar activity; admin/adult only',
     description:
-      'Optional recurrenceDays (weekdays 0=Sun..6=Sat) + recurrenceEndDate turn it into a weekly-repeating series anchored on `date`. No occurrence rows are stored — GET expands the series on read.',
+      'Optional recurrenceDays (weekdays 0=Sun..6=Sat) + recurrenceEndDate turn it into a weekly-repeating series anchored on `date`. No occurrence rows are stored: GET expands the series on read.',
     request: createEventRequestSchema,
     response: eventItemSchema,
-    responseDesc: '201 — the created event (the series anchor, if recurring)',
+    responseDesc: '201: the created event (the series anchor, if recurring)',
   },
   'PUT /api/events/{id}': {
     summary: 'Replace an event (full update); admin/adult only',
     description:
-      'For a recurring series this edits the WHOLE series (start date, weekdays, end date, and all other fields) — not a single occurrence. Single-occurrence editing is a follow-up.',
+      'For a recurring series this edits the WHOLE series (start date, weekdays, end date, and all other fields): not a single occurrence. Single-occurrence editing is a follow-up.',
     request: createEventRequestSchema,
     response: eventItemSchema,
   },
@@ -344,7 +344,7 @@ export const routeMeta: Record<string, RouteMeta> = {
     summary: 'Mark a country flag as explored (idempotent)',
     request: worldFlagsExploreBodySchema,
     response: z.object({ explored: z.literal(true) }),
-    responseDesc: '{ explored: true } — always, even if already recorded',
+    responseDesc: '{ explored: true }: always, even if already recorded',
   },
   'GET /api/kid/world-flags/learn': {
     summary: "The kid's world-flags learn progress per continent",
@@ -355,9 +355,9 @@ export const routeMeta: Record<string, RouteMeta> = {
     summary: 'Mark a learn-path set as mastered (idempotent)',
     request: worldFlagsLearnCompleteBodySchema,
     response: z.object({ completed: z.literal(true) }),
-    responseDesc: '{ completed: true } — always, even if already recorded',
+    responseDesc: '{ completed: true }: always, even if already recorded',
   },
-  // FHS-389 — AI Maths lesson (feature-flagged OFF by default).
+  // FHS-389: AI Maths lesson (feature-flagged OFF by default).
   'GET /api/kid/learn/maths/ai-lesson/status': {
     summary: 'Whether AI Maths lessons are enabled (cheap probe, no generation)',
     response: z.object({ enabled: z.boolean() }),
@@ -369,7 +369,7 @@ export const routeMeta: Record<string, RouteMeta> = {
     responseDesc:
       '{ enabled: false } when the flag is off; { enabled: true, lesson } on success; { enabled: true, lesson: null, error } on AI failure',
   },
-  // FHS-384 — Learn Insights (parent view of one child's learning progress).
+  // FHS-384: Learn Insights (parent view of one child's learning progress).
   'GET /api/learn/insights': {
     summary: "A child's Learn insights across Maths, Logic, Science, and World Flags (parent view)",
     response: learnInsightsResponseSchema,
@@ -389,24 +389,24 @@ export const routeMeta: Record<string, RouteMeta> = {
     response: mwAnalyticsResponseSchema,
   },
 
-  // FHS-418 — Beta feedback (authenticated, tenant-scoped).
+  // FHS-418: Beta feedback (authenticated, tenant-scoped).
   'POST /api/feedback': {
     summary: 'Submit a beta survey response',
     description:
       'Authenticated users submit product feedback. All fields are optional but at least one must be present.',
     request: feedbackRequestSchema,
     response: feedbackResponseSchema,
-    responseDesc: '201 — the new feedback row id',
+    responseDesc: '201: the new feedback row id',
   },
 
-  // FHS-429 — Public (anonymous) feedback from the logged-out homepage.
+  // FHS-429: Public (anonymous) feedback from the logged-out homepage.
   'POST /api/public/feedback': {
     summary: 'Submit anonymous homepage feedback',
     description:
       'Unauthenticated visitors submit product feedback from the public homepage. All fields optional but at least one survey field (not just name/email) must be present.',
     request: publicFeedbackRequestSchema,
     response: publicFeedbackResponseSchema,
-    responseDesc: '201 — the new public_feedback row id',
+    responseDesc: '201: the new public_feedback row id',
     security: false,
   },
 
@@ -415,7 +415,7 @@ export const routeMeta: Record<string, RouteMeta> = {
     summary: "A child's active investments with live value (?memberId=)",
     response: kidInvestmentsResponseSchema,
     responseDesc:
-      'Each item carries `deductible` — false means missed days count but apply no penalty',
+      'Each item carries `deductible`: false means missed days count but apply no penalty',
   },
   'POST /api/mw/financial/investments': {
     summary: 'Create an investment (optional `deductible`, default true)',
@@ -430,17 +430,17 @@ export const routeMeta: Record<string, RouteMeta> = {
     responseDesc: 'The updated investment row (404 if missing, 409 if not active)',
   },
 
-  // Redemption requests (FHS-376) — kid asks, admin approves/declines.
+  // Redemption requests (FHS-376): kid asks, admin approves/declines.
   'GET /api/mw/redemption-requests': {
     summary: "The family's reward redemption requests (?status=pending|approved|declined)",
     response: listRedemptionRequestsResponseSchema,
   },
   'POST /api/mw/redemption-requests/{id}/approve': {
-    summary: "Approve a request — admin only; deducts star_cost from the kid's savings",
+    summary: "Approve a request: admin only; deducts star_cost from the kid's savings",
     response: decideRedemptionRequestResponseSchema,
   },
   'POST /api/mw/redemption-requests/{id}/decline': {
-    summary: 'Decline a request — admin only; no deduction',
+    summary: 'Decline a request: admin only; no deduction',
     response: decideRedemptionRequestResponseSchema,
   },
 
@@ -449,7 +449,7 @@ export const routeMeta: Record<string, RouteMeta> = {
     summary: 'Invite someone to the family',
     description:
       "role is one of admin | adult | teen | guest (default adult). Granting 'admin' " +
-      'requires the caller to already be an admin (403 otherwise) — FHS-486 / ADR 0019.',
+      'requires the caller to already be an admin (403 otherwise): FHS-486 / ADR 0019.',
     request: createInvitationRequestSchema,
     response: createInvitationResponseSchema,
   },
@@ -460,10 +460,10 @@ export const routeMeta: Record<string, RouteMeta> = {
     summary: 'List family members',
     response: listMembersResponseSchema,
     responseDesc:
-      "email and pendingEmail (FHS-510) are admin-only — a non-admin caller always gets null on both, regardless of the member's actual state.",
+      "email and pendingEmail (FHS-510) are admin-only: a non-admin caller always gets null on both, regardless of the member's actual state.",
   },
   'POST /api/members': {
-    summary: 'Add a family member seat (child, teen, or adult) — no login, direct roster insert',
+    summary: 'Add a family member seat (child, teen, or adult): no login, direct roster insert',
     request: addMemberBodySchema,
     response: addMemberResponseSchema,
   },
@@ -472,27 +472,27 @@ export const routeMeta: Record<string, RouteMeta> = {
     response: setMemberPinResponseSchema,
   },
 
-  // FHS-510 — admin-initiated sign-in email change, confirmed by a one-time link.
+  // FHS-510: admin-initiated sign-in email change, confirmed by a one-time link.
   'POST /api/members/{id}/email-change': {
     summary: "Start changing a grown-up member's sign-in email; admin-only",
     description:
       'Emails a one-time confirm link to the NEW address, plus a best-effort heads-up notice to the OLD address (never blocks this response). The old address keeps working until the link is clicked. 400 NO_LOGIN_EMAIL if the target has no linked login; 409 if the new email already belongs to a Family Hub account, or if a concurrent request for the same member won the race.',
     request: memberEmailChangeRequestBodySchema,
     response: memberEmailChangeRequestResponseSchema,
-    responseDesc: '{ pendingEmail } — the address the confirm link was sent to',
+    responseDesc: '{ pendingEmail }: the address the confirm link was sent to',
   },
   'POST /api/members/{id}/email-change/cancel': {
     summary: 'Cancel a pending email change for a member; admin-only',
-    responseDesc: '{ cancelled: true } — always 200, even if there was nothing pending',
+    responseDesc: '{ cancelled: true }: always 200, even if there was nothing pending',
   },
   'POST /api/members/email-change/confirm': {
     summary: 'Apply a pending email change from the emailed confirm link',
     description:
-      'PUBLIC — the recipient may not be signed in. The token is the credential (its SHA-256 hash is matched server-side); single-use and expires 24h after the admin started the change. Sends a best-effort completion notice to the OLD address on success (never blocks this response). The web ConfirmEmail screen requires an explicit click before calling this — never auto-fires on page load, so an email link-scanner prefetch cannot burn the token.',
+      'PUBLIC: the recipient may not be signed in. The token is the credential (its SHA-256 hash is matched server-side); single-use and expires 24h after the admin started the change. Sends a best-effort completion notice to the OLD address on success (never blocks this response). The web ConfirmEmail screen requires an explicit click before calling this: it never auto-fires on page load, so an email link-scanner prefetch cannot burn the token.',
     request: confirmEmailChangeBodySchema,
     response: confirmEmailChangeResponseSchema,
     responseDesc:
-      '200 on success. 410 { error: "expired" } if the link is missing/used/expired — the recipient should ask an admin for a new one. 502/500 { errorCode: "EMAIL_CHANGE_APPLY_FAILED" } on a transient failure (Supabase hiccup, or a post-apply drift) — the token may still be valid, so the caller should retry rather than treat it as expired.',
+      '200 on success. 410 { error: "expired" } if the link is missing/used/expired: the recipient should ask an admin for a new one. 502/500 { errorCode: "EMAIL_CHANGE_APPLY_FAILED" } on a transient failure (Supabase hiccup, or a post-apply drift): the token may still be valid, so the caller should retry rather than treat it as expired.',
     security: false,
   },
 
@@ -500,14 +500,14 @@ export const routeMeta: Record<string, RouteMeta> = {
   'GET /api/notices': { summary: 'The family noticeboard', response: listNoticesResponseSchema },
   'GET /api/tasks': { summary: 'List tasks', response: listTasksResponseSchema },
 
-  // FHS-394 — Kid Maths progression.
+  // FHS-394: Kid Maths progression.
   'GET /api/kid/maths/progress': {
     summary: 'All maths progress rows for this kid (all operations + tables)',
     response: listMathsProgressResponseSchema,
     responseDesc: 'Every (operation, table_number) row the kid has touched, in DB order',
   },
   'PUT /api/kid/maths/progress': {
-    summary: 'Upsert one maths progress row — only supplied fields are updated',
+    summary: 'Upsert one maths progress row: only supplied fields are updated',
     request: updateProgressBodySchema,
     response: mathsProgressRowSchema,
     responseDesc: 'The upserted row after the update',
@@ -517,7 +517,7 @@ export const routeMeta: Record<string, RouteMeta> = {
     request: placementBodySchema,
     response: mathsPlacementResponseSchema,
     responseDesc:
-      'unlocked[] — the table numbers newly mastered by this call (already-mastered tables are excluded)',
+      'unlocked[]: the table numbers newly mastered by this call (already-mastered tables are excluded)',
   },
   'GET /api/kid/maths/certificates': {
     summary: 'All earned maths certificates for this kid',
@@ -526,18 +526,17 @@ export const routeMeta: Record<string, RouteMeta> = {
       'Certificates in DB order; difficulty is the table number string or easy/medium/hard',
   },
   'POST /api/kid/maths/certificates': {
-    summary: 'Award a certificate (idempotent — returns existing if already earned)',
+    summary: 'Award a certificate (idempotent: returns existing if already earned)',
     request: certBodySchema,
     response: mathsCertResponseSchema,
-    responseDesc: '{ certificate, alreadyEarned } — 200 if already earned, 201 if newly created',
+    responseDesc: '{ certificate, alreadyEarned }: 200 if already earned, 201 if newly created',
   },
 
-  // FHS-395 — Kid Logic progression.
+  // FHS-395: Kid Logic progression.
   'GET /api/kid/logic/questions': {
     summary: 'Questions for a logic game-type × difficulty combo (answers stripped)',
     response: logicQuestionsResponseSchema,
-    responseDesc:
-      'questions[] — type-specific fields for the renderer; correct answer not included',
+    responseDesc: 'questions[]: type-specific fields for the renderer; correct answer not included',
     queryParams: {
       gameType: {
         description: 'One of: truefalse, patterns, oddoneout, ifthen, sorting',
@@ -556,21 +555,21 @@ export const routeMeta: Record<string, RouteMeta> = {
     request: logicAnswerBodySchema,
     response: logicAnswerResponseSchema,
     responseDesc:
-      '{ correct, correctAnswer, explanation, comboCorrect, certificateEarned } — comboCorrect is the running total for this gameType×difficulty',
+      '{ correct, correctAnswer, explanation, comboCorrect, certificateEarned }: comboCorrect is the running total for this gameType×difficulty',
   },
   'GET /api/kid/logic/certificates': {
     summary: 'All earned logic certificates for this kid',
     response: logicCertificatesResponseSchema,
     responseDesc:
-      'certificates[] — one row per gameType×difficulty where the kid reached 10 correct answers',
+      'certificates[]: one row per gameType×difficulty where the kid reached 10 correct answers',
   },
 
-  // Admin Panel — App Info settings (FHS-308, FHS-441).
+  // Admin Panel: App Info settings (FHS-308, FHS-441).
   'GET /api/admin/settings': {
     summary: "The family's app_settings map, plus its currency under the `currency` key",
     response: adminSettingsResponseSchema,
     responseDesc:
-      '{ [key]: value } — includes appName/appSubtitle (if set) and always includes currency (from tenants.currency, default USD)',
+      '{ [key]: value }: includes appName/appSubtitle (if set) and always includes currency (from tenants.currency, default USD)',
   },
   'PUT /api/admin/settings/{key}': {
     summary: 'Upsert one setting; admin-only. `currency` writes tenants.currency, not app_settings',
@@ -580,7 +579,7 @@ export const routeMeta: Record<string, RouteMeta> = {
       'For key=currency: { key, value } where value is the 3-letter ISO 4217 code just saved. Otherwise the upserted app_settings row',
   },
 
-  // My World habits — FHS-292, boost + skip-penalty fields added FHS-512.
+  // My World habits: FHS-292, boost + skip-penalty fields added FHS-512.
   'GET /api/habits': {
     summary: "A member's habits + this week's stickers + spendable balance",
     response: listHabitsResponseSchema,
@@ -600,12 +599,12 @@ export const routeMeta: Record<string, RouteMeta> = {
     response: habitItemSchema,
   },
 
-  // FHS-512 — configurable reward economy ("Pocket money" settings screen).
+  // FHS-512: configurable reward economy ("Pocket money" settings screen).
   'GET /api/reward-config': {
     summary: "The family's sticker rate + each kid's rate override",
     response: rewardConfigResponseSchema,
     responseDesc:
-      'currency, familyRateMinor (integer minor units, e.g. 50 = 0.50), and members[] — one row per kid with rateMinor (their override, null = uses the family default) and effectiveRateMinor (the resolved rate actually used)',
+      'currency, familyRateMinor (integer minor units, e.g. 50 = 0.50), and members[]: one row per kid with rateMinor (their override, null = uses the family default) and effectiveRateMinor (the resolved rate actually used)',
   },
   'PUT /api/reward-config': {
     summary:
@@ -616,27 +615,27 @@ export const routeMeta: Record<string, RouteMeta> = {
       'The updated config, same shape as GET. Unknown/foreign memberIds in memberOverrides are silently skipped',
   },
 
-  // GDPR — export my data + delete my account (FHS-435).
+  // GDPR: export my data + delete my account (FHS-435).
   'GET /api/admin/export': {
     summary: "Download the family's full data as one JSON file (GDPR data portability); admin-only",
     response: adminExportResponseSchema,
     responseDesc:
-      'Content-Disposition: attachment. { exportedAt, family, data } — data has one array per tenant-scoped table (e.g. members, tasks, habits, habitStickers), each row filtered to this tenant only',
+      'Content-Disposition: attachment. { exportedAt, family, data }: data has one array per tenant-scoped table (e.g. members, tasks, habits, habitStickers), each row filtered to this tenant only',
   },
   'POST /api/admin/delete-account': {
-    summary: "IRREVERSIBLE — permanently deletes the caller's family and all its data; admin-only",
+    summary: "IRREVERSIBLE: permanently deletes the caller's family and all its data; admin-only",
     request: adminDeleteAccountRequestSchema,
     response: adminDeleteAccountResponseSchema,
     responseDesc:
-      '{ deleted: true } on success. 400 CONFIRM_MISMATCH if `confirm` does not exactly equal the family name — nothing is deleted in that case',
+      '{ deleted: true } on success. 400 CONFIRM_MISMATCH if `confirm` does not exactly equal the family name: nothing is deleted in that case',
   },
 
-  // FHS-483 — parent-managed reward-shop catalogue (create/edit/archive).
+  // FHS-483: parent-managed reward-shop catalogue (create/edit/archive).
   'POST /api/rewards': {
     summary: 'Create a reward in the family reward shop; admin-only',
     request: createRewardRequestSchema,
     response: rewardItemSchema,
-    responseDesc: '201 — the created reward',
+    responseDesc: '201: the created reward',
   },
   'PATCH /api/rewards/{id}': {
     summary: "Partially update a reward's name/description/stickerCost/icon; admin-only",
@@ -647,6 +646,6 @@ export const routeMeta: Record<string, RouteMeta> = {
   'DELETE /api/rewards/{id}': {
     summary: 'Archive (soft-delete) a reward; admin-only',
     responseDesc:
-      "204 on success. 404 if the reward is not in the caller's tenant or is already archived. Never a hard delete — reward_redemptions/redemption_requests keep their FK for history",
+      "204 on success. 404 if the reward is not in the caller's tenant or is already archived. Never a hard delete: reward_redemptions/redemption_requests keep their FK for history",
   },
 };

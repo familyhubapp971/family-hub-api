@@ -2,7 +2,7 @@
  * Step bindings for rls-read-paths.feature (FHS-354).
  *
  * Proves the SECURITY DEFINER readers return the legitimately cross-tenant rows
- * when called AS the limited app_runtime role — while a plain members read as
+ * when called AS the limited app_runtime role: while a plain members read as
  * app_runtime (no tenant pinned) returns nothing, confirming the function is
  * what makes the cross-tenant lookup possible under RLS.
  */

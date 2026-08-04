@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { membersRouter } from '../../../../apps/api/src/routes/members.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-108 — GET /api/members. Stub the DB at the module boundary;
+// FHS-108: GET /api/members. Stub the DB at the module boundary;
 // seed user + tenant context via a tiny middleware. Same shape as the
 // onboarding/invitations route tests.
 
@@ -27,7 +27,7 @@ const FIXED_USER: User = {
 interface SeedOpts {
   noTenant?: boolean;
   callerMissing?: boolean;
-  /** Caller's role in the tenant — echoed back as `callerRole`. */
+  /** Caller's role in the tenant: echoed back as `callerRole`. */
   callerRole?: string;
   /** Row for the caller's OWN current sign-in email (users select). */
   ownEmailRow?: { email: string } | null;
@@ -43,11 +43,11 @@ function buildAppWithSeed(opts: SeedOpts = {}, members: unknown[] = []) {
     await next();
   };
 
-  // FHS-510 — self-serve: every request that reaches the members list runs
+  // FHS-510: self-serve: every request that reaches the members list runs
   // FIVE selects, in order: caller-membership lookup, members list, pending
   // invites (FHS-276), then the caller's OWN current sign-in email, then the
   // caller's OWN in-flight pending email change. There is no admin-only
-  // branch any more — both of the last two selects always fire, and they
+  // branch any more: both of the last two selects always fire, and they
   // only ever resolve the CALLER's own data (see routes/members.ts).
   let selectCallIdx = 0;
   dbMock.select.mockImplementation(() => {
@@ -56,7 +56,7 @@ function buildAppWithSeed(opts: SeedOpts = {}, members: unknown[] = []) {
       return {
         from: () => ({
           where: () => ({
-            // FHS-252 — role is selected too so the handler can return
+            // FHS-252: role is selected too so the handler can return
             // it as `callerRole` for the members page to gate admin-
             // only PIN affordances.
             limit: () =>
@@ -87,7 +87,7 @@ function buildAppWithSeed(opts: SeedOpts = {}, members: unknown[] = []) {
       };
     }
     if (selectCallIdx === 4) {
-      // FHS-510 — the caller's own current sign-in email.
+      // FHS-510: the caller's own current sign-in email.
       return {
         from: () => ({
           where: () => ({
@@ -96,7 +96,7 @@ function buildAppWithSeed(opts: SeedOpts = {}, members: unknown[] = []) {
         }),
       };
     }
-    // FHS-510 — the caller's own in-flight pending email change.
+    // FHS-510: the caller's own in-flight pending email change.
     return {
       from: () => ({
         where: () => ({
@@ -116,7 +116,7 @@ beforeEach(() => {
   dbMock.select.mockReset();
 });
 
-describe('FHS-108 — GET /api/members', () => {
+describe('FHS-108: GET /api/members', () => {
   it('returns 400 when no tenant is on the request', async () => {
     const app = buildAppWithSeed({ noTenant: true });
     const res = await app.request('/api/members');
@@ -149,7 +149,7 @@ describe('FHS-108 — GET /api/members', () => {
         avatarEmoji: '👩',
         userId: USER_ID,
         createdAt: baseDate,
-        // FHS-252 — handler now reads is_child + pin_hash to derive
+        // FHS-252: handler now reads is_child + pin_hash to derive
         // the per-row hasPin boolean. Stub them to safe defaults.
         isChild: false,
         pinHash: null,
@@ -173,7 +173,7 @@ describe('FHS-108 — GET /api/members', () => {
       callerMemberId: string;
     };
     expect(body.members).toHaveLength(2);
-    // FHS-523 — the caller's own member id + role are echoed back so a page can
+    // FHS-523: the caller's own member id + role are echoed back so a page can
     // show the caller's roster name (child-world pill) without a second fetch.
     expect(body.callerRole).toBe('admin');
     expect(body.callerMemberId).toBe(CALLER_MEMBER_ID);
@@ -191,12 +191,12 @@ describe('FHS-108 — GET /api/members', () => {
     });
   });
 
-  // FHS-510 — email / pendingEmail are self-serve: a member sees ONLY their
+  // FHS-510: email / pendingEmail are self-serve: a member sees ONLY their
   // OWN sign-in email + their OWN in-flight change. There is no "admin sees
   // everyone's login email" mode any more (FHS-510 pivot).
   describe('email / pendingEmail gating (FHS-510, self-serve)', () => {
     const baseDate = new Date('2026-05-02T00:00:00.000Z');
-    // This row's id matches CALLER_MEMBER_ID — it IS the caller's own seat.
+    // This row's id matches CALLER_MEMBER_ID: it IS the caller's own seat.
     const OWN_ROW_ID = CALLER_MEMBER_ID;
     const OTHER_MEMBER_ID = '55555555-5555-4555-8555-555555555555';
 
@@ -246,7 +246,7 @@ describe('FHS-108 — GET /api/members', () => {
         email: 'sarah@example.com',
         pendingEmail: 'sarah.new@example.com',
       });
-      // Another member's row NEVER carries email/pendingEmail — a grown-up's
+      // Another member's row NEVER carries email/pendingEmail: a grown-up's
       // private login is not roster data every family member can see.
       expect(body.members[1]).toMatchObject({
         id: OTHER_MEMBER_ID,

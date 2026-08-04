@@ -9,7 +9,7 @@ import * as schema from './schema.js';
 const log = createLogger('db');
 
 // Base type so a pool-backed instance (`drizzle(pool)`) and a request-scoped
-// one (`drizzle(client)`) are interchangeable — they differ only in `$client`.
+// one (`drizzle(client)`) are interchangeable: they differ only in `$client`.
 export type Database = NodePgDatabase<typeof schema>;
 
 // Lazy pool so vitest files that never touch the DB don't open real
@@ -43,7 +43,7 @@ export function getRootDb(): Database {
   return _rootDb;
 }
 
-// FHS-345 — request-scoped DB context. When a request runs inside
+// FHS-345: request-scoped DB context. When a request runs inside
 // `runWithRequestDb`, every `getDb()` in that async call tree returns the
 // SAME dedicated pooled connection. That lets a later story (FHS-346) pin a
 // per-request `app.current_tenant` GUC on that one connection for RLS,
@@ -70,20 +70,20 @@ const TENANT_GUC = 'app.current_tenant';
  * request's connection + tenant (no double checkout, no re-pin).
  *
  * @param opts.tenantId resolved tenant uuid, or undefined for public /
- *   tenant-less requests (pinned as the empty sentinel — never a stale value).
+ *   tenant-less requests (pinned as the empty sentinel: never a stale value).
  */
 export async function runWithRequestDb<T>(
   fn: () => Promise<T>,
   opts: { tenantId?: string | undefined } = {},
 ): Promise<T> {
-  // Already inside a request scope — reuse it; the outer call owns the
+  // Already inside a request scope: reuse it; the outer call owns the
   // connection, its tenant GUC, and its release. Not a leak.
   if (als.getStore()) return fn();
   let client: pg.PoolClient;
   try {
     client = await getRootPool().connect();
   } catch (err) {
-    // Couldn't get a connection — DB momentarily unavailable, or a route /
+    // Couldn't get a connection: DB momentarily unavailable, or a route /
     // test that never touches the DB (e.g. /api/kid/me returns token claims).
     // Don't hard-fail the request: run on the root db. A handler that DOES
     // query will surface its own error, and once RLS is on (FHS-348) the
@@ -114,7 +114,7 @@ export async function runWithRequestDb<T>(
 
 /**
  * Pin a specific tenant on THIS request's connection (FHS-354), for routes that
- * learn their tenant from somewhere other than resolveTenant — the kid token,
+ * learn their tenant from somewhere other than resolveTenant: the kid token,
  * or a public slug lookup. Their reads/writes then pass RLS once the app runs
  * as app_runtime. Safe before the flip (no policy reads the GUC yet). The reset
  * is handled by runWithRequestDb's finally; this only ever runs inside an

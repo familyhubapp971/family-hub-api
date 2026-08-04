@@ -34,7 +34,7 @@ await build({
   platform: 'node',
   format: 'esm',
   target: 'node20',
-  // Sourcemap kept until we ship to Sentry — gives readable stack traces in
+  // Sourcemap kept until we ship to Sentry: gives readable stack traces in
   // Railway logs. dist/index.js is server-side only, never publicly served.
   sourcemap: true,
   logLevel: 'info',

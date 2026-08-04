@@ -71,7 +71,7 @@ describeFeature(feature, ({ Background, Scenario, ScenarioOutline }) => {
   );
 
   Scenario(
-    'Slug uniqueness — second insert with same slug rejected',
+    'Slug uniqueness: second insert with same slug rejected',
     ({ Given, When, Then, And }) => {
       let caughtError: unknown;
 
@@ -96,7 +96,7 @@ describeFeature(feature, ({ Background, Scenario, ScenarioOutline }) => {
     },
   );
 
-  Scenario('Slug length — 64 characters rejected (DNS label cap is 63)', ({ When, Then }) => {
+  Scenario('Slug length: 64 characters rejected (DNS label cap is 63)', ({ When, Then }) => {
     let caughtError: unknown;
 
     When('I insert a tenant with a 64-character slug', async () => {
@@ -114,7 +114,7 @@ describeFeature(feature, ({ Background, Scenario, ScenarioOutline }) => {
     });
   });
 
-  Scenario('Slug length — 63 characters accepted (DNS label cap)', ({ When, Then }) => {
+  Scenario('Slug length: 63 characters accepted (DNS label cap)', ({ When, Then }) => {
     let row: typeof tenants.$inferSelect;
 
     When('I insert a tenant with a 63-character slug', async () => {
@@ -126,7 +126,7 @@ describeFeature(feature, ({ Background, Scenario, ScenarioOutline }) => {
     });
   });
 
-  Scenario('Currency length — 4 characters rejected', ({ When, Then }) => {
+  Scenario('Currency length: 4 characters rejected', ({ When, Then }) => {
     let caughtError: unknown;
 
     When('I insert a tenant with slug "bad-cur" and currency "USDX"', async () => {
@@ -143,12 +143,12 @@ describeFeature(feature, ({ Background, Scenario, ScenarioOutline }) => {
     });
   });
 
-  Scenario('Status enum — arbitrary string rejected', ({ When, Then }) => {
+  Scenario('Status enum: arbitrary string rejected', ({ When, Then }) => {
     let caughtError: unknown;
 
     When('I insert a tenant with slug "bad-status" and status "wonky"', async () => {
       try {
-        // Cast to bypass the TS literal type — we are deliberately testing
+        // Cast to bypass the TS literal type: we are deliberately testing
         // the database-level enum constraint, not the Drizzle type system.
         await insertTenant({
           slug: 'bad-status',
@@ -168,7 +168,7 @@ describeFeature(feature, ({ Background, Scenario, ScenarioOutline }) => {
   });
 
   ScenarioOutline(
-    'Status enum — only the three documented values are accepted',
+    'Status enum: only the three documented values are accepted',
     ({ When, Then }, vars) => {
       let row: typeof tenants.$inferSelect;
 
@@ -187,7 +187,7 @@ describeFeature(feature, ({ Background, Scenario, ScenarioOutline }) => {
   );
 
   Scenario(
-    'Frozen SEED_DEFAULT_TENANT_ID — re-insert is idempotent via ON CONFLICT',
+    'Frozen SEED_DEFAULT_TENANT_ID: re-insert is idempotent via ON CONFLICT',
     ({ Given, When, Then, And }) => {
       Given(
         'a tenant exists with the frozen SEED_DEFAULT_TENANT_ID and slug "default"',

@@ -10,7 +10,7 @@ import {
 } from '../../../../apps/api/src/lib/myworld.js';
 import { kidSavingsResponseSchema } from '../../../../apps/api/src/routes/kid.js';
 
-// FHS-335 — date helpers behind the "past day is admin-only" rule.
+// FHS-335: date helpers behind the "past day is admin-only" rule.
 describe('dayDateOf', () => {
   it('maps day 0..6 onto Mon..Sun of the week (UTC)', () => {
     expect(dayDateOf('2026-06-15', 0)).toBe('2026-06-15'); // Monday
@@ -53,7 +53,7 @@ describe('investmentValue (sticker-first grow model)', () => {
     ).toBe(23);
   });
 
-  it('floors the value at zero — penalties never make it go negative', () => {
+  it('floors the value at zero: penalties never make it go negative', () => {
     expect(
       investmentValue({ investedStickers: 10, completedDays: 0, missedDays: 9 })
         .currentValueStickers,
@@ -64,7 +64,7 @@ describe('investmentValue (sticker-first grow model)', () => {
   // reduced by the FULL withdrawn amount and can legitimately go negative when
   // growth pushed the value above the original stake. The recalc re-adds the
   // day-gains, so the formula still yields the correct remaining value. Clamping
-  // the principal to 0 here would re-inflate the withdrawn growth — this test
+  // the principal to 0 here would re-inflate the withdrawn growth: this test
   // guards against that regression.
   it('honours a negative principal so partial withdraws never double-count growth', () => {
     // invested 10, completed 5 -> value 35. Withdraw 30 -> principal 10-30 = -20.
@@ -81,7 +81,7 @@ describe('investmentValue (sticker-first grow model)', () => {
     ).toBe(10); // 20 stickers * 0.5
   });
 
-  // FHS-378 — deductible vs non-deductible.
+  // FHS-378: deductible vs non-deductible.
   it('applies the missed-day penalty when deductible is true (default + explicit)', () => {
     // 10 + 0*5 - 3*2 = 4, the same with deductible omitted or set true.
     expect(
@@ -114,7 +114,7 @@ describe('investmentValue (sticker-first grow model)', () => {
     ).toBe(0);
   });
 
-  // FHS-534 — the per-investment coefficient drives the daily gain.
+  // FHS-534: the per-investment coefficient drives the daily gain.
   it('defaults the daily gain to 5 when no coefficient is given (legacy rate)', () => {
     // 10 + 4*5 = 30, identical to pre-FHS-534 behaviour.
     expect(
@@ -124,7 +124,7 @@ describe('investmentValue (sticker-first grow model)', () => {
   });
 
   it('grows by `dailyGain` per completed day when a coefficient is supplied', () => {
-    // coefficient 3: 10 + 4*3 = 22 (AC — "grows by 3 per completed day").
+    // coefficient 3: 10 + 4*3 = 22 (AC: "grows by 3 per completed day").
     expect(
       investmentValue({ investedStickers: 10, completedDays: 4, missedDays: 0, dailyGain: 3 })
         .currentValueStickers,
@@ -183,7 +183,7 @@ describe('cashAsStickers', () => {
     expect(cashAsStickers(0)).toBe(0);
   });
 
-  // FIX 2 (BLOCKER) — a rate of 0 must never be divided by: with real saved
+  // FIX 2 (BLOCKER): a rate of 0 must never be divided by: with real saved
   // cash and no guard, 2/0 is Infinity, so `balance < cost` never blocks a
   // redemption ("free unlimited redemption"). A rate <= 0 resolves to 0
   // stickers instead of dividing.
@@ -194,13 +194,13 @@ describe('cashAsStickers', () => {
   });
 });
 
-// FHS-463 — stickerBalances() batches the per-member star balance into a FIXED
+// FHS-463: stickerBalances() batches the per-member star balance into a FIXED
 // number of queries (grouped SUM over unallocated stickers, one over savings,
-// one over rates — FHS-512 added the third for the configurable rate)
+// one over rates: FHS-512 added the third for the configurable rate)
 // instead of the 2×N fan-out of calling stickerBalance() per member. The value
 // per member is identical: unallocated + saved stickers + cash-as-stickers
 // (now at each member's own effective rate, not a fixed 0.5).
-describe('stickerBalances (FHS-463 — batched per-member star balance)', () => {
+describe('stickerBalances (FHS-463: batched per-member star balance)', () => {
   // Minimal db stub: each db.select() resolves to the next canned result set,
   // no matter where the builder chain stops (.from / .innerJoin / .where / .groupBy).
   function stubDb(resultSets: unknown[]) {
@@ -228,7 +228,7 @@ describe('stickerBalances (FHS-463 — batched per-member star balance)', () => 
       [{ memberId: A, savedStickers: 2, savedCash: '1.50' }], // B has no savings row
       [
         { memberId: A, memberRate: null, tenantRate: 50 }, // A uses the family default (0.50)
-        { memberId: B, memberRate: 75, tenantRate: 50 }, // B has an override (0.75) — irrelevant, B has no cash
+        { memberId: B, memberRate: 75, tenantRate: 50 }, // B has an override (0.75): irrelevant, B has no cash
       ],
     ]);
     const balances = await stickerBalances(db, 'tenant', [A, B]);
@@ -259,8 +259,8 @@ describe('stickerBalances (FHS-463 — batched per-member star balance)', () => 
   });
 });
 
-// FHS-387 — kid savings response includes stickerRate so the UI never hardcodes 0.5.
-// FHS-512 — stickerRate is now the child's CONFIGURABLE effective rate, and
+// FHS-387: kid savings response includes stickerRate so the UI never hardcodes 0.5.
+// FHS-512: stickerRate is now the child's CONFIGURABLE effective rate, and
 // stickerRateMinor carries the same rate as a money-safe integer.
 describe('kidSavingsResponseSchema includes stickerRate', () => {
   it('validates a response that includes stickerRate = STICKER_TO_CASH (0.5) and stickerRateMinor', () => {

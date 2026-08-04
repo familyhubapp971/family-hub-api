@@ -39,7 +39,7 @@ import {
 import { getAuthenticatedUser } from '../middleware/auth.js';
 import { stickerBalances } from '../lib/myworld.js';
 
-// FHS-228 / FHS-262 — GET /api/dashboard/today.
+// FHS-228 / FHS-262: GET /api/dashboard/today.
 //
 // Bundles everything the home (Dashboard / Today) tab renders so the page
 // makes one round-trip instead of fanning out to /api/members + /api/habits
@@ -51,16 +51,16 @@ import { stickerBalances } from '../lib/myworld.js';
 // stat row, a Family Goals sidebar and a Recent Activity feed. The response
 // contract lives in @familyhub/shared.
 //
-// FHS-306 — rewired the THREE My World widgets:
+// FHS-306: rewired the THREE My World widgets:
 //   • habitsDone / habitsTotal  → habit_stickers + habits.member_id (per-kid)
 //   • starBalance               → stickerBalance() helper (lib/myworld.ts)
 //   • recentActivity            → activityLogs merged with mw_week_actions
 //
-// FHS-439 — beta review found Recent Activity never populated. Root cause:
+// FHS-439: beta review found Recent Activity never populated. Root cause:
 // `activity_logs` has no writer anywhere in the codebase (a dead table), and
 // mw_week_actions only covers My World financial moves (claim/save/invest/…).
-// Nothing a beta family actually does day to day — add a task, plan a meal,
-// add a calendar activity, tick a habit, get a reward approved — ever wrote
+// Nothing a beta family actually does day to day: add a task, plan a meal,
+// add a calendar activity, tick a habit, get a reward approved: ever wrote
 // a row either source could see. Fixed by merging in tasks, meal_templates,
 // events, habit_stickers, and approved redemption_requests directly.
 
@@ -82,7 +82,7 @@ export function isoDateInTimezone(now: Date, timezone: string | null | undefined
     const d = parts.find((p) => p.type === 'day')?.value;
     if (y && m && d) return `${y}-${m}-${d}`;
   } catch {
-    // Unknown timezone string — fall through to UTC.
+    // Unknown timezone string: fall through to UTC.
   }
   return now.toISOString().slice(0, 10);
 }
@@ -91,7 +91,7 @@ const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 export type WeekdayKey = (typeof WEEKDAY_KEYS)[number];
 
 // Full weekday name for a meal_templates.day_of_week key, used in the
-// Recent Activity feed (FHS-439) — e.g. "planned Biryani for Tuesday dinner".
+// Recent Activity feed (FHS-439): e.g. "planned Biryani for Tuesday dinner".
 const WEEKDAY_LABELS: Record<string, string> = {
   sun: 'Sunday',
   mon: 'Monday',
@@ -132,7 +132,7 @@ export function deriveGreetingName(email: string): string {
 // tracking weeks, newest first) in which the member completed at least one
 // habit. Completion data is stored per-week (week_actions), not per-day, so
 // the streak counts weeks, not days. An in-progress current week with no
-// completion yet does not break the streak — it is skipped, not counted.
+// completion yet does not break the streak: it is skipped, not counted.
 //
 // `weekIdsDesc` must already exclude future weeks and be ordered newest-first.
 export function computeWeeklyStreak(
@@ -213,7 +213,7 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
 
   const db = getDb();
 
-  // 1 — caller must be a member of this tenant.
+  // 1: caller must be a member of this tenant.
   const callerRows = await db
     .select({ id: members.id })
     .from(members)
@@ -223,14 +223,14 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
   }
 
-  // 2 — family roster.
+  // 2: family roster.
   const memberRows = await db
     .select({
       id: members.id,
       displayName: members.displayName,
       role: members.role,
       avatarEmoji: members.avatarEmoji,
-      // FHS-273 — null user_id = seat created but signup not completed.
+      // FHS-273: null user_id = seat created but signup not completed.
       userId: members.userId,
     })
     .from(members)
@@ -241,7 +241,7 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
   // Activity feed's actor field, FHS-439).
   const memberNameById = new Map(memberRows.map((m) => [m.id, m.displayName]));
 
-  // 3 — active habits count (family-level snapshot total, used by counts.habits
+  // 3: active habits count (family-level snapshot total, used by counts.habits
   // and by the Today's Snapshot). Per-kid habitsTotal is computed separately
   // in step 8 using habits.member_id.
   const habitRows = await db
@@ -250,13 +250,13 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     .where(and(eq(habits.tenantId, tenantId), isNull(habits.archivedAt)));
   const habitsTotal = habitRows.length;
 
-  // 4 — rewards count.
+  // 4: rewards count.
   const [rewardsCountRow] = await db
     .select({ n: count() })
     .from(rewards)
     .where(and(eq(rewards.tenantId, tenantId), isNull(rewards.archivedAt)));
 
-  // 5 — tenant timezone (anchors "today").
+  // 5: tenant timezone (anchors "today").
   const [tenantRow] = await db
     .select({ timezone: tenants.timezone })
     .from(tenants)
@@ -266,8 +266,8 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
   const now = new Date();
   const today = isoDateInTimezone(now, tenantRow?.timezone);
 
-  // 6 — tracking weeks (newest first) for streak computation (legacy weeks table
-  // still drives the streak calendar — the streak logic references family week
+  // 6: tracking weeks (newest first) for streak computation (legacy weeks table
+  // still drives the streak calendar: the streak logic references family week
   // boundaries, not per-kid mw_weeks).
   const weekRows = await db
     .select({ id: weeks.id, startDate: weeks.startDate, endDate: weeks.endDate })
@@ -278,10 +278,10 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
   // Only weeks that have already started can contribute to a streak.
   const startedWeekIdsDesc = weekRows.filter((w) => w.startDate <= today).map((w) => w.id);
 
-  // 7 — tasks (pending per member + done-today family count + the
+  // 7: tasks (pending per member + done-today family count + the
   // latest pending title for the adult card's status box, FHS-273).
   // `id` is also used to derive Recent Activity "added"/"completed" entries
-  // (FHS-439) — re-uses this same query rather than a separate round-trip.
+  // (FHS-439): re-uses this same query rather than a separate round-trip.
   const taskRows = await db
     .select({
       id: tasks.id,
@@ -294,14 +294,14 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     .where(eq(tasks.tenantId, tenantId))
     .orderBy(desc(tasks.createdAt));
 
-  // 8 — savings goals.
+  // 8: savings goals.
   const savingsRows = await db
     .select({ id: savings.id, name: savings.name, targetAmount: savings.targetAmount })
     .from(savings)
     .where(and(eq(savings.tenantId, tenantId), isNull(savings.archivedAt)))
     .orderBy(asc(savings.createdAt));
 
-  // 9 — goal transactions (deposits minus withdrawals = progress).
+  // 9: goal transactions (deposits minus withdrawals = progress).
   const txRows = await db
     .select({
       savingsId: savingsTransactions.savingsId,
@@ -311,10 +311,10 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     .from(savingsTransactions)
     .where(eq(savingsTransactions.tenantId, tenantId));
 
-  // 10 — Recent Activity feed sources, in ONE round-trip (FHS-463).
+  // 10: Recent Activity feed sources, in ONE round-trip (FHS-463).
   //
   // The card merges six append-only sources (legacy activity_logs, My World
-  // week actions, and — FHS-439 — meals / calendar events / habit stickers /
+  // week actions, and (FHS-439) meals / calendar events / habit stickers /
   // approved reward requests). Each was previously its own SELECT ... ORDER BY
   // <ts> DESC LIMIT 5 round-trip; on the request-pinned single pg connection
   // those ran strictly serially. They're combined here into one UNION ALL so
@@ -480,7 +480,7 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
 
   // Split the union back into the same per-source row shapes the JS merge
   // below already consumes. Postgres returns text/uuid as string, integer as
-  // number, timestamptz as Date — exactly what the merge expects. Order is
+  // number, timestamptz as Date: exactly what the merge expects. Order is
   // irrelevant here: the merge re-sorts every candidate.
   type ActivityFeedRow = {
     src: string;
@@ -559,7 +559,7 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
       createdAt: r.createdAt,
     }));
 
-  // 12 — main meals (breakfast/lunch/dinner) planned for today. DISTINCT
+  // 12: main meals (breakfast/lunch/dinner) planned for today. DISTINCT
   // slots, not rows: FHS-264 lets a slot hold a whole-family meal plus
   // per-member meals. Snacks are excluded so the Today's Snapshot reads
   // "X/3" against the three main meals (FHS-263 exact-match).
@@ -582,7 +582,7 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     .filter((m) => m.role === 'child' || m.role === 'teen')
     .map((m) => m.id);
 
-  // 13 — per-kid habitsTotal: count active habits per child via habits.member_id.
+  // 13: per-kid habitsTotal: count active habits per child via habits.member_id.
   const kidHabitsTotalMap = new Map<string, number>();
   if (kidMemberIds.length > 0) {
     const kidHabitRows = await db
@@ -603,7 +603,7 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     }
   }
 
-  // 14 — per-kid current mw_week (earliest non-finalized).
+  // 14: per-kid current mw_week (earliest non-finalized).
   const kidCurrentWeekMap = new Map<string, string>(); // memberId → mw_weeks.id
   if (kidMemberIds.length > 0) {
     const kidOpenWeeks = await db
@@ -617,7 +617,7 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
         ),
       )
       .orderBy(asc(mwWeeks.year), asc(mwWeeks.weekNumber));
-    // We want the EARLIEST open week per kid — collect first-seen per memberId.
+    // We want the EARLIEST open week per kid: collect first-seen per memberId.
     for (const row of kidOpenWeeks) {
       if (!kidCurrentWeekMap.has(row.memberId)) {
         kidCurrentWeekMap.set(row.memberId, row.weekId);
@@ -625,7 +625,7 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     }
   }
 
-  // 15 — per-kid habitsDone: distinct habit_ids with a sticker in their current week.
+  // 15: per-kid habitsDone: distinct habit_ids with a sticker in their current week.
   const kidHabitsDoneMap = new Map<string, number>(); // memberId → count
   if (kidCurrentWeekMap.size > 0) {
     const currentWeekIds = Array.from(new Set(kidCurrentWeekMap.values()));
@@ -649,8 +649,8 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     }
   }
 
-  // 16 — per-kid star balance (unallocated stickers + saved stickers +
-  // cash-as-stickers). FHS-463 — batched into a fixed two queries via
+  // 16: per-kid star balance (unallocated stickers + saved stickers +
+  // cash-as-stickers). FHS-463: batched into a fixed two queries via
   // stickerBalances() instead of the old 2×(kids) serial fan-out; the
   // per-kid value is identical to the previous stickerBalance() call.
   const starBalanceByMember =
@@ -677,7 +677,7 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
       tasksDoneToday += 1;
     }
   }
-  // FHS-263 — "Tasks Done X/Y" denominator: tasks done today plus all
+  // FHS-263: "Tasks Done X/Y" denominator: tasks done today plus all
   // still-open tasks (the actionable set today).
   let tasksOpen = 0;
   for (const n of tasksPendingByMember.values()) tasksOpen += n;
@@ -688,17 +688,17 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
   // For streak computation, a kid's "completed week" is any legacy week
   // where they had a habit_stickers row. Since the streak calendar uses
   // the legacy `weeks` table, we derive completedWeeksByMember from
-  // habitStickers joined to mw_weeks.startDate vs weeks.startDate — but
+  // habitStickers joined to mw_weeks.startDate vs weeks.startDate: but
   // this would be complex cross-table. The streak stays on the legacy
   // weekActions-derived path for now; kids with no weekActions will simply
   // have streak=0. (Streak refresh from My World is a separate ticket.)
-  // completedWeeksByMember stays an empty Map — all kids start at streak=0
+  // completedWeeksByMember stays an empty Map: all kids start at streak=0
   // until a dedicated streak-from-stickers query is added.
   const completedWeeksByMember = new Map<string, Set<string>>();
 
   const responseMembers: DashboardMember[] = memberRows.map((m) => {
     const isKid = m.role === 'child' || m.role === 'teen';
-    // FHS-306 — kids: use My World sources; adults: habit stats not applicable.
+    // FHS-306: kids: use My World sources; adults: habit stats not applicable.
     const habitsDone = isKid ? (kidHabitsDoneMap.get(m.id) ?? 0) : 0;
     const memberHabitsTotal = isKid ? (kidHabitsTotalMap.get(m.id) ?? 0) : 0;
     const streak = computeWeeklyStreak(
@@ -707,10 +707,10 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
       completedWeeksByMember.get(m.id) ?? new Set(),
     );
     const tasksPending = tasksPendingByMember.get(m.id) ?? 0;
-    // FHS-273 — parents don't have habits, they have tasks: their status
+    // FHS-273: parents don't have habits, they have tasks: their status
     // line is the newest open task's title (or 'All done'). Kids keep the
     // habit-aware derivation.
-    // Kids log in by PIN, never email signup — pending only applies to
+    // Kids log in by PIN, never email signup: pending only applies to
     // grown-up seats (incl. guests) without a linked login.
     const pendingSignup = !isKid && m.userId === null;
     const statusText = isKid
@@ -748,7 +748,7 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
     target: s.targetAmount === null ? null : Number(s.targetAmount),
   }));
 
-  // FHS-306 Fix 3 / FHS-439 — merge every source that can produce a Recent
+  // FHS-306 Fix 3 / FHS-439: merge every source that can produce a Recent
   // Activity entry, sort newest-first, take the top 5. activityLogs and
   // mw_week_actions rarely fire day-to-day (see the FHS-439 note at the top
   // of this file); tasks/meals/events/stickers/redemptions are what a real
@@ -769,7 +769,7 @@ export const dashboardRouter = new Hono().get('/today', async (c) => {
   }));
 
   // Tasks: one row can produce an "added" moment and, separately, a
-  // "completed" moment — same task id, so each gets a `:created` /
+  // "completed" moment: same task id, so each gets a `:created` /
   // `:completed` suffix to stay unique (dashboardActivitySchema's `id` is a
   // plain string, not a uuid, for exactly this reason).
   const taskAddedActivities: RawActivity[] = taskRows.map((t) => ({

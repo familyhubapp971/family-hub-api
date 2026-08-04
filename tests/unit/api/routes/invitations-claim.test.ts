@@ -5,7 +5,7 @@ import { invitationClaimRouter } from '../../../../apps/api/src/routes/invitatio
 import { members, pendingInvitations } from '../../../../apps/api/src/db/schema.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-275 — POST /api/invitations/claim. The invited parent signs in
+// FHS-275: POST /api/invitations/claim. The invited parent signs in
 // for the first time; pending invitations addressed to their email
 // link their login to the wizard-created member seat.
 
@@ -79,7 +79,7 @@ beforeEach(() => {
   dbMock.execute.mockReset();
 });
 
-describe('FHS-275 — POST /api/invitations/claim', () => {
+describe('FHS-275: POST /api/invitations/claim', () => {
   it('claims a linked seat: sets user_id, flips status, returns the slug', async () => {
     const { app, updatedTables } = buildApp({
       invites: [{ id: INVITE_ID, tenant_id: TENANT_ID, member_id: MEMBER_ID }],

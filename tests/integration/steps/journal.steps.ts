@@ -281,7 +281,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   // ─── Scenario: tenant isolation ─────────────────────────────────────────────
 
   Scenario(
-    "Tenant isolation — another tenant's entries never appear",
+    "Tenant isolation: another tenant's entries never appear",
     ({ Given, And, When, Then }) => {
       Given(
         'a second journal tenant {string} exists with the caller as an admin member',

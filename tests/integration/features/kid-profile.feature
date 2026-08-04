@@ -1,7 +1,7 @@
 Feature: Kid profile for the dashboard header
 
   A logged-in kid's dashboard header shows their own name, avatar, and banked
-  stars/cash — scoped to their own member from the verified kid token (FHS-362).
+  stars/cash: scoped to their own member from the verified kid token (FHS-362).
 
   Background:
     Given a family with kids "Iman" (12 stars, 5.00 cash, avatar) and "Yusuf" (0 stars)

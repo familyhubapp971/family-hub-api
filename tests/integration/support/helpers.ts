@@ -15,7 +15,7 @@ export {
 export { getTestDb, closeTestDb } from './db.js';
 
 // Per-test transaction wrapper. Begin a tx in beforeEach, roll back in
-// afterEach — preserves sequences within a test and avoids the cost of
+// afterEach: preserves sequences within a test and avoids the cost of
 // truncating tables every spec. Once Sprint 1 (FHS-1) lands tables, the
 // pattern is:
 //

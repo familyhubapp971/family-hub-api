@@ -70,7 +70,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   let app: Hono;
   let token: string;
   const tenantIds: Record<string, string> = {};
-  // FHS-264 — member ids by display name, for per-member meal scenarios.
+  // FHS-264: member ids by display name, for per-member meal scenarios.
   const memberIds: Record<string, string> = {};
 
   Background(({ Given, And }) => {
@@ -360,7 +360,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   });
 
-  Scenario('Tenant isolation — meals never leak across tenants', ({ Given, And, When, Then }) => {
+  Scenario('Tenant isolation: meals never leak across tenants', ({ Given, And, When, Then }) => {
     let res: Response;
     let body: MealsResponse;
 

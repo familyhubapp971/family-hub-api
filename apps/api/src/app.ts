@@ -56,7 +56,7 @@ import { captureException, captureMessage } from './sentry.js';
 
 const log = createLogger('app');
 
-// FHS-351 — /api paths that legitimately run without a resolved tenant (pre-
+// FHS-351: /api paths that legitimately run without a resolved tenant (pre-
 // tenant signup, the user's own /me, kid routes scoped by the kid JWT, and the
 // cross-tenant invite claim). The RLS observability warning skips these.
 const TENANT_OPTIONAL_API_PREFIXES = [
@@ -70,7 +70,7 @@ function isTenantOptionalPath(path: string): boolean {
   return TENANT_OPTIONAL_API_PREFIXES.some((p) => path.startsWith(p));
 }
 
-// FHS-445 — the public calendar feed carries its bearer credential IN the URL
+// FHS-445: the public calendar feed carries its bearer credential IN the URL
 // path (/api/public/calendar/<tenantId>.<sig>.ics). That secret must never
 // reach logs or Sentry, so redact everything after the prefix before anything
 // records the path. (logger.ts redaction only strips named fields, not a secret
@@ -81,10 +81,10 @@ function redactPath(path: string): string {
 }
 
 export interface BuildAppOptions {
-  /** Test hook — passed straight through to authMiddleware. */
+  /** Test hook: passed straight through to authMiddleware. */
   auth?: AuthMiddlewareOptions;
   /**
-   * Test hook — passed to resolveTenant. Production wires
+   * Test hook: passed to resolveTenant. Production wires
    * `lookupTenantId` to a real Drizzle query against the lazy DB pool.
    * Tests inject a stub so they don't need a live Postgres.
    */
@@ -94,9 +94,9 @@ export interface BuildAppOptions {
 export function buildApp(opts: BuildAppOptions = {}) {
   const app = new Hono();
 
-  // FHS-356 — API docs, mounted FIRST so they bypass auth/tenant middleware and
+  // FHS-356: API docs, mounted FIRST so they bypass auth/tenant middleware and
   // the no-script CSP (Swagger UI needs to run JS). The spec is built lazily on
-  // first request — by then every route below is mounted, so it covers them all.
+  // first request: by then every route below is mounted, so it covers them all.
   if (config.API_DOCS_ENABLED) {
     let cachedSpec: ReturnType<typeof buildOpenApiSpec> | null = null;
     app.get('/openapi.json', (c) => {
@@ -144,7 +144,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
 
   // Auth runs after request-context (so the 401 log line carries the
   // request id) but before any tenant-context resolution that keys off
-  // the authenticated user. /health and /hello are public — handled
+  // the authenticated user. /health and /hello are public: handled
   // inside authMiddleware via PUBLIC_PATH_PREFIXES.
   // Default production wiring: bind the users-mirror sync to the lazy
   // DB pool. Tests pass opts.auth.userMirrorSync to inject a stub.
@@ -152,7 +152,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
     userMirrorSync: (claims) => getOrCreateUser(getDb(), claims),
     ...(opts.auth ?? {}),
   };
-  // FHS-257 — reject a kid (HS256) token presented to a parent route with
+  // FHS-257: reject a kid (HS256) token presented to a parent route with
   // an explicit 403 KID_ON_PARENT_ROUTE, before the parent ES256 auth
   // would 401 it. Skips /api/kid (where kid tokens belong) internally.
   app.use('*', rejectKidTokens);
@@ -168,7 +168,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   };
   app.use('*', resolveTenant(resolveTenantOpts));
 
-  // FHS-345 — from here on, /api/* handlers run with a dedicated pooled DB
+  // FHS-345: from here on, /api/* handlers run with a dedicated pooled DB
   // connection bound via AsyncLocalStorage (getDb() returns it). Mounted
   // after tenant resolution and scoped to /api/* so /health + /hello don't
   // needlessly check out a connection. FHS-346 pins the tenant GUC on it.
@@ -194,7 +194,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
       },
       'request',
     );
-    // FHS-351 — RLS observability. An authenticated /api/* request that ran with
+    // FHS-351: RLS observability. An authenticated /api/* request that ran with
     // NO tenant context, outside the tenant-optional set, is a signal that RLS
     // will fail closed (zero rows) once enforced. Surface it loudly (log +
     // Sentry) so a missing tenant shows up as a debuggable warning, not a silent
@@ -226,16 +226,16 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/public/slug-available', slugAvailableRouter);
   app.route('/api/public/kid-members', publicKidMembersRouter);
   app.route('/api/public/feedback', publicFeedbackRouter);
-  // FHS-445 — public calendar ICS feed (no auth; signed token in the URL).
+  // FHS-445: public calendar ICS feed (no auth; signed token in the URL).
   app.route('/api/public/calendar', publicCalendarRouter);
   app.route('/api/auth/kid-pin', kidPinRouter);
-  // FHS-257 — kid-scoped routes; skip parent auth (see PUBLIC_PATH_PREFIXES)
+  // FHS-257: kid-scoped routes; skip parent auth (see PUBLIC_PATH_PREFIXES)
   // and verify the HS256 kid JWT inside the router instead.
   app.route('/api/kid', kidRouter);
-  // FHS-275 — claim must mount BEFORE the generic router so POST
+  // FHS-275: claim must mount BEFORE the generic router so POST
   // /api/invitations/claim doesn't fall through to POST /api/invitations.
   app.route('/api/invitations/claim', invitationClaimRouter);
-  // FHS-276 — resend mounts on the same base path; its ':id/resend'
+  // FHS-276: resend mounts on the same base path; its ':id/resend'
   // route shape doesn't collide with the create/list router.
   app.route('/api/invitations', invitationResendRouter);
   app.route('/api/invitations', invitationsRouter);

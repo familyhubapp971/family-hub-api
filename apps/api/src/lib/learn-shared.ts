@@ -1,4 +1,4 @@
-// FHS-382 — Shared Learn schemas + helpers.
+// FHS-382: Shared Learn schemas + helpers.
 //
 // Extracted from routes/learn.ts so kid.ts and registry.ts can import
 // them without pulling in the (now-deleted) parent /api/learn router.
@@ -15,7 +15,7 @@ import type { Database } from '../db/client.js';
 
 export const difficultySchema = z.enum(['easy', 'medium', 'hard']);
 
-// FHS-371 — Logic sub-topic filter.
+// FHS-371: Logic sub-topic filter.
 export const subtopicSchema = z.enum(
   LOGIC_SUBTOPICS.map((s) => s.slug) as [string, ...string[]],
 ) as z.ZodEnum<[LogicSubtopic, ...LogicSubtopic[]]>;

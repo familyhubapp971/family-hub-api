@@ -12,7 +12,7 @@ import {
   quoteIndexForDate,
 } from '@familyhub/shared';
 
-// FHS-270 — per-day journal API.
+// FHS-270: per-day journal API.
 //
 // One row per (tenant, member, calendar day), upserted via PUT /.
 // Auth helpers are kept from the original: loadCaller, canManage,
@@ -23,7 +23,7 @@ import {
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // A YYYY-MM-DD string that is also a REAL calendar date (rejects 2026-02-30,
-// 2026-13-01) — the regex alone would let those through to Postgres and 500.
+// 2026-13-01): the regex alone would let those through to Postgres and 500.
 export function isValidCalendarDate(s: string): boolean {
   if (!DATE_RE.test(s)) return false;
   const [y, m, d] = s.split('-').map((n) => Number.parseInt(n, 10));
@@ -137,7 +137,7 @@ export function serializeEntry(
 
 export const journalRouter = new Hono()
 
-  // GET /content — static data; auth + tenant required but no member scope.
+  // GET /content: static data; auth + tenant required but no member scope.
   .get('/content', async (c) => {
     getAuthenticatedUser(c);
     const userRow = c.get('userRow');
@@ -155,7 +155,7 @@ export const journalRouter = new Hono()
     );
   })
 
-  // GET /earliest?memberId= — oldest entryDate for back-nav lower bound.
+  // GET /earliest?memberId=: oldest entryDate for back-nav lower bound.
   .get('/earliest', async (c) => {
     getAuthenticatedUser(c);
     const userRow = c.get('userRow');
@@ -194,7 +194,7 @@ export const journalRouter = new Hono()
     return c.json(journalEarliestResponseSchema.parse({ earliestDate }));
   })
 
-  // GET /entries?memberId= — all entries newest-first (Past Entries view).
+  // GET /entries?memberId=: all entries newest-first (Past Entries view).
   .get('/entries', async (c) => {
     getAuthenticatedUser(c);
     const userRow = c.get('userRow');
@@ -233,7 +233,7 @@ export const journalRouter = new Hono()
     return c.json(journalEntriesResponseSchema.parse({ entries: rows.map(serializeEntry) }));
   })
 
-  // GET /?memberId=&date=YYYY-MM-DD — entry for a specific day (or null) + quoteIndex.
+  // GET /?memberId=&date=YYYY-MM-DD: entry for a specific day (or null) + quoteIndex.
   .get('/', async (c) => {
     getAuthenticatedUser(c);
     const userRow = c.get('userRow');
@@ -291,7 +291,7 @@ export const journalRouter = new Hono()
     );
   })
 
-  // PUT / — upsert entry for (tenantId, memberId, entryDate).
+  // PUT /: upsert entry for (tenantId, memberId, entryDate).
   .put('/', async (c) => {
     getAuthenticatedUser(c);
     const userRow = c.get('userRow');

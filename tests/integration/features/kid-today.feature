@@ -1,6 +1,6 @@
 Feature: GET /api/kid/today (FHS-355)
 
-  A logged-in kid sees their OWN active habits — not another member's, and not
+  A logged-in kid sees their OWN active habits: not another member's, and not
   archived ones.
 
   Background:

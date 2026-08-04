@@ -81,7 +81,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   let lastActions: { status: number; body: Record<string, unknown> };
   let lastFinalize: { status: number; body: Record<string, unknown> };
 
-  // Helpers —————————————————————————————————————————————————————————————————
+  // Helpers -----------------------------------------------------------------
 
   function headers(slug: string, forUserId = USER_ID) {
     const t = forUserId === GUEST_USER_ID ? guestToken : token;
@@ -196,7 +196,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   }
 
   async function seedHabit(slug: string, name: string, memberName: string, isBonus: boolean) {
-    // FHS-512 — stickerValue comes from `boost` now; set it explicitly since
+    // FHS-512: stickerValue comes from `boost` now; set it explicitly since
     // this direct DB insert bypasses the API's isBonus→boost derivation.
     const [row] = await db
       .insert(habits)
@@ -211,7 +211,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     habitIds[name] = row!.id;
   }
 
-  // Background ——————————————————————————————————————————————————————————————
+  // Background --------------------------------------------------------------
 
   Background(({ Given, And }) => {
     Given('the test Postgres has clean admin-panel tables', async () => {
@@ -291,7 +291,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // Scenario: Settings GET returns an empty map ————————————————————————————
+  // Scenario: Settings GET returns an empty map ----------------------------
 
   Scenario('Settings GET returns an empty map for a fresh tenant', ({ When, Then, And }) => {
     When('the caller fetches settings for tenant {string}', async (_c, slug: string) => {
@@ -305,7 +305,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       expect(lastSettings.status).toBe(n),
     );
     And('the settings map is empty', () => {
-      // FHS-441 — currency is always present (defaults to USD), so
+      // FHS-441: currency is always present (defaults to USD), so
       // "empty" means no custom app_settings keys have been saved yet.
       const { currency, ...customKeys } = lastSettings.body as Record<string, unknown>;
       expect(Object.keys(customKeys)).toHaveLength(0);
@@ -313,7 +313,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   });
 
-  // Scenario: Settings PUT round-trip —————————————————————————————————————
+  // Scenario: Settings PUT round-trip -------------------------------------
 
   Scenario('Settings PUT round-trip stores and retrieves a value', ({ When, Then, And }) => {
     When(
@@ -345,7 +345,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   });
 
-  // Scenario: Settings are tenant-scoped ——————————————————————————————————
+  // Scenario: Settings are tenant-scoped ----------------------------------
 
   Scenario(
     'Settings PUT is tenant-scoped (other tenants do not see it)',
@@ -385,10 +385,10 @@ describeFeature(feature, ({ Background, Scenario }) => {
     },
   );
 
-  // Scenario: FHS-441 — currency PUT round-trips through tenants.currency ——
+  // Scenario: FHS-441: currency PUT round-trips through tenants.currency --
 
   Scenario(
-    'FHS-441 — currency PUT updates tenants.currency and GET reflects it',
+    'FHS-441: currency PUT updates tenants.currency and GET reflects it',
     ({ When, Then, And }) => {
       When(
         'the caller puts setting {string} to {string} for tenant {string}',
@@ -420,9 +420,9 @@ describeFeature(feature, ({ Background, Scenario }) => {
     },
   );
 
-  // Scenario: FHS-441 — invalid currency codes are rejected —————————————————
+  // Scenario: FHS-441: invalid currency codes are rejected -----------------
 
-  Scenario('FHS-441 — currency PUT rejects an invalid ISO code', ({ When, Then }) => {
+  Scenario('FHS-441: currency PUT rejects an invalid ISO code', ({ When, Then }) => {
     When(
       'the caller puts setting {string} to {string} for tenant {string}',
       async (_c, key: string, value: string, slug: string) => {
@@ -442,10 +442,10 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // Scenario: FHS-441 — currency is tenant-scoped ———————————————————————————
+  // Scenario: FHS-441: currency is tenant-scoped ---------------------------
 
   Scenario(
-    'FHS-441 — currency is tenant-scoped (other tenants keep their own)',
+    'FHS-441: currency is tenant-scoped (other tenants keep their own)',
     ({ Given, When, Then, And }) => {
       Given(
         'an admin-panel tenant {string} exists with the caller as an admin member',
@@ -480,7 +480,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     },
   );
 
-  // Scenario: Admin savings-set ———————————————————————————————————————————
+  // Scenario: Admin savings-set -------------------------------------------
 
   Scenario('Admin savings-set overwrites the balance', ({ Given, When, Then, And }) => {
     Given(
@@ -537,7 +537,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // Scenario: Week cash edit —————————————————————————————————————————————
+  // Scenario: Week cash edit ---------------------------------------------
 
   Scenario('Week cash edit persists carriedOverCash and retrievedCash', ({ When, Then, And }) => {
     When(
@@ -572,10 +572,10 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // Scenario: Reopen round-trip ———————————————————————————————————————————
+  // Scenario: Reopen round-trip -------------------------------------------
 
   Scenario(
-    'Reopen round-trips finalize — stickers reversed, investment restored',
+    'Reopen round-trips finalize: stickers reversed, investment restored',
     ({ Given, And, When, Then }) => {
       Given(
         'the caller places a sticker on {string} day {int} for {string}',
@@ -638,7 +638,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     },
   );
 
-  // Scenario: Reopen on open week returns 409 ——————————————————————————————
+  // Scenario: Reopen on open week returns 409 ------------------------------
 
   Scenario('Reopen on an already-open week returns 409', ({ When, Then }) => {
     When(
@@ -661,7 +661,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // Scenario: Repair ——————————————————————————————————————————————————————
+  // Scenario: Repair ------------------------------------------------------
 
   Scenario('Repair reverses leftover effects on an open week', ({ Given, And, When, Then }) => {
     Given(
@@ -676,7 +676,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
     And('the caller directly reopens the week without reversal', async () => {
       // Simulate a legacy reopen that only flipped is_finalized but didn't
-      // reverse sticker/savings effects — just flip the flag directly in DB.
+      // reverse sticker/savings effects: just flip the flag directly in DB.
       const [week] = await db
         .select({ id: mwWeeks.id })
         .from(mwWeeks)
@@ -712,7 +712,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // Scenario: Guest caller rejected —————————————————————————————————————
+  // Scenario: Guest caller rejected -------------------------------------
 
   Scenario('A child caller is rejected on savings admin-set', ({ Given, When, Then }) => {
     Given(
@@ -745,7 +745,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
-  // Scenario: Week actions GET ——————————————————————————————————————————
+  // Scenario: Week actions GET ------------------------------------------
 
   Scenario('Week actions GET returns actions newest first', ({ Given, And, When, Then }) => {
     Given(

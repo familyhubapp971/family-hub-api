@@ -6,7 +6,7 @@ import { events, members } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 import { expandWeekOccurrences } from '../lib/recurrence.js';
 
-// FHS-230 — GET + POST /api/events.
+// FHS-230: GET + POST /api/events.
 //
 // Backs the Calendar tab on /t/:slug/dashboard. Calendar is week-based:
 // GET takes ?weekStart=YYYY-MM-DD (a Monday) and returns every event
@@ -15,7 +15,7 @@ import { expandWeekOccurrences } from '../lib/recurrence.js';
 //
 // Read open to all members; create restricted to admin + adult.
 //
-// FHS-476 — weekly recurring activities. A series is ONE row (`date` is
+// FHS-476: weekly recurring activities. A series is ONE row (`date` is
 // its anchor / first occurrence); GET expands it into virtual per-week
 // occurrences via `expandWeekOccurrences` (apps/api/src/lib/recurrence.ts).
 // Edit/delete act on the whole series (see PUT/DELETE below).
@@ -35,15 +35,15 @@ export const eventItemSchema = z.object({
   title: z.string(),
   notes: z.string().nullable(),
   memberId: z.string().uuid().nullable(),
-  // FHS-265 — School/Home sub-tab + "where" + "what to wear".
+  // FHS-265: School/Home sub-tab + "where" + "what to wear".
   type: z.enum(eventTypeValues),
   location: z.string().nullable(),
   wear: z.string().nullable(),
-  // FHS-476 — weekly recurrence. recurrenceDays/recurrenceEndDate always
+  // FHS-476: weekly recurrence. recurrenceDays/recurrenceEndDate always
   // describe the series (same on every occurrence); isRecurring is true
   // for a virtual occurrence generated from a repeating series, and for
   // the series row itself when it repeats. `seriesStartDate` is the
-  // real, un-overwritten anchor date — always equal to `date` except on
+  // real, un-overwritten anchor date: always equal to `date` except on
   // a recurring occurrence that isn't the anchor day; a client editing
   // one of those must PUT `seriesStartDate` back as `date`, not the
   // occurrence's own `date`, or it will move the whole series.
@@ -75,7 +75,7 @@ export const createEventRequestSchema = z
     type: z.enum(eventTypeValues).default('home'),
     location: z.string().trim().max(120).nullish(),
     wear: z.string().trim().max(120).nullish(),
-    // FHS-476 — "Repeat weekly": the weekdays it repeats on (0=Sun..6=Sat,
+    // FHS-476: "Repeat weekly": the weekdays it repeats on (0=Sun..6=Sat,
     // deduped + sorted) and an optional end date. Omit/null both for a
     // normal one-off event.
     recurrenceDays: z.array(WEEKDAY).min(1).max(7).nullish(),
@@ -122,7 +122,7 @@ async function loadCallerMember(
 }
 
 // Add `days` calendar days to an ISO YYYY-MM-DD string. Anchors at UTC
-// so the math is always exactly `days * 24h` — no DST drift.
+// so the math is always exactly `days * 24h`: no DST drift.
 function addDays(iso: string, days: number): string {
   const [y, m, d] = iso.split('-').map((s) => Number.parseInt(s, 10));
   const dt = new Date(Date.UTC(y!, m! - 1, d!));
@@ -131,7 +131,7 @@ function addDays(iso: string, days: number): string {
 }
 
 // The series row itself (create/update response) isn't a computed
-// occurrence, so `isRecurring`/`seriesStartDate` aren't DB columns —
+// occurrence, so `isRecurring`/`seriesStartDate` aren't DB columns:
 // they're derived: `isRecurring` from whether the series repeats at
 // all, `seriesStartDate` is just the row's own `date` (it IS the anchor).
 function withIsRecurring<T extends { date: string; recurrenceDays: number[] | null }>(
@@ -177,7 +177,7 @@ export const eventsRouter = new Hono()
     const weekStart = parsed.data.weekStart;
     const weekEnd = addDays(weekStart, 6);
 
-    // FHS-476 — fetch every row that could contribute an occurrence to
+    // FHS-476: fetch every row that could contribute an occurrence to
     // this week: a plain one-off event whose own date is in the window,
     // OR a recurring series whose anchor is on/before the week ends and
     // which hasn't already ended before the week starts. Expansion into
@@ -274,7 +274,7 @@ export const eventsRouter = new Hono()
     }
 
     // If memberId is provided, confirm the member belongs to the same
-    // tenant — prevents an admin from assigning an event to a member
+    // tenant: prevents an admin from assigning an event to a member
     // in a different family by id-guessing.
     if (parsed.data.memberId) {
       const memberRows = await db

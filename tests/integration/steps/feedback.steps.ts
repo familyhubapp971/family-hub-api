@@ -181,7 +181,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   });
 
-  Scenario('Tenant isolation — tenant B cannot read tenant A feedback', ({ Given, When, Then }) => {
+  Scenario('Tenant isolation: tenant B cannot read tenant A feedback', ({ Given, When, Then }) => {
     Given(
       'a second feedback tenant {string} exists with the caller as an admin member',
       async (_ctx, slug: string) => {

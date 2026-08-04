@@ -1,5 +1,5 @@
 Feature: GET /api/public/kid-members/:slug (FHS-238)
-  Real Postgres on :5433 — verifies the avatar grid endpoint that
+  Real Postgres on :5433, verifies the avatar grid endpoint that
   feeds /t/:slug/kid-login. No auth required (the slug is the access
   boundary). Returns the family display name + every kid member that
   has a PIN set, sorted by display name.
@@ -32,7 +32,7 @@ Feature: GET /api/public/kid-members/:slug (FHS-238)
     Then the response status is 200
     And the family name is "Khan Family"
 
-  Scenario: Tenant isolation — kids in another tenant are never returned
+  Scenario: Tenant isolation: kids in another tenant are never returned
     Given the tenant "khan" named "Khan Family" has these members:
       | name | role  | pin  |
       | Iman | child | 1234 |

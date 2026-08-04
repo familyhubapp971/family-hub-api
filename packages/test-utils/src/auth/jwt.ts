@@ -15,9 +15,7 @@ export function mintTestJwt(claims: TestJwtClaims): string {
   // verifier rejects alg=none in prod, the minter shouldn't be callable
   // from a non-test bundle in the first place.
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error(
-      'mintTestJwt is test-only — set NODE_ENV=test or run via Vitest.',
-    );
+    throw new Error('mintTestJwt is test-only: set NODE_ENV=test or run via Vitest.');
   }
   // Plain JSON encoded as base64url. Not signed. The api accepts this
   // only when NODE_ENV === 'test' AND the route is behind the test-only
@@ -37,7 +35,7 @@ export function mintTestJwt(claims: TestJwtClaims): string {
 }
 
 function encodeBase64Url(input: string): string {
-  return Buffer.from(input).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+  return Buffer.from(input).toString('base64url');
 }
 
 function nowPlus(seconds: number): number {

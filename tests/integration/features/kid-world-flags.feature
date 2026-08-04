@@ -1,5 +1,5 @@
 Feature: Kid World Flags (FHS-373)
-  Real Postgres on :5433 — verifies the kid-scoped world flags endpoints.
+  Real Postgres on :5433, verifies the kid-scoped world flags endpoints.
   A kid's identity comes from the kid token, not a memberId parameter.
   These tests verify explore, learn-complete, and member isolation.
 
@@ -20,7 +20,7 @@ Feature: Kid World Flags (FHS-373)
     When "Amira" GETs /api/kid/world-flags
     Then the kid explored list has 1 code
 
-  Scenario: a kid only sees their own flags — not their sibling's
+  Scenario: a kid only sees their own flags: not their sibling's
     When "Amira" POSTs /api/kid/world-flags/explore with countryCode "JP"
     When "Zayd" GETs /api/kid/world-flags
     Then the kid explored list has 0 codes
@@ -39,7 +39,7 @@ Feature: Kid World Flags (FHS-373)
     When "Amira" GETs /api/kid/world-flags/learn
     Then the kid learn progress for "Europe" has 1 completed set
 
-  Scenario: a kid only sees their own learn progress — not their sibling's
+  Scenario: a kid only sees their own learn progress: not their sibling's
     When "Amira" POSTs /api/kid/world-flags/learn-complete with continent "Asia" chunkIndex 0
     When "Zayd" GETs /api/kid/world-flags/learn
     Then the kid learn progress is empty

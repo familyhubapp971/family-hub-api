@@ -9,20 +9,20 @@ import { seedTenantDefaults } from '../db/seed-tenant-defaults.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 import { createLogger } from '../logger.js';
 
-// FHS-37 — POST /api/onboarding/complete.
+// FHS-37: POST /api/onboarding/complete.
 //
 // Called by the FHS-36 OnboardingWizard on its final step. Atomic
 // commit of everything the wizard collected in local state:
-//   - tenant.timezone (IANA TZ string from the picker — FHS-38)
-//   - tenant.currency (ISO 4217 from the picker — FHS-39)
+//   - tenant.timezone (IANA TZ string from the picker: FHS-38)
+//   - tenant.currency (ISO 4217 from the picker: FHS-39)
 //   - one members row per family member added in step 2 (1–8 members,
 //     each with name + role + optional emoji; child rows may also carry
-//     an optional age — FHS-487)
+//     an optional age: FHS-487)
 //   - tenant.onboarding_completed = true (guards the route from being
 //     rendered a second time)
 //
 // Authorization: caller must be a member of the resolved tenant with
-// admin role. Onboarding is the founding-admin's job — secondary
+// admin role. Onboarding is the founding-admin's job: secondary
 // adults shouldn't be re-running it.
 //
 // Default seeding (habits, rewards, meals) is FHS-40's job and runs
@@ -30,7 +30,7 @@ import { createLogger } from '../logger.js';
 
 const log = createLogger('onboarding');
 
-// IANA TZ — loose validation. Anything matching the canonical
+// IANA TZ: loose validation. Anything matching the canonical
 // `Region/City` shape (with optional secondary segments) is accepted.
 // Real validation against Intl.supportedValuesOf('timeZone') happens
 // client-side; the backend just rejects obvious garbage.
@@ -40,7 +40,7 @@ const timezoneSchema = z
   .max(64)
   .regex(/^[A-Za-z][A-Za-z0-9_+\-/]*$/, 'invalid IANA timezone string');
 
-// ISO 4217 currency — three uppercase letters.
+// ISO 4217 currency: three uppercase letters.
 const currencySchema = z.string().regex(/^[A-Z]{3}$/, 'currency must be a 3-letter ISO 4217 code');
 
 // Subset of memberRole valid as a wizard-time selection. Admin is
@@ -54,9 +54,9 @@ const wizardMemberSchema = z
     displayName: z.string().min(1).max(80),
     role: wizardMemberRoleSchema,
     avatarEmoji: z.string().min(1).max(8).optional(),
-    // FHS-275 — optional invite email; adults only (kids use PIN login).
+    // FHS-275: optional invite email; adults only (kids use PIN login).
     email: z.string().trim().email().max(255).optional(),
-    // FHS-487 — optional age in years for kids (child or teen). Same bound as
+    // FHS-487: optional age in years for kids (child or teen). Same bound as
     // the Manage Members "Add a child" form (1–25). The UI only surfaces this
     // on kid rows; the API enforces that at insert time (see newMemberRows
     // below) so an age submitted for a grown-up role is dropped, not persisted.
@@ -71,12 +71,12 @@ export const completeOnboardingRequestSchema = z
   .object({
     timezone: timezoneSchema,
     currency: currencySchema,
-    // FHS-274 — the founder's own name. Renames the calling admin's member
+    // FHS-274: the founder's own name. Renames the calling admin's member
     // row so the wizard never inserts a duplicate person for them. Trimmed
     // BEFORE the min-length check so whitespace-only values 400 instead of
     // silently skipping the rename.
     yourName: z.string().trim().min(1).max(80).optional(),
-    // The OTHER family members (the founder is excluded — they already
+    // The OTHER family members (the founder is excluded: they already
     // exist as the admin row). A solo parent can finish with none.
     members: z.array(wizardMemberSchema).min(0).max(8),
   })
@@ -99,7 +99,7 @@ export const completeOnboardingResponseSchema = z.object({
     onboardingCompleted: z.literal(true),
   }),
   membersAdded: z.number().int().nonnegative(),
-  // FHS-275 — how many adult invites were emailed on Finish.
+  // FHS-275: how many adult invites were emailed on Finish.
   invitesSent: z.number().int().nonnegative(),
 });
 
@@ -144,7 +144,7 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
 
   // Authorization: only the founding admin (or any admin) finishes
   // onboarding. Adults could in principle, but we want a single
-  // source of truth — the same person who created the tenant.
+  // source of truth: the same person who created the tenant.
   const callerRows = await db
     .select({ id: members.id, role: members.role })
     .from(members)
@@ -173,7 +173,7 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
     );
   }
 
-  // FHS-275 — the founder can't invite themselves; their login is
+  // FHS-275: the founder can't invite themselves; their login is
   // already linked to the admin seat.
   if (
     parsed.data.members.some(
@@ -181,7 +181,7 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
     )
   ) {
     return c.json(
-      { error: 'invalid request', detail: "you can't invite your own email — that's you" },
+      { error: 'invalid request', detail: "you can't invite your own email: that's you" },
       400,
     );
   }
@@ -197,7 +197,7 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
   }
   if (current.onboardingCompleted) {
     // Read-only by design: a duplicate submit (tab refresh race) changes
-    // nothing — including yourName. Renames after onboarding belong to
+    // nothing: including yourName. Renames after onboarding belong to
     // the members page (FHS-276), not a replayed wizard call.
     return c.json(completeOnboardingResponseSchema.parse(project(current, 0, 0)), 200);
   }
@@ -213,7 +213,7 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
   let seedRewardsAdded = 0;
   try {
     await db.transaction(async (tx) => {
-      // FHS-274 — the founder IS the admin row created at family
+      // FHS-274: the founder IS the admin row created at family
       // creation; the wizard renames them rather than duplicating them.
       const yourName = parsed.data.yourName?.trim();
       if (yourName) {
@@ -228,7 +228,7 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
         displayName: m.displayName,
         role: m.role,
         avatarEmoji: m.avatarEmoji ?? null,
-        // FHS-487 — only kid rows (child/teen) persist an age; grown-up roles
+        // FHS-487: only kid rows (child/teen) persist an age; grown-up roles
         // always get null, even if a crafted request sends one.
         age: m.role === 'child' || m.role === 'teen' ? (m.age ?? null) : null,
       }));
@@ -260,7 +260,7 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
       if (!t) throw new Error('tenant update returned no row');
       updatedTenant = t;
 
-      // FHS-40 — seed starter habits + rewards (empty meal template
+      // FHS-40: seed starter habits + rewards (empty meal template
       // by design). Idempotency is upstream: this branch only runs
       // when onboarding_completed was false, so the seed never fires
       // twice for the same tenant.
@@ -283,7 +283,7 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
     throw new Error('onboarding transaction completed without setting updatedTenant');
   }
 
-  // FHS-275 — best-effort invite emails AFTER the commit: a failed email
+  // FHS-275: best-effort invite emails AFTER the commit: a failed email
   // must not roll back the family. Each invite is linked to its member
   // seat; the claim flow (POST /api/invitations/claim) sets user_id on
   // that seat at the invitee's first sign-in. Failures are marked
@@ -292,7 +292,7 @@ export const onboardingRouter = new Hono().post('/complete', async (c) => {
   const baseUrl = config.APP_BASE_URL;
   for (const target of inviteTargets) {
     if (!baseUrl) {
-      log.error({ tenantId }, 'APP_BASE_URL not configured — skipping onboarding invites');
+      log.error({ tenantId }, 'APP_BASE_URL not configured: skipping onboarding invites');
       break;
     }
     let inviteId: string | null = null;

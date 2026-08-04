@@ -1,4 +1,4 @@
-// FHS-395 — Server-authoritative Logic progress + certificate helpers.
+// FHS-395: Server-authoritative Logic progress + certificate helpers.
 //
 // Mirrors maths-progress.ts exactly but for game_type × difficulty combos
 // (5 game types × 3 difficulties = 15 possible certificates).
@@ -89,13 +89,13 @@ export async function getProgress(
 
 /**
  * Upsert progress row, incrementing correctCount by delta (usually +1) and
- * totalAttempts by attemptsDelta (always +1 — called for every answer).
+ * totalAttempts by attemptsDelta (always +1: called for every answer).
  *
  * FHS-401: totalAttempts tracks every submitted answer (correct or wrong)
  * so the Insights API can compute accuracy = correctCount / totalAttempts.
  *
  * Read-then-write increment: a concurrent request for the same kid+combo
- * could increment from the same base value. This race is acceptable — the
+ * could increment from the same base value. This race is acceptable: the
  * certificate threshold (10) is high enough that a missed increment only
  * delays the award by one extra correct answer. Using SELECT FOR UPDATE
  * would add lock contention on a hot path for marginal gain.
@@ -192,7 +192,7 @@ export interface AnswerResult {
  * 1. Grades the submitted answer against the question bank.
  * 2. On correct: increments mw_logic_progress.correct_count (upsert).
  * 3. When count reaches CERTIFICATE_THRESHOLD: awards mw_logic_certificates
- *    (idempotent — second correct answer after cert never re-awards).
+ *    (idempotent: second correct answer after cert never re-awards).
  * 4. Returns the full result including the correct answer and explanation.
  *
  * Throws if the questionId is not found in the bank (callers should treat as 400).
@@ -229,7 +229,7 @@ export async function gradeAndRecord(
       );
     }
   } else {
-    // FHS-401: wrong answer — increment totalAttempts (+1) but NOT correctCount.
+    // FHS-401: wrong answer: increment totalAttempts (+1) but NOT correctCount.
     // upsertProgress with delta=0, attemptsDelta=1 achieves this.
     comboCorrect = await upsertProgress(db, tenantId, memberId, gameType, difficulty, 0, 1);
   }

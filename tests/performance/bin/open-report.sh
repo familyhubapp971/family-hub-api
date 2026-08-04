@@ -16,7 +16,7 @@ if [ "$#" -ge 1 ]; then
   pattern="report-$1.html"
 fi
 
-# shellcheck disable=SC2012 — ls -t is fine here (report names have no newlines).
+# shellcheck disable=SC2012: ls -t is fine here (report names have no newlines).
 latest="$(ls -t "$REPORTS_DIR"/$pattern 2>/dev/null | head -1 || true)"
 
 if [ -z "${latest:-}" ]; then

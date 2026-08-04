@@ -1,5 +1,5 @@
 Feature: Per-day journal (FHS-270)
-  Real Postgres on :5433 — verifies the per-day journal upsert model.
+  Real Postgres on :5433, verifies the per-day journal upsert model.
   One entry per (member, date); PUT twice on the same day updates the row.
   All fields round-trip correctly. Tenant isolation holds.
 
@@ -25,7 +25,7 @@ Feature: Per-day journal (FHS-270)
     Then the GET by date for "Zara" in "jonesj" on "2026-06-14" returns all fields correctly
     And the GET by date response includes a quoteIndex number
 
-  Scenario: Tenant isolation — another tenant's entries never appear
+  Scenario: Tenant isolation: another tenant's entries never appear
     Given a second journal tenant "brownsj" exists with the caller as an admin member
     And the "brownsj" tenant has a child "Leo"
     And the caller PUTs a journal entry for "Leo" in "brownsj" on "2026-06-15" with mood "happy" and body "Private"

@@ -4,17 +4,17 @@ import { and, asc, eq, isNotNull } from 'drizzle-orm';
 import { getDb, pinRequestTenant } from '../db/client.js';
 import { members, tenants } from '../db/schema.js';
 
-// FHS-238 — GET /api/public/kid-members/:slug
+// FHS-238: GET /api/public/kid-members/:slug
 //
 // Reads the avatar grid the kid sees on the family iPad's /t/:slug/kid-login
 // page. Returns the family display name + every kid member that has a
 // PIN set, ordered by display name so the layout is stable across
 // requests.
 //
-// Auth NOT required — this is the data a kid would see by walking up
+// Auth NOT required: this is the data a kid would see by walking up
 // to the device. The slug is the access boundary; anyone who knows
 // the family's slug already has the same level of access. We
-// deliberately expose only display name + emoji + id — never email,
+// deliberately expose only display name + emoji + id: never email,
 // role, or PIN data. The kid-PIN endpoint (FHS-236) does the
 // constant-time check on submission, so listing the IDs here doesn't
 // leak anything an attacker couldn't already brute-force one slug at
@@ -48,7 +48,7 @@ export const publicKidMembersResponseSchema = z.object({
 export type PublicKidMembersResponse = z.infer<typeof publicKidMembersResponseSchema>;
 
 export const publicKidMembersRouter = new Hono().get('/:slug', async (c) => {
-  // Lowercase the slug before validating — iOS auto-capitalises the
+  // Lowercase the slug before validating: iOS auto-capitalises the
   // first character of pasted URLs in some apps (Notes, Mail), and a
   // kid following a "/t/Khan/kid-login" link should land on Khan's
   // family page, not a 404.
@@ -75,13 +75,13 @@ export const publicKidMembersRouter = new Hono().get('/:slug', async (c) => {
     return c.json({ error: 'family not found', errorCode: 'TENANT_NOT_FOUND' }, 404);
   }
 
-  // FHS-354 — pin the resolved tenant so the members read below passes RLS once
+  // FHS-354: pin the resolved tenant so the members read below passes RLS once
   // the app runs as app_runtime (this public route has no resolveTenant context;
   // the slug is the boundary).
   await pinRequestTenant(tenantRow.id);
 
   // Only kids with a PIN set are shown. A kid added by an adult who
-  // hasn't set their PIN yet shouldn't appear on the avatar grid —
+  // hasn't set their PIN yet shouldn't appear on the avatar grid:
   // tapping their face would always 401 and read as broken.
   const kids = await db
     .select({

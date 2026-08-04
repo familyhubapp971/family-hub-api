@@ -4,10 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { adminRouter } from '../../../../apps/api/src/routes/admin.js';
 import type { User } from '../../../../apps/api/src/db/schema.js';
 
-// FHS-343 — the Admin Panel settings endpoint is admin-only. GET is readable by
+// FHS-343: the Admin Panel settings endpoint is admin-only. GET is readable by
 // any member; PUT (mutating a setting) requires the admin role.
 //
-// FHS-441 — `currency` is a special key in this same map: GET merges
+// FHS-441: `currency` is a special key in this same map: GET merges
 // tenants.currency in; PUT writes straight to tenants.currency instead of
 // upserting an app_settings row.
 
@@ -31,7 +31,7 @@ const FIXED_USER: User = {
 };
 
 // A thenable that resolves to `rows` no matter where the builder chain stops
-// (mirrors the pattern used in dashboard.test.ts) — needed because GET
+// (mirrors the pattern used in dashboard.test.ts): needed because GET
 // /api/admin/settings awaits `.from().where()` directly (no `.limit()`),
 // while loadCaller() awaits `.from().where().limit()`.
 function chain(rows: unknown): unknown {
@@ -113,7 +113,7 @@ beforeEach(() => {
   dbMock.transaction.mockReset();
 });
 
-describe('FHS-343 — PUT /api/admin/settings/:key is admin-only', () => {
+describe('FHS-343: PUT /api/admin/settings/:key is admin-only', () => {
   it('403 when the caller is not a member', async () => {
     const res = await buildApp({ callerRole: null }).request(
       '/api/admin/settings/theme',
@@ -140,7 +140,7 @@ describe('FHS-343 — PUT /api/admin/settings/:key is admin-only', () => {
   });
 });
 
-describe('FHS-441 — GET /api/admin/settings merges in tenants.currency', () => {
+describe('FHS-441: GET /api/admin/settings merges in tenants.currency', () => {
   it('includes currency alongside the app_settings map', async () => {
     const app = buildApp({
       callerRole: 'admin',
@@ -174,7 +174,7 @@ describe('FHS-441 — GET /api/admin/settings merges in tenants.currency', () =>
   });
 });
 
-describe('FHS-441 — PUT /api/admin/settings/currency writes tenants.currency', () => {
+describe('FHS-441: PUT /api/admin/settings/currency writes tenants.currency', () => {
   it('403 ADMIN_ONLY for a normal user (adult)', async () => {
     const app = buildApp({ callerRole: 'adult' });
     const res = await app.request('/api/admin/settings/currency', put('GBP'));
@@ -182,7 +182,7 @@ describe('FHS-441 — PUT /api/admin/settings/currency writes tenants.currency',
     expect(dbMock.update).not.toHaveBeenCalled();
   });
 
-  it('200 for an admin — updates tenants.currency, not app_settings', async () => {
+  it('200 for an admin: updates tenants.currency, not app_settings', async () => {
     const app = buildApp({ callerRole: 'admin' });
     const res = await app.request('/api/admin/settings/currency', put('GBP'));
     expect(res.status).toBe(200);
@@ -193,7 +193,7 @@ describe('FHS-441 — PUT /api/admin/settings/currency writes tenants.currency',
   });
 
   it('400 for a lowercase or non-3-letter currency code', async () => {
-    // Fresh app per request — the select() mock is call-indexed per app
+    // Fresh app per request: the select() mock is call-indexed per app
     // instance (loadCaller is call #1), so reusing one app across two
     // requests would misread the second loadCaller call as settings data.
     const lowercase = await buildApp({ callerRole: 'admin' }).request(
@@ -210,7 +210,7 @@ describe('FHS-441 — PUT /api/admin/settings/currency writes tenants.currency',
   });
 });
 
-// FHS-435 — GDPR: export my data + delete my account.
+// FHS-435: GDPR: export my data + delete my account.
 
 const TENANT_ROW = {
   id: TENANT_ID,
@@ -245,7 +245,7 @@ function buildExportApp(callerRole: string | null) {
   return app;
 }
 
-describe('FHS-435 — GET /api/admin/export', () => {
+describe('FHS-435: GET /api/admin/export', () => {
   it('403 when the caller is not a tenant member', async () => {
     const res = await buildExportApp(null).request('/api/admin/export');
     expect(res.status).toBe(403);
@@ -258,7 +258,7 @@ describe('FHS-435 — GET /api/admin/export', () => {
     expect(dbMock.execute).not.toHaveBeenCalled();
   });
 
-  it('200 for an admin — sets a downloadable Content-Disposition header', async () => {
+  it('200 for an admin: sets a downloadable Content-Disposition header', async () => {
     const app = buildExportApp('admin');
     const res = await app.request('/api/admin/export');
     expect(res.status).toBe(200);
@@ -322,14 +322,14 @@ const postDelete = (confirm: string): RequestInit => ({
   body: JSON.stringify({ confirm }),
 });
 
-describe('FHS-435 — POST /api/admin/delete-account', () => {
+describe('FHS-435: POST /api/admin/delete-account', () => {
   it('403 when the caller is not a tenant member', async () => {
     const { app } = buildDeleteApp(null);
     const res = await app.request('/api/admin/delete-account', postDelete('The Khans'));
     expect(res.status).toBe(403);
   });
 
-  it('403 ADMIN_ONLY for a normal user (adult) — nothing is deleted', async () => {
+  it('403 ADMIN_ONLY for a normal user (adult): nothing is deleted', async () => {
     const { app, deleteWhere } = buildDeleteApp('adult');
     const res = await app.request('/api/admin/delete-account', postDelete('The Khans'));
     expect(res.status).toBe(403);
@@ -337,7 +337,7 @@ describe('FHS-435 — POST /api/admin/delete-account', () => {
     expect(deleteWhere).not.toHaveBeenCalled();
   });
 
-  it('400 CONFIRM_MISMATCH when the typed name does not match — nothing is deleted', async () => {
+  it('400 CONFIRM_MISMATCH when the typed name does not match: nothing is deleted', async () => {
     const { app, deleteWhere } = buildDeleteApp('admin');
     const res = await app.request('/api/admin/delete-account', postDelete('Wrong Family Name'));
     expect(res.status).toBe(400);

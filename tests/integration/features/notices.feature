@@ -1,5 +1,5 @@
 Feature: GET / POST / DELETE /api/notices (FHS-232)
-  Real Postgres on :5433 — verifies the noticeboard list ordering
+  Real Postgres on :5433, verifies the noticeboard list ordering
   (pinned first, then newest), POST role gate, DELETE role gate +
   not-found, and tenant isolation.
 
@@ -46,7 +46,7 @@ Feature: GET / POST / DELETE /api/notices (FHS-232)
     Then the PUT notice response status is 200
     And re-fetching /api/notices for tenant "khan" shows notice body "New body"
 
-  Scenario: Tenant isolation — another tenant's notices never appear
+  Scenario: Tenant isolation: another tenant's notices never appear
     Given a second tenant "smith" exists with the caller as an admin member
     And the "smith" tenant has a notice "Pasta party" posted at "2026-05-01T10:00:00.000Z"
     And separately the "khan" tenant has a notice "Family meeting" posted at "2026-05-02T10:00:00.000Z"

@@ -8,11 +8,11 @@ import {
   LOGIC_SUBTOPICS,
 } from '../../../../apps/api/src/lib/learn-questions.js';
 
-// FHS-283 — the lesson question bank: questions never leak their answer, and
+// FHS-283: the lesson question bank: questions never leak their answer, and
 // grading is correct.
-// FHS-371 — Logic sub-topics: all four present, filterable by subtopic.
+// FHS-371: Logic sub-topics: all four present, filterable by subtopic.
 
-describe('FHS-283 — learn question bank', () => {
+describe('FHS-283: learn question bank', () => {
   it('every lesson subject has questions at every difficulty', () => {
     for (const subject of LESSON_SUBJECTS) {
       for (const d of DIFFICULTIES) {
@@ -52,7 +52,7 @@ describe('FHS-283 — learn question bank', () => {
   });
 });
 
-describe('FHS-371 — Logic sub-topics', () => {
+describe('FHS-371: Logic sub-topics', () => {
   const SUBTOPIC_SLUGS = LOGIC_SUBTOPICS.map((s) => s.slug);
 
   it('LOGIC_SUBTOPICS exports all four slugs', () => {

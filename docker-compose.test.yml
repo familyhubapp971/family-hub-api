@@ -19,13 +19,13 @@ services:
       POSTGRES_USER: fh_test
       POSTGRES_PASSWORD: fh_test
     ports:
-      - "5433:5432"
+      - '5433:5432'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fh_test -d familyhub_test"]
+      test: ['CMD-SHELL', 'pg_isready -U fh_test -d familyhub_test']
       interval: 1s
       timeout: 5s
       retries: 30
     tmpfs:
-      # In-memory data directory — fast, ephemeral. Acceptable because
+      # In-memory data directory: fast, ephemeral. Acceptable because
       # the global-setup hook recreates the schema each run.
       - /var/lib/postgresql/data

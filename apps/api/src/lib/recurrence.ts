@@ -1,10 +1,10 @@
-// FHS-476 — weekly recurring calendar activities (expand-on-read).
+// FHS-476: weekly recurring calendar activities (expand-on-read).
 //
 // A recurring activity is stored as ONE row: `date` is the series
 // anchor (its first occurrence), `recurrenceDays` is the set of
 // weekdays (0=Sunday..6=Saturday) it repeats on, and `recurrenceEndDate`
 // is the optional last day it repeats (inclusive). No row is ever
-// written per occurrence — `GET /api/events` calls `expandWeekOccurrences`
+// written per occurrence: `GET /api/events` calls `expandWeekOccurrences`
 // to compute the virtual occurrences that fall inside the requested
 // week, on every read.
 //
@@ -47,13 +47,13 @@ export function weekdayOfIso(iso: string): number {
  *   weekday is in `recurrenceDays`, is on/after the series anchor
  *   `date`, and is on/before `recurrenceEndDate` (when set). Each
  *   occurrence carries the SAME fields as the source row except
- *   `date`, which becomes that occurrence's own date — so the anchor
+ *   `date`, which becomes that occurrence's own date, so the anchor
  *   day itself only renders when its own weekday is one of the chosen
  *   days (there's no special case for it; it's just one of the seven
  *   candidate days like any other).
  *
- * Every returned item also carries `seriesStartDate` — the original,
- * un-overwritten anchor date — so a caller editing a non-anchor
+ * Every returned item also carries `seriesStartDate`: the original,
+ * un-overwritten anchor date, so a caller editing a non-anchor
  * occurrence (e.g. the Thursday half of a Tue/Thu series) can PUT back
  * the real series `date` instead of silently moving the anchor to
  * whichever day happened to be clicked.

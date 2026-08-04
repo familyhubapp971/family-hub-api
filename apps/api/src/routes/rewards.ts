@@ -7,7 +7,7 @@ import { getAuthenticatedUser } from '../middleware/auth.js';
 import { loadCaller, isAdmin, memberInTenant } from '../lib/permissions.js';
 import { loadRewardsForMember, redeemReward } from '../lib/myworld.js';
 
-// FHS-268 / FHS-292 — GET /api/rewards, POST /api/rewards/:id/redeem.
+// FHS-268 / FHS-292: GET /api/rewards, POST /api/rewards/:id/redeem.
 //
 // The kid Rewards Shop. GET returns the family's (non-archived) rewards
 // plus the chosen member's sticker balance; POST spends stickers on a
@@ -16,12 +16,12 @@ import { loadRewardsForMember, redeemReward } from '../lib/myworld.js';
 // shared with the habits route via lib/myworld.ts. Accessed by a parent
 // viewing a child's world; memberId is validated against the tenant.
 //
-// FHS-483 — POST/PATCH/DELETE /api/rewards[/:id]: parents manage the reward
+// FHS-483: POST/PATCH/DELETE /api/rewards[/:id]: parents manage the reward
 // shop's catalogue (create/edit/archive a reward). Admin-only, tenant-scoped,
 // same guard chain as apps/api/src/routes/admin.ts: authenticated user →
 // tenant context (400 if missing) → caller is a tenant member (403) → caller
-// is admin (403). DELETE is a SOFT delete (sets archived_at) — never a hard
-// DELETE — because reward_redemptions and redemption_requests both hold a
+// is admin (403). DELETE is a SOFT delete (sets archived_at): never a hard
+// DELETE: because reward_redemptions and redemption_requests both hold a
 // foreign key to a reward's id; hard-deleting would cascade-erase a family's
 // redemption history. Archived rewards already drop out of the kid shop via
 // loadRewardsForMember's `isNull(archivedAt)` filter.
@@ -44,7 +44,7 @@ export const listRewardsResponseSchema = z.object({
 const memberQuerySchema = z.object({ memberId: z.string().uuid() });
 const redeemRequestSchema = z.object({ memberId: z.string().uuid() });
 
-// FHS-483 — create/update payloads for the parent-managed reward catalogue.
+// FHS-483: create/update payloads for the parent-managed reward catalogue.
 // description/icon use `.nullish()` so a PATCH can explicitly clear a field
 // by sending `null`, while an omitted key leaves it untouched.
 export const createRewardRequestSchema = z.object({
@@ -100,7 +100,7 @@ async function callerIsMember(
   return rows.length > 0;
 }
 
-// FHS-483 — guard chain for the admin-only reward-management endpoints.
+// FHS-483: guard chain for the admin-only reward-management endpoints.
 // Mirrors apps/api/src/routes/admin.ts's guardTenant + isAdmin check
 // EXACTLY: authenticated user → tenant context (400 TENANT_REQUIRED) →
 // caller is a tenant member (403) → caller is admin (403 ADMIN_ONLY).
@@ -197,7 +197,7 @@ export const rewardsRouter = new Hono()
     if (!(await memberInTenant(db, tenantId, parsed.data.memberId))) {
       return c.json({ error: 'not found', detail: 'member not found in this tenant' }, 404);
     }
-    // Redeem (advisory-locked spend) lives in lib/myworld.ts — shared with the
+    // Redeem (advisory-locked spend) lives in lib/myworld.ts: shared with the
     // kid route so the money logic has exactly one home.
     const outcome = await redeemReward(db, {
       tenantId,
@@ -219,7 +219,7 @@ export const rewardsRouter = new Hono()
     }
     return c.json({ stickerBalance: outcome.balance, redemptionId: outcome.redemptionId }, 201);
   })
-  // FHS-483 — create a reward. Admin-only.
+  // FHS-483: create a reward. Admin-only.
   .post('/', async (c) => {
     const ctx = await guardAdmin(c);
     if ('res' in ctx) return ctx.res;
@@ -239,7 +239,7 @@ export const rewardsRouter = new Hono()
       .returning();
     return c.json(rewardItemSchema.parse(toRewardItem(row!)), 201);
   })
-  // FHS-483 — partial update of a reward's name/description/stickerCost/icon.
+  // FHS-483: partial update of a reward's name/description/stickerCost/icon.
   // Admin-only; scoped to the caller's tenant so a reward id from another
   // family can never be edited (defence-in-depth on top of RLS).
   .patch('/:id', async (c) => {
@@ -266,7 +266,7 @@ export const rewardsRouter = new Hono()
     if (!row) return c.json({ error: 'not found', detail: 'reward not found in this tenant' }, 404);
     return c.json(rewardItemSchema.parse(toRewardItem(row)));
   })
-  // FHS-483 — archive (soft-delete) a reward. Admin-only, tenant-scoped, 404
+  // FHS-483: archive (soft-delete) a reward. Admin-only, tenant-scoped, 404
   // if the reward isn't in the caller's tenant or is already archived. See
   // the top-of-file note on why this never hard-deletes the row.
   .delete('/:id', async (c) => {

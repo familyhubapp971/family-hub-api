@@ -1,5 +1,5 @@
-Feature: My World — Close Week / finalize (FHS-297)
-  Real Postgres on :5433 — verifies finalizing a week: unallocated stickers
+Feature: My World: Close Week / finalize (FHS-297)
+  Real Postgres on :5433, verifies finalizing a week: unallocated stickers
   auto-save into savings, the next ISO week is created, investments resolve
   or continue, and everything is scoped per (tenant, member).
 

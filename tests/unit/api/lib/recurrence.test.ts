@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { expandWeekOccurrences, weekdayOfIso } from '../../../../apps/api/src/lib/recurrence.js';
 
-// FHS-476 — weekly recurring calendar activities (expand-on-read).
+// FHS-476: weekly recurring calendar activities (expand-on-read).
 //
 // `expandWeekOccurrences` is the pure function GET /api/events uses to
 // turn one series row into the virtual occurrences that fall inside a
@@ -40,7 +40,7 @@ describe('weekdayOfIso', () => {
   });
 });
 
-describe('expandWeekOccurrences — non-recurring rows', () => {
+describe('expandWeekOccurrences: non-recurring rows', () => {
   it('includes a one-off row once when its date sits in the week', () => {
     const out = expandWeekOccurrences([row({ date: '2026-08-04' })], '2026-08-03');
     expect(out).toHaveLength(1);
@@ -66,7 +66,7 @@ describe('expandWeekOccurrences — non-recurring rows', () => {
   });
 });
 
-describe('expandWeekOccurrences — recurring rows', () => {
+describe('expandWeekOccurrences: recurring rows', () => {
   it('emits one occurrence per matching weekday within the week (Tue + Thu)', () => {
     // Anchor Monday 2026-08-03, repeats Tue(2) + Thu(4).
     const out = expandWeekOccurrences(
@@ -81,7 +81,7 @@ describe('expandWeekOccurrences — recurring rows', () => {
 
   it('does not render the anchor day itself when its weekday is not in recurrenceDays', () => {
     // Anchor is a Monday (weekday 1), but the series only repeats on
-    // Tue/Thu — the anchor date itself must not appear as an occurrence.
+    // Tue/Thu: the anchor date itself must not appear as an occurrence.
     const out = expandWeekOccurrences(
       [row({ date: '2026-08-03', recurrenceDays: [2, 4] })],
       '2026-08-03',
@@ -111,7 +111,7 @@ describe('expandWeekOccurrences — recurring rows', () => {
 
   it('emits nothing after recurrenceEndDate (stops repeating)', () => {
     // Anchor Monday 2026-08-03, repeats Tue+Thu, ends 2026-08-04 (so only
-    // the first Tuesday counts — the Thursday of the same week is excluded).
+    // the first Tuesday counts: the Thursday of the same week is excluded).
     const out = expandWeekOccurrences(
       [row({ date: '2026-08-03', recurrenceDays: [2, 4], recurrenceEndDate: '2026-08-04' })],
       '2026-08-03',

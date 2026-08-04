@@ -20,7 +20,7 @@ the email body.
 
 1. Edit the HTML file. Keep it simple: a single `h1`, short paragraphs,
    one primary `a` link styled as a button, plus a plain-text fallback
-   URL on its own line. Templates render across many email clients —
+   URL on its own line. Templates render across many email clients;
    inline styles only, no `<style>` blocks, no remote assets.
 2. Keep `{{ .SiteURL }}` rather than hardcoded URLs so the same template
    serves staging and production (see [ADR 0008](../../../../documents/decisions/0008-supabase-environments.md)).
@@ -31,7 +31,7 @@ the email body.
    python3 scripts/apply-supabase-email-templates.py
    ```
 
-   The script is idempotent — re-running it patches the same fields.
+   The script is idempotent, re-running it patches the same fields.
 
 ## Why files instead of inlined strings in the script
 
@@ -42,7 +42,7 @@ SMTP migration) can re-use these without grepping Python.
 ## Note on Prettier
 
 The repo's `lint-staged` config runs Prettier on `*.html` at commit
-time, which will rewrap long lines in these templates. That's fine —
+time, which will rewrap long lines in these templates. That's fine;
 re-run the applier after committing to push the reformatted HTML to
 Supabase, and the next `--check` will report 0 diffs. Don't try to
 escape Prettier; just accept its formatting as the source of truth.

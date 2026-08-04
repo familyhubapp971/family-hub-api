@@ -1,17 +1,17 @@
-// FHS-460 — login helpers for k6 scenarios that need REAL authenticated
+// FHS-460: login helpers for k6 scenarios that need REAL authenticated
 // sessions instead of anonymous /health + /hello pings.
 //
-// kidLogin    — POST /api/auth/kid-pin (apps/api/src/routes/auth-kid-pin.ts).
+// kidLogin    : POST /api/auth/kid-pin (apps/api/src/routes/auth-kid-pin.ts).
 //               Family-shared-device PIN login. Returns a short-lived
-//               HS256 JWT with the tenant baked into the token claims —
+//               HS256 JWT with the tenant baked into the token claims:
 //               kid requests to /api/kid/* send ONLY the bearer token,
 //               never an X-Tenant-Slug header.
-// parentLogin — Supabase password grant. Same call
+// parentLogin : Supabase password grant. Same call
 //               scenarios/auth-smoke.js already makes (mirrored here so
 //               every scenario logs parents in the same way). Parent
 //               requests DO need an X-Tenant-Slug header alongside the
 //               bearer token, because k6 hits the API origin directly
-//               (no `<slug>.familyhub.app` subdomain routing) — see
+//               (no `<slug>.familyhub.app` subdomain routing), see
 //               apps/api/src/middleware/resolve-tenant.ts source 3.
 
 import http from 'k6/http';

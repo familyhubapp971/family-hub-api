@@ -6,7 +6,7 @@ import type { User } from '../db/schema.js';
 import type { UserMirrorClaims } from '../lib/user-mirror.js';
 import { createLogger } from '../logger.js';
 
-/** Function shape for mirror sync — `getOrCreateUser` bound to a Database, or a test stub. */
+/** Function shape for mirror sync: `getOrCreateUser` bound to a Database, or a test stub. */
 export type UserMirrorSync = (claims: UserMirrorClaims) => Promise<User>;
 
 // JWT verification middleware (FHS-191).
@@ -14,7 +14,7 @@ export type UserMirrorSync = (claims: UserMirrorClaims) => Promise<User>;
 // Modern Supabase signs session JWTs with ES256 and exposes the public
 // keys at <SUPABASE_URL>/auth/v1/.well-known/jwks.json. The middleware
 // fetches that JWKS once, caches it, and refreshes on key-id miss. We
-// never trust the legacy HS256 / shared-secret path — see ADR 0008.
+// never trust the legacy HS256 / shared-secret path: see ADR 0008.
 //
 // Order in app.ts: cors → request-context → rate-limit → AUTH → tenant
 // resolution. Tenant context (FHS-192) keys off the authenticated user,
@@ -25,31 +25,31 @@ const log = createLogger('auth');
 const PUBLIC_PATH_PREFIXES = [
   '/health',
   '/hello',
-  // FHS-27 — slug availability is a yes/no fact about the public DNS
+  // FHS-27: slug availability is a yes/no fact about the public DNS
   // namespace; gating it behind auth would force the signup form to
   // sign the user in before they've even picked a family name.
   '/api/public/slug-available',
-  // FHS-236 — kid-PIN login is itself the authentication step; it
+  // FHS-236: kid-PIN login is itself the authentication step; it
   // cannot be behind the auth middleware.
   '/api/auth/kid-pin',
-  // FHS-238 — public kid avatar grid for /t/:slug/kid-login. The kid
+  // FHS-238: public kid avatar grid for /t/:slug/kid-login. The kid
   // hasn't authenticated yet so there's no JWT to verify; the slug in
   // the URL is the access boundary. Returns only display name + emoji
   // + member id, never email or PIN data.
   '/api/public/kid-members',
-  // FHS-257 — kid-scoped routes run their own HS256 kid-JWT middleware
+  // FHS-257: kid-scoped routes run their own HS256 kid-JWT middleware
   // (kidAuthMiddleware + requireKidAuth). They must skip the parent
   // ES256/JWKS auth, which would 401 a kid token before it reaches them.
   '/api/kid',
-  // FHS-429 — anonymous homepage feedback; the visitor has no account.
+  // FHS-429: anonymous homepage feedback; the visitor has no account.
   '/api/public/feedback',
-  // FHS-445 — the calendar subscribe feed (ICS). A calendar app (Google /
+  // FHS-445: the calendar subscribe feed (ICS). A calendar app (Google /
   // Apple / Outlook) fetches it with no bearer token; the signed token in the
   // URL path is the credential, verified in constant time by the handler.
   '/api/public/calendar',
-  // FHS-510 — confirming an admin-initiated email change. The recipient may
+  // FHS-510: confirming an admin-initiated email change. The recipient may
   // not be signed in at all (they may not have used the family's login
-  // before) — the one-time token in the body is the credential, verified
+  // before): the one-time token in the body is the credential, verified
   // server-side against the stored SHA-256 hash.
   '/api/members/email-change/confirm',
 ] as const;
@@ -65,7 +65,7 @@ declare module 'hono' {
 export interface AuthenticatedUser {
   id: string;
   email?: string;
-  /** Raw verified payload — handlers may need claims we don't surface explicitly. */
+  /** Raw verified payload: handlers may need claims we don't surface explicitly. */
   claims: JWTPayload;
 }
 
@@ -107,19 +107,19 @@ let cachedDefaultJwks: JWTVerifyGetKey | undefined;
 function getDefaultJwks(): JWTVerifyGetKey | undefined {
   if (cachedDefaultJwks) return cachedDefaultJwks;
 
-  // FHS-516 — E2E test-only JWKS override. See the E2E_TEST_JWKS comment in
+  // FHS-516: E2E test-only JWKS override. See the E2E_TEST_JWKS comment in
   // config.ts for the full rationale. STRICTLY test-only: gated on BOTH the
   // explicit env var AND NODE_ENV === 'test' here (the harness's own
   // playwright*.config.ts always sets NODE_ENV=test; plain `pnpm dev`
   // (development) and every real deploy (production, incl. staging) never
   // do), on top of config.ts's superRefine refusing to even boot ANY
   // non-test process with this var set. Any deploy that never sets
-  // E2E_TEST_JWKS behaves byte-for-byte like it did before this change —
+  // E2E_TEST_JWKS behaves byte-for-byte like it did before this change:
   // this whole branch is skipped and getDefaultJwks() falls through to the
   // real remote-JWKS path below, exactly as always.
   if (config.E2E_TEST_JWKS && config.NODE_ENV === 'test') {
     log.warn(
-      'auth: E2E_TEST_JWKS override active — verifying against a local test JWKS instead of ' +
+      'auth: E2E_TEST_JWKS override active: verifying against a local test JWKS instead of ' +
         'Supabase. This must NEVER be set in production.',
     );
     let jwks: JSONWebKeySet;
@@ -139,14 +139,14 @@ function getDefaultJwks(): JWTVerifyGetKey | undefined {
   const url = new URL('/auth/v1/.well-known/jwks.json', config.SUPABASE_URL);
   cachedDefaultJwks = createRemoteJWKSet(url, {
     cacheMaxAge: config.JWKS_CACHE_TTL_MS,
-    // 30s cooldown between refreshes triggered by an unknown kid — bounds
+    // 30s cooldown between refreshes triggered by an unknown kid: bounds
     // the blast radius of a flood of forged tokens with random kids.
     cooldownDuration: 30_000,
   });
   return cachedDefaultJwks;
 }
 
-/** Test-only — clears the module-level cache so a fresh JWKS is built next call. */
+/** Test-only: clears the module-level cache so a fresh JWKS is built next call. */
 export function _resetJwksCacheForTests(): void {
   cachedDefaultJwks = undefined;
 }
@@ -188,7 +188,7 @@ export function authMiddleware(opts: AuthMiddlewareOptions = {}): MiddlewareHand
       return;
     }
 
-    // Resolve the JWKS source per-request — that lets tests inject one
+    // Resolve the JWKS source per-request: that lets tests inject one
     // via the options without restarting the app.
     const jwks = opts.jwks ?? getDefaultJwks();
     if (!jwks || !issuer) {
@@ -228,11 +228,11 @@ export function authMiddleware(opts: AuthMiddlewareOptions = {}): MiddlewareHand
     c.set('user', user);
 
     // Mirror sync (FHS-192/194). One INSERT…ON CONFLICT DO UPDATE
-    // RETURNING per protected request — idempotent, single round-trip.
+    // RETURNING per protected request: idempotent, single round-trip.
     // Reject if email is missing because the mirror table requires it
     // (Supabase always stamps email on the JWT for password + OAuth flows).
     // Mirror sync (FHS-192/194). Opt-in: if no sync function is wired,
-    // skip — useful for unit tests of the auth middleware in isolation
+    // skip: useful for unit tests of the auth middleware in isolation
     // and for any future routes that don't need the mirror row.
     // Production wiring (app.ts) provides a sync function bound to the
     // real DB pool.
@@ -260,7 +260,7 @@ function mapVerifyError(err: unknown): string {
   if (err instanceof joseErrors.JWSSignatureVerificationFailed) return 'token-signature-invalid';
   if (err instanceof joseErrors.JWKSNoMatchingKey) return 'jwks-no-matching-key';
   if (err instanceof joseErrors.JOSEError) return `jose-${err.code}`;
-  // Network errors from the JWKS fetch — fail-closed but capture for ops.
+  // Network errors from the JWKS fetch: fail-closed but capture for ops.
   if (err instanceof Error) {
     log.error({ err: err.message }, 'auth: unexpected verification error');
     return 'verification-error';
@@ -270,7 +270,7 @@ function mapVerifyError(err: unknown): string {
 
 /**
  * Helper for route handlers behind the auth middleware. Throws when no
- * user is on the context — that should be unreachable in production
+ * user is on the context: that should be unreachable in production
  * because the middleware rejects pre-handler, but the throw makes the
  * "I forgot to mount auth" mistake loud during development.
  */
@@ -278,7 +278,7 @@ export function getAuthenticatedUser(c: Context): AuthenticatedUser {
   const user = c.get('user');
   if (!user) {
     throw new Error(
-      'getAuthenticatedUser called on a request that did not pass authMiddleware — ' +
+      'getAuthenticatedUser called on a request that did not pass authMiddleware: ' +
         'mount the middleware before this handler or move the route under PUBLIC_PATH_PREFIXES.',
     );
   }

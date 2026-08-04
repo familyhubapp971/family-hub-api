@@ -1,7 +1,7 @@
 /**
  * Step bindings for rls-tenant-sweep.feature (FHS-350).
  *
- * The exhaustive proof that RLS isolates tenants for EVERY registered table —
+ * The exhaustive proof that RLS isolates tenants for EVERY registered table,
  * run as the limited app_runtime role with NO app-level tenant_id filter, so it
  * is the database (not our code) doing the work. FHS-348 proved the mechanism on
  * `members`; this sweeps all 29 tables and adds the write/update/delete edges.
@@ -57,7 +57,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
         perTable = await asRuntimeTenant(tenantAId, async (c) => {
           const out: Array<{ name: string; total: number; foreign: number }> = [];
           for (const name of tableNames) {
-            // No WHERE clause — the database must do the scoping, not us.
+            // No WHERE clause: the database must do the scoping, not us.
             const res = await c.query<{ tenant_id: string }>(`SELECT tenant_id FROM "${name}"`);
             out.push({
               name,

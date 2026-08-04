@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// FHS-352 — invites never sent because the wrapper POSTed to /auth/v1/admin/invite
+// FHS-352: invites never sent because the wrapper POSTed to /auth/v1/admin/invite
 // (404). The correct GoTrue endpoint is /auth/v1/invite, with redirect_to as a
 // query param. These tests lock the endpoint + the already-registered classifier.
 
@@ -14,7 +14,7 @@ import {
   SupabaseAdminError,
 } from '../../../../apps/api/src/lib/supabase-admin.js';
 
-describe('FHS-352 — inviteUserByEmail endpoint', () => {
+describe('FHS-352: inviteUserByEmail endpoint', () => {
   const realFetch = global.fetch;
   let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -57,7 +57,7 @@ describe('FHS-352 — inviteUserByEmail endpoint', () => {
   });
 });
 
-describe('FHS-352 — isEmailAlreadyRegisteredError', () => {
+describe('FHS-352: isEmailAlreadyRegisteredError', () => {
   it('matches a 422 and the body markers, not other errors', () => {
     expect(isEmailAlreadyRegisteredError(new SupabaseAdminError('x', 422, ''))).toBe(true);
     expect(

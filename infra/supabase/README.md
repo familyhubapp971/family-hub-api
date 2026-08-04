@@ -34,7 +34,7 @@ list_req = urllib.request.Request(
 users = json.loads(urllib.request.urlopen(list_req).read())['users']
 match = next((u for u in users if u['email'] == EMAIL), None)
 if not match:
-    raise SystemExit(f'{EMAIL} not found — create via the same admin endpoint')
+    raise SystemExit(f'{EMAIL} not found: create via the same admin endpoint')
 put_req = urllib.request.Request(
     f'{URL}/auth/v1/admin/users/{match["id"]}',
     data=json.dumps({'password': NEW_PW, 'email_confirm': True}).encode(),
@@ -51,7 +51,7 @@ variables → Actions). Both must change in lockstep or CI fails.
 ### Why a dedicated account, not a per-run signup
 
 We do per-run signups in the FHS-193 flow (`Visitor signs up with
-valid credentials`) — those create fresh `e2e+<timestamp>@familyhub.test`
+valid credentials`): those create fresh `e2e+<timestamp>@familyhub.test`
 addresses every run. Two reasons that pattern is wrong for the /me flow:
 
 1. The user-mirror upsert needs to round-trip Postgres on first request

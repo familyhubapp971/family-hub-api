@@ -2,7 +2,7 @@
  * Step bindings for kid-myworld.feature (FHS-374).
  *
  * Kid read-only My World: weeks list, week stats, week actions, financial
- * savings, and financial investments — all self-scoped, sibling-isolated.
+ * savings, and financial investments: all self-scoped, sibling-isolated.
  * Shapes verified to be byte-identical to parent endpoints via shared loaders
  * in lib/myworld.ts. Real kid token against real Postgres.
  */
@@ -262,7 +262,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
     Then('the kid savings response status is 200', () => expect(res.status).toBe(200));
     And("Yusuf's savedStickers is 0", () => {
-      // Yusuf has no mw_savings row — should default to 0, not Iman's 5.
+      // Yusuf has no mw_savings row: should default to 0, not Iman's 5.
       expect(body.savedStickers as number).toBe(0);
     });
   });

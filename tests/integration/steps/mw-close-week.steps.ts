@@ -158,7 +158,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
   }
 
   async function seedHabit(slug: string, name: string, memberName: string, isBonus: boolean) {
-    // FHS-512 — stickerValue now comes from `boost` (isBonus is legacy/derived
+    // FHS-512: stickerValue now comes from `boost` (isBonus is legacy/derived
     // display-only). A direct DB insert bypasses the API's isBonus→boost
     // derivation, so set boost explicitly to keep "bonus" habits worth 5.
     const [row] = await db
@@ -412,7 +412,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       });
       Then('{string} first investment is worth {int} stickers', (_c, _m: string, n: number) => {
         // 10 invested + 7 completed*5 - 0 missed = 45, on ANY weekday (the value
-        // must NOT be capped by elapsed days — that froze it, e.g. 10 on Monday).
+        // must NOT be capped by elapsed days: that froze it, e.g. 10 on Monday).
         expect(invValue).toBe(n);
       });
     },

@@ -2,7 +2,7 @@ Feature: Calendar sync feed (FHS-445)
   Real Postgres on :5433. GET /api/calendar/feed returns a signed subscribe
   URL for the family (any member may fetch it); POST /api/calendar/feed/rotate
   regenerates it (admin-only, and invalidates every old URL). The public ICS
-  feed the URL points at needs no auth — the signed token in the URL path is
+  feed the URL points at needs no auth: the signed token in the URL path is
   the credential, verified before any event row is read.
 
   Background:
@@ -21,7 +21,7 @@ Feature: Calendar sync feed (FHS-445)
     And the public feed body includes a "Swim class" SUMMARY line
     And the public feed body also includes a "Dentist" SUMMARY line
 
-  Scenario: Tenant isolation — a family's feed never includes another family's events
+  Scenario: Tenant isolation: a family's feed never includes another family's events
     Given a second tenant "smith" exists with the caller as an admin member
     And the "khan" tenant has an event "Swim class" on "2026-07-05"
     And separately the "smith" tenant has an event "Piano recital" on "2026-07-05"

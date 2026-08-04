@@ -1,5 +1,5 @@
 Feature: ChildWorld Journal (FHS-270)
-  Real Postgres on :5433 — verifies the kid-private journal (scoped per
+  Real Postgres on :5433, verifies the kid-private journal (scoped per
   member), tenant-scoped.
 
   Background:
@@ -13,7 +13,7 @@ Feature: ChildWorld Journal (FHS-270)
     Then the journal post status is 201
     And in tenant "khan", "Ali" has 1 journal entries and "Bilal" has 0
 
-  Scenario: Tenant isolation — another tenant's journal never appears
+  Scenario: Tenant isolation: another tenant's journal never appears
     Given a second tenant "smith" exists with the caller as an admin member
     And the "smith" tenant has a child member "Sam"
     And the caller posts a journal entry "Secret" for "Sam" in tenant "smith"
