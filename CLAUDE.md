@@ -423,6 +423,9 @@ on the move. Non-negotiables when building or editing ANY doc:
 - Verify like a founder: rasterize every page of the rendered PDF and
   look at it before shipping. If a page reads as a wall of text,
   restructure it; don't ship and wait to be told.
+- Render business docs with `node scripts/render-docs.mjs` (all
+  doc-src sources, correct orientation, margins and running footers);
+  the demo deck renders with `node scripts/render-demo-pdf.mjs`.
 
 ### Demo doc follows every user-visible merge
 
