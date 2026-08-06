@@ -350,6 +350,24 @@ Rules for it:
 - Acceptance criteria stay Gherkin (see the AC rule below); the sections
   above them are what changed.
 
+**Not every ticket needs acceptance criteria.** Founder rule (2026-08-07):
+Gherkin AC exist to say what "working" looks like in the product. A ticket
+with no product surface has nothing to write them about, and inventing
+them is noise a tired reader has to wade through.
+
+| Ticket is about                                                                 | Gherkin AC   |
+| ------------------------------------------------------------------------------- | ------------ |
+| A feature, a bug, a design port, anything that changes what a user sees or does | **Required** |
+| Anything technical: schema, API, tests, CI, infrastructure, performance         | **Required** |
+| Admin and process: board tidy-ups, ticket re-scoping, sprint setup, labels      | Skip         |
+| Writing and planning: documents, decks, applications, research, comms           | Skip         |
+
+When you skip them, the ticket still carries the bold one-line ask, the
+**Why**, and the **What to cover** table, so it is still obvious what
+"finished" means. Example of a ticket that rightly has none:
+[FHS-589](https://qualicion2.atlassian.net/browse/FHS-589), which only
+re-grouped epics on a wiki page.
+
 Good example to copy: [FHS-499](https://qualicion2.atlassian.net/browse/FHS-499).
 
 This applies when creating a ticket AND when picking one up: if you open
@@ -1209,9 +1227,11 @@ same change, don't just note it. This is the exception to the
 
 ### Keep the ticket's acceptance criteria in sync too
 
-**Every ticket carries Given/When/Then acceptance criteria, and those AC MUST
-track what actually gets built.** Add Gherkin AC when you create or pick up a
-ticket (not just a title), and **when the build refines or changes the
+**Every ticket that has acceptance criteria MUST keep them true to what
+actually gets built.** Which tickets carry AC at all is decided by the table in
+"Ticket bodies" above: product and technical work always does; admin, process,
+writing and planning tickets skip them. Add Gherkin AC when you create or pick
+up a ticket that needs them (not just a title), and **when the build refines or changes the
 behaviour, update the ticket's AC to match what shipped**: in the same
 session, before closing. The closing comment then maps each AC to the shipped
 behaviour (pass/fail), so the ticket reads true to what's live. An AC that
