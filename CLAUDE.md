@@ -45,20 +45,39 @@ crisp sentences, real names ("the Today screen") not file paths, max 5
 bullets per group. Tech word unavoidable? Explain it in a few plain
 words right after.
 
-**Every reply uses two title-then-bullets blocks, in this order:**
+**Every reply uses two tables, in this order, under the same two
+headings.** Founder request (2026-08-06): tables, not bullet lists, and
+the two blocks stay split rather than merged into one table.
 
 **Summary** (a plain-English title line)
 
-- What happened, in 1–5 bullets.
+| What                     | Detail               |
+| ------------------------ | -------------------- |
+| _short label, 2–4 words_ | _one plain sentence_ |
+
+One row per thing that happened, 1–5 rows. The label column is the thing
+("Footer", "Sprint 4", "Tests"), the detail column is the plain sentence.
 
 **Status** (a plain-English title line)
 
-- **What I did**: finished actions.
-- **What you need to do**: or "Nothing for now."
-- **What's next**: the upcoming work.
+|                         |                                      |
+| ----------------------- | ------------------------------------ |
+| **What I did**          | _finished actions_                   |
+| **What you need to do** | _or "Nothing for now."_              |
+| **What's next**         | _the upcoming work, or omit the row_ |
 
 Then one clear question with the choices spelled out (e.g.
 **start next ticket / pause**) if you need an answer.
+
+Rules that still apply inside the tables:
+
+- One sentence per cell. If a cell needs two, it is doing too much.
+- No nested bullets, no code blocks, no `***` inside a cell.
+- Plain words. A `path/to/file.ts:LINE` reference is fine; a wall of
+  jargon is not.
+- Keep the whole reply under ~150 words including both tables.
+- Ordinary prose answers to a direct question do not need the tables:
+  use them whenever the reply hands control back to the founder.
 
 ---
 
