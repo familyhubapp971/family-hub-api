@@ -859,6 +859,17 @@ How to run a Magic Patterns design ticket:
 
 Rules:
 
+- **EVERY prompt names all three screen sizes.** Founder rule
+  (2026-08-06): no Magic Patterns prompt goes out without asking for
+  **phone (375px), tablet (768px) and desktop (1024px and up)**
+  explicitly, and saying what must hold at each: nothing overflows,
+  no horizontal scrolling on the main flow, every control at least
+  44x44px, and the layout stacks rather than shrinking to unreadable.
+  Magic Patterns is desktop-biased by default and will hand back a
+  desktop-only mock unless told otherwise. A prompt that names only
+  one width is an incomplete prompt: rewrite it before sending.
+  This sits alongside the repo's responsive-design rule, which is a
+  merge gate for the build that follows.
 - **Never hand-author the design.** `write_artifact_files` is for
   correcting a generated design (a wrong token, a missed accessibility
   requirement), not for authoring one.
