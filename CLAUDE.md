@@ -298,6 +298,64 @@ the ticket already say most of this.
 > slice (FHS-179 epic) is complete and validated, after which everything
 > promotes to `main` as one tested batch. Revisit when FHS-198 ships.
 
+### Ticket bodies: written so anyone gets it in ten seconds
+
+**Founder rule (2026-08-06).** A ticket is read by a tired person on a
+phone who was not in the conversation that created it. Write for them.
+
+**Every ticket body uses this shape, in this order:**
+
+```markdown
+**<One plain sentence: what we are doing and for whom.>**
+
+### Why
+
+- <One or two bullets. What is wrong today, or what this unlocks.>
+
+### What to cover
+
+| Thing  | What it needs          |
+| ------ | ---------------------- |
+| <area> | <what good looks like> |
+
+### Depends on
+
+- <Design, ticket or decision this waits on. Say "nothing" if free to start.>
+
+### Acceptance criteria
+
+**Scenario: <plain name>**
+
+- **Given** ...
+- **When** ...
+- **Then** ...
+```
+
+Rules for it:
+
+- **Bullets and tables, never paragraphs.** If a sentence runs past ~20
+  words, split it. A wall of prose is the thing this rule exists to stop.
+- **Use a table whenever the ticket lists 3+ things to cover.** Two
+  columns: the thing, and what it needs. Tables beat comma-spliced
+  sentences for scanning.
+- **Simple language.** No jargon the reader did not put there. Say "the
+  menu on a phone", not "the mobile nav affordance". If a technical term
+  is unavoidable, define it in five words the first time.
+- **Lead with the ask.** The bold first line says what we are doing. The
+  reader should not need the Why section to know what the work is.
+- **Name real things.** Real screens, real file paths, real ticket keys.
+  Not "the relevant component".
+- **Low cognitive load is the goal.** One idea per bullet, one row per
+  thing, no nested bullets, no ticket that needs re-reading.
+- Acceptance criteria stay Gherkin (see the AC rule below); the sections
+  above them are what changed.
+
+Good example to copy: [FHS-499](https://qualicion2.atlassian.net/browse/FHS-499).
+
+This applies when creating a ticket AND when picking one up: if you open
+a ticket written as a wall of prose, rewrite it in this shape before you
+start work.
+
 ### Ticket fields: set on EVERY ticket (all types)
 
 **Rule:** Whenever you create or pick up **any** Jira ticket (Story, Task,
@@ -481,26 +539,37 @@ founder's single view of the live product and must never lag reality.
 
 ### Epic status follows its children
 
-An epic's status always mirrors the state of its children:
+An epic's status always says what is actually happening underneath it.
+The rule, in order:
 
-- **First child enters In Progress** → transition the epic from
-  **To Do → In Progress** (transition id `21` for FHS).
-- **All children Done** (treat "Won't Do" / "Cancelled" as Done) →
-  transition the epic to **Done** (id `31`) with a brief structured
-  comment listing each child story it delivered. Don't make the user
-  chase epic closure: same logic as the post-merge ticket close,
-  one level up.
-- If an epic is already at the target status, skip: don't re-transition.
-- **Post-launch bugs are the exception.** Every bug hangs off its
-  feature epic (see "Fixing bugs"), so a Done epic will accrue bug
-  children after it ships. Those do **not** reopen the epic: once an
-  epic is Done it stays Done; the bug is tracked under it purely for
-  traceability. Only an _open story/task_ child (real remaining
-  feature scope) moves a Done epic back to In Progress.
+| Children                          | Epic                           |
+| --------------------------------- | ------------------------------ |
+| Any child In Progress             | In Progress                    |
+| All children Done or Won't Do     | Done                           |
+| All children To Do                | To Do                          |
+| Mixed To Do and Done, none moving | In Progress (work has started) |
 
-After any epic transition, **refresh the Confluence "FHS: Epics &
-Tickets" page** per the Confluence-refresh step in the "Closing
-tickets" section above.
+An epic with no children is left alone.
+
+**A closed epic reopens when new work lands under it** (founder rule,
+2026-08-06). This replaces the old "once Done it stays Done" carve-out:
+if a bug or a new ticket is filed against a shipped epic, the epic goes
+back to In Progress, because it is no longer finished. It closes again on
+its own when that child closes.
+
+**Do not hand-transition epics.** Run the script, which applies the table
+above across the whole project:
+
+```bash
+set -a; source .env.local; set +a
+python3 scripts/sync-epic-status.py            # report only
+python3 scripts/sync-epic-status.py --apply    # actually transition
+python3 scripts/sync-epic-status.py --apply --epic FHS-178
+```
+
+Run it after closing any ticket, alongside the Confluence refresh. It is
+standard library only and safe to run repeatedly: it transitions only the
+epics that are out of step.
 
 ### Fix Versions: Sprint cluster releases
 
