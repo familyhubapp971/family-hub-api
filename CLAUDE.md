@@ -632,22 +632,17 @@ Task. Don't wait for the user to ask.
    - Plus a **Summary** table at the bottom with `Pass / Fail /
 Blocked` totals + counts of new bug docs filed.
    - Plus a **Known bugs already filed** table linking
-     `bugs/<slug>.md` files to the row numbers they affect.
-3. Mirror the body to a markdown file at
-   `bugs/manual-e2e-sprint-N-test-pass.md` so the founder can edit
-   it during the demo. Frontmatter: `status: in-jira: FHS-XXX`,
-   `sprint: <id> (Sprint N: <theme>)`, `type: manual-test-pass`.
-4. Append a "Children" bullet to FHS-254's description body (already
+     the Jira bug keys to the row numbers they affect.
+3. Append a "Children" bullet to FHS-254's description body (already
    has the list, just append the new key).
-5. Tell the user the demo sheet is ready + link both the Jira ticket
+4. Tell the user the demo sheet is ready + link both the Jira ticket
    and the local markdown path.
 
 **Definition of done (per child):**
 
 - Every row has Result + Notes.
 - Summary totals filled in.
-- A bug doc filed in `bugs/` for every Fail (with `status: in-jira:
-FHS-XXX` once promoted).
+- A Jira Bug filed for every Fail.
 - Summary commented back on the child Task; transition to Done.
 - Demo doc (`documents/demo/whats-shipped.html`) refreshed if any
   shipped flow needs revision based on what the test pass found.
@@ -670,22 +665,18 @@ How to apply:
   the same session. If several bugs are reported in one message, log each.
 - If the bug is genuinely trivial and fixed in the same turn, still file
   the ticket and close it on merge: the audit trail is the point.
-- Mirror to `bugs/<slug>.md` only when it feeds the manual-test sheet
-  (per the demo-testing rule); the Jira ticket is always required.
+  The Jira ticket is the only record: there is no local bugs folder
+  (removed 2026-08-06), so nothing is tracked outside Jira.
 
 ### Fixing bugs (workflow)
 
-When picking up a bug from `bugs/<slug>.md` (or any `Bug` Jira
-ticket), follow the same lifecycle as a feature ticket, but with a
+When picking up any `Bug` Jira ticket, follow the same lifecycle as a feature ticket, but with a
 few bug-specific steps front-loaded so the manual-test sheet stays
 in sync. **Always do this before writing any fix code**:
 
-1. **Promote the bug doc to Jira if not already.** If the doc has
-   `status: open`, create the matching FHS Bug ticket: short plain-
-   language title (no `bug:` prefix in summary), one-line layperson
-   summary in bold, 3 short technical bullets, 3 Gherkin acceptance
-   criteria. Update the doc's frontmatter to
-   `status: in-jira: FHS-XXX`.
+1. **Make sure the bug is in Jira.** Short plain-language title (no
+   `bug:` prefix), one-line layperson summary in bold, 3 short
+   technical bullets, 3 Gherkin acceptance criteria.
 2. **Sprint + Fix Version + Epic.** Add the bug to the current active
    sprint and tag with the matching cluster Fix Version
    (`0.0-bootstrap` etc.). **Set the bug's parent to the feature's
@@ -727,14 +718,9 @@ are present`).
    same rule as feature tickets. Action every blocker before PR.
 9. **PR + CI + squash-merge + Jira close.** Same lifecycle as a
    feature ticket: see "Closing tickets" + "Pull requests" above.
-10. **Update the manual-test sheet.** After merge, edit the
-    relevant row in `bugs/manual-e2e-sprint-N-test-pass.md` (and
-    the FHS-251 / current child Task description) to add a
-    "FIXED in FHS-XXX, re-verify" note in the Notes column for
-    every row that referenced the bug. Flip the bug doc's
-    frontmatter to `status: fixed` and leave it in `bugs/` as a
-    historical record (don't delete: future regressions need
-    context).
+10. **Update the manual-test sheet.** After merge, edit the current
+    child Task of FHS-254 to add a "FIXED in FHS-XXX, re-verify" note
+    against every row that referenced the bug.
 
 **Anti-pattern:** start coding before the bug is in Jira / In
 Progress / linked to FHS-251. The link is what keeps the manual
@@ -859,15 +845,17 @@ result a design.
 
 How to run a Magic Patterns design ticket:
 
-| Step | What you do                                                                                                                               |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | `get_design_status` on the editor, so you are not prompting over a run in flight                                                          |
-| 2    | Read the existing files first, so the prompt builds on what is there                                                                      |
-| 3    | `send_prompt` with the brief. **This is the design step.** Name the problem, the states to cover, the widths, and the accessibility floor |
-| 4    | Say in the prompt that only the project's existing tokens and components may be used, or it will invent its own                           |
-| 5    | Poll `get_design_status` every 60s until `isGenerating` is false                                                                          |
-| 6    | Read what it produced and check it against the ticket before handing it over                                                              |
-| 7    | Give the founder the editor URL and wait for approval before writing any app code                                                         |
+| Step | What you do                                                                                                                                                                                                        |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1    | `get_design_status` on the editor, so you are not prompting over a run in flight                                                                                                                                   |
+| 2    | Read the existing files first, so the prompt builds on what is there                                                                                                                                               |
+| 3    | `send_prompt` with the brief. **This is the design step.** Name the problem, the states to cover, the widths, and the accessibility floor                                                                          |
+| 4    | Say in the prompt that only the project's existing tokens and components may be used, or it will invent its own                                                                                                    |
+| 5    | Poll `get_design_status` every 60s until `isGenerating` is false                                                                                                                                                   |
+| 6    | Read what it produced and check it against the ticket before handing it over                                                                                                                                       |
+| 7    | Give the founder the editor URL and wait for approval before writing any app code                                                                                                                                  |
+| 8    | **Report back to Jira the moment the design lands.** Comment with the editor URL, what it covers and any revision, then transition the ticket. A finished design sitting in To Do is a lie about where the work is |
+| 9    | When the founder revises the design, re-read it, port the revision, and add it to the same comment trail                                                                                                           |
 
 Rules:
 
@@ -879,6 +867,9 @@ Rules:
 - **Default to the existing design** (`kudjspxd3xxroueg5jw11o`) rather
   than a fresh standalone one, so the result inherits the real tokens and
   components. A standalone design invents its own and drifts.
+- **The design ticket moves as the design moves**, not when the build
+  ships: prompt sent means In Progress, design handed over means Done.
+  The build ticket carries the code.
 - **Record every deviation** when the port lands: anything in the design
   that would break accessibility, privacy or a product decision is fixed
   in the implementation and written down with the reason, not copied.
