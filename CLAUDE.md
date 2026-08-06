@@ -849,6 +849,40 @@ OK?" is trivial; the cost of letting drift compound is large. Close
 the loop in the Jira ticket's closing comment by listing the surfaces
 touched so the audit trail captures the cascade.
 
+### Magic Patterns tickets: Magic Patterns does the design, not you
+
+**Founder rule (2026-08-06).** On any ticket whose job is to produce a
+design, the design is generated **inside Magic Patterns by prompting it**.
+Writing the component yourself and pushing it into the artifact is not
+doing the ticket: it is doing the ticket's job for it and calling the
+result a design.
+
+How to run a Magic Patterns design ticket:
+
+| Step | What you do                                                                                                                               |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `get_design_status` on the editor, so you are not prompting over a run in flight                                                          |
+| 2    | Read the existing files first, so the prompt builds on what is there                                                                      |
+| 3    | `send_prompt` with the brief. **This is the design step.** Name the problem, the states to cover, the widths, and the accessibility floor |
+| 4    | Say in the prompt that only the project's existing tokens and components may be used, or it will invent its own                           |
+| 5    | Poll `get_design_status` every 60s until `isGenerating` is false                                                                          |
+| 6    | Read what it produced and check it against the ticket before handing it over                                                              |
+| 7    | Give the founder the editor URL and wait for approval before writing any app code                                                         |
+
+Rules:
+
+- **Never hand-author the design.** `write_artifact_files` is for
+  correcting a generated design (a wrong token, a missed accessibility
+  requirement), not for authoring one.
+- **The design ticket and the build ticket are separate**, and the design
+  one blocks the build one. Link them so the trail is visible.
+- **Default to the existing design** (`kudjspxd3xxroueg5jw11o`) rather
+  than a fresh standalone one, so the result inherits the real tokens and
+  components. A standalone design invents its own and drifts.
+- **Record every deviation** when the port lands: anything in the design
+  that would break accessibility, privacy or a product decision is fixed
+  in the implementation and written down with the reason, not copied.
+
 ### Design system (packages/ui): single source of truth
 
 **Any design change updates the design system in the same PR.** When a
