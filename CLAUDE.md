@@ -459,8 +459,8 @@ founder's single view of the live product and must never lag reality.
   through FHS-XXX" marker in the hero.
 - Render the committed artefact with `node scripts/render-demo-pdf.mjs`
   → [`documents/demo/whats-shipped.pdf`](documents/demo/whats-shipped.pdf).
-  **Docs folders are PDF-only** (no .html artefacts in `documents/`);
-  commit source + PDF together.
+  **Docs folders are PDF-only** (no .html artefacts in `documents/`).
+  `documents/demo/` is committed, so commit source + PDF together there.
 - Keep it visual and in the design language (kingdom purple, Fredoka
   One + Nunito, black borders, offset shadows), it's a demo prop, not
   a changelog.
@@ -469,9 +469,15 @@ founder's single view of the live product and must never lag reality.
 - **The QA feature-tour brief follows the same rule.** When shipped
   features change, update
   `scripts/doc-src/fh-qa-brief-feature-tour.html` and
-  re-render `documents/business/fh-qa-brief-feature-tour.pdf`
-  in the same session, so external testers always hold a current map
-  of the product.
+  re-render it in the same session, so external testers always hold a
+  current map of the product.
+
+> **`documents/business/` and `documents/investments/` are gitignored**
+> (founder request, 2026-08-06). Only their HTML sources in
+> `scripts/doc-src/` are tracked. Edit the source, run
+> `node scripts/render-docs.mjs`, and the PDF lands locally for the
+> founder to share: do not try to commit it, and do not treat its absence
+> from a diff as work left undone.
 
 ### Epic status follows its children
 

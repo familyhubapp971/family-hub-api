@@ -73,3 +73,10 @@ tmp/
 
 # Claude Code session-local scheduled-task lock (regenerated each run)
 .claude/scheduled_tasks.lock
+
+# Business + investor material is kept out of the repo (founder request,
+# 2026-08-06). The HTML sources in scripts/doc-src/ stay tracked, so anyone
+# can rebuild the PDFs with `node scripts/render-docs.mjs`; the rendered
+# artefacts themselves are not committed.
+documents/business/
+documents/investments/
