@@ -1065,6 +1065,18 @@ criteria. Template:
 
 ### Keep feature docs in sync with what shipped: ALWAYS
 
+> **Founder reminder (2026-08-06): this keeps getting skipped. Every change,
+> every time.** Before opening ANY pull request, ask "which file in
+> `documents/features/` describes what I just changed?" and update it in that
+> same PR. Design ports count. Bug fixes count. Copy changes count. If the
+> answer is "none exists", write one. If the answer is genuinely "no user-
+> visible behaviour changed", say so explicitly in the PR self-review. A PR
+> that silently leaves the feature docs behind is not finished.
+>
+> The doc records what SHIPPED, not what was planned, and lists every
+> deliberate deviation from the design with the reason, so a future reader
+> can tell a decision from an accident.
+
 > **NON-NEGOTIABLE, EVERY TIME behaviour or requirements change.** The moment a
 > feature is built, changed, tightened, redesigned, or has a bug fixed that
 > alters how it behaves, the matching `documents/features/<slug>.md` MUST be
