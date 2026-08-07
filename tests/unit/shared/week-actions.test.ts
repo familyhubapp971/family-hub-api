@@ -13,11 +13,21 @@ describe('summariseWeekActions', () => {
         a('save', 3),
         a('auto_save', 2),
         a('invest', 4),
-        a('invest_continue', 1),
         a('claim', 6),
         a('cashout', 5),
       ]),
-    ).toEqual({ saved: 5, invested: 5, spent: 6, cashedOut: 5, total: 21 });
+    ).toEqual({ saved: 5, invested: 4, spent: 6, cashedOut: 5, total: 20 });
+  });
+
+  // FHS-617: closing a week writes an `invest_continue` carrying the whole
+  // value of an investment that keeps running. Counting it reported the same
+  // investment again every week: a week that earned 21 claimed 101 invested.
+  it('does not count a rolled-over investment as newly invested', () => {
+    expect(summariseWeekActions([a('invest_continue', 101)]).invested).toBe(0);
+    // A real new investment in the same week still counts, on its own.
+    const mixed = summariseWeekActions([a('invest', 8), a('invest_continue', 101)]);
+    expect(mixed.invested).toBe(8);
+    expect(mixed.total).toBe(8);
   });
 
   it('nets a withdrawal off what was invested', () => {

@@ -33,6 +33,12 @@ function sumOf(actions: readonly WeekActionLike[], types: readonly string[]): nu
 /**
  * Split a finished week's actions into what happened to the stickers.
  *
+ * `invest_continue` is deliberately NOT counted. When a week closes, an
+ * investment that keeps running writes one of those carrying its ENTIRE
+ * current value, not the stickers newly committed. Counting it reported the
+ * same investment again every week it rolled forward: a founder screenshot
+ * showed a week that earned 21 stickers claiming 101 invested (FHS-617).
+ *
  * `withdraw` takes stickers back out of an investment, so it nets off the
  * invested figure rather than counting as its own outcome. The result is
  * clamped at zero: a week that withdrew more than it invested (possible when
@@ -41,10 +47,7 @@ function sumOf(actions: readonly WeekActionLike[], types: readonly string[]): nu
  */
 export function summariseWeekActions(actions: readonly WeekActionLike[]): WeekOutcome {
   const saved = sumOf(actions, ['save', 'auto_save']);
-  const invested = Math.max(
-    0,
-    sumOf(actions, ['invest', 'invest_continue']) - sumOf(actions, ['withdraw']),
-  );
+  const invested = Math.max(0, sumOf(actions, ['invest']) - sumOf(actions, ['withdraw']));
   const spent = sumOf(actions, ['claim']);
   const cashedOut = sumOf(actions, ['cashout']);
   return { saved, invested, spent, cashedOut, total: saved + invested + spent + cashedOut };
