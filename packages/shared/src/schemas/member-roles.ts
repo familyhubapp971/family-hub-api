@@ -41,3 +41,39 @@ export const PIN_ELIGIBLE_ROLES: ReadonlySet<string> = new Set<MemberRole>(['chi
 export function isPinEligibleRole(role: string | null | undefined): boolean {
   return role !== null && role !== undefined && PIN_ELIGIBLE_ROLES.has(role);
 }
+
+// FHS-625: who is allowed to do what with a child's money and the family's
+// settings. The dividing line is whether the action can be undone.
+//
+// These mirror `apps/api/src/lib/permissions.ts` (canManage / isAdmin, ADR
+// 0015), which is what actually enforces the rule. Nothing here is a gate:
+// the server refuses regardless of what the browser decided to render. They
+// exist so the app can stop offering a door that leads to a locked room, and
+// so the rule is written down once instead of retyped per page.
+//
+// The pairing is pinned by tests/unit/shared/family-permissions.test.ts, which
+// walks every role against both the API's guards and these predicates.
+
+/**
+ * Grown-ups: the everyday money moves that can be reversed. Handing a child
+ * their pocket money, banking it, investing it, taking it back out.
+ *
+ * Matches the API's `canManage` for a caller acting on someone else. A member
+ * acting on their own money passes on the API side too (canManage's self
+ * branch), which is why a child can still see and spend their own balance.
+ */
+export function isGrownUpRole(role: string | null | undefined): boolean {
+  return role === 'admin' || role === 'adult';
+}
+
+/**
+ * Admins only: the things that cannot be undone, or that change the whole
+ * family. Closing, reopening or repairing a week; setting a balance by hand;
+ * what a sticker is worth; the family's name, currency, data export and
+ * deletion.
+ *
+ * Matches the API's `isAdmin`.
+ */
+export function isFamilyAdminRole(role: string | null | undefined): boolean {
+  return role === 'admin';
+}
