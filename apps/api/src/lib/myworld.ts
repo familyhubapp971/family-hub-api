@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import {
   habits,
@@ -724,6 +724,42 @@ export async function computeMemberAnalytics(
 // identical JSON shapes. Each function is pure SELECT (no mutations).
 
 /**
+ * UTC [start, end) bounds of the Monday-anchored week starting on
+ * `startDate` (a 'YYYY-MM-DD' string): `end` is the following Monday,
+ * exclusive. Mirrors the start/end computation in {@link elapsedDaysForWeek}.
+ */
+function weekBoundsUtc(startDate: string): { start: Date; end: Date } {
+  const [y, m, d] = startDate.split('-').map((s) => Number.parseInt(s, 10));
+  const start = new Date(Date.UTC(y!, m! - 1, d!));
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 7);
+  return { start, end };
+}
+
+/**
+ * The exact moment a finalized week actually closed, read from the
+ * `capturedAt` timestamp POST /:id/finalize stamps into `closureSnapshot`
+ * (see mw-weeks.ts). A week is often closed EARLY (mid-week, not waiting for
+ * the calendar week to elapse — see `mw-close-week.feature`), so the
+ * calendar week's end date is too late a cutoff: a habit created a day after
+ * an early close, but still inside that same calendar week, must NOT count
+ * as having existed while the week was open. Falls back to the calendar
+ * week's end for the (should-be-impossible) case of a finalized week with no
+ * snapshot, e.g. corrupted data.
+ */
+function closureCutoff(week: MwWeek): Date {
+  const snapshot = week.closureSnapshot;
+  if (snapshot && typeof snapshot === 'object' && 'capturedAt' in snapshot) {
+    const capturedAt = (snapshot as { capturedAt?: unknown }).capturedAt;
+    if (typeof capturedAt === 'string') {
+      const parsed = new Date(capturedAt);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+  }
+  return weekBoundsUtc(week.startDate).end;
+}
+
+/**
  * Habits + stickers for a week + the kid's spendable balance + currency.
  * Produces the exact shape of `listHabitsResponseSchema`. If `weekId` is
  * supplied and not found for this (tenant, member), returns null so the
@@ -771,6 +807,47 @@ export async function loadHabitsForWeek(
   } else {
     week = await getOrCreateCurrentWeek(db, tenantId, memberId);
   }
+  // FHS-616: a FINALIZED (closed) week is a historical record — it must show
+  // the habits that existed while it was open, not whichever habits are
+  // non-archived TODAY. Otherwise a habit created after the week closed grows
+  // a phantom 0-day card in every past week, and a habit archived after the
+  // week closed vanishes from weeks it was actually part of. A habit counts
+  // as belonging to the week if EITHER:
+  //   (a) its dates say so: created before the week actually closed
+  //       (closureCutoff, not the calendar week end — a week can close
+  //       early), and never archived or archived on/after the week's first
+  //       day; OR
+  //   (b) it has at least one habit_stickers row recorded for this exact
+  //       (habit, week) — proof it existed then whatever `created_at` says.
+  // (b) is a safety net for real-world data where `created_at` can postdate
+  // the week (a seeded/backfilled row, a habit re-created with the same
+  // name, a close whose `capturedAt` predates some habit's insert): without
+  // it, a date-only filter can BLANK a real week's habit list, which is
+  // worse than the bug it fixes. The LIVE (non-finalized) week keeps the old
+  // "non-archived right now" rule unchanged, so adding or archiving a habit
+  // still shows up on it immediately.
+  const habitFilter = week.isFinalized
+    ? and(
+        eq(habits.tenantId, tenantId),
+        eq(habits.memberId, memberId),
+        or(
+          and(
+            lt(habits.createdAt, closureCutoff(week)),
+            or(
+              isNull(habits.archivedAt),
+              gte(habits.archivedAt, weekBoundsUtc(week.startDate).start),
+            ),
+          ),
+          sql`EXISTS (
+            SELECT 1 FROM ${habitStickers}
+            WHERE ${habitStickers.habitId} = ${habits.id}
+              AND ${habitStickers.tenantId} = ${tenantId}
+              AND ${habitStickers.memberId} = ${memberId}
+              AND ${habitStickers.weekId} = ${week.id}
+          )`,
+        ),
+      )
+    : and(eq(habits.tenantId, tenantId), eq(habits.memberId, memberId), isNull(habits.archivedAt));
   const [habitRows, stickerRows, balance, currency] = await Promise.all([
     db
       .select({
@@ -784,13 +861,7 @@ export async function loadHabitsForWeek(
         skipPenaltyMinor: habits.skipPenaltyMinor,
       })
       .from(habits)
-      .where(
-        and(
-          eq(habits.tenantId, tenantId),
-          eq(habits.memberId, memberId),
-          isNull(habits.archivedAt),
-        ),
-      )
+      .where(habitFilter)
       .orderBy(asc(habits.createdAt)),
     db
       .select({
