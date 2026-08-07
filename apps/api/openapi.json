@@ -6636,7 +6636,7 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Get /api/mw/financial/savings",
+        "summary": "A child's banked savings, split into last week's banking and earlier (?memberId=)",
         "operationId": "get_api_mw_financial_savings",
         "security": [
           {
@@ -6645,7 +6645,47 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "earnedLastWeekStickers + keptFromEarlierStickers always equals savedStickers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "savedStickers": {
+                      "type": "integer"
+                    },
+                    "savedCash": {
+                      "type": "number"
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "stickerRate": {
+                      "type": "number"
+                    },
+                    "stickerRateMinor": {
+                      "type": "integer"
+                    },
+                    "earnedLastWeekStickers": {
+                      "type": "integer"
+                    },
+                    "keptFromEarlierStickers": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "savedStickers",
+                    "savedCash",
+                    "currency",
+                    "stickerRate",
+                    "stickerRateMinor",
+                    "earnedLastWeekStickers",
+                    "keptFromEarlierStickers"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       },

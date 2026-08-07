@@ -410,6 +410,16 @@ export const routeMeta: Record<string, RouteMeta> = {
     security: false,
   },
 
+  // My World savings (FHS-606): the Your Savings card's split.
+  'GET /api/mw/financial/savings': {
+    summary: "A child's banked savings, split into last week's banking and earlier (?memberId=)",
+    response: kidSavingsResponseSchema.extend({
+      earnedLastWeekStickers: z.number().int(),
+      keptFromEarlierStickers: z.number().int(),
+    }),
+    responseDesc: 'earnedLastWeekStickers + keptFromEarlierStickers always equals savedStickers',
+  },
+
   // My World investments (FHS-296 / FHS-378).
   'GET /api/mw/financial/investments': {
     summary: "A child's active investments with live value (?memberId=)",

@@ -6,6 +6,7 @@ import {
   members,
   mwInvestments,
   mwSavings,
+  mwSavingsTransactions,
   mwWeekActions,
   mwWeeks,
   redemptionRequests,
@@ -999,22 +1000,64 @@ export async function loadSavingsForMember(
 ): Promise<{
   savedStickers: number;
   savedCash: number;
+  earnedLastWeekStickers: number;
+  keptFromEarlierStickers: number;
   currency: string;
   stickerRate: number;
   stickerRateMinor: number;
 }> {
-  const [savings, currency, rateMinor] = await Promise.all([
+  const [savings, currency, rateMinor, earnedLastWeekStickers] = await Promise.all([
     getSavings(db, tenantId, memberId),
     getTenantCurrency(db, tenantId),
     getEffectiveRateMinor(db, tenantId, memberId),
+    getRecentSavedStickers(db, tenantId, memberId),
   ]);
+  // FHS-606: the split can never exceed the balance (admin adjustments and
+  // cashouts move the balance without ledger rows), and the two lines always
+  // sum to the sticker total.
+  const earned = Math.min(savings.savedStickers, earnedLastWeekStickers);
   return {
     savedStickers: savings.savedStickers,
     savedCash: savings.savedCash,
+    earnedLastWeekStickers: earned,
+    keptFromEarlierStickers: savings.savedStickers - earned,
     currency,
     stickerRate: rateMinorToDecimal(rateMinor),
     stickerRateMinor: rateMinor,
   };
+}
+
+/**
+ * FHS-606: stickers banked into savings "last week", for the Your Savings
+ * card's split. Definition: non-reversed sticker-type saves recorded since a
+ * day before the member's current week began, which catches the close-week
+ * banking of the previous week whether it happened on that week's final day
+ * or in the days after. A member with no weeks yet has banked nothing recent.
+ */
+async function getRecentSavedStickers(db: Db, tenantId: string, memberId: string): Promise<number> {
+  const latestWeek = await db
+    .select({ startDate: mwWeeks.startDate })
+    .from(mwWeeks)
+    .where(and(eq(mwWeeks.tenantId, tenantId), eq(mwWeeks.memberId, memberId)))
+    .orderBy(desc(mwWeeks.startDate))
+    .limit(1);
+  const start = latestWeek[0]?.startDate;
+  if (!start) return 0;
+  const cutoff = new Date(`${start}T00:00:00Z`);
+  cutoff.setUTCDate(cutoff.getUTCDate() - 1);
+  const rows = await db
+    .select({ total: sql<number>`coalesce(sum(${mwSavingsTransactions.stickerCount}), 0)::int` })
+    .from(mwSavingsTransactions)
+    .where(
+      and(
+        eq(mwSavingsTransactions.tenantId, tenantId),
+        eq(mwSavingsTransactions.memberId, memberId),
+        eq(mwSavingsTransactions.transactionType, 'stickers'),
+        eq(mwSavingsTransactions.isReversed, false),
+        sql`${mwSavingsTransactions.createdAt} >= ${cutoff.toISOString()}`,
+      ),
+    );
+  return rows[0]?.total ?? 0;
 }
 
 /**
