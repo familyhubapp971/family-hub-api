@@ -8,6 +8,7 @@ import {
   mwSavings,
   tenants,
 } from '../db/schema.js';
+import { formatMoneyMinor } from '@familyhub/shared';
 
 // FHS-512: configurable reward economy.
 //
@@ -68,18 +69,11 @@ export function rateMinorToDecimal(rateMinor: number): number {
   return rateMinor / 100;
 }
 
+// FHS-613: the one money formatter lives in @familyhub/shared, so the api and
+// every screen agree on how an amount is written. This name is kept because
+// callers across the api use it.
 /** Format an integer minor-unit amount as the given ISO-4217 currency (e.g. 150 + "AED" → "AED 1.50"). */
-export function formatMinor(amountMinor: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(
-      amountMinor / 100,
-    );
-  } catch {
-    // Unknown/invalid currency code: fall back to a plain decimal so the
-    // UI never crashes on a bad tenant.currency value.
-    return `${currency} ${(amountMinor / 100).toFixed(2)}`;
-  }
-}
+export const formatMinor = formatMoneyMinor;
 
 /** The 7 calendar dates (Mon..Sun) covered by an mw_weeks row. */
 function weekDayDates(startDate: string): string[] {
