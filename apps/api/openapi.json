@@ -6613,7 +6613,7 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Create /api/mw/financial/investments/{id}/withdraw",
+        "summary": "Take stickers back out of a running investment, all or part. Any grown-up, or the child themself",
         "operationId": "post_api_mw_financial_investments_id_withdraw",
         "parameters": [
           {
@@ -6630,9 +6630,53 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "stickers": {
+                    "type": "integer",
+                    "exclusiveMinimum": true,
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "memberId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Omit `stickers` to take the lot. What comes out goes to savings; the rest keeps growing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "transactionId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -6699,16 +6743,69 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Create /api/mw/financial/savings",
+        "summary": "Bank this week's spare stickers, as stickers or as cash. Any grown-up, or the child themself",
         "operationId": "post_api_mw_financial_savings",
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "stickers",
+                      "cash"
+                    ]
+                  },
+                  "amount": {
+                    "type": "number",
+                    "exclusiveMinimum": true,
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "memberId",
+                  "type",
+                  "amount"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Banks at most what is spare this week. Asking for cash converts at the child's own sticker rate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "transactionId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -6718,16 +6815,65 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Replace /api/mw/financial/savings/admin-set",
+        "summary": "Set a child's balance by hand, overwriting what is there. ADMIN ONLY",
         "operationId": "put_api_mw_financial_savings_admin_set",
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "savedStickers": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "savedCash": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "memberId",
+                  "savedStickers",
+                  "savedCash"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Writes the figures as given. Use to correct a mistake, not for everyday moves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "transactionId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -6737,16 +6883,61 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Create /api/mw/financial/savings/cashout",
+        "summary": "Turn banked savings into real money. Any grown-up, or the child themself",
         "operationId": "post_api_mw_financial_savings_cashout",
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "amount": {
+                    "type": "number",
+                    "exclusiveMinimum": true,
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "memberId",
+                  "amount"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "409 when the child does not have that much saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "transactionId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -6952,7 +7143,7 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Get /api/mw/weeks",
+        "summary": "Every week for a child, oldest first (?memberId=). Any grown-up, or the child themself",
         "operationId": "get_api_mw_weeks",
         "security": [
           {
@@ -6961,7 +7152,68 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Creates the current week if it does not exist yet, so the list is never empty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "weeks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "weekNumber": {
+                            "type": "integer"
+                          },
+                          "year": {
+                            "type": "integer"
+                          },
+                          "startDate": {
+                            "type": "string"
+                          },
+                          "isFinalized": {
+                            "type": "boolean"
+                          },
+                          "carriedOverStickers": {
+                            "type": "integer"
+                          },
+                          "carriedOverCash": {
+                            "type": "number"
+                          },
+                          "retrievedStickers": {
+                            "type": "integer"
+                          },
+                          "retrievedCash": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "weekNumber",
+                          "year",
+                          "startDate",
+                          "isFinalized",
+                          "carriedOverStickers",
+                          "carriedOverCash",
+                          "retrievedStickers",
+                          "retrievedCash"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "weeks"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -6971,7 +7223,7 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Get /api/mw/weeks/{id}/actions",
+        "summary": "Everything that happened to a week's stickers, newest first (?memberId=). Any grown-up, or the child themself",
         "operationId": "get_api_mw_weeks_id_actions",
         "parameters": [
           {
@@ -6990,7 +7242,90 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "This is the record a finished week is summarised from. `invest_continue` carries a running investment's WHOLE value, not new money (FHS-617)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "actions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ]
+                          },
+                          "weekId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "actionType": {
+                            "type": "string",
+                            "enum": [
+                              "claim",
+                              "cashout",
+                              "save",
+                              "invest",
+                              "withdraw",
+                              "auto_save",
+                              "invest_continue"
+                            ]
+                          },
+                          "stickersUsed": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "cashAmount": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "rewardName": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "habitId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
+                          "habitName": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "weekId",
+                          "actionType",
+                          "stickersUsed",
+                          "cashAmount",
+                          "rewardName",
+                          "habitId",
+                          "habitName",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "actions"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -7000,7 +7335,7 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Replace /api/mw/weeks/{id}/cash",
+        "summary": "Correct a week's carried and retrieved cash by hand. ADMIN ONLY",
         "operationId": "put_api_mw_weeks_id_cash",
         "parameters": [
           {
@@ -7017,6 +7352,36 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "carriedOverCash": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "retrievedCash": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "memberId",
+                  "carriedOverCash",
+                  "retrievedCash"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success"
@@ -7029,7 +7394,7 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Create /api/mw/weeks/{id}/finalize",
+        "summary": "Close a week and start the next one. ADMIN ONLY",
         "operationId": "post_api_mw_weeks_id_finalize",
         "parameters": [
           {
@@ -7046,6 +7411,33 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "continueInvestmentIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                },
+                "required": [
+                  "memberId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success"
@@ -7058,7 +7450,7 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Create /api/mw/weeks/{id}/reopen",
+        "summary": "Undo a close, putting the week back as it was. ADMIN ONLY",
         "operationId": "post_api_mw_weeks_id_reopen",
         "parameters": [
           {
@@ -7075,6 +7467,26 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "memberId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success"
@@ -7087,7 +7499,7 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Create /api/mw/weeks/{id}/repair",
+        "summary": "Clear leftover close effects from a week that is still open. ADMIN ONLY",
         "operationId": "post_api_mw_weeks_id_repair",
         "parameters": [
           {
@@ -7104,6 +7516,26 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "memberId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success"
@@ -7116,7 +7548,7 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Get /api/mw/weeks/{id}/stats",
+        "summary": "One week's sticker counts and what they are worth (?memberId=). Any grown-up, or the child themself",
         "operationId": "get_api_mw_weeks_id_stats",
         "parameters": [
           {
@@ -7135,7 +7567,40 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "unallocatedStickers is what is still spare; allocatedStickers is what has moved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "weekId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "totalStickers": {
+                      "type": "integer"
+                    },
+                    "unallocatedStickers": {
+                      "type": "integer"
+                    },
+                    "allocatedStickers": {
+                      "type": "integer"
+                    },
+                    "cashValue": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "weekId",
+                    "totalStickers",
+                    "unallocatedStickers",
+                    "allocatedStickers",
+                    "cashValue"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -7145,7 +7610,7 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Get /api/mw/weeks/current",
+        "summary": "The child's open week, creating it if needed (?memberId=). Any grown-up, or the child themself",
         "operationId": "get_api_mw_weeks_current",
         "security": [
           {
@@ -7154,7 +7619,65 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "week": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "weekNumber": {
+                          "type": "integer"
+                        },
+                        "year": {
+                          "type": "integer"
+                        },
+                        "startDate": {
+                          "type": "string"
+                        },
+                        "isFinalized": {
+                          "type": "boolean"
+                        },
+                        "carriedOverStickers": {
+                          "type": "integer"
+                        },
+                        "carriedOverCash": {
+                          "type": "number"
+                        },
+                        "retrievedStickers": {
+                          "type": "integer"
+                        },
+                        "retrievedCash": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "weekNumber",
+                        "year",
+                        "startDate",
+                        "isFinalized",
+                        "carriedOverStickers",
+                        "carriedOverCash",
+                        "retrievedStickers",
+                        "retrievedCash"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "week"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }

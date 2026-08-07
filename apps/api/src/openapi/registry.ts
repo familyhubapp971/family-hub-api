@@ -98,7 +98,21 @@ import {
   createInvestmentRequestSchema,
   investmentSettingsRequestSchema,
   investmentRecordSchema,
+  saveSchema,
+  cashoutSchema,
+  savingsMutationResponseSchema,
+  adminSetSavingsRequestSchema,
+  withdrawInvestmentRequestSchema,
 } from '../routes/mw-financial.js';
+import {
+  weeksResponseSchema,
+  weekResponseSchema,
+  weekStatsResponseSchema,
+  weekActionsResponseSchema,
+  memberBodySchema,
+  finalizeRequestSchema,
+  weekCashRequestSchema,
+} from '../routes/mw-weeks.js';
 import {
   difficultySchema,
   listLearnResponseSchema,
@@ -418,6 +432,85 @@ export const routeMeta: Record<string, RouteMeta> = {
       keptFromEarlierStickers: z.number().int(),
     }),
     responseDesc: 'earnedLastWeekStickers + keptFromEarlierStickers always equals savedStickers',
+  },
+
+  // FHS-627: the rest of the money endpoints. Each summary says who may call
+  // it, so the next reader does not have to trace the guards to find out.
+  'POST /api/mw/financial/savings': {
+    summary:
+      "Bank this week's spare stickers, as stickers or as cash. Any grown-up, or the child themself",
+    request: saveSchema,
+    response: savingsMutationResponseSchema,
+    responseDesc:
+      "Banks at most what is spare this week. Asking for cash converts at the child's own sticker rate",
+  },
+  'POST /api/mw/financial/savings/cashout': {
+    summary: 'Turn banked savings into real money. Any grown-up, or the child themself',
+    request: cashoutSchema,
+    response: savingsMutationResponseSchema,
+    responseDesc: '409 when the child does not have that much saved',
+  },
+  'PUT /api/mw/financial/savings/admin-set': {
+    summary: "Set a child's balance by hand, overwriting what is there. ADMIN ONLY",
+    request: adminSetSavingsRequestSchema,
+    response: savingsMutationResponseSchema,
+    responseDesc: 'Writes the figures as given. Use to correct a mistake, not for everyday moves',
+  },
+  'POST /api/mw/financial/investments/{id}/withdraw': {
+    summary:
+      'Take stickers back out of a running investment, all or part. Any grown-up, or the child themself',
+    request: withdrawInvestmentRequestSchema,
+    response: savingsMutationResponseSchema,
+    responseDesc:
+      'Omit `stickers` to take the lot. What comes out goes to savings; the rest keeps growing',
+  },
+
+  // FHS-627: the week endpoints. Every one of these was listed with nothing
+  // said about it, and they are what a finished week's record is built from.
+  'GET /api/mw/weeks': {
+    summary:
+      'Every week for a child, oldest first (?memberId=). Any grown-up, or the child themself',
+    response: weeksResponseSchema,
+    responseDesc: 'Creates the current week if it does not exist yet, so the list is never empty',
+  },
+  'GET /api/mw/weeks/current': {
+    summary:
+      "The child's open week, creating it if needed (?memberId=). Any grown-up, or the child themself",
+    response: weekResponseSchema,
+  },
+  'GET /api/mw/weeks/{id}/stats': {
+    summary:
+      "One week's sticker counts and what they are worth (?memberId=). Any grown-up, or the child themself",
+    response: weekStatsResponseSchema,
+    responseDesc: 'unallocatedStickers is what is still spare; allocatedStickers is what has moved',
+  },
+  'GET /api/mw/weeks/{id}/actions': {
+    summary:
+      "Everything that happened to a week's stickers, newest first (?memberId=). Any grown-up, or the child themself",
+    response: weekActionsResponseSchema,
+    responseDesc:
+      "This is the record a finished week is summarised from. `invest_continue` carries a running investment's WHOLE value, not new money (FHS-617)",
+  },
+  'POST /api/mw/weeks/{id}/finalize': {
+    summary: 'Close a week and start the next one. ADMIN ONLY',
+    request: finalizeRequestSchema,
+    responseDesc:
+      'Banks anything spare, settles investments, applies skip penalties, and carries the rest forward. Name the investments to keep running in continueInvestmentIds',
+  },
+  'POST /api/mw/weeks/{id}/reopen': {
+    summary: 'Undo a close, putting the week back as it was. ADMIN ONLY',
+    request: memberBodySchema,
+    responseDesc: 'Reverses what the close did: banking, investment settlement and any penalty',
+  },
+  'POST /api/mw/weeks/{id}/repair': {
+    summary: 'Clear leftover close effects from a week that is still open. ADMIN ONLY',
+    request: memberBodySchema,
+    responseDesc: 'For a week left half-closed by an interrupted finalize',
+  },
+  'PUT /api/mw/weeks/{id}/cash': {
+    summary: "Correct a week's carried and retrieved cash by hand. ADMIN ONLY",
+    request: weekCashRequestSchema,
+    responseDesc: 'Neither figure may be negative',
   },
 
   // My World investments (FHS-296 / FHS-378).

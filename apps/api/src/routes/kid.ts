@@ -92,6 +92,7 @@ import { weekdayOfIso } from '../lib/recurrence.js';
 
 // FHS-395: response schemas exported for OpenAPI registry.
 import { z as _z } from 'zod';
+import { weeksResponseSchema, weekStatsResponseSchema } from './mw-weeks.js';
 export const logicQuestionsResponseSchema = _z.object({
   // Require at least id + type; passthrough preserves game-type-specific fields.
   questions: _z.array(_z.object({ id: _z.string(), type: _z.string() }).passthrough()),
@@ -116,30 +117,14 @@ export const logicCertificatesResponseSchema = _z.object({
 });
 
 // FHS-374: week shape that mirrors the full parent GET /mw/weeks shape.
-export const kidWeeksResponseSchema = z.object({
-  weeks: z.array(
-    z.object({
-      id: z.string().uuid(),
-      weekNumber: z.number().int(),
-      year: z.number().int(),
-      startDate: z.string(),
-      isFinalized: z.boolean(),
-      carriedOverStickers: z.number().int(),
-      carriedOverCash: z.number(),
-      retrievedStickers: z.number().int(),
-      retrievedCash: z.number(),
-    }),
-  ),
-});
+// FHS-627: one definition of a week, in the router that owns it. The kid and
+// parent endpoints return the same thing, and keeping two copies is how they
+// drift: this file's copy of `coefficient` going missing is exactly what made
+// every kid's investment tag read 5x (FHS-607).
+export const kidWeeksResponseSchema = weeksResponseSchema;
 
 // FHS-374: week stats shape (mirrors GET /mw/weeks/:id/stats).
-export const kidWeekStatsResponseSchema = z.object({
-  weekId: z.string().uuid(),
-  totalStickers: z.number().int(),
-  unallocatedStickers: z.number().int(),
-  allocatedStickers: z.number().int(),
-  cashValue: z.number(),
-});
+export const kidWeekStatsResponseSchema = weekStatsResponseSchema;
 
 // FHS-374: savings shape (mirrors GET /mw/financial/savings).
 // FHS-387: stickerRate added so the kid UI never hardcodes 0.5.

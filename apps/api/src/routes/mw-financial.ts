@@ -36,14 +36,44 @@ import { getEffectiveRateMinor, rateMinorToDecimal } from '../lib/reward-config.
 // linked to the save transaction. Parent-accessed; per (tenant, member).
 
 const memberQuerySchema = z.object({ memberId: z.string().uuid() });
-const saveSchema = z.object({
+
+// FHS-627: exported so the API docs describe what these actually take, rather
+// than listing the address and saying nothing. Same schemas the handlers
+// validate with, so the two cannot drift.
+
+/** Body for banking this week's spare stickers, as stickers or as cash. */
+export const saveSchema = z.object({
   memberId: z.string().uuid(),
   type: z.enum(['stickers', 'cash']),
   amount: z.number().positive(),
 });
-const cashoutSchema = z.object({
+
+/** Body for turning banked savings into real money. */
+export const cashoutSchema = z.object({
   memberId: z.string().uuid(),
   amount: z.number().positive(),
+});
+
+/** What a save or a cash-out reports back. */
+export const savingsMutationResponseSchema = z.object({
+  success: z.boolean(),
+  transactionId: z.string().optional(),
+});
+
+/** Body for setting a child's balance by hand. Admin only. */
+export const adminSetSavingsRequestSchema = z.object({
+  memberId: z.string().uuid(),
+  savedStickers: z.number().int().nonnegative(),
+  savedCash: z.number().nonnegative(),
+});
+
+/**
+ * Body for taking stickers back out of a running investment. Omit `stickers`
+ * to take the lot; give a number to take only part of it.
+ */
+export const withdrawInvestmentRequestSchema = z.object({
+  memberId: z.string().uuid(),
+  stickers: z.number().int().positive().optional(),
 });
 
 // ── Investment schemas (FHS-296 / FHS-378): exported for OpenAPI enrichment ──

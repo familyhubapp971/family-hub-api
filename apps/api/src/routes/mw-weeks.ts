@@ -42,6 +42,81 @@ import {
 
 const memberQuerySchema = z.object({ memberId: z.string().uuid() });
 
+// FHS-627: the shapes this router speaks, in one place.
+//
+// Every path here was already listed in the API docs, but with nothing said
+// about what it takes or returns, which is the half that stops the front end
+// and the server drifting apart. These are exported so the OpenAPI registry
+// describes exactly what the handlers use, rather than a hand-copied guess.
+// `toWeek` is checked against `weekSchema` by a unit test, so adding a field
+// to one without the other fails the build.
+
+/** One week, as every week endpoint returns it. */
+export const weekSchema = z.object({
+  id: z.string().uuid(),
+  weekNumber: z.number().int(),
+  year: z.number().int(),
+  /** The week's Monday, as YYYY-MM-DD. */
+  startDate: z.string(),
+  isFinalized: z.boolean(),
+  carriedOverStickers: z.number().int(),
+  carriedOverCash: z.number(),
+  retrievedStickers: z.number().int(),
+  retrievedCash: z.number(),
+});
+export const weeksResponseSchema = z.object({ weeks: z.array(weekSchema) });
+export const weekResponseSchema = z.object({ week: weekSchema });
+
+/** Sticker counts and cash value for one week. */
+export const weekStatsResponseSchema = z.object({
+  weekId: z.string().uuid(),
+  totalStickers: z.number().int(),
+  unallocatedStickers: z.number().int(),
+  allocatedStickers: z.number().int(),
+  cashValue: z.number(),
+});
+
+/** One recorded thing that happened to a week's stickers. */
+export const weekActionSchema = z.object({
+  id: z.union([z.string(), z.number()]),
+  weekId: z.string().uuid(),
+  actionType: z.enum([
+    'claim',
+    'cashout',
+    'save',
+    'invest',
+    'withdraw',
+    'auto_save',
+    'invest_continue',
+  ]),
+  /** Null on rows that recorded cash only. */
+  stickersUsed: z.number().int().nullable(),
+  cashAmount: z.number().nullable(),
+  rewardName: z.string().nullable(),
+  /** Null once the habit has been deleted. */
+  habitId: z.string().uuid().nullable(),
+  habitName: z.string().nullable(),
+  createdAt: z.string(),
+});
+export const weekActionsResponseSchema = z.object({ actions: z.array(weekActionSchema) });
+
+/** Body for reopen and repair: which child's week. */
+export const memberBodySchema = z.object({ memberId: z.string().uuid() });
+
+/** Body for closing a week. */
+export const finalizeRequestSchema = z.object({
+  memberId: z.string().uuid(),
+  /** Investments to keep running into the next week. Absent means none. */
+  continueInvestmentIds: z.array(z.string().uuid()).optional(),
+});
+
+/** Body for correcting a week's cash figures by hand. */
+export const weekCashRequestSchema = z.object({
+  memberId: z.string().uuid(),
+  carriedOverCash: z.number().nonnegative(),
+  retrievedCash: z.number().nonnegative(),
+});
+
 // ─── shared guards (mirrors habits.ts) ───────────────────────────────────────
 
 type Db = ReturnType<typeof getDb>;
@@ -95,7 +170,7 @@ async function guardQuery(
 
 // ─── Week shape returned by GET / and GET /current ───────────────────────────
 
-function toWeek(row: typeof mwWeeks.$inferSelect) {
+export function toWeek(row: typeof mwWeeks.$inferSelect) {
   return {
     id: row.id,
     weekNumber: row.weekNumber,
