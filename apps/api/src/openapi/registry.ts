@@ -674,6 +674,14 @@ export const routeMeta: Record<string, RouteMeta> = {
     responseDesc:
       '{ [key]: value }: includes appName/appSubtitle (if set) and always includes currency (from tenants.currency, default USD)',
   },
+  // FHS-626: the family name is a real column, not a loose setting, so it is
+  // called out rather than left inside the generic key description.
+  'PUT /api/admin/settings/familyName': {
+    summary: "Rename the family. ADMIN ONLY. Never changes the family's web address",
+    request: z.object({ value: z.string().min(1).max(80) }),
+    response: z.object({ key: z.literal('familyName'), value: z.string() }),
+    responseDesc: 'A blank name is refused. The slug the family lives at is untouched',
+  },
   'PUT /api/admin/settings/{key}': {
     summary: 'Upsert one setting; admin-only. `currency` writes tenants.currency, not app_settings',
     request: adminSettingsPutRequestSchema,

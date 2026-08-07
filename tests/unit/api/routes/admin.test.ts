@@ -69,7 +69,9 @@ function buildApp(opts: SeedOpts) {
       return chain(callerRole ? [{ id: 'm1', role: callerRole }] : []);
     }
     if (idx === 2) return chain(appSettingsRows);
-    return chain(tenantCurrency === null ? [] : [{ currency: tenantCurrency }]);
+    return chain(
+      tenantCurrency === null ? [] : [{ currency: tenantCurrency, name: 'Khan Family' }],
+    );
   });
 
   dbMock.insert.mockImplementation(() => ({
@@ -150,7 +152,16 @@ describe('FHS-441: GET /api/admin/settings merges in tenants.currency', () => {
     const res = await app.request('/api/admin/settings');
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body).toEqual({ appName: 'Iman World', currency: 'AED' });
+    // FHS-626: the family's own name comes back too, so the settings screen
+    // can show and edit it.
+    expect(body).toEqual({ appName: 'Iman World', currency: 'AED', familyName: 'Khan Family' });
+  });
+
+  it('returns the family name so it can be edited (FHS-626)', async () => {
+    const app = buildApp({ callerRole: 'admin', tenantCurrency: 'GBP' });
+    const res = await app.request('/api/admin/settings');
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body['familyName']).toBe('Khan Family');
   });
 
   it('defaults currency to USD when the tenant row is somehow missing', async () => {

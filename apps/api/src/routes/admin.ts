@@ -29,6 +29,16 @@ import { loadCaller, isAdmin } from '../lib/permissions.js';
 // currencySchema in routes/onboarding.ts).
 const currencySchema = z.string().regex(/^[A-Z]{3}$/, 'currency must be a 3-letter ISO 4217 code');
 
+// FHS-626: the family's own name. It lives on the tenant row, like the
+// currency, not in the loose settings map, so it gets the same treatment.
+// The family's web address is its slug and is deliberately NOT touched:
+// renaming must never break a saved link.
+const familyNameSchema = z
+  .string()
+  .trim()
+  .min(1, 'family name cannot be empty')
+  .max(80, 'family name is too long');
+
 export const adminSettingsResponseSchema = z.record(z.string(), z.string());
 export const adminSettingsPutRequestSchema = z.object({ value: z.string() });
 export const adminSettingsPutResponseSchema = z.object({ key: z.string() }).passthrough();
@@ -123,7 +133,10 @@ export const adminRouter = new Hono()
         .select({ key: appSettings.key, value: appSettings.value })
         .from(appSettings)
         .where(eq(appSettings.tenantId, tenantId)),
-      db.select({ currency: tenants.currency }).from(tenants).where(eq(tenants.id, tenantId)),
+      db
+        .select({ currency: tenants.currency, name: tenants.name })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId)),
     ]);
 
     const map: Record<string, unknown> = {};
@@ -131,6 +144,8 @@ export const adminRouter = new Hono()
       map[row.key] = row.value;
     }
     map['currency'] = tenantRow?.currency ?? 'USD';
+    // FHS-626: surfaced so the settings screen can show and edit it.
+    map['familyName'] = tenantRow?.name ?? '';
     return c.json(map);
   })
 
@@ -171,6 +186,29 @@ export const adminRouter = new Hono()
         .where(eq(tenants.id, tenantId))
         .returning({ currency: tenants.currency });
       return c.json({ key: 'currency', value: row?.currency ?? parsed.data.value });
+    }
+
+    // FHS-626: renaming the family. Writes tenants.name, never the slug.
+    if (key === 'familyName') {
+      const parsed = z.object({ value: familyNameSchema }).safeParse(body);
+      if (!parsed.success) {
+        return c.json(
+          {
+            error: 'invalid request',
+            issues: parsed.error.issues.map((i) => ({
+              path: i.path.join('.'),
+              message: i.message,
+            })),
+          },
+          400,
+        );
+      }
+      const [row] = await db
+        .update(tenants)
+        .set({ name: parsed.data.value, updatedAt: new Date() })
+        .where(eq(tenants.id, tenantId))
+        .returning({ name: tenants.name });
+      return c.json({ key: 'familyName', value: row?.name ?? parsed.data.value });
     }
 
     const parsed = z.object({ value: z.string() }).safeParse(body);

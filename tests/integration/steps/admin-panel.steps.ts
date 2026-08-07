@@ -307,9 +307,11 @@ describeFeature(feature, ({ Background, Scenario }) => {
     And('the settings map is empty', () => {
       // FHS-441: currency is always present (defaults to USD), so
       // "empty" means no custom app_settings keys have been saved yet.
-      const { currency, ...customKeys } = lastSettings.body as Record<string, unknown>;
+      // FHS-626: the family's name is always present for the same reason.
+      const { currency, familyName, ...customKeys } = lastSettings.body as Record<string, unknown>;
       expect(Object.keys(customKeys)).toHaveLength(0);
       expect(currency).toBe('USD');
+      expect(typeof familyName).toBe('string');
     });
   });
 
@@ -378,9 +380,13 @@ describeFeature(feature, ({ Background, Scenario }) => {
         };
       });
       Then('the settings map is empty', () => {
-        const { currency, ...customKeys } = lastSettings.body as Record<string, unknown>;
+        const { currency, familyName, ...customKeys } = lastSettings.body as Record<
+          string,
+          unknown
+        >;
         expect(Object.keys(customKeys)).toHaveLength(0);
         expect(currency).toBe('USD');
+        expect(typeof familyName).toBe('string');
       });
     },
   );
