@@ -35,6 +35,7 @@ Feature: Kid ↔ Parent My World data consistency (FHS-405)
     When kid "Iman" GETs /api/kid/financial/investments
     Then the kid cross-side investments response status is 200
     And the investment is listed as active for Iman
+    And the kid can read the investment's multiplier
 
   Scenario: parent finalizes with an auto_save action, kid reads the action
     When the admin parent finalizes Iman's sticker week

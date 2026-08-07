@@ -168,6 +168,16 @@ export const kidInvestmentSchema = z.object({
   daysMissed: z.number().int(),
   // FHS-378: false = missed days count but apply no penalty.
   deductible: z.boolean(),
+  // FHS-607: stickers gained per completed day (FHS-534). The kid's board
+  // shows the same "Invested · Nx" tag as the parent's, and this schema was
+  // silently stripping the field, so every kid tag read 5x.
+  //
+  // The column is NOT NULL DEFAULT 5 and migration 0044 backfilled every row,
+  // so nothing in the database can omit it. It stays optional anyway because
+  // this schema parses the RESPONSE: a required field would turn any future
+  // absence into a 500 on a child's board, where a 5x label degrades quietly.
+  // Same defensive posture as `deductible ?? true` in lib/myworld.ts.
+  coefficient: z.number().int().optional(),
 });
 export const kidInvestmentsResponseSchema = z.object({
   investments: z.array(kidInvestmentSchema),

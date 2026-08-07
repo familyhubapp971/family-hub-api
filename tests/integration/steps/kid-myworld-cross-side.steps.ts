@@ -398,6 +398,9 @@ describeFeature(feature, ({ Background, Scenario }) => {
           habitId: ctx.habitId,
           stickerCount: 10,
           deductible: true,
+          // FHS-607: a non-default coefficient, so the kid payload has to
+          // carry a real multiplier rather than falling back to 5.
+          coefficient: 3,
         }),
       });
       ctx.lastParentStatus = res.status;
@@ -432,6 +435,18 @@ describeFeature(feature, ({ Background, Scenario }) => {
       const inv = investments.find((i) => i.habitId === ctx.habitId);
       expect(inv).toBeDefined();
       expect(inv?.investedStickers).toBe(10);
+    });
+
+    // FHS-607: the kid's board shows the same "Invested · Nx" tag as the
+    // parent's. The kid response schema used to strip `coefficient`, so every
+    // kid tag read 5x whatever the parent chose.
+    And("the kid can read the investment's multiplier", () => {
+      const investments = ctx.lastKidBody['investments'] as Array<{
+        habitId: string;
+        coefficient?: number;
+      }>;
+      const inv = investments.find((i) => i.habitId === ctx.habitId);
+      expect(inv?.coefficient).toBe(3);
     });
   });
 
