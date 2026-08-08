@@ -139,6 +139,25 @@ These are project-specific cues for when to invoke skills/agents. They do
 
 ## Subagents
 
+**Founder rule (2026-08-08): product decisions and ticket stories go through
+the product-manager agent.** Use
+[`.claude/agents/product-manager.md`](.claude/agents/product-manager.md)
+whenever you are:
+
+- **making or suggesting a product decision**: what to build, what to cut,
+  what to prioritise, how a feature should behave, pricing, positioning.
+- **writing the user story and acceptance criteria in a Jira ticket.**
+
+Brief it with the founder's ticket format: the bold one-line ask, **Why**, the
+**What to cover** table, **Depends on**, then Gherkin acceptance criteria,
+plain words, **under 250 words** (see
+[Ticket bodies](#ticket-bodies-written-so-anyone-gets-it-in-ten-seconds)).
+Read its output, decide yourself, then write the ticket. **Never hand the agent
+the final call**: it drafts, you decide.
+
+Skip it only for a ticket with no product surface at all (a board tidy-up, a CI
+tweak), and say so when you skip it.
+
 > **USE THE MATCHING AGENT: don't do specialist work inline when one fits.**
 > This repo ships a curated set of agents in [`.claude/agents/`](.claude/agents/)
 > (api-designer, backend-developer, code-reviewer, deployment-engineer,
