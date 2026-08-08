@@ -316,6 +316,13 @@
       "when": 1783939200000,
       "tag": "0044_mw_investments_coefficient",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1784025600000,
+      "tag": "0045_get_started_state",
+      "breakpoints": true
     }
   ]
 }

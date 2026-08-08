@@ -112,6 +112,11 @@ export const tenants = pgTable('tenants', {
   // their own `members` row; see `effectiveRateMinor` in lib/reward-config.ts.
   // Never store this as a float: money is minor-unit integers only.
   stickerRateMinor: integer('sticker_rate_minor').notNull().default(50),
+  // FHS-634: when an admin last saved the family's sticker rate. The rate
+  // column above is NOT NULL DEFAULT 50, so its value cannot tell us whether
+  // anyone ever chose it: this timestamp can. Drives the "Choose what a
+  // sticker is worth" step of the Getting started guide.
+  stickerRateSetAt: timestamp('sticker_rate_set_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -192,6 +197,10 @@ export const members = pgTable(
     // (tenants.sticker_rate_minor). See `effectiveRateMinor` in
     // lib/reward-config.ts: never store this as a float.
     stickerRateMinor: integer('sticker_rate_minor'),
+    // FHS-634: when this person hid the dashboard "Getting started" guide.
+    // Null = still showing it. Per member rather than per browser, so hiding
+    // it on a phone also hides it on a laptop.
+    getStartedDismissedAt: timestamp('get_started_dismissed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

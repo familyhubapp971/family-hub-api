@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { members, memberRole, pendingInvitations, tenants, type Tenant } from '../db/schema.js';
 import { inviteUserByEmail } from '../lib/supabase-admin.js';
@@ -8,6 +8,9 @@ import { config } from '../config.js';
 import { seedTenantDefaults } from '../db/seed-tenant-defaults.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 import { createLogger } from '../logger.js';
+import { isAdmin, loadCaller } from '../lib/permissions.js';
+import { loadGetStartedState } from '../lib/get-started.js';
+import { getStartedDismissResponseSchema, getStartedStateSchema } from '@familyhub/shared';
 
 // FHS-37: POST /api/onboarding/complete.
 //
@@ -122,234 +125,305 @@ function project(
   };
 }
 
-export const onboardingRouter = new Hono().post('/complete', async (c) => {
-  getAuthenticatedUser(c);
-  const userRow = c.get('userRow');
-  if (!userRow) {
-    throw new Error('onboarding handler reached without userRow on context');
-  }
-  const tenantId = c.get('tenantId');
-  if (!tenantId) {
-    return c.json(
-      {
-        error: 'tenant context required',
-        errorCode: 'TENANT_REQUIRED',
-        detail: 'no tenantId resolved on this request',
-      },
-      400,
-    );
-  }
-
-  const db = getDb();
-
-  // Authorization: only the founding admin (or any admin) finishes
-  // onboarding. Adults could in principle, but we want a single
-  // source of truth: the same person who created the tenant.
-  const callerRows = await db
-    .select({ id: members.id, role: members.role })
-    .from(members)
-    .where(and(eq(members.tenantId, tenantId), eq(members.userId, userRow.id)))
-    .limit(1);
-  const caller = callerRows[0];
-  if (!caller) {
-    return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
-  }
-  if (caller.role !== 'admin') {
-    return c.json(
-      { error: 'forbidden', detail: 'only the family admin can complete onboarding' },
-      403,
-    );
-  }
-
-  const body = await c.req.json().catch(() => null);
-  const parsed = completeOnboardingRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json(
-      {
-        error: 'invalid request',
-        issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
-      },
-      400,
-    );
-  }
-
-  // FHS-275: the founder can't invite themselves; their login is
-  // already linked to the admin seat.
-  if (
-    parsed.data.members.some(
-      (m) => m.email && m.email.toLowerCase() === userRow.email.toLowerCase(),
-    )
-  ) {
-    return c.json(
-      { error: 'invalid request', detail: "you can't invite your own email: that's you" },
-      400,
-    );
-  }
-
-  // Idempotency: if the flag is already true, return 200 with the
-  // current tenant without re-inserting members. The wizard's final
-  // submit can race with a tab refresh; a second click shouldn't
-  // duplicate the family.
-  const currentRows = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
-  const current = currentRows[0];
-  if (!current) {
-    return c.json({ error: 'tenant not found' }, 404);
-  }
-  if (current.onboardingCompleted) {
-    // Read-only by design: a duplicate submit (tab refresh race) changes
-    // nothing: including yourName. Renames after onboarding belong to
-    // the members page (FHS-276), not a replayed wizard call.
-    return c.json(completeOnboardingResponseSchema.parse(project(current, 0, 0)), 200);
-  }
-
-  // Single transaction: members insert + tenant update + starter
-  // content seed (FHS-40) all commit together. Partial failure rolls
-  // back the whole onboarding so the family doesn't end up in a
-  // half-onboarded state.
-  let updatedTenant: Tenant | undefined;
-  let membersAdded = 0;
-  const inviteTargets: Array<{ memberId: string; email: string }> = [];
-  let seedHabitsAdded = 0;
-  let seedRewardsAdded = 0;
-  try {
-    await db.transaction(async (tx) => {
-      // FHS-274: the founder IS the admin row created at family
-      // creation; the wizard renames them rather than duplicating them.
-      const yourName = parsed.data.yourName?.trim();
-      if (yourName) {
-        await tx
-          .update(members)
-          .set({ displayName: yourName, updatedAt: new Date() })
-          .where(and(eq(members.id, caller.id), eq(members.tenantId, tenantId)));
-      }
-
-      const newMemberRows = parsed.data.members.map((m) => ({
-        tenantId,
-        displayName: m.displayName,
-        role: m.role,
-        avatarEmoji: m.avatarEmoji ?? null,
-        // FHS-487: only kid rows (child/teen) persist an age; grown-up roles
-        // always get null, even if a crafted request sends one.
-        age: m.role === 'child' || m.role === 'teen' ? (m.age ?? null) : null,
-      }));
-      if (newMemberRows.length > 0) {
-        const inserted = await tx
-          .insert(members)
-          .values(newMemberRows)
-          .returning({ id: members.id });
-        membersAdded = inserted.length;
-        // RETURNING preserves input order for a single INSERT, so index
-        // i maps the created seat back to its wizard row (for invites).
-        inserted.forEach((row, i) => {
-          const email = parsed.data.members[i]?.email;
-          if (email) inviteTargets.push({ memberId: row.id, email });
-        });
-      }
-
-      const updated = await tx
-        .update(tenants)
-        .set({
-          timezone: parsed.data.timezone,
-          currency: parsed.data.currency,
-          onboardingCompleted: true,
-          updatedAt: new Date(),
-        })
-        .where(eq(tenants.id, tenantId))
-        .returning();
-      const t = updated[0];
-      if (!t) throw new Error('tenant update returned no row');
-      updatedTenant = t;
-
-      // FHS-40: seed starter habits + rewards (empty meal template
-      // by design). Idempotency is upstream: this branch only runs
-      // when onboarding_completed was false, so the seed never fires
-      // twice for the same tenant.
-      const seeded = await seedTenantDefaults(tx, tenantId);
-      seedHabitsAdded = seeded.habitsAdded;
-      seedRewardsAdded = seeded.rewardsAdded;
-    });
-  } catch (err) {
-    log.error(
-      { err: err instanceof Error ? err.message : String(err), tenantId },
-      'onboarding/complete transaction failed',
-    );
-    throw err;
-  }
-
-  if (!updatedTenant) {
-    // Unreachable: the transaction throws when the update returns no
-    // row, so this branch only exists to convince TS that the value
-    // is set after the try.
-    throw new Error('onboarding transaction completed without setting updatedTenant');
-  }
-
-  // FHS-275: best-effort invite emails AFTER the commit: a failed email
-  // must not roll back the family. Each invite is linked to its member
-  // seat; the claim flow (POST /api/invitations/claim) sets user_id on
-  // that seat at the invitee's first sign-in. Failures are marked
-  // expired so Manage Members (FHS-276) can resend.
-  let invitesSent = 0;
-  const baseUrl = config.APP_BASE_URL;
-  for (const target of inviteTargets) {
-    if (!baseUrl) {
-      log.error({ tenantId }, 'APP_BASE_URL not configured: skipping onboarding invites');
-      break;
+export const onboardingRouter = new Hono()
+  .post('/complete', async (c) => {
+    getAuthenticatedUser(c);
+    const userRow = c.get('userRow');
+    if (!userRow) {
+      throw new Error('onboarding handler reached without userRow on context');
     }
-    let inviteId: string | null = null;
-    try {
-      const ins = await db
-        .insert(pendingInvitations)
-        .values({
-          tenantId,
-          email: target.email,
-          role: 'adult',
-          invitedBy: caller.id,
-          memberId: target.memberId,
-          status: 'pending',
-        })
-        .returning({ id: pendingInvitations.id });
-      inviteId = ins[0]?.id ?? null;
-      if (!inviteId) throw new Error('pending_invitations insert returned no row');
-      const supabaseUser = await inviteUserByEmail({
-        email: target.email,
-        redirectTo: `${baseUrl.replace(/\/$/, '')}/auth/callback?invite=${inviteId}`,
-        data: { invite_id: inviteId, tenant_id: tenantId, role: 'adult' },
-      });
-      await db
-        .update(pendingInvitations)
-        .set({ supabaseInviteId: supabaseUser.id, updatedAt: new Date() })
-        .where(eq(pendingInvitations.id, inviteId));
-      invitesSent += 1;
-    } catch (err) {
-      if (inviteId) {
-        await db
-          .update(pendingInvitations)
-          .set({ status: 'expired', updatedAt: new Date() })
-          .where(eq(pendingInvitations.id, inviteId))
-          .catch(() => undefined);
-      }
-      log.error(
-        { err: err instanceof Error ? err.message : String(err), tenantId, email: target.email },
-        'onboarding invite failed (family still created)',
+    const tenantId = c.get('tenantId');
+    if (!tenantId) {
+      return c.json(
+        {
+          error: 'tenant context required',
+          errorCode: 'TENANT_REQUIRED',
+          detail: 'no tenantId resolved on this request',
+        },
+        400,
       );
     }
-  }
 
-  log.info(
-    {
-      tenantId,
-      membersAdded,
-      invitesSent,
-      seedHabitsAdded,
-      seedRewardsAdded,
-      timezone: parsed.data.timezone,
-      currency: parsed.data.currency,
-    },
-    'onboarding completed',
-  );
+    const db = getDb();
 
-  return c.json(
-    completeOnboardingResponseSchema.parse(project(updatedTenant, membersAdded, invitesSent)),
-    200,
-  );
-});
+    // Authorization: only the founding admin (or any admin) finishes
+    // onboarding. Adults could in principle, but we want a single
+    // source of truth: the same person who created the tenant.
+    const callerRows = await db
+      .select({ id: members.id, role: members.role })
+      .from(members)
+      .where(and(eq(members.tenantId, tenantId), eq(members.userId, userRow.id)))
+      .limit(1);
+    const caller = callerRows[0];
+    if (!caller) {
+      return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
+    }
+    if (caller.role !== 'admin') {
+      return c.json(
+        { error: 'forbidden', detail: 'only the family admin can complete onboarding' },
+        403,
+      );
+    }
+
+    const body = await c.req.json().catch(() => null);
+    const parsed = completeOnboardingRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
+      );
+    }
+
+    // FHS-275: the founder can't invite themselves; their login is
+    // already linked to the admin seat.
+    if (
+      parsed.data.members.some(
+        (m) => m.email && m.email.toLowerCase() === userRow.email.toLowerCase(),
+      )
+    ) {
+      return c.json(
+        { error: 'invalid request', detail: "you can't invite your own email: that's you" },
+        400,
+      );
+    }
+
+    // Idempotency: if the flag is already true, return 200 with the
+    // current tenant without re-inserting members. The wizard's final
+    // submit can race with a tab refresh; a second click shouldn't
+    // duplicate the family.
+    const currentRows = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+    const current = currentRows[0];
+    if (!current) {
+      return c.json({ error: 'tenant not found' }, 404);
+    }
+    if (current.onboardingCompleted) {
+      // Read-only by design: a duplicate submit (tab refresh race) changes
+      // nothing: including yourName. Renames after onboarding belong to
+      // the members page (FHS-276), not a replayed wizard call.
+      return c.json(completeOnboardingResponseSchema.parse(project(current, 0, 0)), 200);
+    }
+
+    // Single transaction: members insert + tenant update + starter
+    // content seed (FHS-40) all commit together. Partial failure rolls
+    // back the whole onboarding so the family doesn't end up in a
+    // half-onboarded state.
+    let updatedTenant: Tenant | undefined;
+    let membersAdded = 0;
+    const inviteTargets: Array<{ memberId: string; email: string }> = [];
+    let seedHabitsAdded = 0;
+    let seedRewardsAdded = 0;
+    try {
+      await db.transaction(async (tx) => {
+        // FHS-274: the founder IS the admin row created at family
+        // creation; the wizard renames them rather than duplicating them.
+        const yourName = parsed.data.yourName?.trim();
+        if (yourName) {
+          await tx
+            .update(members)
+            .set({ displayName: yourName, updatedAt: new Date() })
+            .where(and(eq(members.id, caller.id), eq(members.tenantId, tenantId)));
+        }
+
+        const newMemberRows = parsed.data.members.map((m) => ({
+          tenantId,
+          displayName: m.displayName,
+          role: m.role,
+          avatarEmoji: m.avatarEmoji ?? null,
+          // FHS-487: only kid rows (child/teen) persist an age; grown-up roles
+          // always get null, even if a crafted request sends one.
+          age: m.role === 'child' || m.role === 'teen' ? (m.age ?? null) : null,
+        }));
+        if (newMemberRows.length > 0) {
+          const inserted = await tx
+            .insert(members)
+            .values(newMemberRows)
+            .returning({ id: members.id });
+          membersAdded = inserted.length;
+          // RETURNING preserves input order for a single INSERT, so index
+          // i maps the created seat back to its wizard row (for invites).
+          inserted.forEach((row, i) => {
+            const email = parsed.data.members[i]?.email;
+            if (email) inviteTargets.push({ memberId: row.id, email });
+          });
+        }
+
+        const updated = await tx
+          .update(tenants)
+          .set({
+            timezone: parsed.data.timezone,
+            currency: parsed.data.currency,
+            onboardingCompleted: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(tenants.id, tenantId))
+          .returning();
+        const t = updated[0];
+        if (!t) throw new Error('tenant update returned no row');
+        updatedTenant = t;
+
+        // FHS-40: seed starter habits + rewards (empty meal template
+        // by design). Idempotency is upstream: this branch only runs
+        // when onboarding_completed was false, so the seed never fires
+        // twice for the same tenant.
+        const seeded = await seedTenantDefaults(tx, tenantId);
+        seedHabitsAdded = seeded.habitsAdded;
+        seedRewardsAdded = seeded.rewardsAdded;
+      });
+    } catch (err) {
+      log.error(
+        { err: err instanceof Error ? err.message : String(err), tenantId },
+        'onboarding/complete transaction failed',
+      );
+      throw err;
+    }
+
+    if (!updatedTenant) {
+      // Unreachable: the transaction throws when the update returns no
+      // row, so this branch only exists to convince TS that the value
+      // is set after the try.
+      throw new Error('onboarding transaction completed without setting updatedTenant');
+    }
+
+    // FHS-275: best-effort invite emails AFTER the commit: a failed email
+    // must not roll back the family. Each invite is linked to its member
+    // seat; the claim flow (POST /api/invitations/claim) sets user_id on
+    // that seat at the invitee's first sign-in. Failures are marked
+    // expired so Manage Members (FHS-276) can resend.
+    let invitesSent = 0;
+    const baseUrl = config.APP_BASE_URL;
+    for (const target of inviteTargets) {
+      if (!baseUrl) {
+        log.error({ tenantId }, 'APP_BASE_URL not configured: skipping onboarding invites');
+        break;
+      }
+      let inviteId: string | null = null;
+      try {
+        const ins = await db
+          .insert(pendingInvitations)
+          .values({
+            tenantId,
+            email: target.email,
+            role: 'adult',
+            invitedBy: caller.id,
+            memberId: target.memberId,
+            status: 'pending',
+          })
+          .returning({ id: pendingInvitations.id });
+        inviteId = ins[0]?.id ?? null;
+        if (!inviteId) throw new Error('pending_invitations insert returned no row');
+        const supabaseUser = await inviteUserByEmail({
+          email: target.email,
+          redirectTo: `${baseUrl.replace(/\/$/, '')}/auth/callback?invite=${inviteId}`,
+          data: { invite_id: inviteId, tenant_id: tenantId, role: 'adult' },
+        });
+        await db
+          .update(pendingInvitations)
+          .set({ supabaseInviteId: supabaseUser.id, updatedAt: new Date() })
+          .where(eq(pendingInvitations.id, inviteId));
+        invitesSent += 1;
+      } catch (err) {
+        if (inviteId) {
+          await db
+            .update(pendingInvitations)
+            .set({ status: 'expired', updatedAt: new Date() })
+            .where(eq(pendingInvitations.id, inviteId))
+            .catch(() => undefined);
+        }
+        log.error(
+          { err: err instanceof Error ? err.message : String(err), tenantId, email: target.email },
+          'onboarding invite failed (family still created)',
+        );
+      }
+    }
+
+    log.info(
+      {
+        tenantId,
+        membersAdded,
+        invitesSent,
+        seedHabitsAdded,
+        seedRewardsAdded,
+        timezone: parsed.data.timezone,
+        currency: parsed.data.currency,
+      },
+      'onboarding completed',
+    );
+
+    return c.json(
+      completeOnboardingResponseSchema.parse(project(updatedTenant, membersAdded, invitesSent)),
+      200,
+    );
+  })
+
+  // FHS-634: the dashboard "Getting started" guide's state.
+  //
+  // GET  /api/onboarding/get-started         : the four steps + whether this
+  //                                            admin has hidden the guide.
+  // POST /api/onboarding/get-started/dismiss : hide it, for this person, on
+  //                                            every device.
+  //
+  // Admin-only, because every step lands on an admin-only screen (add kids,
+  // set PINs, set the rate). Non-admins get 403 and the card never renders.
+  .get('/get-started', async (c) => {
+    getAuthenticatedUser(c);
+    const userRow = c.get('userRow');
+    if (!userRow) {
+      throw new Error('get-started handler reached without userRow on context');
+    }
+    const tenantId = c.get('tenantId');
+    if (!tenantId) {
+      return c.json({ error: 'tenant context required', errorCode: 'TENANT_REQUIRED' }, 400);
+    }
+
+    const db = getDb();
+    const caller = await loadCaller(db, tenantId, userRow.id);
+    if (!caller) {
+      return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
+    }
+    if (!isAdmin(caller)) {
+      return c.json({ error: 'forbidden', detail: 'the setup guide is for the family admin' }, 403);
+    }
+
+    const state = await loadGetStartedState(db, tenantId, caller.id);
+    return c.json(getStartedStateSchema.parse(state), 200);
+  })
+
+  .post('/get-started/dismiss', async (c) => {
+    getAuthenticatedUser(c);
+    const userRow = c.get('userRow');
+    if (!userRow) {
+      throw new Error('get-started dismiss handler reached without userRow on context');
+    }
+    const tenantId = c.get('tenantId');
+    if (!tenantId) {
+      return c.json({ error: 'tenant context required', errorCode: 'TENANT_REQUIRED' }, 400);
+    }
+
+    const db = getDb();
+    const caller = await loadCaller(db, tenantId, userRow.id);
+    if (!caller) {
+      return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
+    }
+    if (!isAdmin(caller)) {
+      return c.json({ error: 'forbidden', detail: 'the setup guide is for the family admin' }, 403);
+    }
+
+    // Idempotent: dismissing twice keeps the FIRST timestamp, so a double-tap
+    // or a retry after a dropped connection is not an error and does not move
+    // the record of when they hid it.
+    await db
+      .update(members)
+      .set({ getStartedDismissedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(members.id, caller.id),
+          eq(members.tenantId, tenantId),
+          isNull(members.getStartedDismissedAt),
+        ),
+      );
+
+    return c.json(getStartedDismissResponseSchema.parse({ dismissed: true }), 200);
+  });

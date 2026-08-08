@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { members, tenants } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
@@ -147,9 +147,17 @@ export const rewardConfigRouter = new Hono()
     const { familyRateMinor, memberOverrides } = parsed.data;
 
     if (familyRateMinor !== undefined) {
+      // FHS-634: stamp WHEN the family chose a rate, not just what it is. The
+      // column carries a NOT NULL DEFAULT, so a family that deliberately keeps
+      // the default 0.50 is indistinguishable from one that never looked: the
+      // Getting started guide needs to tell those apart.
       await db
         .update(tenants)
-        .set({ stickerRateMinor: familyRateMinor, updatedAt: new Date() })
+        .set({
+          stickerRateMinor: familyRateMinor,
+          stickerRateSetAt: new Date(),
+          updatedAt: new Date(),
+        })
         .where(eq(tenants.id, tenantId));
     }
 
@@ -162,12 +170,23 @@ export const rewardConfigRouter = new Hono()
         .from(members)
         .where(and(eq(members.tenantId, tenantId), inArray(members.id, memberIds)));
       const validIds = new Set(existing.map((m) => m.id));
+      let applied = 0;
       for (const override of memberOverrides) {
         if (!validIds.has(override.memberId)) continue; // silently skip a foreign/unknown id
         await db
           .update(members)
           .set({ stickerRateMinor: override.rateMinor, updatedAt: new Date() })
           .where(and(eq(members.tenantId, tenantId), eq(members.id, override.memberId)));
+        applied += 1;
+      }
+      // FHS-634: setting only a per-child rate still counts as choosing what a
+      // sticker is worth. The isNull guard means a per-child tweak never
+      // overwrites the timestamp of when the FAMILY rate was last saved.
+      if (applied > 0 && familyRateMinor === undefined) {
+        await db
+          .update(tenants)
+          .set({ stickerRateSetAt: new Date(), updatedAt: new Date() })
+          .where(and(eq(tenants.id, tenantId), isNull(tenants.stickerRateSetAt)));
       }
     }
 

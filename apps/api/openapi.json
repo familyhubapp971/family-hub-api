@@ -7851,6 +7851,110 @@
         }
       }
     },
+    "/api/onboarding/get-started": {
+      "get": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "State of the dashboard setup guide for the calling admin",
+        "operationId": "get_api_onboarding_get_started",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "dismissed (this member hid the guide), steps.{kids,pins,rate,habits} derived from the family's own data, and firstKidId for the \"open their world\" deep link. 403 for non-admins",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "dismissed": {
+                      "type": "boolean"
+                    },
+                    "steps": {
+                      "type": "object",
+                      "properties": {
+                        "kids": {
+                          "type": "boolean"
+                        },
+                        "pins": {
+                          "type": "boolean"
+                        },
+                        "rate": {
+                          "type": "boolean"
+                        },
+                        "habits": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kids",
+                        "pins",
+                        "rate",
+                        "habits"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "firstKidId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "dismissed",
+                    "steps",
+                    "firstKidId"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/onboarding/get-started/dismiss": {
+      "post": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "Hide the dashboard setup guide for the calling admin, on every device",
+        "operationId": "post_api_onboarding_get_started_dismiss",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Always { dismissed: true }. Idempotent: a repeat call keeps the original timestamp. 403 for non-admins",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "dismissed": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "dismissed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/public/calendar/{token}": {
       "get": {
         "tags": [

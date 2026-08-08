@@ -143,6 +143,7 @@ import {
   rewardConfigResponseSchema,
   rewardConfigPutRequestSchema,
 } from '../routes/reward-config.js';
+import { getStartedDismissResponseSchema, getStartedStateSchema } from '@familyhub/shared';
 
 export interface QueryParamMeta {
   description?: string;
@@ -758,5 +759,20 @@ export const routeMeta: Record<string, RouteMeta> = {
     summary: 'Archive (soft-delete) a reward; admin-only',
     responseDesc:
       "204 on success. 404 if the reward is not in the caller's tenant or is already archived. Never a hard delete: reward_redemptions/redemption_requests keep their FK for history",
+  },
+
+  // FHS-634: the dashboard "Getting started" guide, stored per member so it
+  // stops re-appearing on every new browser.
+  'GET /api/onboarding/get-started': {
+    summary: 'State of the dashboard setup guide for the calling admin',
+    response: getStartedStateSchema,
+    responseDesc:
+      'dismissed (this member hid the guide), steps.{kids,pins,rate,habits} derived from the family\'s own data, and firstKidId for the "open their world" deep link. 403 for non-admins',
+  },
+  'POST /api/onboarding/get-started/dismiss': {
+    summary: 'Hide the dashboard setup guide for the calling admin, on every device',
+    response: getStartedDismissResponseSchema,
+    responseDesc:
+      'Always { dismissed: true }. Idempotent: a repeat call keeps the original timestamp. 403 for non-admins',
   },
 };
