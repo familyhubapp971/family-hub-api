@@ -322,6 +322,25 @@ the ticket already say most of this.
 **Founder rule (2026-08-06).** A ticket is read by a tired person on a
 phone who was not in the conversation that created it. Write for them.
 
+> **Founder rule (2026-08-08): keep them SHORT.** The tickets written up to
+> now are far too long. Same shape and headings as below, but **plain words a
+> non-engineer reads once and gets**, and a hard size limit:
+>
+> | Part                    | Limit                                                    |
+> | ----------------------- | -------------------------------------------------------- |
+> | The bold first line     | One sentence. What we are doing, and for whom            |
+> | **Why**                 | 1 to 3 bullets, one line each                            |
+> | **What to cover**       | Table, 3 to 6 rows, one short sentence per cell          |
+> | **Depends on**          | One line, or "Nothing"                                   |
+> | **Acceptance criteria** | 2 to 4 scenarios, 3 to 5 lines each                      |
+> | Whole ticket            | **Under 250 words.** If it needs more, it is two tickets |
+>
+> Cut anything a reader does not need to start work: background essays,
+> paragraphs of reasoning, every alternative considered, long quoted code.
+> Those belong in the PR body or a comment. **No jargon the founder did not
+> use.** If a technical word is unavoidable, define it in five words the first
+> time. A ticket nobody finishes reading is a ticket nobody acts on.
+
 **Every ticket body uses this shape, in this order:**
 
 ```markdown
