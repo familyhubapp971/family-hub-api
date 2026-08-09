@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { formatMoney, formatMoneyMinor, viewerLocale } from '../../../packages/shared/src/money.js';
+import {
+  FALLBACK_CURRENCY,
+  currencySymbol,
+  formatMoney,
+  formatMoneyMinor,
+  viewerLocale,
+} from '../../../packages/shared/src/money.js';
 
 // FHS-613: one money formatter for the whole product. Before it, every screen
 // glued the currency code onto a number, which only ever looked right for
@@ -51,5 +57,29 @@ describe('formatMoney', () => {
     expect(() => formatMoney(1, 'USD')).not.toThrow();
     const locale = viewerLocale();
     expect(locale === undefined || typeof locale === 'string').toBe(true);
+  });
+});
+
+// FHS-614: the symbol on its own, for the one control that cannot use a whole
+// formatted string (the ± amount stepper, where the number stays editable).
+
+describe('currencySymbol', () => {
+  it('gives the symbol a family expects to see beside a number', () => {
+    expect(currencySymbol('GBP', 'en-GB')).toBe('£');
+    expect(currencySymbol('USD', 'en-US')).toBe('$');
+    expect(currencySymbol('EUR', 'de-DE')).toBe('€');
+  });
+
+  it('falls back to the code rather than showing nothing', () => {
+    expect(currencySymbol('NOTACODE', 'en-US')).toBe('NOTACODE');
+  });
+});
+
+describe('FALLBACK_CURRENCY', () => {
+  it('matches the database default, so no screen disagrees with another', () => {
+    // The Admin Panel used to fall back to AED while everything else and the
+    // tenants table defaulted to USD, so one screen quietly priced a family's
+    // money in the wrong currency (FHS-614).
+    expect(FALLBACK_CURRENCY).toBe('USD');
   });
 });

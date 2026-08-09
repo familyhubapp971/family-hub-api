@@ -50,3 +50,33 @@ export function formatMoney(amount: number, currency: string, locale?: string): 
 export function formatMoneyMinor(amountMinor: number, currency: string, locale?: string): string {
   return formatMoney((Number.isFinite(amountMinor) ? amountMinor : 0) / 100, currency, locale);
 }
+
+/**
+ * FHS-614: just the symbol, e.g. "GBP" → "£", "USD" → "$", "AED" → "د.إ".
+ *
+ * For the one place a full formatted string will not do: the ± amount stepper,
+ * where the number lives in an editable input and only the prefix beside it is
+ * ours to write. Everything that merely displays an amount should use
+ * {@link formatMoney} instead, so placement and separators stay the viewer's.
+ *
+ * Falls back to the code itself, which is what every screen showed before this.
+ */
+export function currencySymbol(currency: string, locale?: string): string {
+  try {
+    // Deliberately the DEFAULT currencyDisplay, matching formatMoney above.
+    // 'narrowSymbol' would render CAD and AUD as a bare "$", so a Canadian
+    // family would read "$" beside the stepper and "CA$" everywhere else on
+    // the same screen: an ambiguous, USD-looking prefix in the one place the
+    // number is being edited.
+    const parts = new Intl.NumberFormat(locale ?? viewerLocale(), {
+      style: 'currency',
+      currency,
+    }).formatToParts(0);
+    return parts.find((part) => part.type === 'currency')?.value ?? currency;
+  } catch {
+    return currency;
+  }
+}
+
+/** The default currency when an API response carries none: matches the database default. */
+export const FALLBACK_CURRENCY = 'USD';
