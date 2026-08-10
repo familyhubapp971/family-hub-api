@@ -6,6 +6,7 @@ import { getDb } from '../db/client.js';
 import { appSettings, tenants, TENANT_SCOPED_TABLES } from '../db/schema.js';
 import { getAuthenticatedUser } from '../middleware/auth.js';
 import { loadCaller, isAdmin } from '../lib/permissions.js';
+import { currencyCodeSchema } from '@familyhub/shared';
 
 // FHS-308: Admin Panel: app_settings endpoints (tenant-scoped key/value config).
 //
@@ -25,9 +26,8 @@ import { loadCaller, isAdmin } from '../lib/permissions.js';
 // GET merges it in; PUT writes straight to `tenants` instead of app_settings
 // so nothing else in the app has to learn about a second currency source.
 
-// ISO 4217 currency: three uppercase letters (same rule as onboarding's
-// currencySchema in routes/onboarding.ts).
-const currencySchema = z.string().regex(/^[A-Z]{3}$/, 'currency must be a 3-letter ISO 4217 code');
+// FHS-636: shared with onboarding and with the picker's own list.
+const currencySchema = currencyCodeSchema;
 
 // FHS-626: the family's own name. It lives on the tenant row, like the
 // currency, not in the loose settings map, so it gets the same treatment.
@@ -216,6 +216,11 @@ export const adminRouter = new Hono()
       return c.json(
         {
           error: 'invalid request',
+          // FHS-636 review: the web app reads `detail` on a failed save, and a
+          // schema 400 never carried one, so a careful refusal message arrived
+          // as "Couldn't save the currency (400)". The first issue IS the
+          // reason; say it.
+          detail: parsed.error.issues[0]?.message,
           issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
         },
         400,
@@ -332,6 +337,11 @@ export const adminRouter = new Hono()
       return c.json(
         {
           error: 'invalid request',
+          // FHS-636 review: the web app reads `detail` on a failed save, and a
+          // schema 400 never carried one, so a careful refusal message arrived
+          // as "Couldn't save the currency (400)". The first issue IS the
+          // reason; say it.
+          detail: parsed.error.issues[0]?.message,
           issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
         },
         400,

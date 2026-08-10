@@ -2,11 +2,11 @@ import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber';
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
 import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
 import { onboardingRouter } from '../../../apps/api/src/routes/onboarding.js';
-import { tenants, members, users } from '../../../apps/api/src/db/schema.js';
+import { tenants, members, habits, users } from '../../../apps/api/src/db/schema.js';
 import type { Database } from '../../../apps/api/src/db/client.js';
 import { getTestDb } from '../support/db.js';
 
@@ -377,6 +377,71 @@ describeFeature(feature, ({ Background, Scenario }) => {
           sql`SELECT COUNT(*)::text AS count FROM rewards WHERE tenant_id = ${tenantIds[slug]!}`,
         );
         expect(Number(rows[0]?.count)).toBe(0);
+      });
+    },
+  );
+
+  Scenario(
+    'FHS-636: an unsupported currency is refused and nothing commits',
+    ({ When, Then, And }) => {
+      let res: Response;
+      let body: { detail?: string; issues?: Array<{ message: string }> };
+
+      When(
+        'the admin POSTs onboarding-complete for tenant {string} with timezone {string}, currency {string}, and 2 members',
+        async (_ctx, slug: string, timezone: string, currency: string) => {
+          res = await app.request('/api/onboarding/complete', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'x-test-tenant': tenantIds[slug]!,
+            },
+            body: JSON.stringify({
+              timezone,
+              currency,
+              yourName: 'Sarah',
+              members: [
+                { displayName: 'Iman', role: 'child', avatarEmoji: '👧' },
+                { displayName: 'Yusuf', role: 'adult' },
+              ],
+            }),
+          });
+          body = (await res.json().catch(() => ({}))) as typeof body;
+        },
+      );
+
+      Then('the response status is {int}', (_ctx, status: number) => {
+        expect(res.status).toBe(status);
+      });
+
+      And('the response says why the currency was refused', () => {
+        // The web app reads `detail`; without it the parent sees a bare 400.
+        expect(body.detail).toContain('cannot show that currency');
+      });
+
+      And('tenant {string} still has onboarding_completed = {word}', async (_ctx, slug: string) => {
+        const rows = await db
+          .select({ done: tenants.onboardingCompleted })
+          .from(tenants)
+          .where(eq(tenants.id, tenantIds[slug]!));
+        expect(rows[0]?.done).toBe(false);
+      });
+
+      And('tenant {string} has {int} member in total', async (_ctx, slug: string, n: number) => {
+        const rows = await db
+          .select({ id: members.id })
+          .from(members)
+          .where(eq(members.tenantId, tenantIds[slug]!));
+        expect(rows).toHaveLength(n);
+      });
+
+      And('tenant {string} has {int} habits seeded', async (_ctx, slug: string, n: number) => {
+        const rows = await db
+          .select({ id: habits.id })
+          .from(habits)
+          .where(eq(habits.tenantId, tenantIds[slug]!));
+        expect(rows).toHaveLength(n);
       });
     },
   );

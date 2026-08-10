@@ -448,6 +448,61 @@ describeFeature(feature, ({ Background, Scenario }) => {
     );
   });
 
+  // Scenario: FHS-636: the server refuses what the picker never offers -----
+
+  Scenario(
+    'FHS-636: a currency the app cannot show is refused, and nothing changes',
+    ({ When, Then, And }) => {
+      When(
+        'the caller puts setting {string} to {string} for tenant {string}',
+        async (_c, key: string, value: string, slug: string) => {
+          const res = await app.request(`/api/admin/settings/${key}`, {
+            method: 'PUT',
+            headers: headers(slug),
+            body: JSON.stringify({ value }),
+          });
+          lastSettingsPut = {
+            status: res.status,
+            body: (await res.json().catch(() => ({}))) as Record<string, unknown>,
+          };
+        },
+      );
+      Then('the settings put response status is {int}', (_c, n: number) =>
+        expect(lastSettingsPut.status).toBe(n),
+      );
+      And('the caller fetches settings for tenant {string}', async (_c, slug: string) => {
+        const res = await app.request('/api/admin/settings', { headers: headers(slug) });
+        lastSettings = {
+          status: res.status,
+          body: (await res.json().catch(() => ({}))) as Record<string, unknown>,
+        };
+      });
+      And('the settings map has {string} equal to {string}', (_c, key: string, value: string) => {
+        expect((lastSettings.body as Record<string, unknown>)[key]).toBe(value);
+      });
+    },
+  );
+
+  Scenario('FHS-636: a three-decimal currency is refused too', ({ When, Then }) => {
+    When(
+      'the caller puts setting {string} to {string} for tenant {string}',
+      async (_c, key: string, value: string, slug: string) => {
+        const res = await app.request(`/api/admin/settings/${key}`, {
+          method: 'PUT',
+          headers: headers(slug),
+          body: JSON.stringify({ value }),
+        });
+        lastSettingsPut = {
+          status: res.status,
+          body: (await res.json().catch(() => ({}))) as Record<string, unknown>,
+        };
+      },
+    );
+    Then('the settings put response status is {int}', (_c, n: number) =>
+      expect(lastSettingsPut.status).toBe(n),
+    );
+  });
+
   // Scenario: FHS-441: currency is tenant-scoped ---------------------------
 
   Scenario(

@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 // FHS-613: one place that turns an amount into money the family can read.
 //
 // Before this, every screen glued the currency code onto a number by hand
@@ -80,3 +82,78 @@ export function currencySymbol(currency: string, locale?: string): string {
 
 /** The default currency when an API response carries none: matches the database default. */
 export const FALLBACK_CURRENCY = 'USD';
+
+/**
+ * How many decimal places a currency is written with: 2 for most, 0 for the
+ * yen and the won, 3 for the Kuwaiti dinar.
+ */
+export function currencyDecimals(currency: string): number {
+  try {
+    return (
+      new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions()
+        .maximumFractionDigits ?? 2
+    );
+  } catch {
+    return 2;
+  }
+}
+
+/**
+ * FHS-515 / FHS-636: whether the sticker economy can render this currency
+ * correctly today.
+ *
+ * Every amount is stored as a whole number of the currency's smallest unit and
+ * divided by 100 to show, and the amount stepper moves in quarter units. That
+ * is only true for a 2-decimal currency: 500 yen would show as "5", because the
+ * yen has no smaller unit to divide by.
+ *
+ * The currency picker has filtered its list this way since FHS-515, so no
+ * family can choose one through the app. This is the same rule for the server,
+ * which until FHS-636 accepted any three uppercase letters and would happily
+ * store a currency every screen then renders a hundred times too small.
+ *
+ * Remove this fence when the economy stops assuming two decimals, not before.
+ */
+export function isSupportedCurrency(currency: string): boolean {
+  if (!/^[A-Z]{3}$/.test(currency)) return false;
+  // Review finding: Intl does not reject a well-formed code it has never heard
+  // of. `Intl.NumberFormat('en', { currency: 'ZZZ' })` happily reports two
+  // decimals, so the decimal check alone would have waved "ZZZ" through and
+  // every screen would then print the literal code where the symbol goes.
+  if (!isRealCurrencyCode(currency)) return false;
+  return currencyDecimals(currency) === 2;
+}
+
+/**
+ * Whether this is an ISO 4217 code the runtime actually knows.
+ *
+ * Both the api (Node) and the browser ship full ICU, so both answer from the
+ * same list. On a runtime too old for `Intl.supportedValuesOf` this returns
+ * true and the decimal check alone decides, which is the behaviour before this
+ * function existed: no worse than it was, never stricter than the caller can
+ * verify.
+ */
+function isRealCurrencyCode(currency: string): boolean {
+  const supported = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] })
+    .supportedValuesOf;
+  if (typeof supported !== 'function') return true;
+  try {
+    return supported('currency').includes(currency);
+  } catch {
+    return true;
+  }
+}
+
+/** Plain-words reason for a refusal, used by the api and worth showing as-is. */
+export const UNSUPPORTED_CURRENCY_MESSAGE =
+  'Family Hub cannot show that currency correctly yet, so it cannot be set. Currencies with no small change (like the yen) or three decimal places (like the dinar) need work we have not done.';
+
+/**
+ * FHS-636: the one currency schema, used by every api route that accepts one.
+ * It lived in two routes as identical copies, each with a comment pointing at
+ * the other, which is how two copies stay identical right up until they don't.
+ */
+export const currencyCodeSchema = z
+  .string()
+  .regex(/^[A-Z]{3}$/, 'currency must be a 3-letter ISO 4217 code')
+  .refine(isSupportedCurrency, { message: UNSUPPORTED_CURRENCY_MESSAGE });

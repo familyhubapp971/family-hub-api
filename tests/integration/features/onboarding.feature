@@ -41,3 +41,14 @@ Feature: POST /api/onboarding/complete (FHS-37)
     And tenant "khan" has 1 member in total
     And tenant "khan" has 0 habits seeded
     And tenant "khan" has 0 rewards seeded
+
+  # FHS-636: the picker never offers a currency the sticker economy cannot show,
+  # but this endpoint accepted any three letters, so one was still a single API
+  # call away. Nothing must commit when it is refused.
+  Scenario: FHS-636: an unsupported currency is refused and nothing commits
+    When the admin POSTs onboarding-complete for tenant "khan" with timezone "Asia/Dubai", currency "JPY", and 2 members
+    Then the response status is 400
+    And the response says why the currency was refused
+    And tenant "khan" still has onboarding_completed = false
+    And tenant "khan" has 1 member in total
+    And tenant "khan" has 0 habits seeded

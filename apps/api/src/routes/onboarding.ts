@@ -10,7 +10,11 @@ import { getAuthenticatedUser } from '../middleware/auth.js';
 import { createLogger } from '../logger.js';
 import { isAdmin, loadCaller } from '../lib/permissions.js';
 import { loadGetStartedState } from '../lib/get-started.js';
-import { getStartedDismissResponseSchema, getStartedStateSchema } from '@familyhub/shared';
+import {
+  currencyCodeSchema,
+  getStartedDismissResponseSchema,
+  getStartedStateSchema,
+} from '@familyhub/shared';
 
 // FHS-37: POST /api/onboarding/complete.
 //
@@ -43,8 +47,9 @@ const timezoneSchema = z
   .max(64)
   .regex(/^[A-Za-z][A-Za-z0-9_+\-/]*$/, 'invalid IANA timezone string');
 
-// ISO 4217 currency: three uppercase letters.
-const currencySchema = z.string().regex(/^[A-Z]{3}$/, 'currency must be a 3-letter ISO 4217 code');
+// FHS-636: shared with the admin settings route and with the picker's own
+// list, so there is one answer to "can we show this currency?".
+const currencySchema = currencyCodeSchema;
 
 // Subset of memberRole valid as a wizard-time selection. Admin is
 // implicit (the founder is already admin via /api/public/tenant); the
@@ -171,6 +176,11 @@ export const onboardingRouter = new Hono()
       return c.json(
         {
           error: 'invalid request',
+          // FHS-636 review: the web app reads `detail` on a failed save, and a
+          // schema 400 never carried one, so a careful refusal message arrived
+          // as "Couldn't save the currency (400)". The first issue IS the
+          // reason; say it.
+          detail: parsed.error.issues[0]?.message,
           issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
         },
         400,

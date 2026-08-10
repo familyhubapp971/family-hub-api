@@ -36,6 +36,16 @@ Feature: Admin Panel endpoints (FHS-308)
     When the caller puts setting "currency" to "gbp" for tenant "jones"
     Then the settings put response status is 400
 
+  Scenario: FHS-636: a currency the app cannot show is refused, and nothing changes
+    When the caller puts setting "currency" to "JPY" for tenant "jones"
+    Then the settings put response status is 400
+    And the caller fetches settings for tenant "jones"
+    And the settings map has "currency" equal to "USD"
+
+  Scenario: FHS-636: a three-decimal currency is refused too
+    When the caller puts setting "currency" to "KWD" for tenant "jones"
+    Then the settings put response status is 400
+
   Scenario: FHS-441: currency is tenant-scoped (other tenants keep their own)
     Given an admin-panel tenant "smith" exists with the caller as an admin member
     When the caller puts setting "currency" to "EUR" for tenant "jones"

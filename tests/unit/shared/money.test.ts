@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   FALLBACK_CURRENCY,
+  currencyDecimals,
   currencySymbol,
+  isSupportedCurrency,
   formatMoney,
   formatMoneyMinor,
   viewerLocale,
@@ -81,5 +83,54 @@ describe('FALLBACK_CURRENCY', () => {
     // tenants table defaulted to USD, so one screen quietly priced a family's
     // money in the wrong currency (FHS-614).
     expect(FALLBACK_CURRENCY).toBe('USD');
+  });
+});
+
+// FHS-515 / FHS-636: which currencies the sticker economy can actually render.
+
+describe('isSupportedCurrency', () => {
+  it('accepts the ordinary two-decimal currencies', () => {
+    for (const code of ['USD', 'GBP', 'EUR', 'AED', 'NGN', 'INR']) {
+      expect(isSupportedCurrency(code)).toBe(true);
+    }
+  });
+
+  it('refuses currencies with no small change', () => {
+    // Every amount is stored in the smallest unit and divided by 100, so 500
+    // yen would read as 5. The picker has refused these since FHS-515; FHS-636
+    // made the server agree.
+    expect(isSupportedCurrency('JPY')).toBe(false);
+    expect(isSupportedCurrency('KRW')).toBe(false);
+  });
+
+  it('refuses three-decimal currencies for the same reason', () => {
+    expect(isSupportedCurrency('KWD')).toBe(false);
+    expect(isSupportedCurrency('BHD')).toBe(false);
+  });
+
+  it('refuses anything that is not a currency code', () => {
+    expect(isSupportedCurrency('usd')).toBe(false);
+    expect(isSupportedCurrency('POUNDS')).toBe(false);
+    expect(isSupportedCurrency('')).toBe(false);
+  });
+
+  it('refuses a code that only LOOKS like a currency', () => {
+    // Review finding: Intl reports two decimals for any well-formed code it
+    // has never heard of, so the decimal check alone said yes to these.
+    expect(isSupportedCurrency('ZZZ')).toBe(false);
+    expect(isSupportedCurrency('XXX')).toBe(false);
+    expect(isSupportedCurrency('AAA')).toBe(false);
+  });
+});
+
+describe('currencyDecimals', () => {
+  it('knows how many decimals each currency is written with', () => {
+    expect(currencyDecimals('USD')).toBe(2);
+    expect(currencyDecimals('JPY')).toBe(0);
+    expect(currencyDecimals('KWD')).toBe(3);
+  });
+
+  it('assumes two for anything it does not recognise', () => {
+    expect(currencyDecimals('NOTACODE')).toBe(2);
   });
 });
