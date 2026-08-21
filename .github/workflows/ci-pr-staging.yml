@@ -155,3 +155,6 @@ jobs:
         with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      # FHS-643: the design system catalogue must keep compiling. Kept in
+      # this informational job so it never becomes a required check.
+      - run: pnpm build-storybook

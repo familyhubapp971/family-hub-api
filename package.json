@@ -40,7 +40,9 @@
     "typecheck": "pnpm -r typecheck",
     "clean": "pnpm -r exec rm -rf dist .turbo node_modules/.cache",
     "prepare": "husky || true",
-    "feedback:export": "node scripts/export-beta-feedback.mjs"
+    "feedback:export": "node scripts/export-beta-feedback.mjs",
+    "storybook": "pnpm -F @familyhub/ui storybook",
+    "build-storybook": "pnpm -F @familyhub/ui build-storybook"
   },
   "devDependencies": {
     "@amiceli/vitest-cucumber": "^6.3.0",

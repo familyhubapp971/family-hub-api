@@ -26,6 +26,7 @@ export default tseslint.config(
       '**/.turbo/**',
       '**/.vite/**',
       '**/coverage/**',
+      '**/storybook-static/**',
       '**/node_modules/**',
       '**/playwright-report*/**',
       '**/test-results*/**',

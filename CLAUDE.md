@@ -953,6 +953,14 @@ across pages. Rules:
 - New component used (or clearly usable) by 2+ pages → extract to
   `packages/ui/src/<Name>.tsx`, export from `index.ts`, unit-test it
   under `tests/unit/ui/`.
+- **Every component ships with a Storybook story** at
+  `packages/ui/src/<Name>.stories.tsx` covering the props that actually
+  branch (each variant, disabled, error, long text). `pnpm storybook`
+  opens the catalogue. The guard test
+  [`tests/unit/web/ui/stories-coverage.test.ts`](tests/unit/web/ui/stories-coverage.test.ts)
+  fails the build on a component with no story, so this is a merge gate,
+  not a suggestion. See
+  [design-system.md](documents/technical/design-system.md) (FHS-643).
 - Shared visual constants (role → colour/label maps, pastel palettes,
   status chip styles) live in `packages/ui`, not per-page consts.
 - When matching a Magic Patterns design, port the mock's component into
