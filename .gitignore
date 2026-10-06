@@ -87,5 +87,7 @@ documents/business/
 documents/impact/
 documents/investments/
 documents/qa/
+# Signed contracts hold personal details; their sources stay local only.
+scripts/doc-src/fh-qa-contractor-*.html
 documents/media/
 PRIVACY-TODO.md
