@@ -11,8 +11,8 @@ Feature: Calendar sync feed (FHS-445)
     And a tenant "khan" exists with the caller as an admin member
 
   Scenario: A member fetches the subscribe url and the public feed lists their events
-    Given the "khan" tenant has an event "Swim class" on "2026-07-05"
-    And the "khan" tenant has an event "Dentist" on "2026-07-06"
+    Given the "khan" tenant has an event "Swim class" on "2099-07-05"
+    And the "khan" tenant has an event "Dentist" on "2099-07-06"
     When the caller GETs /api/calendar/feed for tenant "khan"
     Then the feed response status is 200
     When an anonymous request fetches that subscribe url
@@ -23,8 +23,8 @@ Feature: Calendar sync feed (FHS-445)
 
   Scenario: Tenant isolation: a family's feed never includes another family's events
     Given a second tenant "smith" exists with the caller as an admin member
-    And the "khan" tenant has an event "Swim class" on "2026-07-05"
-    And separately the "smith" tenant has an event "Piano recital" on "2026-07-05"
+    And the "khan" tenant has an event "Swim class" on "2099-07-05"
+    And separately the "smith" tenant has an event "Piano recital" on "2099-07-05"
     When the caller GETs /api/calendar/feed for tenant "khan"
     Then the feed response status is 200
     When an anonymous request fetches that subscribe url
@@ -33,7 +33,7 @@ Feature: Calendar sync feed (FHS-445)
     And the public feed body excludes a "Piano recital" SUMMARY line
 
   Scenario: A forged signature on a real tenant id returns 404
-    Given the "khan" tenant has an event "Swim class" on "2026-07-05"
+    Given the "khan" tenant has an event "Swim class" on "2099-07-05"
     When the caller GETs /api/calendar/feed for tenant "khan"
     Then the feed response status is 200
     When an anonymous request fetches that subscribe url with the signature replaced by "deadbeefdeadbeef"
@@ -44,7 +44,7 @@ Feature: Calendar sync feed (FHS-445)
     Then the public feed response status is 404
 
   Scenario: Rotating the feed key invalidates the old url and issues a working new one
-    Given the "khan" tenant has an event "Swim class" on "2026-07-05"
+    Given the "khan" tenant has an event "Swim class" on "2099-07-05"
     When the caller GETs /api/calendar/feed for tenant "khan"
     Then the feed response status is 200
     When the caller POSTs /api/calendar/feed/rotate for tenant "khan"
