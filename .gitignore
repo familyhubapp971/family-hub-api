@@ -82,8 +82,10 @@ tmp/
 # they were split out of documents/business/). The HTML sources in
 # scripts/doc-src/ stay tracked, so anyone can rebuild every PDF with
 # `node scripts/render-docs.mjs`; the rendered artefacts are not committed.
-# documents/commercial/ and documents/demo/ are the exceptions, and are.
+# documents/demo/ is the one exception, and is. documents/commercial/ joined
+# the ignored set on 2026-10-09 (founder request).
 documents/business/
+documents/commercial/
 documents/impact/
 documents/investments/
 documents/qa/

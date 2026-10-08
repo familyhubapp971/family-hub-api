@@ -586,13 +586,14 @@ founder's single view of the live product and must never lag reality.
   re-render it in the same session, so external testers always hold a
   current map of the product.
 
-> **`documents/business/`, `documents/impact/`, `documents/investments/` and
-> `documents/qa/` are gitignored** (founder request, 2026-08-06). Only their
+> **`documents/business/`, `documents/commercial/`, `documents/impact/`,
+> `documents/investments/` and `documents/qa/` are gitignored** (founder
+> request, 2026-08-06; commercial added 2026-10-09). Only their
 > HTML sources in `scripts/doc-src/` are tracked. Edit the source, run
 > `node scripts/render-docs.mjs`, and the PDF lands locally for the
 > founder to share: do not try to commit it, and do not treat its absence
-> from a diff as work left undone. `documents/commercial/` and
-> `documents/demo/` are the committed exceptions.
+> from a diff as work left undone. `documents/demo/` is the committed
+> exception.
 
 ### Epic status follows its children
 
