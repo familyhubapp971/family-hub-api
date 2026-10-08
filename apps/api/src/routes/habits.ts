@@ -84,16 +84,16 @@ export const updateHabitRequestSchema = z.object({
   boost: z.number().int().min(1).max(20).optional(),
   skipPenaltyMinor: z.number().int().min(0).max(SKIP_PENALTY_MINOR_MAX).optional(),
 });
-const deleteSchema = z.object({
+export const deleteSchema = z.object({
   memberId: z.string().uuid(),
 });
-const placeStickerSchema = z.object({
+export const placeStickerSchema = z.object({
   memberId: z.string().uuid(),
   weekId: z.string().uuid(),
   day: z.number().int().min(0).max(6),
   sticker: z.enum(STICKER_TYPES),
 });
-const removeStickerSchema = z.object({
+export const removeStickerSchema = z.object({
   memberId: z.string().uuid(),
   weekId: z.string().uuid(),
   day: z.number().int().min(0).max(6),

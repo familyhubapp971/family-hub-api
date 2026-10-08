@@ -8,7 +8,7 @@
 
 import type { Hono } from 'hono';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { routeMeta } from './registry.js';
+import { routeMeta, type RouteMeta } from './registry.js';
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 type HttpMethod = (typeof HTTP_METHODS)[number];
@@ -62,6 +62,37 @@ function jsonSchema(schema: Parameters<typeof zodToJsonSchema>[0]): unknown {
   >;
   delete s['$schema'];
   return s;
+}
+
+function isPublicRoute(meta: RouteMeta | undefined, oaPath: string): boolean {
+  return meta?.security === false || isPublicByPath(oaPath);
+}
+
+/**
+ * FHS-664: every mounted route must carry a complete registry entry: a real
+ * summary, a reply (a response schema, status 204, or a non-JSON
+ * responseContentType), and for POST/PUT/PATCH
+ * a request schema unless it is marked `bodyless`. Returns the gaps.
+ */
+export function findUndocumented(app: Pick<Hono, 'routes'>): string[] {
+  const gaps = new Set<string>();
+  for (const r of app.routes) {
+    if (!(HTTP_METHODS as readonly string[]).includes(r.method) || EXCLUDED_PATHS.has(r.path)) {
+      continue;
+    }
+    const key = `${r.method} ${toOpenApiPath(r.path)}`;
+    const meta = routeMeta[key];
+    const missing: string[] = [];
+    if (!meta?.summary) missing.push('summary');
+    if (!meta?.response && meta?.status !== 204 && !meta?.responseContentType) {
+      missing.push('response (or status 204, or responseContentType)');
+    }
+    if (['POST', 'PUT', 'PATCH'].includes(r.method) && !meta?.request && !meta?.bodyless) {
+      missing.push('request (or bodyless: true)');
+    }
+    if (missing.length) gaps.add(`${key}: ${missing.join(', ')}`);
+  }
+  return [...gaps].sort();
 }
 
 export interface OpenApiSpec {
@@ -118,12 +149,26 @@ export function buildOpenApiSpec(app: Pick<Hono, 'routes'>): OpenApiSpec {
       ...(qp.description ? { description: qp.description } : {}),
       schema: jsonSchema(qp.schema),
     }));
-    const allParams = [...pathParams, ...queryParams];
+    // Tenant-scoped adult routes can name the family with this header when the
+    // JWT carries no tenant claim (see middleware/resolve-tenant.ts).
+    const tenantHeader =
+      !isPublicRoute(meta, oaPath) && !oaPath.startsWith('/api/kid')
+        ? [
+            {
+              name: 'x-tenant-slug',
+              in: 'header',
+              required: false,
+              description: "The family's URL slug, e.g. khan-family.",
+              schema: { type: 'string' },
+            },
+          ]
+        : [];
+    const allParams = [...pathParams, ...queryParams, ...tenantHeader];
     if (allParams.length) {
       operation['parameters'] = allParams;
     }
 
-    const isPublic = meta?.security === false || isPublicByPath(oaPath);
+    const isPublic = isPublicRoute(meta, oaPath);
     if (!isPublic) {
       // /api/kid/* authenticate with the kid PIN session token, NOT the
       // Supabase user JWT: document the right credential.
@@ -139,14 +184,22 @@ export function buildOpenApiSpec(app: Pick<Hono, 'routes'>): OpenApiSpec {
       };
     }
 
+    const status = String(meta?.status ?? 200);
     operation['responses'] = meta?.response
       ? {
-          '200': {
+          [status]: {
             description: meta.responseDesc ?? 'Success',
             content: { 'application/json': { schema: jsonSchema(meta.response) } },
           },
         }
-      : { '200': { description: 'Success' } };
+      : meta?.responseContentType
+        ? {
+            [status]: {
+              description: meta.responseDesc ?? 'Success',
+              content: { [meta.responseContentType]: { schema: { type: 'string' } } },
+            },
+          }
+        : { [status]: { description: meta?.responseDesc ?? 'Success' } };
 
     paths[oaPath] ??= {};
     paths[oaPath][method.toLowerCase()] = operation;

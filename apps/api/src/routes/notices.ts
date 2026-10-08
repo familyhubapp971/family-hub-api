@@ -33,7 +33,7 @@ export const listNoticesResponseSchema = z.object({
 
 export type ListNoticesResponse = z.infer<typeof listNoticesResponseSchema>;
 
-const createNoticeRequestSchema = z.object({
+export const createNoticeRequestSchema = z.object({
   body: z.string().trim().min(1, 'body is required').max(2000),
   pinned: z.boolean().optional(),
   // A single emoji / short glyph. Length-capped, not strictly validated

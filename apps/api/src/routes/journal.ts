@@ -98,7 +98,7 @@ export const journalContentResponseSchema = z.object({
   ),
 });
 
-const upsertRequestSchema = z.object({
+export const upsertRequestSchema = z.object({
   memberId: z.string().uuid(),
   entryDate: z
     .string()

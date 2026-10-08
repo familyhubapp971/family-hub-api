@@ -207,7 +207,7 @@ export const kidReadingPatchSchema = z.object({ finished: z.boolean() });
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const kidTasksResponseSchema = z.object({ tasks: z.array(taskItemSchema) });
-const kidTaskPatchSchema = z.object({ done: z.boolean() });
+export const kidTaskPatchSchema = z.object({ done: z.boolean() });
 
 export const kidTodayResponseSchema = z.object({
   habits: z.array(

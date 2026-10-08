@@ -33,12 +33,12 @@ export const listTasksResponseSchema = z.object({
 
 export type ListTasksResponse = z.infer<typeof listTasksResponseSchema>;
 
-const createTaskRequestSchema = z.object({
+export const createTaskRequestSchema = z.object({
   title: z.string().trim().min(1, 'title is required').max(200),
   dueDate: z.string().regex(ISO_DATE, 'dueDate must be YYYY-MM-DD').nullish(),
 });
 
-const patchTaskRequestSchema = z.object({
+export const patchTaskRequestSchema = z.object({
   done: z.boolean(),
 });
 

@@ -41,8 +41,8 @@ export const listRewardsResponseSchema = z.object({
   stickerBalance: z.number().int(),
 });
 
-const memberQuerySchema = z.object({ memberId: z.string().uuid() });
-const redeemRequestSchema = z.object({ memberId: z.string().uuid() });
+export const memberQuerySchema = z.object({ memberId: z.string().uuid() });
+export const redeemRequestSchema = z.object({ memberId: z.string().uuid() });
 
 // FHS-483: create/update payloads for the parent-managed reward catalogue.
 // description/icon use `.nullish()` so a PATCH can explicitly clear a field

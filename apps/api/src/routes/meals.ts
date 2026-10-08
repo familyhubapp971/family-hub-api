@@ -41,7 +41,7 @@ export type ListMealsResponse = z.infer<typeof listMealsResponseSchema>;
 
 // `name` is trimmed before write; empty/whitespace = delete. `memberId`
 // and `recurring` default to whole-family + non-recurring when omitted.
-const upsertMealRequestSchema = z.object({
+export const upsertMealRequestSchema = z.object({
   dayOfWeek: z.enum(dayOfWeekValues),
   slot: z.enum(mealSlotValues),
   name: z.string().max(120, 'meal name must be at most 120 characters'),

@@ -1438,30 +1438,39 @@ The rule (apply to every API ticket, every time):
   UI** is served at **`/docs`** (raw spec at **`/openapi.json`**). Secure by
   default: ON in dev/test/staging, **OFF in production** unless
   `API_DOCS_ENABLED=true` is set (staging sets it explicitly).
-- **Enrich the contract.** Path + method coverage is automatic; the
-  request/response **shape** comes from the handlers' own Zod schemas via the
-  registry at `apps/api/src/openapi/registry.ts`. When you add or change an
-  endpoint, add/extend its entry there (summary + request + response schema)
-  so the docs show the real contract, not just the path.
+- **Describe every endpoint fully, every time (FHS-664).** Path + method
+  coverage is automatic; the request/response **shape** comes from the
+  handlers' own Zod schemas via `apps/api/src/openapi/registry.ts` and the
+  per-area files in `apps/api/src/openapi/meta/`. When you add or change an
+  endpoint, its entry MUST carry: a plain `summary` (say who may call it), the
+  `request` schema (or `bodyless: true`), the `response` schema, the real
+  success `status` (201 for creates, 204 for empty replies) and any
+  `queryParams`. No "enrich it later": an endpoint without a full entry fails
+  CI.
 - **Regenerate + commit in the same PR.** After any route or schema change run
   `pnpm -F api openapi:generate` and commit the updated `apps/api/openapi.json`
-  so the diff is reviewable. The PR self-review must confirm the spec was
-  regenerated (or state the API surface was untouched).
+  **and** `apps/api/postman/` so the diff is reviewable. The PR self-review must
+  confirm both were regenerated (or state the API surface was untouched).
+- **Postman test collection (FHS-664).** `apps/api/postman/` holds
+  `family-hub-api.postman_collection.json` plus `local` and `staging`
+  environment files, all built from the spec by the same command. Never edit
+  them by hand: change the registry or the builder
+  (`apps/api/src/openapi/build-postman.ts`) and regenerate. Tokens stay blank
+  in the committed environments; testers fill them in locally.
 - **Breaking changes** (removed/renamed fields, changed types, removed
   endpoints, changed status codes) bump the API version in the spec and add a
   `breaking` label on the PR.
 - **CI gate (enforced):** the `typecheck` job runs `pnpm -F api openapi:check`,
-  which regenerates the spec and fails if `openapi.json` is stale, so drift
+  which fails if `openapi.json` or any file in `apps/api/postman/` is stale, or
+  if any mounted endpoint lacks a full entry (it names each gap), so drift
   cannot merge.
 - **Pre-merge checklist** (below) and the **change-impact** table both list the
   spec: touching the API means touching the spec, full stop.
 
-> **Status: wired (FHS-356).** Generator (`openapi:generate`), staleness gate
-> (`openapi:check` in CI), Swagger UI at `/docs`, and a registry enriching the
-> core endpoints are all live; every endpoint is covered at the path/method
-> level. Remaining work is incremental: enrich the request/response schemas of
-> the non-core endpoints in the registry over time (each is a small, additive
-> change: the path itself is already documented).
+> **Status: complete (FHS-356, FHS-664).** Generator (`openapi:generate`),
+> staleness and coverage gate (`openapi:check` in CI), Swagger UI at `/docs`,
+> and the Postman collection are live. Every endpoint carries a full entry, and
+> the gate keeps it that way.
 
 This section will grow as the API matures: auth schemes, pagination
 convention, error envelope, rate-limit headers, etc.
@@ -1524,7 +1533,7 @@ mirrors this list):
 - [ ] **Types:** TypeScript strict, no new `any`, schemas validate at boundaries
 - [ ] **Multi-tenancy:** queries respect `tenant_id` / RLS; no `bypassrls`
 - [ ] **Secrets:** nothing in git that should be in `.env.local` or Railway env
-- [ ] **OpenAPI/Swagger:** EVERY new/changed/removed endpoint is in `apps/api/openapi.json` (run `pnpm -F api openapi:generate`, commit the diff; CI's `openapi:check` enforces it). Enrich its request/response schema in `apps/api/src/openapi/registry.ts`. Mandatory, not deferrable.
+- [ ] **OpenAPI/Swagger + Postman:** EVERY new/changed/removed endpoint has a full entry (summary, request or `bodyless`, response, status) in `apps/api/src/openapi/registry.ts` or `meta/`; run `pnpm -F api openapi:generate` and commit `apps/api/openapi.json` and `apps/api/postman/` (CI's `openapi:check` enforces it). Mandatory, not deferrable.
 - [ ] **Docs:** `documents/features/` or `documents/technical/` updated; ADR added in `documents/decisions/` if a decision was made
 - [ ] **Migrations:** Drizzle migration committed; rollback path noted in PR body
 - [ ] **Observability:** new failure modes have logs/metrics; alerts updated if SLO-relevant

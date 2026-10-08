@@ -106,6 +106,17 @@
         ],
         "summary": "IRREVERSIBLE: permanently deletes the caller's family and all its data; admin-only",
         "operationId": "post_api_admin_delete_account",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -164,6 +175,17 @@
         ],
         "summary": "Download the family's full data as one JSON file (GDPR data portability); admin-only",
         "operationId": "get_api_admin_export",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -275,6 +297,17 @@
         ],
         "summary": "The family's app_settings map, plus its currency under the `currency` key",
         "operationId": "get_api_admin_settings",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -309,6 +342,15 @@
             "name": "key",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -366,8 +408,20 @@
         "tags": [
           "assignments"
         ],
-        "summary": "Get /api/assignments",
+        "summary": "List the family's assignments (homework/chores); any member",
         "operationId": "get_api_assignments",
+        "description": "Ordered by due date ascending (undated last), then created_at: open/overdue assignments sit on top, undated ones trail behind.",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -375,7 +429,67 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assignments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "notes": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "dueDate": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "nullable": true
+                          },
+                          "memberId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
+                          "done": {
+                            "type": "boolean"
+                          },
+                          "doneAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "notes",
+                          "dueDate",
+                          "memberId",
+                          "done",
+                          "doneAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "assignments"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       },
@@ -383,16 +497,111 @@
         "tags": [
           "assignments"
         ],
-        "summary": "Create /api/assignments",
+        "summary": "Create an assignment; admin/adult only",
         "operationId": "post_api_assignments",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "dueDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "nullable": true
+                  },
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
-          "200": {
-            "description": "Success"
+          "201": {
+            "description": "201: the created assignment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "notes": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "dueDate": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "nullable": true
+                    },
+                    "memberId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "done": {
+                      "type": "boolean"
+                    },
+                    "doneAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "notes",
+                    "dueDate",
+                    "memberId",
+                    "done",
+                    "doneAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -402,13 +611,23 @@
         "tags": [
           "assignments"
         ],
-        "summary": "Update /api/assignments/{id}",
+        "summary": "Toggle an assignment done/not-done; admin/adult only",
         "operationId": "patch_api_assignments_id",
+        "description": "`done: true` stamps doneAt to now; `false` clears it.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -419,9 +638,76 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "done": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "done"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "404 if the assignment is not in this tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "notes": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "dueDate": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "nullable": true
+                    },
+                    "memberId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "done": {
+                      "type": "boolean"
+                    },
+                    "doneAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "notes",
+                    "dueDate",
+                    "memberId",
+                    "done",
+                    "doneAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       },
@@ -429,13 +715,23 @@
         "tags": [
           "assignments"
         ],
-        "summary": "Replace /api/assignments/{id}",
+        "summary": "Replace an assignment's title/notes/dueDate/assignee; admin/adult only",
         "operationId": "put_api_assignments_id",
+        "description": "Completion state (done/doneAt) is owned by PATCH and left untouched here, so editing a done assignment keeps it done.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -446,9 +742,93 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "dueDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "nullable": true
+                  },
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "404 if the assignment is not in this tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "notes": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "dueDate": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "nullable": true
+                    },
+                    "memberId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "done": {
+                      "type": "boolean"
+                    },
+                    "doneAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "notes",
+                    "dueDate",
+                    "memberId",
+                    "done",
+                    "doneAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -559,6 +939,17 @@
         ],
         "summary": "The family calendar subscribe URL (creates the feed key on first call)",
         "operationId": "get_api_calendar_feed",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -594,6 +985,17 @@
         ],
         "summary": "Regenerate the calendar feed key (admin-only); invalidates old subscriptions",
         "operationId": "post_api_calendar_feed_rotate",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -601,7 +1003,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "The new subscribe URL. Every previously issued URL (old key) 404s from the public feed endpoint from this point on",
             "content": {
               "application/json": {
                 "schema": {
@@ -627,8 +1029,20 @@
         "tags": [
           "dashboard"
         ],
-        "summary": "Get /api/dashboard/today",
+        "summary": "Everything the Today/Dashboard tab renders, in one round-trip",
         "operationId": "get_api_dashboard_today",
+        "description": "Bundles the roster, per-kid habit progress, weekly streaks, pending-task counts, a Today's Snapshot stat row, savings goals, and a merged Recent Activity feed (tasks, meals, calendar activities, habit stickers and approved reward redemptions, newest 5) instead of fanning out to five separate endpoints.",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -636,7 +1050,195 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "`date` is \"today\" in the family’s timezone; `counts.tasksTotalToday` is tasks done today plus every still-open task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "date": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    },
+                    "greetingName": {
+                      "type": "string"
+                    },
+                    "callerMemberId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "members": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string"
+                          },
+                          "avatarEmoji": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "habitsDone": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "habitsTotal": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "streak": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "tasksPending": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "statusText": {
+                            "type": "string"
+                          },
+                          "starBalance": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "pendingSignup": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "displayName",
+                          "role",
+                          "avatarEmoji",
+                          "habitsDone",
+                          "habitsTotal",
+                          "streak",
+                          "tasksPending",
+                          "statusText",
+                          "starBalance",
+                          "pendingSignup"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "counts": {
+                      "type": "object",
+                      "properties": {
+                        "members": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "habits": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "rewards": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "tasksDoneToday": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "mealsPlanned": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "tasksTotalToday": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "members",
+                        "habits",
+                        "rewards",
+                        "tasksDoneToday",
+                        "mealsPlanned",
+                        "tasksTotalToday"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "goals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "progress": {
+                            "type": "number"
+                          },
+                          "target": {
+                            "type": "number",
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "progress",
+                          "target"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "recentActivity": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "actor": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "action": {
+                            "type": "string"
+                          },
+                          "timestamp": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "actor",
+                          "action",
+                          "timestamp"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "date",
+                    "greetingName",
+                    "callerMemberId",
+                    "members",
+                    "counts",
+                    "goals",
+                    "recentActivity"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -657,6 +1259,15 @@
             "schema": {
               "type": "string",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -787,6 +1398,17 @@
         "summary": "Create a calendar activity; admin/adult only",
         "operationId": "post_api_events",
         "description": "Optional recurrenceDays (weekdays 0=Sun..6=Sat) + recurrenceEndDate turn it into a weekly-repeating series anchored on `date`. No occurrence rows are stored: GET expands the series on read.",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -873,7 +1495,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "201: the created event (the series anchor, if recurring)",
             "content": {
               "application/json": {
@@ -986,6 +1608,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "security": [
@@ -994,8 +1625,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Success"
+          "204": {
+            "description": "204 on success. For a recurring series this deletes the WHOLE series. 404 if not found in this tenant"
           }
         }
       },
@@ -1011,6 +1642,15 @@
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -1208,6 +1848,17 @@
         "summary": "Submit a beta survey response",
         "operationId": "post_api_feedback",
         "description": "Authenticated users submit product feedback. All fields are optional but at least one must be present.",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -1304,6 +1955,37 @@
         ],
         "summary": "A member's habits + this week's stickers + spendable balance",
         "operationId": "get_api_habits",
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "query",
+            "required": true,
+            "description": "UUID of the member whose habits/stickers to fetch",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "weekId",
+            "in": "query",
+            "required": false,
+            "description": "A specific week id to view (FHS-293 navigation); defaults to, and falls back to, the current open week if not found",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -1458,6 +2140,17 @@
         ],
         "summary": "Create a habit for a member; admin-only",
         "operationId": "post_api_habits",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -1512,8 +2205,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "boost (1=normal, 2/3/5=boosted) sets the stickerValue a completion places; skipPenaltyMinor (integer minor units) is deducted at close-week for a due day missed",
+          "201": {
+            "description": "201: the created habit. boost (1=normal, 2/3/5=boosted) sets the stickerValue a completion places; skipPenaltyMinor (integer minor units) is deducted at close-week for a due day missed",
             "content": {
               "application/json": {
                 "schema": {
@@ -1573,13 +2266,23 @@
         "tags": [
           "habits"
         ],
-        "summary": "Delete /api/habits/{id}",
+        "summary": "Delete a habit (its stickers cascade); admin-only",
         "operationId": "delete_api_habits_id",
+        "description": "memberId in the body scopes the delete, so a caller cannot delete another child’s habit.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -1590,9 +2293,29 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "memberId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
-          "200": {
-            "description": "Success"
+          "204": {
+            "description": "204 on success. 404 if the habit is not found for that member"
           }
         }
       },
@@ -1607,6 +2330,15 @@
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -1726,13 +2458,23 @@
         "tags": [
           "habits"
         ],
-        "summary": "Delete /api/habits/{id}/stickers",
+        "summary": "Remove a sticker from a habit day for a week",
         "operationId": "delete_api_habits_id_stickers",
+        "description": "Any grown-up, or the member themself. Removing a past day, or any day in a finalized week, is admin-only (FHS-335).",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -1743,9 +2485,40 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "weekId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "day": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
+                  }
+                },
+                "required": [
+                  "memberId",
+                  "weekId",
+                  "day"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
-          "200": {
-            "description": "Success"
+          "204": {
+            "description": "204 on success, even if there was nothing there to remove"
           }
         }
       },
@@ -1753,13 +2526,23 @@
         "tags": [
           "habits"
         ],
-        "summary": "Create /api/habits/{id}/stickers",
+        "summary": "Place a typed sticker on a habit day for a week",
         "operationId": "post_api_habits_id_stickers",
+        "description": "Any grown-up, or the member themself. Editing a past day, or any day in a finalized week, is admin-only (FHS-335). stickerValue is derived from the habit’s boost, not the request.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -1770,9 +2553,87 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "weekId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "day": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
+                  },
+                  "sticker": {
+                    "type": "string",
+                    "enum": [
+                      "gold-star",
+                      "heart",
+                      "magic",
+                      "trophy"
+                    ]
+                  }
+                },
+                "required": [
+                  "memberId",
+                  "weekId",
+                  "day",
+                  "sticker"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "The upserted (habitId, day, week) sticker row",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "habitId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "day": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 6
+                    },
+                    "sticker": {
+                      "type": "string",
+                      "enum": [
+                        "gold-star",
+                        "heart",
+                        "magic",
+                        "trophy"
+                      ]
+                    },
+                    "stickerValue": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "habitId",
+                    "day",
+                    "sticker",
+                    "stickerValue"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -1782,9 +2643,20 @@
         "tags": [
           "invitations"
         ],
-        "summary": "Invite someone to the family",
+        "summary": "Invite someone to the family; admin or adult only",
         "operationId": "post_api_invitations",
         "description": "role is one of admin | adult | teen | guest (default adult). Granting 'admin' requires the caller to already be an admin (403 otherwise): FHS-486 / ADR 0019.",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -1827,8 +2699,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Success",
+          "201": {
+            "description": "201: the created pending invitation",
             "content": {
               "application/json": {
                 "schema": {
@@ -1886,13 +2758,23 @@
         "tags": [
           "invitations"
         ],
-        "summary": "Create /api/invitations/{id}/resend",
+        "summary": "Resend a still-pending invitation email; admin or adult only",
         "operationId": "post_api_invitations_id_resend",
+        "description": "Re-fires the Supabase invite email (e.g. a typo'd address, or the email got lost). 404 if the invitation is not in this tenant; 409 if it is no longer pending (already accepted/expired).",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -1905,7 +2787,26 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "{ resent: true }",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "resent": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "resent"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -1915,8 +2816,20 @@
         "tags": [
           "invitations"
         ],
-        "summary": "Claim invites addressed to my email",
+        "summary": "Claim invites addressed to the caller's own email",
         "operationId": "post_api_invitations_claim",
+        "description": "Called right after sign-in when the caller has no membership yet. For each matching pending invitation, links an unclaimed seat (or creates one, for a members-page invite with no pre-created seat) to the caller and flips the invitation to accepted. No tenant header required: the invitation rows carry the tenant scope.",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -1924,7 +2837,40 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "claimed[]: one entry per family the caller just joined (empty if none matched)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "claimed": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "tenantId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "slug": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "tenantId",
+                          "slug"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "claimed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -1934,8 +2880,39 @@
         "tags": [
           "journal"
         ],
-        "summary": "Get /api/journal",
+        "summary": "A member's journal entry for one day, plus that day's quote index; the member themself, or an admin/adult",
         "operationId": "get_api_journal",
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "query",
+            "required": true,
+            "description": "UUID of the member whose journal is being read",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "description": "The calendar day to fetch (YYYY-MM-DD, must be a real date)",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -1943,7 +2920,103 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "entry is null if nothing was saved for that day; quoteIndex is always computed from the date. 404 if memberId is not in this tenant; 403 if the caller may not view this member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entry": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "entryDate": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "mood": {
+                          "type": "string",
+                          "enum": [
+                            "happy",
+                            "smiling",
+                            "excited",
+                            "laughing",
+                            "surprised",
+                            "nervous",
+                            "grumpy",
+                            "sad"
+                          ],
+                          "nullable": true
+                        },
+                        "gratitude1": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "gratitude2": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "gratitude3": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "quoteIndex": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "nullable": true
+                        },
+                        "creativity": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "nullable": true
+                        },
+                        "body": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "entryDate",
+                        "mood",
+                        "gratitude1",
+                        "gratitude2",
+                        "gratitude3",
+                        "quoteIndex",
+                        "creativity",
+                        "body",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false,
+                      "nullable": true
+                    },
+                    "quoteIndex": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "entry",
+                    "quoteIndex"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       },
@@ -1951,16 +3024,176 @@
         "tags": [
           "journal"
         ],
-        "summary": "Replace /api/journal",
+        "summary": "Create or update a member's journal entry for one day (upsert); the member themself, or an admin/adult",
         "operationId": "put_api_journal",
+        "description": "quoteIndex is computed server-side from entryDate: the caller cannot set it. Keyed on (tenantId, memberId, entryDate), so a repeat call for the same day overwrites rather than duplicates.",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "entryDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "mood": {
+                    "type": "string",
+                    "enum": [
+                      "happy",
+                      "smiling",
+                      "excited",
+                      "laughing",
+                      "surprised",
+                      "nervous",
+                      "grumpy",
+                      "sad"
+                    ],
+                    "nullable": true
+                  },
+                  "gratitude1": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "nullable": true
+                  },
+                  "gratitude2": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "nullable": true
+                  },
+                  "gratitude3": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "nullable": true
+                  },
+                  "body": {
+                    "type": "string",
+                    "maxLength": 5000,
+                    "nullable": true
+                  },
+                  "creativity": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 500
+                    },
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "memberId",
+                  "entryDate"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "The saved entry, after the upsert. 404 if memberId is not in this tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "entryDate": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    },
+                    "mood": {
+                      "type": "string",
+                      "enum": [
+                        "happy",
+                        "smiling",
+                        "excited",
+                        "laughing",
+                        "surprised",
+                        "nervous",
+                        "grumpy",
+                        "sad"
+                      ],
+                      "nullable": true
+                    },
+                    "gratitude1": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "gratitude2": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "gratitude3": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "quoteIndex": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "nullable": true
+                    },
+                    "creativity": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "nullable": true
+                    },
+                    "body": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "entryDate",
+                    "mood",
+                    "gratitude1",
+                    "gratitude2",
+                    "gratitude3",
+                    "quoteIndex",
+                    "creativity",
+                    "body",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -1970,8 +3203,20 @@
         "tags": [
           "journal"
         ],
-        "summary": "Get /api/journal/content",
+        "summary": "Static journal reference data: quotes, creativity prompts, and moods",
         "operationId": "get_api_journal_content",
+        "description": "No member scope: the same content for every member in the signed-in family.",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -1979,7 +3224,91 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "quotes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          },
+                          "author": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "text",
+                          "author"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "creativityQuestions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "emoji": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "placeholder": {
+                            "type": "string"
+                          },
+                          "color": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "emoji",
+                          "label",
+                          "placeholder",
+                          "color"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "moods": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "type": "string"
+                          },
+                          "emoji": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "emoji",
+                          "label"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "quotes",
+                    "creativityQuestions",
+                    "moods"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -1989,8 +3318,29 @@
         "tags": [
           "journal"
         ],
-        "summary": "Get /api/journal/earliest",
+        "summary": "A member's earliest journal date, for the back-navigation lower bound; the member themself, or an admin/adult",
         "operationId": "get_api_journal_earliest",
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "query",
+            "required": true,
+            "description": "UUID of the member whose journal is being read",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -1998,7 +3348,25 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "earliestDate is null if the member has never saved an entry. 404 if memberId is not in this tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "earliestDate": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "earliestDate"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -2008,8 +3376,29 @@
         "tags": [
           "journal"
         ],
-        "summary": "Get /api/journal/entries",
+        "summary": "All of a member's past journal entries, newest first; the member themself, or an admin/adult",
         "operationId": "get_api_journal_entries",
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "query",
+            "required": true,
+            "description": "UUID of the member whose journal is being read",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -2017,7 +3406,100 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "404 if memberId is not in this tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "entryDate": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          "mood": {
+                            "type": "string",
+                            "enum": [
+                              "happy",
+                              "smiling",
+                              "excited",
+                              "laughing",
+                              "surprised",
+                              "nervous",
+                              "grumpy",
+                              "sad"
+                            ],
+                            "nullable": true
+                          },
+                          "gratitude1": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "gratitude2": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "gratitude3": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "quoteIndex": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "creativity": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            },
+                            "nullable": true
+                          },
+                          "body": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "entryDate",
+                          "mood",
+                          "gratitude1",
+                          "gratitude2",
+                          "gratitude3",
+                          "quoteIndex",
+                          "creativity",
+                          "body",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "entries"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -4513,7 +5995,7 @@
         "tags": [
           "kid"
         ],
-        "summary": "Remove a book from the kid reading log",
+        "summary": "Remove a book from the signed-in kid's reading log",
         "operationId": "delete_api_kid_reading_log_id",
         "parameters": [
           {
@@ -4531,8 +6013,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Success"
+          "204": {
+            "description": "Always 204: there is no check that the id belonged to one of this kid's books"
           }
         }
       },
@@ -4703,7 +6185,7 @@
         "tags": [
           "kid"
         ],
-        "summary": "The kid asks to redeem a reward (no deduction; an admin approves)",
+        "summary": "The signed-in kid asks to redeem a reward; no deduction yet, an admin must approve",
         "operationId": "post_api_kid_rewards_id_request",
         "parameters": [
           {
@@ -4722,7 +6204,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The pending request row (idempotent: returns an existing pending one)",
+            "description": "The pending request row (idempotent: a repeat ask while one is already pending returns that same row, not a new one)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4849,7 +6331,7 @@
         "tags": [
           "kid"
         ],
-        "summary": "Update /api/kid/tasks/{id}",
+        "summary": "Tick or untick one of the signed-in kid's own tasks",
         "operationId": "patch_api_kid_tasks_id",
         "parameters": [
           {
@@ -4866,9 +6348,47 @@
             "kidAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "done": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "done"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "404 if the task doesn't belong to this kid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -5019,7 +6539,7 @@
         "tags": [
           "kid"
         ],
-        "summary": "Audit log of week actions for one of the kid's weeks",
+        "summary": "Audit log of actions on one of the signed-in kid's own weeks",
         "operationId": "get_api_kid_weeks_id_actions",
         "parameters": [
           {
@@ -5038,7 +6558,90 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Identical shape to GET /api/mw/weeks/{id}/actions, newest first. 404 if the week doesn't belong to this kid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "actions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ]
+                          },
+                          "weekId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "actionType": {
+                            "type": "string",
+                            "enum": [
+                              "claim",
+                              "cashout",
+                              "save",
+                              "invest",
+                              "withdraw",
+                              "auto_save",
+                              "invest_continue"
+                            ]
+                          },
+                          "stickersUsed": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "cashAmount": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "rewardName": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "habitId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
+                          "habitName": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "weekId",
+                          "actionType",
+                          "stickersUsed",
+                          "cashAmount",
+                          "rewardName",
+                          "habitId",
+                          "habitName",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "actions"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -5331,6 +6934,15 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "security": [
@@ -5479,6 +7091,17 @@
         ],
         "summary": "The signed-in user + their families",
         "operationId": "get_api_me",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -5556,8 +7179,19 @@
         "tags": [
           "meals"
         ],
-        "summary": "Get /api/meals",
+        "summary": "The family's weekly meal plan (every planned meal slot)",
         "operationId": "get_api_meals",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -5565,7 +7199,73 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "One row per planned (dayOfWeek, slot[, member]) cell; memberId null means the whole family",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "meals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "dayOfWeek": {
+                            "type": "string",
+                            "enum": [
+                              "mon",
+                              "tue",
+                              "wed",
+                              "thu",
+                              "fri",
+                              "sat",
+                              "sun"
+                            ]
+                          },
+                          "slot": {
+                            "type": "string",
+                            "enum": [
+                              "breakfast",
+                              "lunch",
+                              "dinner",
+                              "snack"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "memberId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
+                          "recurring": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "dayOfWeek",
+                          "slot",
+                          "name",
+                          "memberId",
+                          "recurring"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "meals"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       },
@@ -5573,16 +7273,154 @@
         "tags": [
           "meals"
         ],
-        "summary": "Create /api/meals",
+        "summary": "Upsert or clear one meal-plan cell (dayOfWeek + slot [+ member]); admin/adult only",
         "operationId": "post_api_meals",
+        "description": "An empty/whitespace-only name deletes that cell instead of saving it, so the UI can clear a slot with the same endpoint. A (day, slot) can hold one whole-family meal (memberId: null) plus one per member, keyed on both.",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dayOfWeek": {
+                    "type": "string",
+                    "enum": [
+                      "mon",
+                      "tue",
+                      "wed",
+                      "thu",
+                      "fri",
+                      "sat",
+                      "sun"
+                    ]
+                  },
+                  "slot": {
+                    "type": "string",
+                    "enum": [
+                      "breakfast",
+                      "lunch",
+                      "dinner",
+                      "snack"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true,
+                    "default": null
+                  },
+                  "recurring": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                },
+                "required": [
+                  "dayOfWeek",
+                  "slot",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "{ deleted: true } when the name was blank (the cell was removed); otherwise the upserted meal cell. 400 if memberId is not a member of this tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "dayOfWeek": {
+                          "type": "string",
+                          "enum": [
+                            "mon",
+                            "tue",
+                            "wed",
+                            "thu",
+                            "fri",
+                            "sat",
+                            "sun"
+                          ]
+                        },
+                        "slot": {
+                          "type": "string",
+                          "enum": [
+                            "breakfast",
+                            "lunch",
+                            "dinner",
+                            "snack"
+                          ]
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "memberId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "nullable": true
+                        },
+                        "recurring": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "dayOfWeek",
+                        "slot",
+                        "name",
+                        "memberId",
+                        "recurring"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "deleted": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      },
+                      "required": [
+                        "deleted"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
@@ -5594,6 +7432,17 @@
         ],
         "summary": "List family members",
         "operationId": "get_api_members",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -5707,8 +7556,20 @@
         "tags": [
           "members"
         ],
-        "summary": "Add a family member seat (child, teen, or adult): no login, direct roster insert",
+        "summary": "Add a family member seat (child, teen, or adult); admin only",
         "operationId": "post_api_members",
+        "description": "No login is created: this is a direct roster insert, not an invite.",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -5755,8 +7616,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Success",
+          "201": {
+            "description": "201: the created member row (id, displayName, role)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5800,13 +7661,23 @@
         "tags": [
           "members"
         ],
-        "summary": "Delete /api/members/{id}",
+        "summary": "Remove a member from the family; admin only",
         "operationId": "delete_api_members_id",
+        "description": "Their content (tasks, habits, etc.) cascades with them. The last remaining admin can never be removed. 404 if the member is not in this tenant.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -5819,7 +7690,26 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "{ deleted: true }",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "deleted"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       },
@@ -5827,13 +7717,23 @@
         "tags": [
           "members"
         ],
-        "summary": "Update /api/members/{id}",
+        "summary": "Rename a member and/or toggle their admin↔adult role; admin only",
         "operationId": "patch_api_members_id",
+        "description": "role may only move between admin and adult (kid roles are fixed at creation). The target must already be adult/admin to be touched; an admin can't demote themselves, and the last remaining admin can never be demoted or removed. 400 with a reason when a guard blocks the change; 404 if the member is not in this tenant.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -5844,9 +7744,68 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "adult"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "The updated member row",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "member": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "displayName": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "displayName",
+                        "role"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "member"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -5864,6 +7823,15 @@
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -5923,13 +7891,23 @@
         "tags": [
           "members"
         ],
-        "summary": "Cancel a pending email change for a member; admin-only",
+        "summary": "Cancel the caller's own pending sign-in email change; self-serve only",
         "operationId": "post_api_members_id_email_change_cancel",
+        "description": "403 if the target id is not the caller's own member row. Always 200, even if there was nothing pending.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -5942,7 +7920,26 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "{ cancelled: true }: always, even if there was nothing pending",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "cancelled": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "cancelled"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -5952,13 +7949,23 @@
         "tags": [
           "members"
         ],
-        "summary": "Delete /api/members/{id}/pin",
+        "summary": "Clear a kid member's login PIN; admin or adult only",
         "operationId": "delete_api_members_id_pin",
+        "description": "Also flips isChild off and clears any existing lockout bucket.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -5971,7 +7978,45 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "The member row with hasPin: false",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "member": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "displayName": {
+                          "type": "string"
+                        },
+                        "isChild": {
+                          "type": "boolean"
+                        },
+                        "hasPin": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "displayName",
+                        "isChild",
+                        "hasPin"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "member"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       },
@@ -5979,13 +8024,23 @@
         "tags": [
           "members"
         ],
-        "summary": "Set a kid member's login PIN",
+        "summary": "Set a kid member's 4-digit login PIN; admin or adult only",
         "operationId": "put_api_members_id_pin",
+        "description": "The target must have role child or teen (403 PIN_TARGET_INELIGIBLE otherwise). Setting a PIN also flips isChild on. Clears any existing lockout from prior wrong attempts.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -5996,6 +8051,26 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pin": {
+                    "type": "string",
+                    "pattern": "^\\d{4}$"
+                  }
+                },
+                "required": [
+                  "pin"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success",
@@ -6113,6 +8188,17 @@
         ],
         "summary": "A child's My World analytics (parent view)",
         "operationId": "get_api_mw_analytics",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -6218,6 +8304,17 @@
         ],
         "summary": "A child's active investments with live value (?memberId=)",
         "operationId": "get_api_mw_financial_investments",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -6310,6 +8407,17 @@
         ],
         "summary": "Create an investment (optional `deductible`, default true)",
         "operationId": "post_api_mw_financial_investments",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -6485,6 +8593,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "security": [
@@ -6623,6 +8740,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "security": [
@@ -6688,6 +8814,17 @@
         ],
         "summary": "A child's banked savings, split into last week's banking and earlier (?memberId=)",
         "operationId": "get_api_mw_financial_savings",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -6745,6 +8882,17 @@
         ],
         "summary": "Bank this week's spare stickers, as stickers or as cash. Any grown-up, or the child themself",
         "operationId": "post_api_mw_financial_savings",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -6817,6 +8965,17 @@
         ],
         "summary": "Set a child's balance by hand, overwriting what is there. ADMIN ONLY",
         "operationId": "put_api_mw_financial_savings_admin_set",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -6885,6 +9044,17 @@
         ],
         "summary": "Turn banked savings into real money. Any grown-up, or the child themself",
         "operationId": "post_api_mw_financial_savings_cashout",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -6949,6 +9119,17 @@
         ],
         "summary": "The family's reward redemption requests (?status=pending|approved|declined)",
         "operationId": "get_api_mw_redemption_requests",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -7035,13 +9216,22 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Approve a request: admin only; deducts star_cost from the kid's savings",
+        "summary": "Approve a child's reward request: admin only; deducts star_cost from the child's savings",
         "operationId": "post_api_mw_redemption_requests_id_approve",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -7054,7 +9244,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "{ id, status: \"approved\" }. 404 if not in this tenant, 409 NOT_PENDING if already decided, 400 INSUFFICIENT_SAVINGS if savings cannot cover the cost",
             "content": {
               "application/json": {
                 "schema": {
@@ -7089,13 +9279,22 @@
         "tags": [
           "my-world"
         ],
-        "summary": "Decline a request: admin only; no deduction",
+        "summary": "Decline a child's reward request: admin only; no deduction",
         "operationId": "post_api_mw_redemption_requests_id_decline",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -7108,7 +9307,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "{ id, status: \"declined\" }. 404 if not in this tenant, 409 NOT_PENDING if already decided",
             "content": {
               "application/json": {
                 "schema": {
@@ -7145,6 +9344,17 @@
         ],
         "summary": "Every week for a child, oldest first (?memberId=). Any grown-up, or the child themself",
         "operationId": "get_api_mw_weeks",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -7230,6 +9440,15 @@
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -7345,6 +9564,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "security": [
@@ -7384,7 +9612,65 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "The updated week. Neither figure may be negative",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "week": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "weekNumber": {
+                          "type": "integer"
+                        },
+                        "year": {
+                          "type": "integer"
+                        },
+                        "startDate": {
+                          "type": "string"
+                        },
+                        "isFinalized": {
+                          "type": "boolean"
+                        },
+                        "carriedOverStickers": {
+                          "type": "integer"
+                        },
+                        "carriedOverCash": {
+                          "type": "number"
+                        },
+                        "retrievedStickers": {
+                          "type": "integer"
+                        },
+                        "retrievedCash": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "weekNumber",
+                        "year",
+                        "startDate",
+                        "isFinalized",
+                        "carriedOverStickers",
+                        "carriedOverCash",
+                        "retrievedStickers",
+                        "retrievedCash"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "week"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -7401,6 +9687,15 @@
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -7440,7 +9735,55 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Banks anything spare, settles investments, applies skip penalties, and carries the rest forward. Name the investments to keep running in continueInvestmentIds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "finalized": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "stickersAutoSaved": {
+                      "type": "number"
+                    },
+                    "investmentReturns": {
+                      "type": "number"
+                    },
+                    "continuedInvestments": {
+                      "type": "integer"
+                    },
+                    "skipPenaltyMinor": {
+                      "type": "integer"
+                    },
+                    "nextWeekId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "nextWeekNumber": {
+                      "type": "integer"
+                    },
+                    "nextWeekYear": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "finalized",
+                    "stickersAutoSaved",
+                    "investmentReturns",
+                    "continuedInvestments",
+                    "skipPenaltyMinor",
+                    "nextWeekId",
+                    "nextWeekNumber",
+                    "nextWeekYear"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -7460,52 +9803,12 @@
             "schema": {
               "type": "string"
             }
-          }
-        ],
-        "security": [
+          },
           {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "memberId": {
-                    "type": "string",
-                    "format": "uuid"
-                  }
-                },
-                "required": [
-                  "memberId"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success"
-          }
-        }
-      }
-    },
-    "/api/mw/weeks/{id}/repair": {
-      "post": {
-        "tags": [
-          "my-world"
-        ],
-        "summary": "Clear leftover close effects from a week that is still open. ADMIN ONLY",
-        "operationId": "post_api_mw_weeks_id_repair",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -7538,7 +9841,163 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Reverses what the close did: banking, investment settlement and any penalty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reopened": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "weekId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "reversal": {
+                      "type": "object",
+                      "properties": {
+                        "stickersReversed": {
+                          "type": "number"
+                        },
+                        "cashReversed": {
+                          "type": "number"
+                        },
+                        "investmentsRestored": {
+                          "type": "integer"
+                        },
+                        "skipPenaltyReversedMinor": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "stickersReversed",
+                        "cashReversed",
+                        "investmentsRestored",
+                        "skipPenaltyReversedMinor"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "reopened",
+                    "weekId",
+                    "reversal"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mw/weeks/{id}/repair": {
+      "post": {
+        "tags": [
+          "my-world"
+        ],
+        "summary": "Clear leftover close effects from a week that is still open. ADMIN ONLY",
+        "operationId": "post_api_mw_weeks_id_repair",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "memberId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "For a week left half-closed by an interrupted finalize",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "repaired": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "weekId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "reversal": {
+                      "type": "object",
+                      "properties": {
+                        "stickersReversed": {
+                          "type": "number"
+                        },
+                        "cashReversed": {
+                          "type": "number"
+                        },
+                        "investmentsRestored": {
+                          "type": "integer"
+                        },
+                        "skipPenaltyReversedMinor": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "stickersReversed",
+                        "cashReversed",
+                        "investmentsRestored",
+                        "skipPenaltyReversedMinor"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "repaired",
+                    "weekId",
+                    "reversal"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -7555,6 +10014,15 @@
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -7612,6 +10080,17 @@
         ],
         "summary": "The child's open week, creating it if needed (?memberId=). Any grown-up, or the child themself",
         "operationId": "get_api_mw_weeks_current",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -7689,6 +10168,17 @@
         ],
         "summary": "The family noticeboard",
         "operationId": "get_api_notices",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -7762,16 +10252,102 @@
         "tags": [
           "notices"
         ],
-        "summary": "Create /api/notices",
+        "summary": "Post a notice to the family noticeboard; admin/adult only",
         "operationId": "post_api_notices",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "pinned": {
+                    "type": "boolean"
+                  },
+                  "icon": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8
+                  }
+                },
+                "required": [
+                  "body"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
-          "200": {
-            "description": "Success"
+          "201": {
+            "description": "201: the created notice. authorMemberId/authorName identify the poster (the caller's own member row)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "body": {
+                      "type": "string"
+                    },
+                    "pinned": {
+                      "type": "boolean"
+                    },
+                    "authorMemberId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "authorName": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "icon": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "body",
+                    "pinned",
+                    "authorMemberId",
+                    "authorName",
+                    "icon",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -7781,7 +10357,7 @@
         "tags": [
           "notices"
         ],
-        "summary": "Delete /api/notices/{id}",
+        "summary": "Delete a notice; admin/adult only",
         "operationId": "delete_api_notices_id",
         "parameters": [
           {
@@ -7791,30 +10367,12 @@
             "schema": {
               "type": "string"
             }
-          }
-        ],
-        "security": [
+          },
           {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "notices"
-        ],
-        "summary": "Replace /api/notices/{id}",
-        "operationId": "put_api_notices_id",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -7826,8 +10384,120 @@
           }
         ],
         "responses": {
+          "204": {
+            "description": "204 on success. 404 if the notice is not in the caller's tenant"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "notices"
+        ],
+        "summary": "Edit a notice's body/pinned/icon; admin/adult only",
+        "operationId": "put_api_notices_id",
+        "description": "Authorship is never reassigned: authorMemberId always stays the original poster.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "pinned": {
+                    "type": "boolean"
+                  },
+                  "icon": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8
+                  }
+                },
+                "required": [
+                  "body"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
           "200": {
-            "description": "Success"
+            "description": "The updated notice. 404 if the notice is not in the caller's tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "body": {
+                      "type": "string"
+                    },
+                    "pinned": {
+                      "type": "boolean"
+                    },
+                    "authorMemberId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "authorName": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "icon": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "body",
+                    "pinned",
+                    "authorMemberId",
+                    "authorName",
+                    "icon",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -7837,16 +10507,158 @@
         "tags": [
           "onboarding"
         ],
-        "summary": "Create /api/onboarding/complete",
+        "summary": "Finish the onboarding wizard; admin only",
         "operationId": "post_api_onboarding_complete",
+        "description": "Atomically sets tenant timezone/currency, renames the caller to yourName (if given), inserts one members row per wizard-added member, marks onboarding_completed, seeds starter habits/rewards, then best-effort emails an invite to each adult member that carried an email. Idempotent: a repeat call after completion returns the current tenant unchanged with membersAdded: 0, invitesSent: 0.",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "timezone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z][A-Za-z0-9_+\\-/]*$"
+                  },
+                  "currency": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{3}$"
+                  },
+                  "yourName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "displayName": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "admin",
+                            "adult",
+                            "teen",
+                            "child",
+                            "guest"
+                          ]
+                        },
+                        "avatarEmoji": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 8
+                        },
+                        "email": {
+                          "type": "string",
+                          "format": "email",
+                          "maxLength": 255
+                        },
+                        "age": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 25,
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "displayName",
+                        "role"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 0,
+                    "maxItems": 8
+                  }
+                },
+                "required": [
+                  "timezone",
+                  "currency",
+                  "members"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "The updated tenant plus membersAdded and invitesSent counts (invite send failures are logged but never fail this response or roll back the family)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tenant": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "timezone": {
+                          "type": "string"
+                        },
+                        "currency": {
+                          "type": "string"
+                        },
+                        "onboardingCompleted": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "timezone",
+                        "currency",
+                        "onboardingCompleted"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "membersAdded": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "invitesSent": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "tenant",
+                    "membersAdded",
+                    "invitesSent"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -7858,6 +10670,17 @@
         ],
         "summary": "State of the dashboard setup guide for the calling admin",
         "operationId": "get_api_onboarding_get_started",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -7924,6 +10747,17 @@
         ],
         "summary": "Hide the dashboard setup guide for the calling admin, on every device",
         "operationId": "post_api_onboarding_get_started_dismiss",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -7960,8 +10794,9 @@
         "tags": [
           "public"
         ],
-        "summary": "Public ICS calendar feed for a family (signed token = credential)",
+        "summary": "Public ICS calendar feed for one family, for Google/Apple/Outlook (signed token = credential, no sign-in)",
         "operationId": "get_api_public_calendar_token",
+        "description": "Parses and verifies the signed token before touching any event row; every failure (bad signature, rotated-out key, unknown tenant) returns the same bare 404, so the endpoint never reveals which families exist. Only includes events from the last 90 days onward; future events are unbounded.",
         "parameters": [
           {
             "name": "token",
@@ -7974,7 +10809,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Body is raw ICS text (Content-Type: text/calendar), not JSON: Content-Disposition: inline; filename=\"familyhub.ics\", Cache-Control: private, max-age=300",
+            "content": {
+              "text/calendar": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
@@ -8321,6 +11163,17 @@
         ],
         "summary": "The family's sticker rate + each kid's rate override",
         "operationId": "get_api_reward_config",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -8399,6 +11252,17 @@
         ],
         "summary": "Update the family's default sticker rate and/or one or more kids' overrides; admin-only",
         "operationId": "put_api_reward_config",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -8518,8 +11382,29 @@
         "tags": [
           "rewards"
         ],
-        "summary": "Get /api/rewards",
+        "summary": "A child's reward shop + sticker balance; any tenant member may view it",
         "operationId": "get_api_rewards",
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "query",
+            "required": true,
+            "description": "UUID of the child member whose reward shop + balance to fetch",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -8527,7 +11412,58 @@
         ],
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "The family's non-archived rewards, plus that member's sticker balance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rewards": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "stickerCost": {
+                            "type": "integer"
+                          },
+                          "icon": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "stickerCost",
+                          "icon"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "stickerBalance": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "rewards",
+                    "stickerBalance"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       },
@@ -8537,6 +11473,17 @@
         ],
         "summary": "Create a reward in the family reward shop; admin-only",
         "operationId": "post_api_rewards",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -8579,8 +11526,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "201: the created reward",
+          "201": {
+            "description": "The created reward",
             "content": {
               "application/json": {
                 "schema": {
@@ -8635,6 +11582,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "security": [
@@ -8643,8 +11599,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Success"
+          "204": {
+            "description": "204 on success. 404 if the reward is not in the caller's tenant or is already archived. Never a hard delete: reward_redemptions/redemption_requests keep their FK for history"
           }
         }
       },
@@ -8659,6 +11615,15 @@
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -8748,13 +11713,22 @@
         "tags": [
           "rewards"
         ],
-        "summary": "Create /api/rewards/{id}/redeem",
+        "summary": "Spend a child's stickers on a reward; any tenant member may redeem on a child's behalf",
         "operationId": "post_api_rewards_id_redeem",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -8765,9 +11739,50 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "memberId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
-          "200": {
-            "description": "Success"
+          "201": {
+            "description": "The sticker balance after the spend + the new redemption id. 409 INSUFFICIENT_STICKERS if the balance cannot cover the cost",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stickerBalance": {
+                      "type": "integer"
+                    },
+                    "redemptionId": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "stickerBalance",
+                    "redemptionId"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -8779,6 +11794,17 @@
         ],
         "summary": "List tasks",
         "operationId": "get_api_tasks",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -8853,16 +11879,96 @@
         "tags": [
           "tasks"
         ],
-        "summary": "Create /api/tasks",
+        "summary": "Create a task for myself; any member",
         "operationId": "post_api_tasks",
+        "description": "Always owned by the caller: memberId comes from the session, never the body.",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "dueDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
-          "200": {
-            "description": "Success"
+          "201": {
+            "description": "201: the created task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "dueDate": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "nullable": true
+                    },
+                    "memberId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "done": {
+                      "type": "boolean"
+                    },
+                    "doneAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "dueDate",
+                    "memberId",
+                    "done",
+                    "doneAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -8872,7 +11978,7 @@
         "tags": [
           "tasks"
         ],
-        "summary": "Delete /api/tasks/{id}",
+        "summary": "Delete one of my own tasks; any member",
         "operationId": "delete_api_tasks_id",
         "parameters": [
           {
@@ -8882,6 +11988,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "security": [
@@ -8890,8 +12005,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Success"
+          "204": {
+            "description": "204 on success. 404 if the task is not the caller's own"
           }
         }
       },
@@ -8899,13 +12014,23 @@
         "tags": [
           "tasks"
         ],
-        "summary": "Update /api/tasks/{id}",
+        "summary": "Tick/untick one of my own tasks; any member",
         "operationId": "patch_api_tasks_id",
+        "description": "Owner-scoped: a member can only mutate their own tasks. 404 covers both wrong-owner and not-found, by design, so a probe can't enumerate another member's task ids.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -8916,9 +12041,70 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "done": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "done"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "dueDate": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "nullable": true
+                    },
+                    "memberId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "done": {
+                      "type": "boolean"
+                    },
+                    "doneAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "dueDate",
+                    "memberId",
+                    "done",
+                    "doneAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       },
@@ -8926,13 +12112,23 @@
         "tags": [
           "tasks"
         ],
-        "summary": "Replace /api/tasks/{id}",
+        "summary": "Replace one of my own tasks' title/dueDate; any member",
         "operationId": "put_api_tasks_id",
+        "description": "Owner-scoped, same WHERE as PATCH/DELETE. memberId and completion state (doneAt) are not editable here.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
             "schema": {
               "type": "string"
             }
@@ -8943,9 +12139,77 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "dueDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "dueDate": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "nullable": true
+                    },
+                    "memberId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "done": {
+                      "type": "boolean"
+                    },
+                    "doneAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "dueDate",
+                    "memberId",
+                    "done",
+                    "doneAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -8955,11 +12219,38 @@
         "tags": [
           "system"
         ],
-        "summary": "Liveness probe",
+        "summary": "Liveness probe: is the process up and serving requests",
         "operationId": "get_health",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "{ status: \"ok\", version, uptime } where uptime is seconds since process start",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok"
+                      ]
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "uptime": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "version",
+                    "uptime"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
@@ -8969,11 +12260,33 @@
         "tags": [
           "system"
         ],
-        "summary": "Hello sanity check",
+        "summary": "Hello sanity check: a static greeting plus the current time",
         "operationId": "get_hello",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "{ message, timestamp }",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "timestamp"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }

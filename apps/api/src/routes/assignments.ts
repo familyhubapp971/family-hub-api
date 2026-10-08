@@ -34,14 +34,14 @@ export const listAssignmentsResponseSchema = z.object({
 
 export type ListAssignmentsResponse = z.infer<typeof listAssignmentsResponseSchema>;
 
-const createAssignmentRequestSchema = z.object({
+export const createAssignmentRequestSchema = z.object({
   title: z.string().trim().min(1, 'title is required').max(200),
   dueDate: z.string().regex(ISO_DATE, 'dueDate must be YYYY-MM-DD').nullish(),
   memberId: z.string().uuid().nullish(),
   notes: z.string().max(1000).nullish(),
 });
 
-const patchAssignmentRequestSchema = z.object({
+export const patchAssignmentRequestSchema = z.object({
   done: z.boolean(),
 });
 

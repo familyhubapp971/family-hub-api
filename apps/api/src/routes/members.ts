@@ -212,7 +212,7 @@ const pinWriteParamsSchema = z.object({
   id: z.string().uuid('member id must be a UUID'),
 });
 
-const pinWriteBodySchema = z.object({
+export const pinWriteBodySchema = z.object({
   pin: z.string().regex(/^\d{4}$/, 'pin must be exactly 4 digits'),
 });
 
@@ -425,7 +425,7 @@ export const addMemberResponseSchema = z.object({
   }),
 });
 
-const patchMemberBodySchema = z
+export const patchMemberBodySchema = z
   .object({
     displayName: z.string().trim().min(1).max(80).optional(),
     // Only the admin↔adult toggle is allowed here; kid roles are fixed

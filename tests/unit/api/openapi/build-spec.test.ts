@@ -60,7 +60,30 @@ describe('FHS-356: OpenAPI spec from the live route table', () => {
     const setPin = spec.paths['/api/members/{id}/pin']?.['put'] as Record<string, unknown>;
     expect(setPin['parameters']).toEqual([
       { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+      expect.objectContaining({ name: 'x-tenant-slug', in: 'header', required: false }),
     ]);
+  });
+
+  it('FHS-664: documents the family header on adult routes but not kid or public ones', () => {
+    const names = (path: string, method: string) =>
+      (
+        ((spec.paths[path]?.[method] as Record<string, unknown>)['parameters'] ?? []) as Array<{
+          name: string;
+        }>
+      ).map((p) => p.name);
+    expect(names('/api/tasks', 'get')).toContain('x-tenant-slug');
+    expect(names('/api/kid/me', 'get')).not.toContain('x-tenant-slug');
+    expect(names('/api/public/tenant', 'post')).not.toContain('x-tenant-slug');
+  });
+
+  it('FHS-664: documents real status codes and non-JSON replies', () => {
+    const responses = (path: string, method: string) =>
+      Object.keys((spec.paths[path]?.[method] as Record<string, unknown>)['responses'] as object);
+    expect(responses('/api/tasks', 'post')).toEqual(['201']);
+    expect(responses('/api/rewards/{id}', 'delete')).toEqual(['204']);
+    const ics = (spec.paths['/api/public/calendar/{token}']?.['get'] as Record<string, any>)
+      .responses['200'].content;
+    expect(Object.keys(ics)).toEqual(['text/calendar']);
   });
 });
 

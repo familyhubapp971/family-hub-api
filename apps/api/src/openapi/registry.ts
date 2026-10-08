@@ -17,7 +17,6 @@ import {
   kidInvestmentsResponseSchema,
   kidMeResponseSchema,
   kidProfileResponseSchema,
-  kidRedemptionRequestSchema,
   kidRewardsResponseSchema,
   kidSavingsResponseSchema,
   kidTasksResponseSchema,
@@ -40,13 +39,9 @@ import {
 import {
   listHabitsResponseSchema,
   habitItemSchema,
-  createHabitRequestSchema,
   updateHabitRequestSchema,
 } from '../routes/habits.js';
-import {
-  decideRedemptionRequestResponseSchema,
-  listRedemptionRequestsResponseSchema,
-} from '../routes/mw-redemption-requests.js';
+import { listRedemptionRequestsResponseSchema } from '../routes/mw-redemption-requests.js';
 import { listMealsResponseSchema } from '../routes/meals.js';
 import {
   createEventRequestSchema,
@@ -75,23 +70,16 @@ import {
 import { bookSchema, listBooksResponseSchema } from '../lib/reading-log-shared.js';
 import { mwAnalyticsResponseSchema } from '../routes/mw-analytics.js';
 import { listNoticesResponseSchema } from '../routes/notices.js';
-import {
-  createInvitationRequestSchema,
-  createInvitationResponseSchema,
-} from '../routes/invitations.js';
 import { createTenantRequestSchema, createTenantResponseSchema } from '../routes/public-tenant.js';
 import { slugAvailableResponseSchema } from '../routes/slug-available.js';
 import { publicKidMembersResponseSchema } from '../routes/public-kid-members.js';
 import { kidPinRequestSchema, kidPinResponseSchema } from '../routes/auth-kid-pin.js';
 import {
-  addMemberBodySchema,
-  addMemberResponseSchema,
   confirmEmailChangeBodySchema,
   confirmEmailChangeResponseSchema,
   listMembersResponseSchema,
   memberEmailChangeRequestBodySchema,
   memberEmailChangeRequestResponseSchema,
-  setMemberPinResponseSchema,
 } from '../routes/members.js';
 import { listTasksResponseSchema } from '../routes/tasks.js';
 import {
@@ -109,9 +97,6 @@ import {
   weekResponseSchema,
   weekStatsResponseSchema,
   weekActionsResponseSchema,
-  memberBodySchema,
-  finalizeRequestSchema,
-  weekCashRequestSchema,
 } from '../routes/mw-weeks.js';
 import {
   difficultySchema,
@@ -134,16 +119,13 @@ import {
   adminDeleteAccountRequestSchema,
   adminDeleteAccountResponseSchema,
 } from '../routes/admin.js';
-import {
-  rewardItemSchema,
-  createRewardRequestSchema,
-  updateRewardRequestSchema,
-} from '../routes/rewards.js';
+import { rewardItemSchema, updateRewardRequestSchema } from '../routes/rewards.js';
 import {
   rewardConfigResponseSchema,
   rewardConfigPutRequestSchema,
 } from '../routes/reward-config.js';
-import { getStartedDismissResponseSchema, getStartedStateSchema } from '@familyhub/shared';
+import { getStartedStateSchema } from '@familyhub/shared';
+import { areaMeta } from './meta/index.js';
 
 export interface QueryParamMeta {
   description?: string;
@@ -157,16 +139,19 @@ export interface RouteMeta {
   request?: ZodTypeAny;
   response?: ZodTypeAny;
   responseDesc?: string;
+  /** Success status code. Defaults to 200; use 204 for routes that reply with no body. */
+  status?: 200 | 201 | 202 | 204;
+  /** Non-JSON success body, e.g. 'text/calendar'. Documented as a string. */
+  responseContentType?: string;
+  /** POST/PUT/PATCH that genuinely reads no JSON body (so no `request` schema). */
+  bodyless?: true;
   /** Set false to mark a route as not requiring the bearer token. */
   security?: false;
   /** Optional query parameters to document (name → meta). */
   queryParams?: Record<string, QueryParamMeta>;
 }
 
-export const routeMeta: Record<string, RouteMeta> = {
-  'GET /health': { summary: 'Liveness probe', security: false },
-  'GET /hello': { summary: 'Hello sanity check', security: false },
-
+const baseMeta: Record<string, RouteMeta> = {
   'GET /api/me': {
     summary: 'The signed-in user + their families',
     response: meResponseSchema,
@@ -216,9 +201,6 @@ export const routeMeta: Record<string, RouteMeta> = {
     summary: "Sticker counts + cash value for one of the kid's weeks",
     response: kidWeekStatsResponseSchema,
   },
-  'GET /api/kid/weeks/{id}/actions': {
-    summary: "Audit log of week actions for one of the kid's weeks",
-  },
   'GET /api/kid/habits': {
     summary: "The kid's habits + stickers + balance (identical to parent GET /api/habits)",
     response: listHabitsResponseSchema,
@@ -226,11 +208,6 @@ export const routeMeta: Record<string, RouteMeta> = {
   'GET /api/kid/rewards': {
     summary: "The kid's reward shop + star balance + their latest request status per reward",
     response: kidRewardsResponseSchema,
-  },
-  'POST /api/kid/rewards/{id}/request': {
-    summary: 'The kid asks to redeem a reward (no deduction; an admin approves)',
-    response: kidRedemptionRequestSchema,
-    responseDesc: 'The pending request row (idempotent: returns an existing pending one)',
   },
   'GET /api/kid/financial/savings': {
     summary: "The kid's banked savings + currency (identical to parent GET /mw/financial/savings)",
@@ -264,14 +241,6 @@ export const routeMeta: Record<string, RouteMeta> = {
       },
     },
   },
-  'POST /api/events': {
-    summary: 'Create a calendar activity; admin/adult only',
-    description:
-      'Optional recurrenceDays (weekdays 0=Sun..6=Sat) + recurrenceEndDate turn it into a weekly-repeating series anchored on `date`. No occurrence rows are stored: GET expands the series on read.',
-    request: createEventRequestSchema,
-    response: eventItemSchema,
-    responseDesc: '201: the created event (the series anchor, if recurring)',
-  },
   'PUT /api/events/{id}': {
     summary: 'Replace an event (full update); admin/adult only',
     description:
@@ -279,24 +248,10 @@ export const routeMeta: Record<string, RouteMeta> = {
     request: createEventRequestSchema,
     response: eventItemSchema,
   },
-  'DELETE /api/events/{id}': {
-    summary: 'Delete an event; admin/adult only',
-    responseDesc:
-      '204 on success. For a recurring series this deletes the WHOLE series. 404 if not found in this tenant',
-  },
   'GET /api/calendar/feed': {
     summary: 'The family calendar subscribe URL (creates the feed key on first call)',
     response: calendarFeedResponseSchema,
     responseDesc: 'An absolute ICS subscribe URL for Google / Apple / Outlook',
-  },
-  'POST /api/calendar/feed/rotate': {
-    summary: 'Regenerate the calendar feed key (admin-only); invalidates old subscriptions',
-    response: calendarFeedResponseSchema,
-  },
-  'GET /api/public/calendar/{token}': {
-    summary: 'Public ICS calendar feed for a family (signed token = credential)',
-    security: false,
-    responseDesc: 'text/calendar (ICS) of the family activities',
   },
   'GET /api/kid/journal': {
     summary: "The kid's journal entry for a day (+ the day's quote)",
@@ -345,7 +300,6 @@ export const routeMeta: Record<string, RouteMeta> = {
     request: kidReadingPatchSchema,
     response: bookSchema,
   },
-  'DELETE /api/kid/reading-log/{id}': { summary: 'Remove a book from the kid reading log' },
   'GET /api/kid/analytics': {
     summary: "The kid's My World analytics (stats view)",
     response: mwAnalyticsResponseSchema,
@@ -492,27 +446,6 @@ export const routeMeta: Record<string, RouteMeta> = {
     responseDesc:
       "This is the record a finished week is summarised from. `invest_continue` carries a running investment's WHOLE value, not new money (FHS-617)",
   },
-  'POST /api/mw/weeks/{id}/finalize': {
-    summary: 'Close a week and start the next one. ADMIN ONLY',
-    request: finalizeRequestSchema,
-    responseDesc:
-      'Banks anything spare, settles investments, applies skip penalties, and carries the rest forward. Name the investments to keep running in continueInvestmentIds',
-  },
-  'POST /api/mw/weeks/{id}/reopen': {
-    summary: 'Undo a close, putting the week back as it was. ADMIN ONLY',
-    request: memberBodySchema,
-    responseDesc: 'Reverses what the close did: banking, investment settlement and any penalty',
-  },
-  'POST /api/mw/weeks/{id}/repair': {
-    summary: 'Clear leftover close effects from a week that is still open. ADMIN ONLY',
-    request: memberBodySchema,
-    responseDesc: 'For a week left half-closed by an interrupted finalize',
-  },
-  'PUT /api/mw/weeks/{id}/cash': {
-    summary: "Correct a week's carried and retrieved cash by hand. ADMIN ONLY",
-    request: weekCashRequestSchema,
-    responseDesc: 'Neither figure may be negative',
-  },
 
   // My World investments (FHS-296 / FHS-378).
   'GET /api/mw/financial/investments': {
@@ -539,25 +472,8 @@ export const routeMeta: Record<string, RouteMeta> = {
     summary: "The family's reward redemption requests (?status=pending|approved|declined)",
     response: listRedemptionRequestsResponseSchema,
   },
-  'POST /api/mw/redemption-requests/{id}/approve': {
-    summary: "Approve a request: admin only; deducts star_cost from the kid's savings",
-    response: decideRedemptionRequestResponseSchema,
-  },
-  'POST /api/mw/redemption-requests/{id}/decline': {
-    summary: 'Decline a request: admin only; no deduction',
-    response: decideRedemptionRequestResponseSchema,
-  },
 
   // Invitations.
-  'POST /api/invitations': {
-    summary: 'Invite someone to the family',
-    description:
-      "role is one of admin | adult | teen | guest (default adult). Granting 'admin' " +
-      'requires the caller to already be an admin (403 otherwise): FHS-486 / ADR 0019.',
-    request: createInvitationRequestSchema,
-    response: createInvitationResponseSchema,
-  },
-  'POST /api/invitations/claim': { summary: 'Claim invites addressed to my email' },
 
   // Members.
   'GET /api/members': {
@@ -565,15 +481,6 @@ export const routeMeta: Record<string, RouteMeta> = {
     response: listMembersResponseSchema,
     responseDesc:
       "email and pendingEmail (FHS-510) are admin-only: a non-admin caller always gets null on both, regardless of the member's actual state.",
-  },
-  'POST /api/members': {
-    summary: 'Add a family member seat (child, teen, or adult): no login, direct roster insert',
-    request: addMemberBodySchema,
-    response: addMemberResponseSchema,
-  },
-  'PUT /api/members/{id}/pin': {
-    summary: "Set a kid member's login PIN",
-    response: setMemberPinResponseSchema,
   },
 
   // FHS-510: admin-initiated sign-in email change, confirmed by a one-time link.
@@ -584,10 +491,6 @@ export const routeMeta: Record<string, RouteMeta> = {
     request: memberEmailChangeRequestBodySchema,
     response: memberEmailChangeRequestResponseSchema,
     responseDesc: '{ pendingEmail }: the address the confirm link was sent to',
-  },
-  'POST /api/members/{id}/email-change/cancel': {
-    summary: 'Cancel a pending email change for a member; admin-only',
-    responseDesc: '{ cancelled: true }: always 200, even if there was nothing pending',
   },
   'POST /api/members/email-change/confirm': {
     summary: 'Apply a pending email change from the emailed confirm link',
@@ -692,19 +595,6 @@ export const routeMeta: Record<string, RouteMeta> = {
   },
 
   // My World habits: FHS-292, boost + skip-penalty fields added FHS-512.
-  'GET /api/habits': {
-    summary: "A member's habits + this week's stickers + spendable balance",
-    response: listHabitsResponseSchema,
-    responseDesc:
-      'habits[] (each carries boost + skipPenaltyMinor), stickers[], week, balance, currency',
-  },
-  'POST /api/habits': {
-    summary: 'Create a habit for a member; admin-only',
-    request: createHabitRequestSchema,
-    response: habitItemSchema,
-    responseDesc:
-      'boost (1=normal, 2/3/5=boosted) sets the stickerValue a completion places; skipPenaltyMinor (integer minor units) is deducted at close-week for a due day missed',
-  },
   'PUT /api/habits/{id}': {
     summary: 'Update a habit (name/icon/color/boost/skipPenaltyMinor); admin-only',
     request: updateHabitRequestSchema,
@@ -743,22 +633,11 @@ export const routeMeta: Record<string, RouteMeta> = {
   },
 
   // FHS-483: parent-managed reward-shop catalogue (create/edit/archive).
-  'POST /api/rewards': {
-    summary: 'Create a reward in the family reward shop; admin-only',
-    request: createRewardRequestSchema,
-    response: rewardItemSchema,
-    responseDesc: '201: the created reward',
-  },
   'PATCH /api/rewards/{id}': {
     summary: "Partially update a reward's name/description/stickerCost/icon; admin-only",
     request: updateRewardRequestSchema,
     response: rewardItemSchema,
     responseDesc: "The updated reward. 404 if the reward is not in the caller's tenant",
-  },
-  'DELETE /api/rewards/{id}': {
-    summary: 'Archive (soft-delete) a reward; admin-only',
-    responseDesc:
-      "204 on success. 404 if the reward is not in the caller's tenant or is already archived. Never a hard delete: reward_redemptions/redemption_requests keep their FK for history",
   },
 
   // FHS-634: the dashboard "Getting started" guide, stored per member so it
@@ -769,10 +648,8 @@ export const routeMeta: Record<string, RouteMeta> = {
     responseDesc:
       'dismissed (this member hid the guide), steps.{kids,pins,rate,habits} derived from the family\'s own data, and firstKidId for the "open their world" deep link. 403 for non-admins',
   },
-  'POST /api/onboarding/get-started/dismiss': {
-    summary: 'Hide the dashboard setup guide for the calling admin, on every device',
-    response: getStartedDismissResponseSchema,
-    responseDesc:
-      'Always { dismissed: true }. Idempotent: a repeat call keeps the original timestamp. 403 for non-admins',
-  },
 };
+
+// FHS-664: the per-area files in ./meta hold the rest of the entries. Later
+// spreads win, so an area file may also correct an entry above.
+export const routeMeta: Record<string, RouteMeta> = { ...baseMeta, ...areaMeta };
