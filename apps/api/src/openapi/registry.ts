@@ -145,8 +145,6 @@ export interface RouteMeta {
   responseContentType?: string;
   /** POST/PUT/PATCH that genuinely reads no JSON body (so no `request` schema). */
   bodyless?: true;
-  /** Set false to mark a route as not requiring the bearer token. */
-  security?: false;
   /** Optional query parameters to document (name → meta). */
   queryParams?: Record<string, QueryParamMeta>;
 }
@@ -163,23 +161,19 @@ const baseMeta: Record<string, RouteMeta> = {
     summary: 'Create a family (sign-up onboarding)',
     request: createTenantRequestSchema,
     response: createTenantResponseSchema,
-    security: false,
   },
   'GET /api/public/slug-available': {
     summary: 'Check if a family URL slug is free',
     response: slugAvailableResponseSchema,
-    security: false,
   },
   'GET /api/public/kid-members/{slug}': {
     summary: "List a family's kids who can log in with a PIN",
     response: publicKidMembersResponseSchema,
-    security: false,
   },
   'POST /api/auth/kid-pin': {
     summary: 'Exchange a kid PIN for a kid session token',
     request: kidPinRequestSchema,
     response: kidPinResponseSchema,
-    security: false,
   },
 
   // Kid-scoped (kid token).
@@ -376,7 +370,6 @@ const baseMeta: Record<string, RouteMeta> = {
     request: publicFeedbackRequestSchema,
     response: publicFeedbackResponseSchema,
     responseDesc: '201: the new public_feedback row id',
-    security: false,
   },
 
   // My World savings (FHS-606): the Your Savings card's split.
@@ -500,7 +493,6 @@ const baseMeta: Record<string, RouteMeta> = {
     response: confirmEmailChangeResponseSchema,
     responseDesc:
       '200 on success. 410 { error: "expired" } if the link is missing/used/expired: the recipient should ask an admin for a new one. 502/500 { errorCode: "EMAIL_CHANGE_APPLY_FAILED" } on a transient failure (Supabase hiccup, or a post-apply drift): the token may still be valid, so the caller should retry rather than treat it as expired.',
-    security: false,
   },
 
   // Notices / tasks.

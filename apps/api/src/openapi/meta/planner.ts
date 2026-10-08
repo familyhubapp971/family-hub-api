@@ -147,6 +147,5 @@ export const plannerMeta: Record<string, RouteMeta> = {
     responseDesc:
       'Body is raw ICS text (Content-Type: text/calendar), not JSON: Content-Disposition: inline; filename="familyhub.ics", Cache-Control: private, max-age=300',
     responseContentType: 'text/calendar',
-    security: false,
   },
 };

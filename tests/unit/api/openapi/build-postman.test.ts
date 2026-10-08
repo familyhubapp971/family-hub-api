@@ -30,7 +30,8 @@ describe('FHS-664: Postman collection from the OpenAPI spec', () => {
           .length,
       0,
     );
-    expect(requests).toHaveLength(ops);
+    // Plus the 3 Supabase sign-in requests, which are not part of our API.
+    expect(requests).toHaveLength(ops + 3);
   });
 
   it('uses the parent token, the kid token, or no auth as the spec says', () => {
@@ -45,6 +46,31 @@ describe('FHS-664: Postman collection from the OpenAPI spec', () => {
     const header = (r: any) => r.request.header.map((h: any) => h.key);
     expect(header(find('GET', '{{baseUrl}}/api/tasks'))).toContain('x-tenant-slug');
     expect(header(find('GET', '{{baseUrl}}/api/kid/me'))).not.toContain('x-tenant-slug');
+  });
+
+  it('FHS-666: names requests by path and orders folders by the tester journey', () => {
+    expect(find('GET', '{{baseUrl}}/api/tasks')?.name).toBe('/api/tasks');
+    expect(collection.item[0]?.name).toBe('00 Health checks');
+    expect(collection.item[1]?.name).toBe('01 Parent sign-in and sign-up (Supabase)');
+  });
+
+  it('FHS-666: verifying the email link saves the parent token', () => {
+    const verify = collection.item[1]?.item.find((r) => r.name === 'Verify email link');
+    const scripts = verify?.event.map((e: any) => e.script.exec.join('\n')).join('\n');
+    expect(scripts).toContain("pm.environment.set('userToken'");
+    expect(scripts).toContain("pm.environment.set('emailTokenHash'");
+  });
+
+  it('FHS-666: keeps the Supabase key blank unless the local copy fills it', () => {
+    const blank = JSON.parse(buildPostmanFiles(spec)['staging.postman_environment.json'] as string);
+    const filled = JSON.parse(
+      buildPostmanFiles(spec, { supabaseAnonKey: 'k' })[
+        'staging.postman_environment.json'
+      ] as string,
+    );
+    const key = (env: any) => env.values.find((v: any) => v.key === 'supabaseAnonKey').value;
+    expect(key(blank)).toBe('');
+    expect(key(filled)).toBe('k');
   });
 
   it('saves the kid token after a kid PIN sign-in', () => {

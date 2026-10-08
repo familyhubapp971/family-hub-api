@@ -151,7 +151,8 @@ export function _resetJwksCacheForTests(): void {
   cachedDefaultJwks = undefined;
 }
 
-function isPublicPath(path: string, extras: readonly string[]): boolean {
+/** True when the API serves `path` without a parent sign-in (also used by the OpenAPI docs). */
+export function isPublicPath(path: string, extras: readonly string[] = []): boolean {
   for (const prefix of PUBLIC_PATH_PREFIXES) {
     if (path === prefix || path.startsWith(`${prefix}/`)) return true;
   }

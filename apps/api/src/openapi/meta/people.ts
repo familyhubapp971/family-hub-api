@@ -34,13 +34,11 @@ export const peopleMeta: Record<string, RouteMeta> = {
     summary: 'Liveness probe: is the process up and serving requests',
     response: healthResponseSchema,
     responseDesc: '{ status: "ok", version, uptime } where uptime is seconds since process start',
-    security: false,
   },
   'GET /hello': {
     summary: 'Hello sanity check: a static greeting plus the current time',
     response: helloResponseSchema,
     responseDesc: '{ message, timestamp }',
-    security: false,
   },
 
   // ── Members: roster edits (FHS-276 / FHS-473) ────────────────────────────

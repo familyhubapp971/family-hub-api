@@ -14,18 +14,137 @@ export const POSTMAN_ENVIRONMENTS = {
   staging: 'https://api-staging-5500.up.railway.app',
 } as const;
 
+// Supabase project that signs parents in. Public: it ships in the web app.
+const SUPABASE_URL = 'https://maolytpqazmykjzdybtj.supabase.co';
+
 const DESCRIPTION = [
   'Family Hub API, generated from apps/api/openapi.json. Do not edit by hand:',
   'run `pnpm -F api openapi:generate` after any API change.',
   '',
-  'Set these environment variables before sending requests:',
-  '- `userToken`: a parent or adult sign-in token. Sign in to the web app, then',
-  '  copy `access_token` from the `sb-...-auth-token` entry in the browser storage.',
+  '**Get a parent token (folder 01):** set `supabaseAnonKey` and `signInEmail`, send',
+  '"Send sign-in email" (or "Send sign-up email" for a new parent). Copy the link in the',
+  'email (do not click it: a click uses it up), paste it into `emailLink`, then send',
+  '"Verify email link". It saves `userToken`.',
+  'A new parent then creates their family with POST /api/public/tenant (folder 04).',
+  '',
+  'Other variables:',
   '- `tenantSlug`: the family web address, e.g. `khan-family`.',
-  '- `kidToken`: filled automatically by "Exchange a kid PIN" (needs `kidMemberId`',
-  '  and `kidPin`).',
+  '- `kidToken`: saved by POST /api/auth/kid-pin (needs `kidMemberId` and `kidPin`).',
   '- `*Id` variables: the id of the record a request acts on.',
 ].join('\n');
+
+// Folder per tag, in the order a tester meets them. Unlisted tags sort last.
+const FOLDERS: Array<[tag: string, name: string]> = [
+  ['system', '00 Health checks'],
+  ['signin', '01 Parent sign-in and sign-up (Supabase)'],
+  ['auth', '02 Kid PIN sign-in'],
+  ['public', '03 Public pages (no sign-in)'],
+  ['onboarding', '04 Family setup'],
+  ['me', '05 My account'],
+  ['members', '06 Family members'],
+  ['invitations', '07 Invitations'],
+  ['dashboard', '08 Today dashboard'],
+  ['tasks', '09 Tasks'],
+  ['assignments', '10 Chore assignments'],
+  ['habits', '11 Habits and stickers'],
+  ['events', '12 Calendar events'],
+  ['calendar', '13 Calendar sync feed'],
+  ['meals', '14 Meal planner'],
+  ['notices', '15 Notice board'],
+  ['journal', '16 Journal'],
+  ['rewards', '17 Rewards shop'],
+  ['reward-config', '18 Reward settings'],
+  ['my-world', "19 Kids' money (My World)"],
+  ['learn', '20 Learning insights'],
+  ['feedback', '21 Feedback'],
+  ['admin', '22 Family settings (admin)'],
+  ['kid', '23 Kid app (kid token)'],
+];
+
+/** Requests to Supabase that sign a parent in and save `userToken`. */
+function signInFolder(): Json[] {
+  const supabase = (path: string) => ({
+    raw: `{{supabaseUrl}}/auth/v1/${path}`,
+    host: ['{{supabaseUrl}}'],
+    path: ['auth', 'v1', path],
+  });
+  const headers = [
+    { key: 'apikey', value: '{{supabaseAnonKey}}' },
+    { key: 'Content-Type', value: 'application/json' },
+  ];
+  const json = (body: Json) => ({
+    mode: 'raw',
+    raw: JSON.stringify(body, null, 2),
+    options: { raw: { language: 'json' } },
+  });
+  const sendEmail = (name: string, createUser: boolean, about: string): Json => ({
+    name,
+    request: {
+      method: 'POST',
+      auth: { type: 'noauth' },
+      header: headers,
+      url: supabase('otp'),
+      body: json({ email: '{{signInEmail}}', create_user: createUser }),
+      description: `${about}\n\n**Sign-in:** none (Supabase public key)\n**Success:** 200`,
+    },
+    event: [
+      {
+        listen: 'test',
+        script: {
+          type: 'text/javascript',
+          exec: ["pm.test('returns 200', () => pm.response.to.have.status(200));"],
+        },
+      },
+    ],
+  });
+  return [
+    sendEmail(
+      'Send sign-in email',
+      false,
+      'Emails a sign-in link to an existing parent at `signInEmail`.',
+    ),
+    sendEmail(
+      'Send sign-up email (new parent)',
+      true,
+      'Creates the parent account if needed and emails a confirmation link to `signInEmail`.',
+    ),
+    {
+      name: 'Verify email link',
+      request: {
+        method: 'POST',
+        auth: { type: 'noauth' },
+        header: headers,
+        url: supabase('verify'),
+        body: json({ type: '{{emailLinkType}}', token_hash: '{{emailTokenHash}}' }),
+        description:
+          'Copy the whole link from the email (do not click it) into `emailLink` first. Saves `userToken` for every parent request.\n\n**Sign-in:** none (Supabase public key)\n**Success:** 200',
+      },
+      event: [
+        {
+          listen: 'prerequest',
+          script: {
+            type: 'text/javascript',
+            exec: [
+              "const link = new URL(pm.environment.get('emailLink'));",
+              "pm.environment.set('emailTokenHash', link.searchParams.get('token'));",
+              "pm.environment.set('emailLinkType', link.searchParams.get('type') || 'magiclink');",
+            ],
+          },
+        },
+        {
+          listen: 'test',
+          script: {
+            type: 'text/javascript',
+            exec: [
+              "pm.test('returns 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) pm.environment.set('userToken', pm.response.json().access_token);",
+            ],
+          },
+        },
+      ],
+    },
+  ];
+}
 
 // Path parameters whose own name would be vague as an environment variable.
 const RENAMED_PARAMS: Record<string, string> = {
@@ -105,6 +224,23 @@ function successCode(op: Json): string {
   return codes.find((c) => c.startsWith('2')) ?? '200';
 }
 
+const AUTH_LABEL: Record<string, string> = {
+  bearerAuth: 'parent or adult token (`userToken`)',
+  kidAuth: 'kid token (`kidToken`)',
+};
+
+/** The request's description panel: what it does, sign-in needed, expected status. */
+function describe(op: Json, scheme: string | undefined): string {
+  const lines = [(op['summary'] as string | undefined) ?? ''];
+  if (op['description']) lines.push('', op['description'] as string);
+  lines.push(
+    '',
+    `**Sign-in:** ${scheme ? (AUTH_LABEL[scheme] ?? scheme) : 'none'}`,
+    `**Success:** ${successCode(op)}`,
+  );
+  return lines.join('\n');
+}
+
 function requestItem(path: string, method: string, op: Json): Json {
   const segments = path.split('/').filter(Boolean);
   const pathVars: Json[] = [];
@@ -152,7 +288,7 @@ function requestItem(path: string, method: string, op: Json): Json {
       ...(query.length ? { query } : {}),
       ...(pathVars.length ? { variable: pathVars } : {}),
     },
-    description: (op['description'] as string | undefined) ?? '',
+    description: describe(op, scheme),
   };
 
   const body = (op['requestBody'] as Json | undefined)?.['content'] as Json | undefined;
@@ -184,15 +320,16 @@ function requestItem(path: string, method: string, op: Json): Json {
     };
   }
 
+  // Postman shows the method as a badge, so the path alone is the name.
   return {
-    name: (op['summary'] as string | undefined) ?? `${method.toUpperCase()} ${path}`,
+    name: path,
     request,
     event: [{ listen: 'test', script: { type: 'text/javascript', exec: tests } }],
   };
 }
 
 export function buildPostmanCollection(spec: OpenApiSpec): Json {
-  const folders = new Map<string, Json[]>();
+  const folders = new Map<string, Json[]>([['signin', signInFolder()]]);
   for (const [path, ops] of Object.entries(spec.paths)) {
     for (const method of METHODS) {
       const op = ops[method] as Json | undefined;
@@ -209,8 +346,8 @@ export function buildPostmanCollection(spec: OpenApiSpec): Json {
       schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
     },
     item: [...folders.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, item]) => ({ name, item })),
+      .map(([tag, item]) => ({ name: FOLDERS.find(([t]) => t === tag)?.[1] ?? tag, item }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
   };
 }
 
@@ -223,33 +360,46 @@ export function collectionVariables(collection: Json): string[] {
   return [...found].sort();
 }
 
-const SECRET = new Set(['userToken', 'kidToken', 'kidPin']);
+const SECRET = new Set(['userToken', 'kidToken', 'kidPin', 'supabaseAnonKey']);
 
 export function buildPostmanEnvironment(
   name: keyof typeof POSTMAN_ENVIRONMENTS,
   variables: string[],
+  filled: Record<string, string> = {},
 ): Json {
   return {
     name: `Family Hub ${name}`,
     values: variables.map((key) => ({
       key,
-      value: key === 'baseUrl' ? POSTMAN_ENVIRONMENTS[name] : '',
+      value:
+        key === 'baseUrl'
+          ? POSTMAN_ENVIRONMENTS[name]
+          : key === 'supabaseUrl'
+            ? SUPABASE_URL
+            : (filled[key] ?? ''),
       type: SECRET.has(key) ? 'secret' : 'default',
       enabled: true,
     })),
   };
 }
 
-/** File name → contents for everything under apps/api/postman/. */
-export function buildPostmanFiles(spec: OpenApiSpec): Record<string, string> {
+/**
+ * File name → contents for everything under apps/api/postman/. `filled`
+ * pre-sets environment values; only the local, gitignored copy passes any.
+ */
+export function buildPostmanFiles(
+  spec: OpenApiSpec,
+  filled: Record<string, string> = {},
+): Record<string, string> {
   const collection = buildPostmanCollection(spec);
-  const vars = [...new Set([...collectionVariables(collection), 'kidMemberId', 'kidPin'])].sort();
+  const extra = ['kidMemberId', 'kidPin', 'emailLink'];
+  const vars = [...new Set([...collectionVariables(collection), ...extra])].sort();
   const files: Record<string, string> = {
     'family-hub-api.postman_collection.json': JSON.stringify(collection, null, 2) + '\n',
   };
   for (const env of Object.keys(POSTMAN_ENVIRONMENTS) as Array<keyof typeof POSTMAN_ENVIRONMENTS>) {
     files[`${env}.postman_environment.json`] =
-      JSON.stringify(buildPostmanEnvironment(env, vars), null, 2) + '\n';
+      JSON.stringify(buildPostmanEnvironment(env, vars, filled), null, 2) + '\n';
   }
   return files;
 }

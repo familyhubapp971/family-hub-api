@@ -11045,10 +11045,26 @@
     "/api/public/tenant": {
       "post": {
         "tags": [
-          "public"
+          "onboarding"
         ],
         "summary": "Create a family (sign-up onboarding)",
         "operationId": "post_api_public_tenant",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {

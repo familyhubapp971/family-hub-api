@@ -8,7 +8,8 @@
 
 import type { Hono } from 'hono';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { routeMeta, type RouteMeta } from './registry.js';
+import { isPublicPath } from '../middleware/auth.js';
+import { routeMeta } from './registry.js';
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 type HttpMethod = (typeof HTTP_METHODS)[number];
@@ -36,21 +37,14 @@ function pathParamNames(openApiPath: string): string[] {
 function tagFor(path: string): string {
   if (path === '/health' || path === '/hello') return 'system';
   if (path.startsWith('/api/auth')) return 'auth';
+  // Creating a family is a signed-in setup step, not a public page.
+  if (path === '/api/public/tenant') return 'onboarding';
   if (path.startsWith('/api/public')) return 'public';
   if (path.startsWith('/api/kid')) return 'kid';
   if (path === '/api/me') return 'me';
   if (path.startsWith('/api/mw/')) return 'my-world';
   const m = path.match(/^\/api\/([^/]+)/);
   return m ? (m[1] as string) : 'other';
-}
-
-function isPublicByPath(openApiPath: string): boolean {
-  return (
-    openApiPath === '/health' ||
-    openApiPath === '/hello' ||
-    openApiPath.startsWith('/api/public') ||
-    openApiPath.startsWith('/api/auth')
-  );
 }
 
 function jsonSchema(schema: Parameters<typeof zodToJsonSchema>[0]): unknown {
@@ -64,8 +58,10 @@ function jsonSchema(schema: Parameters<typeof zodToJsonSchema>[0]): unknown {
   return s;
 }
 
-function isPublicRoute(meta: RouteMeta | undefined, oaPath: string): boolean {
-  return meta?.security === false || isPublicByPath(oaPath);
+// FHS-666: "needs no sign-in" comes from the auth middleware's own list, so
+// the docs cannot disagree with the server. /api/kid uses the kid token instead.
+function isPublicRoute(oaPath: string): boolean {
+  return !oaPath.startsWith('/api/kid') && isPublicPath(oaPath);
 }
 
 /**
@@ -152,7 +148,7 @@ export function buildOpenApiSpec(app: Pick<Hono, 'routes'>): OpenApiSpec {
     // Tenant-scoped adult routes can name the family with this header when the
     // JWT carries no tenant claim (see middleware/resolve-tenant.ts).
     const tenantHeader =
-      !isPublicRoute(meta, oaPath) && !oaPath.startsWith('/api/kid')
+      !isPublicRoute(oaPath) && !oaPath.startsWith('/api/kid')
         ? [
             {
               name: 'x-tenant-slug',
@@ -168,7 +164,7 @@ export function buildOpenApiSpec(app: Pick<Hono, 'routes'>): OpenApiSpec {
       operation['parameters'] = allParams;
     }
 
-    const isPublic = isPublicRoute(meta, oaPath);
+    const isPublic = isPublicRoute(oaPath);
     if (!isPublic) {
       // /api/kid/* authenticate with the kid PIN session token, NOT the
       // Supabase user JWT: document the right credential.
