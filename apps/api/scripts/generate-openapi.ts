@@ -18,3 +18,11 @@ for (const [name, body] of Object.entries(buildPostmanFiles(spec))) {
   writeFileSync(new URL(name, postmanDir), body);
 }
 console.log('postman/: collection and environments written.');
+
+// FHS-665: also refresh the founder's local, gitignored copy in documents/.
+const sharedDir = new URL('../../../documents/postman/', import.meta.url);
+mkdirSync(sharedDir, { recursive: true });
+for (const [name, body] of Object.entries(buildPostmanFiles(spec))) {
+  writeFileSync(new URL(name, sharedDir), body);
+}
+console.log('documents/postman/: local copy refreshed.');
