@@ -4875,10 +4875,10 @@
                 "feedback"
               ]
             },
-            "description": "Submit a beta survey response\n\nAuthenticated users submit product feedback. All fields are optional but at least one must be present.\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 200",
+            "description": "Submit a beta survey response\n\nSigned-in grown-ups submit product feedback, either the general survey or the per-screen form (FHS-670). The per-screen form also sends screen, features and visitId. Every answer field is optional but at least one must be present.\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 200",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"pmfDisappointment\": \"very\",\n  \"recommendScore\": 0,\n  \"solvesProblem\": 1,\n  \"easeOfUse\": 1,\n  \"keepUsing\": 1,\n  \"painPoint\": \"x\",\n  \"featureRequest\": \"x\",\n  \"otherFeedback\": \"x\"\n}",
+              "raw": "{\n  \"pmfDisappointment\": \"very\",\n  \"recommendScore\": 0,\n  \"solvesProblem\": 1,\n  \"easeOfUse\": 1,\n  \"keepUsing\": 1,\n  \"painPoint\": \"x\",\n  \"featureRequest\": \"x\",\n  \"otherFeedback\": \"x\",\n  \"screen\": \"x\",\n  \"features\": [],\n  \"visitId\": \"00000000-0000-4000-8000-000000000000\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

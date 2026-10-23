@@ -1723,6 +1723,13 @@ export const betaFeedback = pgTable(
     painPoint: text('pain_point'),
     featureRequest: text('feature_request'),
     otherFeedback: text('other_feedback'),
+    // FHS-670: set by the per-screen form only; null means the general survey.
+    // `screen` is the screen key (meals, calendar, child-journal...),
+    // `features` the parts of that screen the parent tapped, and `visit_id`
+    // groups everything one person sent in one browser-tab visit.
+    screen: text('screen'),
+    features: text('features').array(),
+    visitId: uuid('visit_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

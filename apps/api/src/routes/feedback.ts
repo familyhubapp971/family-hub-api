@@ -9,6 +9,8 @@ import { getAuthenticatedUser } from '../middleware/auth.js';
 // Single route: POST /api/feedback
 // Auth: Bearer Supabase token + x-tenant-slug (same as every other authed route).
 // All survey fields optional, but at least one must be present.
+// FHS-670: the per-screen form also sends screen, features and visitId. They
+// say what an answer is about, so on their own they do not count as an answer.
 
 // ─── Zod schema ───────────────────────────────────────────────────────────────
 
@@ -22,6 +24,13 @@ export const feedbackRequestSchema = z
     painPoint: z.string().max(2000).optional(),
     featureRequest: z.string().max(2000).optional(),
     otherFeedback: z.string().max(2000).optional(),
+    // FHS-670: sent by the per-screen form only.
+    screen: z
+      .string()
+      .regex(/^[a-z0-9-]{1,40}$/)
+      .optional(),
+    features: z.array(z.string().min(1).max(80)).max(12).optional(),
+    visitId: z.string().uuid().optional(),
   })
   .refine(
     (d) =>
@@ -80,6 +89,9 @@ export const feedbackRouter = new Hono()
       painPoint,
       featureRequest,
       otherFeedback,
+      screen,
+      features,
+      visitId,
     } = parsed.data;
 
     const db = getDb();
@@ -97,6 +109,9 @@ export const feedbackRouter = new Hono()
         painPoint: painPoint ?? null,
         featureRequest: featureRequest ?? null,
         otherFeedback: otherFeedback ?? null,
+        screen: screen ?? null,
+        features: features && features.length > 0 ? features : null,
+        visitId: visitId ?? null,
       })
       .returning({ id: betaFeedback.id });
 

@@ -6,7 +6,13 @@
 //
 // Sources:
 //   beta_feedback  : authenticated in-app survey (source = 'in_app')
+//                    or the per-screen form      (source = 'screen', FHS-670)
 //   public_feedback: anonymous homepage survey  (source = 'public')
+//
+// Rows are grouped person by person, then visit by visit, oldest first, so one
+// person's answers from one visit sit together. With an output file, a second
+// file <name>-by-screen.csv sums the per-screen answers: how many, the average
+// of each rating, and which features were mentioned most.
 //
 // Zero-install: uses the `pg` driver already in the repo and reads
 // DATABASE_URL from .env.local (same place the app reads it).
@@ -37,6 +43,9 @@ const COLUMNS = [
   'family',
   'name',
   'email',
+  'visit_id',
+  'screen',
+  'features',
   'pmf_disappointment',
   'recommend_score',
   'solves_problem',
@@ -67,10 +76,14 @@ await client.connect();
 // submitted_by_email snapshot; public_feedback rows carry the visitor's name
 // and email directly.
 const { rows } = await client.query(
-  `SELECT 'in_app'                   AS source,
+  `SELECT * FROM (
+   SELECT CASE WHEN bf.screen IS NULL THEN 'in_app' ELSE 'screen' END AS source,
           t.slug                     AS family,
           NULL                       AS name,
           bf.submitted_by_email      AS email,
+          bf.visit_id::text          AS visit_id,
+          bf.screen,
+          array_to_string(bf.features, '; ') AS features,
           bf.pmf_disappointment,
           bf.recommend_score,
           bf.solves_problem,
@@ -89,6 +102,9 @@ const { rows } = await client.query(
           NULL                       AS family,
           pf.name                    AS name,
           pf.email                   AS email,
+          NULL                       AS visit_id,
+          NULL                       AS screen,
+          NULL                       AS features,
           pf.pmf_disappointment,
           pf.recommend_score,
           pf.solves_problem,
@@ -100,15 +116,63 @@ const { rows } = await client.query(
           pf.created_at
      FROM public_feedback pf
 
-   ORDER BY created_at ASC`,
+   ) AS answers
+   ORDER BY family NULLS LAST, email NULLS LAST,
+            min(created_at) OVER (PARTITION BY visit_id) NULLS LAST, visit_id NULLS LAST,
+            created_at ASC`,
 );
 await client.end();
+
+// FHS-670: one line per screen, busiest first.
+function byScreen(rows) {
+  const groups = new Map();
+  for (const r of rows) {
+    if (!r.screen) continue;
+    const g = groups.get(r.screen) ?? { answers: 0, people: new Set(), ratings: {}, features: {} };
+    g.answers += 1;
+    if (r.email) g.people.add(r.email);
+    for (const k of ['solves_problem', 'ease_of_use', 'keep_using']) {
+      if (r[k] === null || r[k] === undefined) continue;
+      (g.ratings[k] ??= []).push(Number(r[k]));
+    }
+    for (const f of r.features ? r.features.split('; ') : []) {
+      g.features[f] = (g.features[f] ?? 0) + 1;
+    }
+    groups.set(r.screen, g);
+  }
+  const avg = (xs) => (xs?.length ? (xs.reduce((a, b) => a + b, 0) / xs.length).toFixed(1) : '');
+  const esc = (s) => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+  const lines = [
+    'screen,answers,people,avg_solves_problem,avg_ease_of_use,avg_keep_using,features_mentioned',
+  ];
+  for (const [screen, g] of [...groups].sort((a, b) => b[1].answers - a[1].answers)) {
+    const top = Object.entries(g.features)
+      .sort((a, b) => b[1] - a[1])
+      .map(([f, n]) => `${f} (${n})`)
+      .join('; ');
+    lines.push(
+      [
+        screen,
+        g.answers,
+        g.people.size,
+        avg(g.ratings.solves_problem),
+        avg(g.ratings.ease_of_use),
+        avg(g.ratings.keep_using),
+        esc(top),
+      ].join(','),
+    );
+  }
+  return lines.join('\n') + '\n';
+}
 
 const csv = toCsv(rows);
 const outPath = process.argv[2];
 if (outPath) {
   writeFileSync(outPath, csv);
   console.error(`Wrote ${rows.length} feedback row(s) to ${outPath}`);
+  const summaryPath = outPath.replace(/(\.csv)?$/, '-by-screen.csv');
+  writeFileSync(summaryPath, byScreen(rows));
+  console.error(`Wrote the per-screen summary to ${summaryPath}`);
 } else {
   process.stdout.write(csv);
 }

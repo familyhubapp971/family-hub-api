@@ -219,4 +219,95 @@ describeFeature(feature, ({ Background, Scenario }) => {
       expect(rows).toHaveLength(0);
     });
   });
+  // FHS-670: the per-screen form.
+  async function postScreen(
+    slug: string,
+    screen: string,
+    feature: string,
+    ease: number,
+    visit: string,
+  ) {
+    lastRes = await app.request('/api/feedback', {
+      method: 'POST',
+      headers: authHeaders(slug),
+      body: JSON.stringify({ screen, features: [feature], easeOfUse: ease, visitId: visit }),
+    });
+    lastBody = await lastRes.json();
+  }
+
+  Scenario('Parent gives feedback on the Meals screen', ({ When, Then, And }) => {
+    When(
+      'the caller POSTs screen feedback to {string} for screen {string} with feature {string} and ease {int} in visit {string}',
+      async (_ctx, slug: string, screen: string, feature: string, ease: number, visit: string) => {
+        await postScreen(slug, screen, feature, ease, visit);
+      },
+    );
+
+    Then('the feedback POST status is 201', () => {
+      expect(lastRes.status).toBe(201);
+    });
+
+    And(
+      'the beta_feedback row in {string} has screen {string}, feature {string} and visit {string}',
+      async (_ctx, slug: string, screen: string, feature: string, visit: string) => {
+        const rows = await db
+          .select()
+          .from(betaFeedback)
+          .where(eq(betaFeedback.tenantId, tenantIds[slug]!));
+        expect(rows).toHaveLength(1);
+        expect(rows[0]!.screen).toBe(screen);
+        expect(rows[0]!.features).toEqual([feature]);
+        expect(rows[0]!.visitId).toBe(visit);
+      },
+    );
+  });
+
+  Scenario('Answers from one visit share a visit ID', ({ When, And, Then }) => {
+    When(
+      'the caller POSTs screen feedback to {string} for screen {string} with feature {string} and ease {int} in visit {string}',
+      async (_ctx, slug: string, screen: string, feature: string, ease: number, visit: string) => {
+        await postScreen(slug, screen, feature, ease, visit);
+        expect(lastRes.status).toBe(201);
+      },
+    );
+
+    And(
+      'the caller POSTs screen feedback to {string} for screen {string} with feature {string} and ease {int} in visit {string}',
+      async (_ctx, slug: string, screen: string, feature: string, ease: number, visit: string) => {
+        await postScreen(slug, screen, feature, ease, visit);
+        expect(lastRes.status).toBe(201);
+      },
+    );
+
+    Then(
+      '{int} beta_feedback rows in {string} carry visit {string}',
+      async (_ctx, count: number, slug: string, visit: string) => {
+        const rows = await db
+          .select()
+          .from(betaFeedback)
+          .where(eq(betaFeedback.tenantId, tenantIds[slug]!));
+        expect(rows.filter((r) => r.visitId === visit)).toHaveLength(count);
+        expect(new Set(rows.map((r) => r.screen))).toEqual(new Set(['meals', 'calendar']));
+      },
+    );
+  });
+
+  Scenario('Screen details alone are not an answer', ({ When, Then }) => {
+    When('the caller POSTs only screen details to {string}', async (_ctx, slug: string) => {
+      lastRes = await app.request('/api/feedback', {
+        method: 'POST',
+        headers: authHeaders(slug),
+        body: JSON.stringify({
+          screen: 'meals',
+          features: ['Add meal'],
+          visitId: '33333333-3333-4333-8333-333333333333',
+        }),
+      });
+      lastBody = await lastRes.json();
+    });
+
+    Then('the feedback POST status is 400', () => {
+      expect(lastRes.status).toBe(400);
+    });
+  });
 });

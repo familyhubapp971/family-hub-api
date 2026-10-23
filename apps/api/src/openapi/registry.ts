@@ -356,7 +356,7 @@ const baseMeta: Record<string, RouteMeta> = {
   'POST /api/feedback': {
     summary: 'Submit a beta survey response',
     description:
-      'Authenticated users submit product feedback. All fields are optional but at least one must be present.',
+      'Signed-in grown-ups submit product feedback, either the general survey or the per-screen form (FHS-670). The per-screen form also sends screen, features and visitId. Every answer field is optional but at least one must be present.',
     request: feedbackRequestSchema,
     response: feedbackResponseSchema,
     responseDesc: '201: the new feedback row id',
