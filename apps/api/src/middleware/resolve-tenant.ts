@@ -107,9 +107,9 @@ export function resolveTenant(opts: ResolveTenantOptions): MiddlewareHandler {
     // Try every candidate slug source in priority order until one
     // actually resolves to a tenant. The earlier "first non-empty
     // source wins" behaviour fell apart on Railway-style hosts where
-    // the API's own host (e.g. `api-staging-5500.up.railway.app`) is
+    // the API's own host (e.g. `api-fhapp.up.railway.app`) is
     // a valid slug-shaped string under the shared `.up.railway.app`
-    // suffix: subdomain source picked `api-staging-5500`, lookup
+    // suffix: subdomain source picked `api-fhapp`, lookup
     // failed, and the SPA-supplied `x-tenant-slug` header was never
     // consulted: every authenticated tenant call 400'd with
     // "tenant context required".

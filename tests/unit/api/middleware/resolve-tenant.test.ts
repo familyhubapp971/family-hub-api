@@ -183,9 +183,9 @@ describe('FHS-13 + FHS-249: resolveTenant', () => {
     });
 
     // Regression: Railway staging exposes the API at
-    // `api-staging-5500.up.railway.app`. With BASE_DOMAIN set to the
+    // `api-fhapp.up.railway.app`. With BASE_DOMAIN set to the
     // shared `up.railway.app` suffix, the subdomain source matches
-    // `api-staging-5500` first, but that slug never exists in the
+    // `api-fhapp` first, but that slug never exists in the
     // tenants table. The middleware must fall through to the
     // x-tenant-slug header (and the path prefix) instead of giving
     // up. Without this, every authenticated tenant call from the
@@ -197,7 +197,7 @@ describe('FHS-13 + FHS-249: resolveTenant', () => {
       });
       const res = await app.request('/api/dashboard/today', {
         headers: {
-          host: 'api-staging-5500.up.railway.app',
+          host: 'api-fhapp.up.railway.app',
           'x-tenant-slug': 'khans',
         },
       });
@@ -206,7 +206,7 @@ describe('FHS-13 + FHS-249: resolveTenant', () => {
         tenantSlug: 'khans',
       });
       // Both candidates were tried: subdomain first, then header.
-      expect(lookupTenantId).toHaveBeenCalledWith('api-staging-5500');
+      expect(lookupTenantId).toHaveBeenCalledWith('api-fhapp');
       expect(lookupTenantId).toHaveBeenCalledWith('khans');
     });
 

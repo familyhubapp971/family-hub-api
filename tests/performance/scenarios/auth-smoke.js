@@ -9,7 +9,7 @@
 //   k6 run tests/performance/scenarios/auth-smoke.js
 //
 // Override target API:
-//   k6 run -e BASE_URL=https://api-staging-5500.up.railway.app \
+//   k6 run -e BASE_URL=https://api-fhapp.up.railway.app \
 //          tests/performance/scenarios/auth-smoke.js
 //
 // Required env vars (from .env.local for local; CI secrets for runs):

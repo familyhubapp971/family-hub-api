@@ -11,7 +11,7 @@ const METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;
 
 export const POSTMAN_ENVIRONMENTS = {
   local: 'http://localhost:3001',
-  staging: 'https://api-staging-5500.up.railway.app',
+  staging: 'https://api-fhapp.up.railway.app',
 } as const;
 
 // Supabase project that signs parents in. Public: it ships in the web app.
