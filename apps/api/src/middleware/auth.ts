@@ -52,6 +52,9 @@ const PUBLIC_PATH_PREFIXES = [
   // before): the one-time token in the body is the credential, verified
   // server-side against the stored SHA-256 hash.
   '/api/members/email-change/confirm',
+  // FHS-672: the founder's /admin feedback page. No family account: the
+  // FOUNDER_PASSCODE exchange, then a signed token, is the credential.
+  '/api/founder',
 ] as const;
 
 declare module 'hono' {

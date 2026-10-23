@@ -330,6 +330,13 @@
       "when": 1784112000000,
       "tag": "0046_screen_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1784198400000,
+      "tag": "0047_founder_feedback_reader",
+      "breakpoints": true
     }
   ]
 }

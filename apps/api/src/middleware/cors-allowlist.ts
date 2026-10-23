@@ -47,7 +47,13 @@ export function corsMiddleware(): MiddlewareHandler {
     // x-request-id: surfaced by request-context middleware; harmless to
     // accept from the client (server overrides anyway) and lets the web
     // attach a correlation id for support tickets.
-    allowHeaders: ['Content-Type', 'Authorization', 'x-tenant-slug', 'x-request-id'],
+    allowHeaders: [
+      'Content-Type',
+      'Authorization',
+      'x-tenant-slug',
+      'x-request-id',
+      'x-founder-token',
+    ],
     credentials: true,
     maxAge: 600,
   });

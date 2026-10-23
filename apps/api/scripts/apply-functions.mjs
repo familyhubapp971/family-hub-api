@@ -23,6 +23,8 @@ const FILES = [
   '0030_rls_read_path_functions.sql',
   // FHS-510: app_find_email_change reader (push never creates functions).
   'apply-email-change-function.sql',
+  // FHS-672: app_founder_feedback reader for the /admin feedback page.
+  '0047_founder_feedback_reader.sql',
 ];
 
 const url = process.env.DATABASE_URL;

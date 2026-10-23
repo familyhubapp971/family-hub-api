@@ -111,6 +111,20 @@ export const configSchema = z
       .default('false')
       .transform((v) => v === 'true' || v === '1'),
     ANTHROPIC_API_KEY: z.string().default(''),
+    // FHS-672: the passcode for the founder's /admin feedback page. Unset means
+    // the page is switched off (its routes answer 404). Digits only, 6 to 12.
+    // Lives in Railway and .env.local only, never in the repo.
+    FOUNDER_PASSCODE: z
+      .string()
+      .regex(/^\d{6,12}$/, 'FOUNDER_PASSCODE must be 6 to 12 digits')
+      .optional(),
+    // FHS-672: long random secret that signs the founder page pass, so a
+    // leaked pass cannot be used to work out the short passcode. Required
+    // outside dev/test: without it the page stays switched off (404).
+    FOUNDER_TOKEN_SECRET: z
+      .string()
+      .min(32, 'FOUNDER_TOKEN_SECRET must be at least 32 characters')
+      .optional(),
     // FHS-445: server-side secret that signs the calendar "subscribe link"
     // tokens (HMAC). Required in production; dev/test tolerate a default so the
     // api boots without the operator generating a secret first. Same posture as

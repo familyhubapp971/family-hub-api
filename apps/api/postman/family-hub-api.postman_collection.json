@@ -6985,6 +6985,91 @@
           ]
         }
       ]
+    },
+    {
+      "name": "24 Founder feedback page (passcode)",
+      "item": [
+        {
+          "name": "/api/founder/feedback",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/founder/feedback",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "founder",
+                "feedback"
+              ]
+            },
+            "description": "Founder only: every family's feedback, newest first\n\nSend the token from POST /api/founder/session in the x-founder-token header. Returns up to 2000 answers from the in-app survey, the per-screen form and the homepage survey. 401 when the token is missing or expired.\n\n**Sign-in:** none\n**Success:** 200"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/founder/session",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/founder/session",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "founder",
+                "session"
+              ]
+            },
+            "description": "Founder only: swap the passcode for an 8-hour page token\n\nChecks FOUNDER_PASSCODE. Five wrong tries lock the page for 15 minutes for everyone (429 with retryAfter). 404 when no passcode is set on the server.\n\n**Sign-in:** none\n**Success:** 200",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"passcode\": \"x\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

@@ -112,6 +112,11 @@ import {
   publicFeedbackResponseSchema,
 } from '../routes/public-feedback.js';
 import {
+  founderFeedbackResponseSchema,
+  founderSessionRequestSchema,
+  founderSessionResponseSchema,
+} from '../routes/founder.js';
+import {
   adminSettingsResponseSchema,
   adminSettingsPutRequestSchema,
   adminSettingsPutResponseSchema,
@@ -360,6 +365,23 @@ const baseMeta: Record<string, RouteMeta> = {
     request: feedbackRequestSchema,
     response: feedbackResponseSchema,
     responseDesc: '201: the new feedback row id',
+  },
+
+  // FHS-672: the founder's /admin feedback page (passcode, not family sign-in).
+  'POST /api/founder/session': {
+    summary: 'Founder only: swap the passcode for an 8-hour page token',
+    description:
+      'Checks FOUNDER_PASSCODE. Five wrong tries lock the page for 15 minutes for everyone (429 with retryAfter). 404 when no passcode is set on the server.',
+    request: founderSessionRequestSchema,
+    response: founderSessionResponseSchema,
+    responseDesc: 'The page token and when it expires',
+  },
+  'GET /api/founder/feedback': {
+    summary: "Founder only: every family's feedback, newest first",
+    description:
+      'Send the token from POST /api/founder/session in the x-founder-token header. Returns up to 2000 answers from the in-app survey, the per-screen form and the homepage survey. 401 when the token is missing or expired.',
+    response: founderFeedbackResponseSchema,
+    responseDesc: 'Feedback rows across every family',
   },
 
   // FHS-429: Public (anonymous) feedback from the logged-out homepage.

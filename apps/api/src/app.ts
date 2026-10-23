@@ -49,6 +49,7 @@ import { tasksRouter } from './routes/tasks.js';
 import { publicKidMembersRouter } from './routes/public-kid-members.js';
 import { publicTenantRouter } from './routes/public-tenant.js';
 import { publicFeedbackRouter } from './routes/public-feedback.js';
+import { founderRouter } from './routes/founder.js';
 import { calendarRouter } from './routes/calendar.js';
 import { publicCalendarRouter } from './routes/public-calendar.js';
 import { slugAvailableRouter } from './routes/slug-available.js';
@@ -65,6 +66,7 @@ const TENANT_OPTIONAL_API_PREFIXES = [
   '/api/auth/',
   '/api/kid',
   '/api/invitations/claim',
+  '/api/founder/',
 ];
 function isTenantOptionalPath(path: string): boolean {
   return TENANT_OPTIONAL_API_PREFIXES.some((p) => path.startsWith(p));
@@ -226,6 +228,8 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/public/slug-available', slugAvailableRouter);
   app.route('/api/public/kid-members', publicKidMembersRouter);
   app.route('/api/public/feedback', publicFeedbackRouter);
+  // FHS-672: founder feedback page; the passcode is the credential.
+  app.route('/api/founder', founderRouter);
   // FHS-445: public calendar ICS feed (no auth; signed token in the URL).
   app.route('/api/public/calendar', publicCalendarRouter);
   app.route('/api/auth/kid-pin', kidPinRouter);

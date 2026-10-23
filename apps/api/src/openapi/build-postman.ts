@@ -59,6 +59,7 @@ const FOLDERS: Array<[tag: string, name: string]> = [
   ['feedback', '21 Feedback'],
   ['admin', '22 Family settings (admin)'],
   ['kid', '23 Kid app (kid token)'],
+  ['founder', '24 Founder feedback page (passcode)'],
 ];
 
 /** Requests to Supabase that sign a parent in and save `userToken`. */

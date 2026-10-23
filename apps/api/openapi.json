@@ -34,6 +34,9 @@
       "name": "feedback"
     },
     {
+      "name": "founder"
+    },
+    {
       "name": "habits"
     },
     {
@@ -1956,6 +1959,192 @@
                   "required": [
                     "success",
                     "id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/founder/feedback": {
+      "get": {
+        "tags": [
+          "founder"
+        ],
+        "summary": "Founder only: every family's feedback, newest first",
+        "operationId": "get_api_founder_feedback",
+        "description": "Send the token from POST /api/founder/session in the x-founder-token header. Returns up to 2000 answers from the in-app survey, the per-screen form and the homepage survey. 401 when the token is missing or expired.",
+        "responses": {
+          "200": {
+            "description": "Feedback rows across every family",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "in_app",
+                              "screen",
+                              "public"
+                            ]
+                          },
+                          "familySlug": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "familyName": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "name": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "email": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "visitId": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "screen": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "features": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "pmfDisappointment": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "recommendScore": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "solvesProblem": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "easeOfUse": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "keepUsing": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "painPoint": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "featureRequest": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "otherFeedback": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "source",
+                          "familySlug",
+                          "familyName",
+                          "name",
+                          "email",
+                          "visitId",
+                          "screen",
+                          "features",
+                          "pmfDisappointment",
+                          "recommendScore",
+                          "solvesProblem",
+                          "easeOfUse",
+                          "keepUsing",
+                          "painPoint",
+                          "featureRequest",
+                          "otherFeedback",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "rows"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/founder/session": {
+      "post": {
+        "tags": [
+          "founder"
+        ],
+        "summary": "Founder only: swap the passcode for an 8-hour page token",
+        "operationId": "post_api_founder_session",
+        "description": "Checks FOUNDER_PASSCODE. Five wrong tries lock the page for 15 minutes for everyone (429 with retryAfter). 404 when no passcode is set on the server.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "passcode": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  }
+                },
+                "required": [
+                  "passcode"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The page token and when it expires",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "token",
+                    "expiresAt"
                   ],
                   "additionalProperties": false
                 }

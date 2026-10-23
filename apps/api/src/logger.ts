@@ -17,6 +17,9 @@ const baseOptions: LoggerOptions = {
       'req.headers.authorization',
       'req.headers.cookie',
       'req.headers["x-api-key"]',
+      // FHS-672: founder page credentials.
+      'req.headers["x-founder-token"]',
+      'req.body.passcode',
       'req.body.password',
       'req.body.token',
       'req.body.refreshToken',
