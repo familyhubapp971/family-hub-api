@@ -9,9 +9,9 @@ already match.
 
 Usage:
     set -a; source .env.local; set +a
-    python3 scripts/apply-supabase-email-templates.py            # apply + verify both projects
-    python3 scripts/apply-supabase-email-templates.py --check    # diff-only, no PATCH
-    python3 scripts/apply-supabase-email-templates.py --project staging   # apply to one only
+    python3 scripts/auth/apply-supabase-email-templates.py            # apply + verify both projects
+    python3 scripts/auth/apply-supabase-email-templates.py --check    # diff-only, no PATCH
+    python3 scripts/auth/apply-supabase-email-templates.py --project staging   # apply to one only
 
 Reads env vars: SUPABASE_ACCESS_TOKEN. Standard library only.
 
@@ -28,7 +28,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_DIR = REPO_ROOT / "apps" / "api" / "auth" / "email-templates"
 
 # Maps template filename → (subject_field, content_field) on /config/auth.

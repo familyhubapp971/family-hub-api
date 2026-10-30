@@ -80,8 +80,8 @@ tmp/
 # Rendered PDFs are kept out of the repo (founder request, 2026-08-06, for
 # business + investor material; extended to the impact and tester briefs when
 # they were split out of documents/business/). The HTML sources in
-# scripts/doc-src/ stay tracked, so anyone can rebuild every PDF with
-# `node scripts/render-docs.mjs`; the rendered artefacts are not committed.
+# scripts/docs/doc-src/ stay tracked, so anyone can rebuild every PDF with
+# `node scripts/docs/render-docs.mjs`; the rendered artefacts are not committed.
 # documents/demo/ is the one exception, and is. documents/commercial/ joined
 # the ignored set on 2026-10-09 (founder request).
 documents/business/
@@ -92,6 +92,6 @@ documents/qa/
 # Local copy of apps/api/postman for sharing; refreshed by openapi:generate (FHS-665).
 documents/postman/
 # Signed contracts hold personal details; their sources stay local only.
-scripts/doc-src/fh-qa-contractor-*.html
+scripts/docs/doc-src/fh-qa-contractor-*.html
 documents/media/
 PRIVACY-TODO.md

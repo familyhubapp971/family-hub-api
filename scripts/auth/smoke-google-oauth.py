@@ -16,8 +16,8 @@ For a full round-trip check, sign up via /signup and click
 
 Usage:
     set -a; source .env.local; set +a
-    python3 scripts/smoke-google-oauth.py             # checks staging
-    python3 scripts/smoke-google-oauth.py --project production
+    python3 scripts/auth/smoke-google-oauth.py             # checks staging
+    python3 scripts/auth/smoke-google-oauth.py --project production
 
 Required env vars (one set, depending on --project):
     SUPABASE_URL_STAGING + SUPABASE_ANON_KEY_STAGING

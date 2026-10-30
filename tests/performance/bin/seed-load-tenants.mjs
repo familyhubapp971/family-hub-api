@@ -20,7 +20,7 @@
 //   node tests/performance/bin/seed-load-tenants.mjs 5 tests/performance/fixtures/load-tenants.json
 //
 // Reads DATABASE_URL from the environment, falling back to .env.local
-// (same simple parse as scripts/export-beta-feedback.mjs). Connects as
+// (same simple parse as scripts/data/export-beta-feedback.mjs). Connects as
 // the DB OWNER (bypasses RLS), mirroring
 // tests/integration/support/seed-tenant-tables.ts, which seeds with the
 // superuser connection for the same reason: RLS would otherwise block
@@ -33,7 +33,7 @@
 // Zero-install: uses the `pg` and `bcryptjs` packages already in the
 // repo's root devDependencies (raw SQL, not the Drizzle schema; that's
 // TypeScript and this is a plain zero-build node script, same tradeoff
-// scripts/export-beta-feedback.mjs already made).
+// scripts/data/export-beta-feedback.mjs already made).
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';

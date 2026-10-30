@@ -21,7 +21,7 @@ import pg from 'pg';
 
 // ── Load DATABASE_URL from .env.local (simple KEY=VALUE parse) ────────────────
 try {
-  const env = readFileSync(new URL('../.env.local', import.meta.url), 'utf8');
+  const env = readFileSync(new URL('../../.env.local', import.meta.url), 'utf8');
   for (const line of env.split('\n')) {
     const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*)\s*$/);
     if (m && process.env[m[1]] === undefined) {

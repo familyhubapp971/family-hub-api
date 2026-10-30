@@ -10,9 +10,9 @@ Idempotent: re-running with the same values is a no-op.
 
 Usage:
     set -a; source .env.local; set +a
-    python3 scripts/configure-google-oauth.py            # configure staging
-    python3 scripts/configure-google-oauth.py --check    # diff-only, no PATCH
-    python3 scripts/configure-google-oauth.py --project production
+    python3 scripts/auth/configure-google-oauth.py            # configure staging
+    python3 scripts/auth/configure-google-oauth.py --check    # diff-only, no PATCH
+    python3 scripts/auth/configure-google-oauth.py --project production
                                                           # configure production
 
 Required env vars:

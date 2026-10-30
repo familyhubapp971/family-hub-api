@@ -12,7 +12,7 @@
  *
  * Usage:
  *   set -a; source .env.local; set +a
- *   node scripts/audit-currencies.mjs
+ *   node scripts/data/audit-currencies.mjs
  */
 /* eslint-disable no-console -- a command-line audit whose whole job is to print
    what it found; there is no other output channel. */

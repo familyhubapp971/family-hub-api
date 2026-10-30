@@ -28,7 +28,7 @@ the email body.
 
    ```bash
    set -a; source .env.local; set +a
-   python3 scripts/apply-supabase-email-templates.py
+   python3 scripts/auth/apply-supabase-email-templates.py
    ```
 
    The script is idempotent, re-running it patches the same fields.
