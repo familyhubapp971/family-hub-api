@@ -19,6 +19,8 @@ See [ADR 0008](../docs/decisions/0008-supabase-environments.md) for the
 two-project topology this script targets.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os

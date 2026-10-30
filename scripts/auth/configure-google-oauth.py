@@ -28,6 +28,8 @@ See:
 - documents/technical/google-oauth-setup.md: manual click-by-click runbook
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os
