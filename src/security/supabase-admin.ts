@@ -1,3 +1,4 @@
+import { SignJWT } from 'jose';
 import { config } from '../config.js';
 
 // Thin wrapper around Supabase's auth admin REST API. We hit /auth/v1
@@ -72,14 +73,41 @@ export function isEmailAlreadyRegisteredError(err: unknown): boolean {
   );
 }
 
-function requireConfig(): { url: string; key: string } {
+interface AdminTarget {
+  /** Base of the admin endpoints: GoTrue's root, or Supabase's /auth/v1. */
+  base: string;
+  headers: Record<string, string>;
+}
+
+/**
+ * FHS-698: where admin calls go. With GOTRUE_URL and GOTRUE_ADMIN_JWT_SECRET
+ * set, they go straight to our private GoTrue server with a one-minute
+ * service_role pass signed by its own secret, so no long-lived admin key
+ * exists. Otherwise they go to Supabase with its service-role key, as before.
+ */
+async function adminTarget(): Promise<AdminTarget> {
+  if (config.GOTRUE_URL && config.GOTRUE_ADMIN_JWT_SECRET) {
+    const token = await new SignJWT({ role: 'service_role' })
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .setIssuedAt()
+      .setExpirationTime('60s')
+      .sign(new TextEncoder().encode(config.GOTRUE_ADMIN_JWT_SECRET));
+    return {
+      base: config.GOTRUE_URL.replace(/\/+$/, ''),
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    };
+  }
   if (!config.SUPABASE_URL) {
     throw new Error('SUPABASE_URL is required for the Supabase admin client');
   }
   if (!config.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY is required for the Supabase admin client');
   }
-  return { url: config.SUPABASE_URL, key: config.SUPABASE_SERVICE_ROLE_KEY };
+  const key = config.SUPABASE_SERVICE_ROLE_KEY;
+  return {
+    base: `${config.SUPABASE_URL}/auth/v1`,
+    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+  };
 }
 
 /**
@@ -92,18 +120,14 @@ function requireConfig(): { url: string; key: string } {
 export async function inviteUserByEmail(
   opts: SupabaseInviteUserOptions,
 ): Promise<SupabaseInvitedUser> {
-  const { url, key } = requireConfig();
-  // GoTrue's admin invite endpoint is `/auth/v1/invite`: NOT `/auth/v1/admin/invite`,
-  // which 404s (that 404 is why invites never sent; FHS-352). `redirect_to` is a
-  // query parameter here, not a body field.
-  const inviteUrl = `${url}/auth/v1/invite?redirect_to=${encodeURIComponent(opts.redirectTo)}`;
+  const { base, headers } = await adminTarget();
+  // GoTrue's admin invite endpoint is `/invite` (`/auth/v1/invite` on Supabase):
+  // NOT `/admin/invite`, which 404s (that 404 is why invites never sent;
+  // FHS-352). `redirect_to` is a query parameter here, not a body field.
+  const inviteUrl = `${base}/invite?redirect_to=${encodeURIComponent(opts.redirectTo)}`;
   const res = await fetch(inviteUrl, {
     method: 'POST',
-    headers: {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({
       email: opts.email,
       data: opts.data ?? {},
@@ -132,14 +156,10 @@ export async function inviteUserByEmail(
  * Maps to `PUT {SUPABASE_URL}/auth/v1/admin/users/{userId}`.
  */
 export async function updateUserEmailById(userId: string, email: string): Promise<void> {
-  const { url, key } = requireConfig();
-  const res = await fetch(`${url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+  const { base, headers } = await adminTarget();
+  const res = await fetch(`${base}/admin/users/${encodeURIComponent(userId)}`, {
     method: 'PUT',
-    headers: {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({ email, email_confirm: true }),
   });
 
