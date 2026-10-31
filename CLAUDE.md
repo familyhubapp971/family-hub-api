@@ -986,7 +986,7 @@ has no screens, so its rules apply there.
   2026-08-03). Use a comma, colon, parentheses or a period instead.
   Removal of pre-existing ones across the repo is tracked in FHS-553.
 - TypeScript strict mode everywhere.
-- 2-space indent, LF line endings, UTF-8 (enforced by `.editorconfig`).
+- 2-space indent, LF line endings, UTF-8 (enforced by Prettier, settings in `package.json`).
 - No comments unless the _why_ is non-obvious.
 - Avoid premature abstraction: three similar lines beats a wrong helper.
 
