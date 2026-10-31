@@ -29,6 +29,32 @@ const UPSTREAM_TIMEOUT_MS = 15_000;
 // refused before it is read, since this path is open to anyone.
 export const MAX_BODY_BYTES = 64 * 1024;
 
+// Reads the body but stops as soon as it passes `max`, so a request with no
+// (or a false) content-length cannot make us hold a large body in memory.
+async function readLimited(req: Request, max: number): Promise<ArrayBuffer | null> {
+  if (!req.body) return new ArrayBuffer(0);
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out.buffer;
+}
+
 export function gotrueProxy(upstream: string) {
   const base = upstream.replace(/\/+$/, '');
 
@@ -50,7 +76,7 @@ export function gotrueProxy(upstream: string) {
     if (segments.some((s) => s === '..' || s === '.' || s.includes('/') || s.includes('\\'))) {
       return c.json({ error: 'bad request' }, 400);
     }
-    if (segments[0] === 'admin') {
+    if (segments[0]?.replace(/\.+$/, '') === 'admin') {
       return c.json({ error: 'not found' }, 404);
     }
     const rest = `/${rawSegments.join('/')}`;
@@ -73,8 +99,8 @@ export function gotrueProxy(upstream: string) {
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     };
     if (method !== 'GET' && method !== 'HEAD') {
-      const body = await c.req.raw.arrayBuffer();
-      if (body.byteLength > MAX_BODY_BYTES) {
+      const body = await readLimited(c.req.raw, MAX_BODY_BYTES);
+      if (body === null) {
         return c.json({ error: 'request too large' }, 413);
       }
       init.body = body;

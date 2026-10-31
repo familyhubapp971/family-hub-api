@@ -72,6 +72,7 @@ describe('FHS-694: gotrueProxy', () => {
       '/auth/v1//admin/users',
       '/auth/v1///admin',
       '/auth/v1/./admin/users',
+      '/auth/v1/admin./users',
     ]) {
       const res = await proxyApp().request(path);
       expect(res.status, path).toBe(404);
@@ -103,6 +104,27 @@ describe('FHS-694: gotrueProxy', () => {
       body: 'x'.repeat(MAX_BODY_BYTES + 1),
     });
     expect(res.status).toBe(413);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('stops reading a body with no declared size once it passes the limit', async () => {
+    let pulled = 0;
+    const chunk = new Uint8Array(16 * 1024);
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        controller.enqueue(chunk);
+      },
+    });
+    const res = await proxyApp().request(
+      new Request('http://localhost/auth/v1/otp', {
+        method: 'POST',
+        body: endless,
+        duplex: 'half',
+      } as RequestInit & { duplex: 'half' }),
+    );
+    expect(res.status).toBe(413);
+    expect(pulled).toBeLessThan(10);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
