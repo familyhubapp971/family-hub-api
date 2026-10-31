@@ -10,8 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc",
-    "test": "vitest run --passWithNoTests"
+    "build": "tsc"
   },
   "dependencies": {
     "zod": "3.23.8"

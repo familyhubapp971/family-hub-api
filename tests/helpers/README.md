@@ -8,7 +8,7 @@ for tenant scoping, factories, request helpers, and test JWT minting.
 | Subpath                     | Use from                                | Pulls in                     |
 | --------------------------- | --------------------------------------- | ---------------------------- |
 | `@familyhub/test-utils`     | api + integration specs (Node)          | drizzle, pg, hono types only |
-| `@familyhub/test-utils/web` | apps/web vitest + future RTL specs      | React + RTL                  |
+| `@familyhub/test-utils/web` | React component tests (RTL)             | React + RTL                  |
 | `@familyhub/test-utils/k6`  | k6 scenarios under `tests/performance/` | plain JS only                |
 
 Server-side specs **must not** import from `/web` or they'll pull React + jsdom into a node environment.
@@ -104,4 +104,4 @@ const token = mintTestJwt({ sub: 'user-1', tenant_id: 'uuid-...' });
 - **`truncateAll` table list is empty** until Sprint 1 (FHS-1) adds tenant-scoped tables. Calls today are silent no-ops; a spec relying on it must check the list when writing the test.
 - **`createX` factories throw** with a clear FHS-1 reference. Use `buildX` until Sprint 1.
 - **`renderWithProviders` is a passthrough** until QueryClient + Router land in later sprints.
-- **`getTestDb` defaults** to `localhost:5433` matching the [FHS-181](https://qualicion2.atlassian.net/browse/FHS-181) docker-compose.test.yml. CI sets `DATABASE_URL_TEST` explicitly.
+- **`getTestDb` defaults** to `localhost:5433` matching the [FHS-181](https://qualicion2.atlassian.net/browse/FHS-181) `postgres-test` service in docker-compose.yml. CI sets `DATABASE_URL_TEST` explicitly.

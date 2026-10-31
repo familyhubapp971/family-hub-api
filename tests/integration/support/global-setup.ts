@@ -69,7 +69,7 @@ export async function setup(): Promise<void> {
     throw new Error(
       `[integration] cannot reach test Postgres at ${url()}\n` +
         `  ${message}\n` +
-        `  Hint: docker compose -f docker-compose.test.yml up -d`,
+        `  Hint: pnpm test:db:up`,
     );
   }
   // Sanity ping.

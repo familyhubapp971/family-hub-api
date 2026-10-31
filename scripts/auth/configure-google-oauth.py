@@ -73,7 +73,7 @@ def auth_headers(token: str) -> dict[str, str]:
         "Accept": "application/json",
         "Content-Type": "application/json",
         # Supabase's CF layer rejects the default python-urllib UA.
-        "User-Agent": "family-hub-app/configure-google-oauth",
+        "User-Agent": "family-hub-api/configure-google-oauth",
     }
 
 

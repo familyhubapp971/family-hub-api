@@ -1,9 +1,9 @@
 import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 
-// Test-only Postgres pool. Separate from the prod pool in apps/api so
-// integration tests never touch the live connection. Defaults to a
-// docker-compose.test.yml service on port 5433 (the FHS-181 setup).
+// Test-only Postgres pool. Separate from the prod pool in src/database so
+// integration tests never touch the live connection. Defaults to the
+// postgres-test service in docker-compose.yml on port 5433 (FHS-181).
 //
 // Override via env: DATABASE_URL_TEST=postgres://...
 

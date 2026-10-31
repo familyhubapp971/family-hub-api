@@ -2,7 +2,7 @@
   "name": "@familyhub/api",
   "version": "0.0.0",
   "private": true,
-  "description": "Multi-tenant SaaS platform for families. Monorepo root.",
+  "description": "Family Hub server: the API, database changes, sign-in emails and the shared rules.",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -35,8 +35,8 @@
     "pretest:integration": "pnpm test:db:up",
     "test:integration": "vitest run --config tests/integration/vitest.config.ts",
     "test:integration:watch": "vitest --config tests/integration/vitest.config.ts",
-    "test:db:up": "docker compose -f docker-compose.test.yml up -d --wait",
-    "test:db:down": "docker compose -f docker-compose.test.yml down",
+    "test:db:up": "docker compose --profile test up -d --wait postgres-test",
+    "test:db:down": "docker compose --profile test rm -sf postgres-test",
     "perf:smoke": "tests/performance/bin/run-k6.sh tests/performance/scenarios/smoke.js",
     "perf:smoke:auth": "tests/performance/bin/run-k6.sh tests/performance/scenarios/auth-smoke.js",
     "perf:load": "tests/performance/bin/run-k6.sh tests/performance/scenarios/load.js",
@@ -100,5 +100,28 @@
     "pino": "9.5.0",
     "zod": "3.23.8",
     "zod-to-json-schema": "^3.23.5"
+  },
+  "prettier": {
+    "printWidth": 100,
+    "tabWidth": 2,
+    "useTabs": false,
+    "semi": true,
+    "singleQuote": true,
+    "quoteProps": "as-needed",
+    "jsxSingleQuote": false,
+    "trailingComma": "all",
+    "bracketSpacing": true,
+    "bracketSameLine": false,
+    "arrowParens": "always",
+    "endOfLine": "lf"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mjs,cjs}": [
+      "eslint --fix --no-warn-ignored",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css,html}": [
+      "prettier --write"
+    ]
   }
 }

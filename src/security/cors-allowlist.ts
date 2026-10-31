@@ -39,7 +39,7 @@ export function corsMiddleware(): MiddlewareHandler {
     },
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     // x-tenant-slug: every tenant-scoped fetch from the web app sets this
-    // (apps/web/.../OnboardingPage.tsx, MembersPage.tsx, every dashboard
+    // (family-hub-web: the onboarding page, the members page, every dashboard
     // tab panel) and resolveTenantMiddleware reads it. Missing it from
     // Allow-Headers blocks the OPTIONS preflight on every authenticated
     // call, with the visible failure landing on whichever endpoint the

@@ -65,7 +65,7 @@ def smoke(project: str) -> int:
         url,
         headers={
             "apikey": anon_key,
-            "User-Agent": "family-hub-app/smoke-google-oauth",
+            "User-Agent": "family-hub-api/smoke-google-oauth",
         },
     )
 
