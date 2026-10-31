@@ -36,7 +36,7 @@
     "test:integration": "vitest run --config tests/integration/vitest.config.ts",
     "test:integration:watch": "vitest --config tests/integration/vitest.config.ts",
     "test:db:up": "docker compose --profile test up -d --wait postgres-test",
-    "test:db:down": "docker compose --profile test down postgres-test",
+    "test:db:down": "docker compose --profile test rm -sf postgres-test",
     "perf:smoke": "tests/performance/bin/run-k6.sh tests/performance/scenarios/smoke.js",
     "perf:smoke:auth": "tests/performance/bin/run-k6.sh tests/performance/scenarios/auth-smoke.js",
     "perf:load": "tests/performance/bin/run-k6.sh tests/performance/scenarios/load.js",
