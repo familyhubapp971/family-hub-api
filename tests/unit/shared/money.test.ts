@@ -7,7 +7,7 @@ import {
   formatMoney,
   formatMoneyMinor,
   viewerLocale,
-} from '../../../packages/shared/src/money.js';
+} from '../../../shared-rules/src/money.js';
 
 // FHS-613: one money formatter for the whole product. Before it, every screen
 // glued the currency code onto a number, which only ever looked right for

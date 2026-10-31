@@ -20,18 +20,18 @@ import type { MiddlewareHandler } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
 import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
-import { calendarRouter } from '../../../apps/api/src/routes/calendar.js';
-import { publicCalendarRouter } from '../../../apps/api/src/routes/public-calendar.js';
-import { tenants, members, events, users } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../src/security/auth.js';
+import { calendarRouter } from '../../../src/areas/calendar/calendar.js';
+import { publicCalendarRouter } from '../../../src/areas/calendar/public-calendar.js';
+import { tenants, members, events, users } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
 // The calendar routers call getDb()/pinRequestTenant() directly (not through
 // the request-scoped AsyncLocalStorage plumbing): mock both to the real test
 // Postgres pool, same pattern as public-kid-members.steps.ts. Pin is a no-op:
 // tests run as the superuser, which bypasses RLS.
-vi.mock('../../../apps/api/src/db/client.js', () => ({
+vi.mock('../../../src/database/client.js', () => ({
   getDb: () => getTestDb(),
   pinRequestTenant: async () => {},
 }));

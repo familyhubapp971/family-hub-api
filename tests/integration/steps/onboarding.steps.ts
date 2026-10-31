@@ -4,13 +4,13 @@ import type { MiddlewareHandler } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
 import { eq, sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
-import { onboardingRouter } from '../../../apps/api/src/routes/onboarding.js';
-import { tenants, members, habits, users } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../src/security/auth.js';
+import { onboardingRouter } from '../../../src/areas/family/onboarding.js';
+import { tenants, members, habits, users } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/db/client.js', () => ({
+vi.mock('../../../src/database/client.js', () => ({
   getDb: () => getTestDb(),
 }));
 
@@ -20,10 +20,10 @@ vi.mock('../../../apps/api/src/db/client.js', () => ({
 // seed step will throw" step flips `seedShouldThrow=true` for one
 // scenario; the Background's truncate resets it before the next.
 let seedShouldThrow = false;
-vi.mock('../../../apps/api/src/db/seed-tenant-defaults.js', async () => {
+vi.mock('../../../src/database/seed-tenant-defaults.js', async () => {
   const actual = await vi.importActual<
-    typeof import('../../../apps/api/src/db/seed-tenant-defaults.js')
-  >('../../../apps/api/src/db/seed-tenant-defaults.js');
+    typeof import('../../../src/database/seed-tenant-defaults.js')
+  >('../../../src/database/seed-tenant-defaults.js');
   return {
     ...actual,
     seedTenantDefaults: async (

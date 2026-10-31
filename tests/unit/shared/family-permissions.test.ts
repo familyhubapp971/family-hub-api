@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { MEMBER_ROLES, isGrownUpRole, isFamilyAdminRole } from '@familyhub/shared';
-import { canManage, isAdmin } from '../../../apps/api/src/lib/permissions.js';
+import { canManage, isAdmin } from '../../../src/security/permissions.js';
 
 // FHS-625: the app now decides which money and settings doors to show from
 // these two predicates. If they ever drift from what the API actually

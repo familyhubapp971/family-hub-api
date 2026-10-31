@@ -1,5 +1,11 @@
 # Family Hub: Claude Code Instructions
 
+> **This is `family-hub-api`, the server repo** ([ADR 0021](https://github.com/familyhubapp971/family-hub-web/blob/staging/documents/decisions/0021-three-repo-split.md), FHS-686).
+> It holds the server, the common rules and the server tests only. The
+> web site lives in `family-hub-web` and the phone app in
+> `family-hub-app`. Rules below that mention the web site, browser
+> tests, Storybook, or `documents/` apply in `family-hub-web`.
+
 This file is automatically loaded by Claude Code in this repo. It augments
 the global config at `~/.claude/CLAUDE.md`, which exposes the full local
 skill catalogue (Anthropic skills, SWE Superpowers, Plugins Plus, subagents,
@@ -25,7 +31,7 @@ Postgres with RLS (data) · Vitest + Playwright + k6 (testing) · Railway
 
 ```text
 apps/api    apps/web
-packages/shared  packages/test-utils
+shared-rules  tests/helpers
 documents/{features,technical,decisions,strategy}
 ```
 
@@ -858,7 +864,7 @@ genuinely untouched: silence is not the same as "no impact"):
 | **Data layer**           | Drizzle schema, migrations (and rollback), RLS policies, indexes, seed data, fixtures, FKs to `tenant_id` / `users`     |
 | **Infrastructure**       | Railway services, env vars, Supabase config (auth + storage), Stripe products/webhooks, CI workflows, scheduled jobs    |
 | **Auth / multi-tenancy** | New role checks, RLS coverage on new tables, `tenant_id` propagation, JWKS / JWT claim assumptions                      |
-| **Cross-cutting**        | Shared package types (`packages/shared`), test utilities (`packages/test-utils`), feature flags, observability surfaces |
+| **Cross-cutting**        | Shared package types (`shared-rules`), test utilities (`tests/helpers`), feature flags, observability surfaces          |
 | **Tests**                | Which tier (unit / integration / e2e / perf) gains scenarios; new fixtures; whether tenant-isolation scenario is needed |
 | **Docs / process**       | `documents/features/`, `documents/technical/`, ADRs (does this need a new one?), CLAUDE.md, README, OpenAPI clients     |
 
@@ -1352,9 +1358,9 @@ needed" silently: that's how regressions creep in.
 ```text
 tests/
   unit/
-    api/{routes,middleware,lib}/      # mirrors apps/api/src/
+    api/{routes,middleware,lib}/      # mirrors src/
     web/{components,hooks}/           # mirrors apps/web/src/
-    shared/{schemas}/                 # mirrors packages/shared/src/
+    shared/{schemas}/                 # mirrors shared-rules/src/
   integration/
     vitest.config.ts                  # separate config from unit
     specs/                            # one spec per domain
@@ -1374,7 +1380,7 @@ tests/
 ```
 
 Per-package `vitest.config.ts` files (`apps/api`, `apps/web`,
-`packages/shared`) keep working: their `include` glob points at
+`shared-rules`) keep working: their `include` glob points at
 `../../tests/unit/<pkg>/`.
 
 > **Current state (2026-04-25):** test files added in FHS-150 / FHS-151
@@ -1410,7 +1416,7 @@ Per-package `vitest.config.ts` files (`apps/api`, `apps/web`,
 - **Where:** `tests/e2e/`. Two configs: `playwright.config.ts` (full matrix) and `playwright.critical.config.ts` (`@critical`-tagged subset, chromium only).
 - **Traceability contract:** scenario names in `tests/e2e/features/<slug>.feature` are **character-for-character identical** to the Gherkin scenarios in `documents/features/<slug>.md`. `bddgen` generates the spec; the generated `test()` name carries through. This is the Jira AC ↔ test traceability mechanism.
 - **Page objects:** `tests/e2e/support/pages/<FeatureName>Page.ts`. No raw `page.locator()` in step files.
-- **Authenticated pages (FHS-516):** a spec that needs a signed-in `/t/:slug/*` page imports `test`/`expect` from `tests/e2e/support/fixtures.ts` (not `@playwright/test`) and depends on the **`authedFamily`** fixture: it seeds a fresh isolated family + admin/child/habit, mints an ES256 JWT the local api trusts (via the test-only `E2E_TEST_JWKS` override in `apps/api/src/middleware/auth.ts`, honoured **only** under `NODE_ENV=test`), and injects a supabase-js session into `localStorage`, so the spec can `page.goto('/t/<slug>/…')` already logged in. The configs point the web dev's `VITE_API_URL` at the local api so the browser hits the api that trusts the test token. `authed-smoke.feature` is the reference example.
+- **Authenticated pages (FHS-516):** a spec that needs a signed-in `/t/:slug/*` page imports `test`/`expect` from `tests/e2e/support/fixtures.ts` (not `@playwright/test`) and depends on the **`authedFamily`** fixture: it seeds a fresh isolated family + admin/child/habit, mints an ES256 JWT the local api trusts (via the test-only `E2E_TEST_JWKS` override in `src/security/auth.ts`, honoured **only** under `NODE_ENV=test`), and injects a supabase-js session into `localStorage`, so the spec can `page.goto('/t/<slug>/…')` already logged in. The configs point the web dev's `VITE_API_URL` at the local api so the browser hits the api that trusts the test token. `authed-smoke.feature` is the reference example.
 - **Browser matrix:** chromium only on PR (critical subset, fast); full matrix (chromium + webkit + mobile-chrome) post-merge to staging.
 - **Run:** `pnpm test:e2e` (full), `pnpm test:e2e:critical` (PR-fast subset), `pnpm test:e2e:ui` (interactive). Each script runs `bddgen` first then `playwright test`.
 
@@ -1431,7 +1437,7 @@ Per-package `vitest.config.ts` files (`apps/api`, `apps/web`,
 - **No mocking the DB in integration or E2E.** Real Postgres is mandatory.
 - **Test names mirror Gherkin scenario names** for automatic AC traceability.
 - **A feature is not "done"** until its tier-appropriate tests pass green in CI: the pre-merge checklist enforces this.
-- **Shared test utilities live in `packages/test-utils`** (FHS-184): `withTenant()`, factories, `testDb`, RTL render wrapper, MSW handlers, `makeRequest()`. Never duplicate these in test files.
+- **Shared test utilities live in `tests/helpers`** (FHS-184): `withTenant()`, factories, `testDb`, RTL render wrapper, MSW handlers, `makeRequest()`. Never duplicate these in test files.
 - **Pipeline orchestration** (per the test-automator design):
   - **PR CI (must finish < 5 min, gates merge):** unit + integration + e2e-critical + typecheck (parallel jobs).
   - **Post-merge to staging:** e2e-full matrix + perf smoke.
@@ -1452,7 +1458,7 @@ Per-package `vitest.config.ts` files (`apps/api`, `apps/web`,
 
 The rule (apply to every API ticket, every time):
 
-- **Single source of truth:** the spec at `apps/api/openapi.json` is
+- **Single source of truth:** the spec at `api-docs/openapi.json` is
   **generated from the live Hono route table** (FHS-356), so EVERY mounted
   endpoint is documented automatically: a new/removed route shows up in the
   regenerated spec with no manual list to maintain. A human-browsable **Swagger
@@ -1461,28 +1467,28 @@ The rule (apply to every API ticket, every time):
   `API_DOCS_ENABLED=true` is set (staging sets it explicitly).
 - **Describe every endpoint fully, every time (FHS-664).** Path + method
   coverage is automatic; the request/response **shape** comes from the
-  handlers' own Zod schemas via `apps/api/src/openapi/registry.ts` and the
-  per-area files in `apps/api/src/openapi/meta/`. When you add or change an
+  handlers' own Zod schemas via `src/api-docs/registry.ts` and the
+  per-area files in `src/api-docs/meta/`. When you add or change an
   endpoint, its entry MUST carry: a plain `summary` (say who may call it), the
   `request` schema (or `bodyless: true`), the `response` schema, the real
   success `status` (201 for creates, 204 for empty replies) and any
   `queryParams`. No "enrich it later": an endpoint without a full entry fails
   CI.
 - **Regenerate + commit in the same PR.** After any route or schema change run
-  `pnpm -F api openapi:generate` and commit the updated `apps/api/openapi.json`
-  **and** `apps/api/postman/` so the diff is reviewable. The PR self-review must
+  `pnpm openapi:generate` and commit the updated `api-docs/openapi.json`
+  **and** `api-docs/postman/` so the diff is reviewable. The PR self-review must
   confirm both were regenerated (or state the API surface was untouched).
-- **Postman test collection (FHS-664).** `apps/api/postman/` holds
+- **Postman test collection (FHS-664).** `api-docs/postman/` holds
   `family-hub-api.postman_collection.json` plus `local` and `staging`
   environment files, all built from the spec by the same command. Never edit
   them by hand: change the registry or the builder
-  (`apps/api/src/openapi/build-postman.ts`) and regenerate. Tokens stay blank
+  (`src/api-docs/build-postman.ts`) and regenerate. Tokens stay blank
   in the committed environments; testers fill them in locally.
 - **Breaking changes** (removed/renamed fields, changed types, removed
   endpoints, changed status codes) bump the API version in the spec and add a
   `breaking` label on the PR.
-- **CI gate (enforced):** the `typecheck` job runs `pnpm -F api openapi:check`,
-  which fails if `openapi.json` or any file in `apps/api/postman/` is stale, or
+- **CI gate (enforced):** the `typecheck` job runs `pnpm openapi:check`,
+  which fails if `openapi.json` or any file in `api-docs/postman/` is stale, or
   if any mounted endpoint lacks a full entry (it names each gap), so drift
   cannot merge.
 - **Pre-merge checklist** (below) and the **change-impact** table both list the
@@ -1554,7 +1560,7 @@ mirrors this list):
 - [ ] **Types:** TypeScript strict, no new `any`, schemas validate at boundaries
 - [ ] **Multi-tenancy:** queries respect `tenant_id` / RLS; no `bypassrls`
 - [ ] **Secrets:** nothing in git that should be in `.env.local` or Railway env
-- [ ] **OpenAPI/Swagger + Postman:** EVERY new/changed/removed endpoint has a full entry (summary, request or `bodyless`, response, status) in `apps/api/src/openapi/registry.ts` or `meta/`; run `pnpm -F api openapi:generate` and commit `apps/api/openapi.json` and `apps/api/postman/` (CI's `openapi:check` enforces it). Mandatory, not deferrable.
+- [ ] **OpenAPI/Swagger + Postman:** EVERY new/changed/removed endpoint has a full entry (summary, request or `bodyless`, response, status) in `src/api-docs/registry.ts` or `meta/`; run `pnpm openapi:generate` and commit `api-docs/openapi.json` and `api-docs/postman/` (CI's `openapi:check` enforces it). Mandatory, not deferrable.
 - [ ] **Docs:** `documents/features/` or `documents/technical/` updated; ADR added in `documents/decisions/` if a decision was made
 - [ ] **Migrations:** Drizzle migration committed; rollback path noted in PR body
 - [ ] **Observability:** new failure modes have logs/metrics; alerts updated if SLO-relevant

@@ -14,14 +14,14 @@ import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/db/client.js', () => ({
+vi.mock('../../../src/database/client.js', () => ({
   getDb: () => getTestDb(),
   pinRequestTenant: async () => {},
 }));
 
-import { invitationClaimRouter } from '../../../apps/api/src/routes/invitations.js';
-import { tenants, members, users, pendingInvitations } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { invitationClaimRouter } from '../../../src/areas/family/invitations.js';
+import { tenants, members, users, pendingInvitations } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 
 let db: Database;
 let app: Hono;

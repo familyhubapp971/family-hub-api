@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { summariseWeekActions } from '../../../packages/shared/src/week-actions.js';
+import { summariseWeekActions } from '../../../shared-rules/src/week-actions.js';
 
 // FHS-608: one place decides what each week action means, because the parent
 // board and the kid recap were each keeping their own copy of these filters.

@@ -2,12 +2,12 @@ import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber';
 import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
-import { slugAvailableRouter } from '../../../apps/api/src/routes/slug-available.js';
-import { tenants } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { slugAvailableRouter } from '../../../src/areas/family/slug-available.js';
+import { tenants } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/db/client.js', () => ({
+vi.mock('../../../src/database/client.js', () => ({
   getDb: () => getTestDb(),
 }));
 

@@ -23,17 +23,17 @@ import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jos
 import { sql } from 'drizzle-orm';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { expect, vi } from 'vitest';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
-import { adminRouter } from '../../../apps/api/src/routes/admin.js';
-import { TENANT_SCOPED_TABLES, tenants, members, users } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../src/security/auth.js';
+import { adminRouter } from '../../../src/areas/admin/admin.js';
+import { TENANT_SCOPED_TABLES, tenants, members, users } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 import { seedAllTablesForTenant } from '../support/seed-tenant-tables.js';
 
 // The admin router calls getDb() directly (not through the request-scoped
 // AsyncLocalStorage plumbing): mock it to the real test Postgres pool, same
 // as admin-panel.steps.ts, so every request in this file hits :5433.
-vi.mock('../../../apps/api/src/db/client.js', () => ({ getDb: () => getTestDb() }));
+vi.mock('../../../src/database/client.js', () => ({ getDb: () => getTestDb() }));
 
 const feature = await loadFeature(
   new URL('../features/admin-gdpr.feature', import.meta.url).pathname,

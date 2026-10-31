@@ -20,17 +20,17 @@ import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/db/client.js', () => ({
+vi.mock('../../../src/database/client.js', () => ({
   getDb: () => getTestDb(),
   pinRequestTenant: async () => {},
 }));
 
-import { config } from '../../../apps/api/src/config.js';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
-import { kidRouter } from '../../../apps/api/src/routes/kid.js';
-import { learnInsightsRouter } from '../../../apps/api/src/routes/learn-insights.js';
-import { tenants, members, users } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { config } from '../../../src/config.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../src/security/auth.js';
+import { kidRouter } from '../../../src/areas/kids/kid.js';
+import { learnInsightsRouter } from '../../../src/areas/learn/learn-insights.js';
+import { tenants, members, users } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 

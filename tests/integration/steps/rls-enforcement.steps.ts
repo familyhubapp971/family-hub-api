@@ -17,8 +17,8 @@ import { sql } from 'drizzle-orm';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { expect } from 'vitest';
 import { asRuntimeTenant, getTestDb } from '@familyhub/test-utils';
-import { TENANT_SCOPED_TABLES, members, tenants } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { TENANT_SCOPED_TABLES, members, tenants } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 
 const tableNames = TENANT_SCOPED_TABLES.map((t) => getTableConfig(t).name);
 

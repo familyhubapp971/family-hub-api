@@ -15,15 +15,15 @@ import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/db/client.js', () => ({
+vi.mock('../../../src/database/client.js', () => ({
   getDb: () => getTestDb(),
   pinRequestTenant: async () => {},
 }));
 
-import { config } from '../../../apps/api/src/config.js';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
-import { kidRouter } from '../../../apps/api/src/routes/kid.js';
-import { mwRedemptionRequestsRouter } from '../../../apps/api/src/routes/mw-redemption-requests.js';
+import { config } from '../../../src/config.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../src/security/auth.js';
+import { kidRouter } from '../../../src/areas/kids/kid.js';
+import { mwRedemptionRequestsRouter } from '../../../src/areas/my-world/mw-redemption-requests.js';
 import {
   tenants,
   members,
@@ -31,8 +31,8 @@ import {
   mwSavings,
   redemptionRequests,
   users,
-} from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+} from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 
 const KID_ISSUER = 'family-hub-kid-auth';
 const SUPA_ISSUER = 'https://test.supabase.local/auth/v1';

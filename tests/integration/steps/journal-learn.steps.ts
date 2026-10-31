@@ -4,13 +4,13 @@ import type { MiddlewareHandler } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
 import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
-import { journalRouter } from '../../../apps/api/src/routes/journal.js';
-import { tenants, members, users } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../src/security/auth.js';
+import { journalRouter } from '../../../src/areas/journal/journal.js';
+import { tenants, members, users } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/db/client.js', () => ({ getDb: () => getTestDb() }));
+vi.mock('../../../src/database/client.js', () => ({ getDb: () => getTestDb() }));
 
 const feature = await loadFeature(
   new URL('../features/journal-learn.feature', import.meta.url).pathname,

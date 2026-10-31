@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Apply branded email templates to both Supabase projects (FHS-188).
 
-Reads HTML files from `apps/api/auth/email-templates/`, parses the
+Reads HTML files from `email-templates/`, parses the
 `<!-- subject: ... -->` directive at the top of each, and PATCHes
 `/v1/projects/{ref}/config/auth` for both staging and production.
 Idempotent: re-running with the same files is a no-op for fields that
@@ -31,7 +31,7 @@ import urllib.request
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-TEMPLATE_DIR = REPO_ROOT / "apps" / "api" / "auth" / "email-templates"
+TEMPLATE_DIR = REPO_ROOT / "email-templates"
 
 # Maps template filename → (subject_field, content_field) on /config/auth.
 # Order = order they're applied; doesn't matter functionally but keeps

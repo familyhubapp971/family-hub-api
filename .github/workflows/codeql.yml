@@ -5,7 +5,7 @@
 # rules without waiting for a code change).
 #
 # Default config + javascript-typescript pack covers the api (Node/Hono),
-# the web (React), packages/shared, and any future TS surface.
+# the web (React), shared-rules, and any future TS surface.
 
 name: codeql
 

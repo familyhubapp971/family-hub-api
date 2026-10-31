@@ -47,10 +47,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck (all workspaces)
-        run: pnpm -r typecheck
+        run: pnpm typecheck
 
       - name: OpenAPI spec is up to date (FHS-356)
-        run: pnpm -F api openapi:check
+        run: pnpm openapi:check
 
       - name: Unit tests with coverage
         run: pnpm test:coverage

@@ -11,8 +11,8 @@ import {
   tenants,
   weekActions,
   weeks,
-} from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+} from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
 const feature = await loadFeature(

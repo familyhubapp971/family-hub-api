@@ -2,12 +2,12 @@ import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber';
 import { Hono } from 'hono';
 import { sql, eq } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
-import { publicFeedbackRouter } from '../../../apps/api/src/routes/public-feedback.js';
-import { publicFeedback } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { publicFeedbackRouter } from '../../../src/areas/feedback/public-feedback.js';
+import { publicFeedback } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/db/client.js', () => ({ getDb: () => getTestDb() }));
+vi.mock('../../../src/database/client.js', () => ({ getDb: () => getTestDb() }));
 
 const feature = await loadFeature(
   new URL('../features/public-feedback.feature', import.meta.url).pathname,

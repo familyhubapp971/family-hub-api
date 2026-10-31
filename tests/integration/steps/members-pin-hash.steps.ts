@@ -1,11 +1,11 @@
 import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber';
 import { sql, eq } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
-import { tenants, members } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { tenants, members } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/db/client.js', () => ({
+vi.mock('../../../src/database/client.js', () => ({
   getDb: () => getTestDb(),
   pinRequestTenant: async () => {},
 }));

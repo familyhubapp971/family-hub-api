@@ -12,8 +12,8 @@ import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber';
 import { sql } from 'drizzle-orm';
 import { expect } from 'vitest';
 import { getTestDb, runtimeTestPool } from '@familyhub/test-utils';
-import { tenants, members, users, pendingInvitations } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { tenants, members, users, pendingInvitations } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 
 let db: Database;
 let userId: string;

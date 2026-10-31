@@ -33,9 +33,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm -r typecheck
+      - run: pnpm typecheck
       - name: OpenAPI spec is up to date (FHS-356)
-        run: pnpm -F api openapi:check
+        run: pnpm openapi:check
 
   unit:
     name: Unit tests — frontend + backend + shared

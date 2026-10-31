@@ -5,14 +5,11 @@ import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jos
 import { sql } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { expect, vi } from 'vitest';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
-import { membersRouter } from '../../../apps/api/src/routes/members.js';
-import {
-  kidPinRouter,
-  _resetKidPinBucketsForTests,
-} from '../../../apps/api/src/routes/auth-kid-pin.js';
-import { tenants, members, users } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../src/security/auth.js';
+import { membersRouter } from '../../../src/areas/family/members.js';
+import { kidPinRouter, _resetKidPinBucketsForTests } from '../../../src/areas/kids/auth-kid-pin.js';
+import { tenants, members, users } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
 // FHS-252: integration test for PUT/DELETE /api/members/:id/pin.
@@ -21,15 +18,14 @@ import { getTestDb } from '../support/db.js';
 // truly logs the kid in (i.e. round-trips through bcrypt + the
 // verify path that ships in FHS-236).
 
-vi.mock('../../../apps/api/src/db/client.js', () => ({
+vi.mock('../../../src/database/client.js', () => ({
   getDb: () => getTestDb(),
   pinRequestTenant: async () => {},
 }));
 
-vi.mock('../../../apps/api/src/config.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../apps/api/src/config.js')>(
-    '../../../apps/api/src/config.js',
-  );
+vi.mock('../../../src/config.js', async () => {
+  const actual =
+    await vi.importActual<typeof import('../../../src/config.js')>('../../../src/config.js');
   return {
     ...actual,
     config: {
