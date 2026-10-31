@@ -4,9 +4,9 @@ The Family Hub server: the API, the database and its changes, sign-in
 emails, and the common rules the web site and phone app install.
 
 Part of the three-repo split in
-[ADR 0021](https://github.com/familyhubapp971/family-hub-app/blob/staging/documents/decisions/0021-three-repo-split.md)
+[ADR 0021](https://github.com/familyhubapp971/family-hub-web/blob/staging/documents/decisions/0021-three-repo-split.md)
 ([FHS-686](https://qualicion2.atlassian.net/browse/FHS-686)). The other
-two are `family-hub-web` and `family-hub-mobile`.
+two are `family-hub-web` and `family-hub-app`.
 
 ## Layout
 
