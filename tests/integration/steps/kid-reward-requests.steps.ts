@@ -2,7 +2,7 @@
  * Step bindings for kid-reward-requests.feature (FHS-376).
  *
  * A kid asks to redeem a reward (kid HS256 token → kidRouter); an admin parent
- * approves/declines (Supabase ES256 token → mwRedemptionRequestsRouter).
+ * approves/declines (parent ES256 token → mwRedemptionRequestsRouter).
  * Approval deducts from the kid's SAVINGS only. Real Postgres throughout.
  */
 
@@ -35,11 +35,11 @@ import {
 import type { Database } from '../../../src/database/client.js';
 
 const KID_ISSUER = 'family-hub-kid-auth';
-const SUPA_ISSUER = 'https://test.supabase.local/auth/v1';
+const PARENT_ISSUER = 'https://auth.test.local/auth/v1';
 const KID_JWK = 'kid-reward-requests-int-kid';
 
 let db: Database;
-let app: Hono; // parent app (Supabase auth + tenant header)
+let app: Hono; // parent app (parent sign-in + tenant header)
 let kidApp: Hono; // kid app (kid HS256 token)
 
 // Per-scenario fixture state.
@@ -65,15 +65,15 @@ const ctx: {
   lastJournalStatus: number;
 } = {} as never;
 
-// Stable Supabase user ids for the three adult callers.
+// Stable sign-in account ids for the three adult callers.
 const ADMIN_USER_ID = '00000000-0000-4000-8000-000000000376';
 const ADULT_USER_ID = '00000000-0000-4000-8000-000000003762';
 const OTHER_ADMIN_USER_ID = '00000000-0000-4000-8000-000000003763';
 
-let supaPrivateKey: KeyLike;
-let supaPublicJwk: JWK;
+let parentPrivateKey: KeyLike;
+let parentPublicJwk: JWK;
 
-async function genSupaKey() {
+async function genParentKey() {
   const { publicKey, privateKey } = await generateKeyPair('ES256', { extractable: true });
   const publicJwk = await exportJWK(publicKey);
   publicJwk.alg = 'ES256';
@@ -82,14 +82,14 @@ async function genSupaKey() {
   return { privateKey, publicJwk };
 }
 
-async function mintSupaToken(userId: string, email: string): Promise<string> {
+async function mintParentToken(userId: string, email: string): Promise<string> {
   return new SignJWT({ email })
     .setProtectedHeader({ alg: 'ES256', kid: KID_JWK })
     .setSubject(userId)
-    .setIssuer(SUPA_ISSUER)
+    .setIssuer(PARENT_ISSUER)
     .setIssuedAt()
     .setExpirationTime(Math.floor(Date.now() / 1000) + 3600)
-    .sign(supaPrivateKey);
+    .sign(parentPrivateKey);
 }
 
 function makeJwks(publicJwk: JWK) {
@@ -157,10 +157,10 @@ describeFeature(feature, ({ Background, Scenario }) => {
         );
         _resetJwksCacheForTests();
 
-        // Supabase key + JWKS for the parent path.
-        const k = await genSupaKey();
-        supaPrivateKey = k.privateKey;
-        supaPublicJwk = k.publicJwk;
+        // Signing key + JWKS for the parent path.
+        const k = await genParentKey();
+        parentPrivateKey = k.privateKey;
+        parentPublicJwk = k.publicJwk;
 
         // Users mirror rows for the three adult callers.
         await db.execute(
@@ -197,17 +197,17 @@ describeFeature(feature, ({ Background, Scenario }) => {
           .returning();
         ctx.iceCreamId = ice!.id;
 
-        ctx.adminToken = await mintSupaToken(ADMIN_USER_ID, 'admin376@example.com');
-        ctx.adultToken = await mintSupaToken(ADULT_USER_ID, 'adult376@example.com');
+        ctx.adminToken = await mintParentToken(ADMIN_USER_ID, 'admin376@example.com');
+        ctx.adultToken = await mintParentToken(ADULT_USER_ID, 'adult376@example.com');
         ctx.imanKidToken = await mintKidToken(iman!.id, t!.id, t!.slug);
 
-        // Parent app: Supabase auth + tenant header + the redemption-requests router.
+        // Parent app: parent sign-in + tenant header + the redemption-requests router.
         app = new Hono();
         app.use(
           '*',
           authMiddleware({
-            issuer: SUPA_ISSUER,
-            jwks: makeJwks(supaPublicJwk),
+            issuer: PARENT_ISSUER,
+            jwks: makeJwks(parentPublicJwk),
             userMirrorSync: async (claims) => {
               const rows = await db
                 .select()
@@ -288,7 +288,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
       .values({ tenantId: t2!.id, memberId: yusuf!.id, rewardId: reward2!.id, starCost: 3 })
       .returning({ id: redemptionRequests.id });
     ctx.otherRequestId = req2!.id;
-    ctx.otherAdminToken = await mintSupaToken(OTHER_ADMIN_USER_ID, 'otheradmin376@example.com');
+    ctx.otherAdminToken = await mintParentToken(OTHER_ADMIN_USER_ID, 'otheradmin376@example.com');
   }
 
   // Scenario: a kid requests a reward and no stars are deducted ───────────────

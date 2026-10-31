@@ -21,7 +21,7 @@ const feature = await loadFeature(
   new URL('../features/admin-panel.feature', import.meta.url).pathname,
 );
 
-const ISSUER = 'https://test.supabase.local/auth/v1';
+const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'admin-panel-int-kid';
 const USER_ID = '00000000-0000-4000-8000-000000000308';
 const USER_EMAIL = 'adminpanel@example.com';

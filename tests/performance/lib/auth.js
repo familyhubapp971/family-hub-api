@@ -6,7 +6,8 @@
 //               HS256 JWT with the tenant baked into the token claims:
 //               kid requests to /api/kid/* send ONLY the bearer token,
 //               never an X-Tenant-Slug header.
-// parentLogin : Supabase password grant. Same call
+// parentLogin : password sign-in through the api's /auth/v1 pass-through
+//               to our own GoTrue (FHS-700). Same call
 //               scenarios/auth-smoke.js already makes (mirrored here so
 //               every scenario logs parents in the same way). Parent
 //               requests DO need an X-Tenant-Slug header alongside the
@@ -36,17 +37,16 @@ export function kidLogin(baseUrl, { tenantSlug, memberId, pin }) {
 }
 
 /**
- * @param {string} supabaseUrl - e.g. https://<project>.supabase.co
- * @param {string} anonKey - Supabase publishable/anon key.
+ * @param {string} authUrl - the api address, e.g. https://fh-api-staging.up.railway.app
  * @param {{email: string, password: string}} creds
- * @returns {string} the parent's Supabase access_token.
+ * @returns {string} the parent's access_token.
  */
-export function parentLogin(supabaseUrl, anonKey, { email, password }) {
+export function parentLogin(authUrl, { email, password }) {
   const res = http.post(
-    `${supabaseUrl}/auth/v1/token?grant_type=password`,
+    `${authUrl}/auth/v1/token?grant_type=password`,
     JSON.stringify({ email, password }),
     {
-      headers: { apikey: anonKey, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       tags: { name: 'parent-login' },
     },
   );

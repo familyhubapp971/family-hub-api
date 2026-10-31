@@ -30,7 +30,7 @@ const feature = await loadFeature(
   new URL('../features/mw-savings-split.feature', import.meta.url).pathname,
 );
 
-const ISSUER = 'https://test.supabase.local/auth/v1';
+const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'mw-savings-split-kid';
 const USER_ID = '00000000-0000-4000-8000-0000000006a6';
 const USER_EMAIL = 'savings-split@example.com';

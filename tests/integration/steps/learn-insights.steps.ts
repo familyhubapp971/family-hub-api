@@ -35,7 +35,7 @@ const feature = await loadFeature(
 
 // ─── Key / JWT helpers ────────────────────────────────────────────────────────
 
-const ISSUER = 'https://test.supabase.local/auth/v1';
+const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'learn-insights-test-kid';
 const PARENT_USER_ID = '00000000-0000-4000-8000-000000000abc';
 const PARENT_EMAIL = 'parent-insights@example.com';

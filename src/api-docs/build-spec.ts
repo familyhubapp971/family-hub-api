@@ -167,7 +167,7 @@ export function buildOpenApiSpec(app: Pick<Hono, 'routes'>): OpenApiSpec {
     const isPublic = isPublicRoute(oaPath);
     if (!isPublic) {
       // /api/kid/* authenticate with the kid PIN session token, NOT the
-      // Supabase user JWT: document the right credential.
+      // parent sign-in pass: document the right credential.
       operation['security'] = oaPath.startsWith('/api/kid')
         ? [{ kidAuth: [] }]
         : [{ bearerAuth: [] }];
@@ -217,7 +217,8 @@ export function buildOpenApiSpec(app: Pick<Hono, 'routes'>): OpenApiSpec {
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'JWT',
-          description: 'Supabase user JWT (parent / adult sign-in).',
+          description:
+            'Parent / adult sign-in pass (ES256 JWT). Get one through /auth/v1/* on this api, which passes it on to our own sign-in server (GoTrue): 5 sign-in emails an hour per address, and 5 wrong codes lock the address for 15 minutes. Production signs in with Supabase until FHS-701.',
         },
         kidAuth: {
           type: 'http',

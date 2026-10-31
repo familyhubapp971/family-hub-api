@@ -25,7 +25,7 @@ overview.
 
 **Stack:** Hono + Drizzle + Zod (API) · React + Vite + Tailwind (web) ·
 Postgres with RLS (data) · Vitest + Playwright + k6 (testing) · Railway
-(hosting) · Supabase (auth + email).
+(hosting) · our own GoTrue on Railway (sign-in, ADR 0022 in family-hub-web; production on Supabase until FHS-701) · Resend (email).
 
 **Repo layout:**
 
@@ -37,7 +37,7 @@ email-templates/  sign-in and invite emails
 api-docs/       generated endpoint list (openapi.json) and Postman files
 scripts/        auth, data, seed and server scripts
 tests/          unit/, integration/, performance/, helpers/
-infra/          Supabase settings
+infra/          Supabase settings (production sign-in until FHS-701)
 ```
 
 **Branches:** `main` (production) · `staging` (pre-prod) · feature → PR into

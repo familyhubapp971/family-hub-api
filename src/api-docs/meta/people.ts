@@ -125,7 +125,7 @@ export const peopleMeta: Record<string, RouteMeta> = {
   'POST /api/invitations/{id}/resend': {
     summary: 'Resend a still-pending invitation email; admin or adult only',
     description:
-      "Re-fires the Supabase invite email (e.g. a typo'd address, or the email got lost). 404 if the invitation is not in this tenant; 409 if it is no longer pending (already accepted/expired).",
+      "Re-sends the invite email (e.g. a typo'd address, or the email got lost). 404 if the invitation is not in this tenant; 409 if it is no longer pending (already accepted/expired).",
     bodyless: true,
     response: z.object({ resent: z.literal(true) }),
     responseDesc: '{ resent: true }',

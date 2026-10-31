@@ -11,20 +11,19 @@ const METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;
 
 export const POSTMAN_ENVIRONMENTS = {
   local: 'http://localhost:3001',
-  staging: 'https://api-fhapp.up.railway.app',
+  // FHS-700: api-fhapp is PRODUCTION since the repo split; never point a
+  // test environment at it.
+  staging: 'https://fh-api-staging.up.railway.app',
 } as const;
-
-// Supabase project that signs parents in. Public: it ships in the web app.
-const SUPABASE_URL = 'https://maolytpqazmykjzdybtj.supabase.co';
 
 const DESCRIPTION = [
   'Family Hub API, generated from api-docs/openapi.json. Do not edit by hand:',
   'run `pnpm openapi:generate` after any API change.',
   '',
-  '**Get a parent token (folder 01):** set `supabaseAnonKey` and `signInEmail`, send',
-  '"Send sign-in email" (or "Send sign-up email" for a new parent). Copy the link in the',
-  'email (do not click it: a click uses it up), paste it into `emailLink`, then send',
-  '"Verify email link". It saves `userToken`.',
+  '**Get a parent token (folder 01):** set `signInEmail`, send "Send sign-in email"',
+  '(or "Send sign-up email" for a new parent). Copy the link in the email (do not click',
+  'it: a click uses it up), paste it into `emailLink`, then send "Verify email link".',
+  'It saves `userToken`. Each address gets 5 sign-in emails an hour.',
   'A new parent then creates their family with POST /api/public/tenant (folder 04).',
   '',
   'Other variables:',
@@ -36,7 +35,7 @@ const DESCRIPTION = [
 // Folder per tag, in the order a tester meets them. Unlisted tags sort last.
 const FOLDERS: Array<[tag: string, name: string]> = [
   ['system', '00 Health checks'],
-  ['signin', '01 Parent sign-in and sign-up (Supabase)'],
+  ['signin', '01 Parent sign-in and sign-up'],
   ['auth', '02 Kid PIN sign-in'],
   ['public', '03 Public pages (no sign-in)'],
   ['onboarding', '04 Family setup'],
@@ -62,17 +61,18 @@ const FOLDERS: Array<[tag: string, name: string]> = [
   ['founder', '24 Founder feedback page (passcode)'],
 ];
 
-/** Requests to Supabase that sign a parent in and save `userToken`. */
+/**
+ * FHS-700: requests that sign a parent in and save `userToken`. They go to the
+ * api's /auth/v1 pass-through to our own GoTrue (needs GOTRUE_URL on the api,
+ * so a local api without it answers 404). No key needed.
+ */
 function signInFolder(): Json[] {
-  const supabase = (path: string) => ({
-    raw: `{{supabaseUrl}}/auth/v1/${path}`,
-    host: ['{{supabaseUrl}}'],
+  const signIn = (path: string) => ({
+    raw: `{{baseUrl}}/auth/v1/${path}`,
+    host: ['{{baseUrl}}'],
     path: ['auth', 'v1', path],
   });
-  const headers = [
-    { key: 'apikey', value: '{{supabaseAnonKey}}' },
-    { key: 'Content-Type', value: 'application/json' },
-  ];
+  const headers = [{ key: 'Content-Type', value: 'application/json' }];
   const json = (body: Json) => ({
     mode: 'raw',
     raw: JSON.stringify(body, null, 2),
@@ -84,9 +84,9 @@ function signInFolder(): Json[] {
       method: 'POST',
       auth: { type: 'noauth' },
       header: headers,
-      url: supabase('otp'),
+      url: signIn('otp'),
       body: json({ email: '{{signInEmail}}', create_user: createUser }),
-      description: `${about}\n\n**Sign-in:** none (Supabase public key)\n**Success:** 200`,
+      description: `${about}\n\n**Sign-in:** none (5 emails an hour per address)\n**Success:** 200`,
     },
     event: [
       {
@@ -115,10 +115,10 @@ function signInFolder(): Json[] {
         method: 'POST',
         auth: { type: 'noauth' },
         header: headers,
-        url: supabase('verify'),
+        url: signIn('verify'),
         body: json({ type: '{{emailLinkType}}', token_hash: '{{emailTokenHash}}' }),
         description:
-          'Copy the whole link from the email (do not click it) into `emailLink` first. Saves `userToken` for every parent request.\n\n**Sign-in:** none (Supabase public key)\n**Success:** 200',
+          'Copy the whole link from the email (do not click it) into `emailLink` first. Saves `userToken` for every parent request.\n\n**Sign-in:** none (5 wrong links lock the address for 15 minutes)\n**Success:** 200',
       },
       event: [
         {
@@ -361,7 +361,7 @@ export function collectionVariables(collection: Json): string[] {
   return [...found].sort();
 }
 
-const SECRET = new Set(['userToken', 'kidToken', 'kidPin', 'supabaseAnonKey']);
+const SECRET = new Set(['userToken', 'kidToken', 'kidPin']);
 
 export function buildPostmanEnvironment(
   name: keyof typeof POSTMAN_ENVIRONMENTS,
@@ -372,12 +372,7 @@ export function buildPostmanEnvironment(
     name: `Family Hub ${name}`,
     values: variables.map((key) => ({
       key,
-      value:
-        key === 'baseUrl'
-          ? POSTMAN_ENVIRONMENTS[name]
-          : key === 'supabaseUrl'
-            ? SUPABASE_URL
-            : (filled[key] ?? ''),
+      value: key === 'baseUrl' ? POSTMAN_ENVIRONMENTS[name] : (filled[key] ?? ''),
       type: SECRET.has(key) ? 'secret' : 'default',
       enabled: true,
     })),

@@ -42,7 +42,7 @@ const feature = await loadFeature(
   new URL('../features/onboarding.feature', import.meta.url).pathname,
 );
 
-const ISSUER = 'https://test.supabase.local/auth/v1';
+const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'onb-int-kid';
 const USER_ID = '00000000-0000-4000-8000-00000000aaaa';
 const USER_EMAIL = 'admin-int@example.com';

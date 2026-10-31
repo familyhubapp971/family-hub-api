@@ -108,7 +108,7 @@ export function kidSession(baseUrl, kidToken) {
 // FHS-460, the parent dashboard session: every GET the parent Today tab
 // + its sibling tabs make on open. 7 requests. /dashboard/today is the
 // parent's landing screen, tagged `name:dashboard`. Parent calls need
-// BOTH the Supabase bearer token AND X-Tenant-Slug (see scripts/auth.js
+// BOTH the parent's bearer token AND X-Tenant-Slug (see scripts/auth.js
 // header comment for why). `kidMemberId` scopes the habits read to one
 // child, same as the My World tab does for whichever kid card is open.
 export function parentSession(baseUrl, token, tenantSlug, kidMemberId) {
