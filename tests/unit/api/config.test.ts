@@ -52,3 +52,39 @@ describe('config: E2E_TEST_JWKS gate (FHS-516)', () => {
     expect(r.success).toBe(true);
   });
 });
+
+// FHS-695: whose sign-in passes to trust. AUTH_JWKS_URL and AUTH_ISSUER only
+// make sense together, and production needs Supabase or that pair.
+describe('config: GoTrue trust settings (FHS-695)', () => {
+  const JWKS_URL = 'http://gotrue.railway.internal:9999/.well-known/jwks.json';
+  const ISSUER = 'https://fh-api-staging.up.railway.app/auth/v1';
+
+  it('refuses AUTH_JWKS_URL without AUTH_ISSUER', () => {
+    const r = configSchema.safeParse(baseEnv({ NODE_ENV: 'production', AUTH_JWKS_URL: JWKS_URL }));
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues.some((i) => i.path.includes('AUTH_ISSUER'))).toBe(true);
+  });
+
+  it('refuses AUTH_ISSUER without AUTH_JWKS_URL', () => {
+    const r = configSchema.safeParse(baseEnv({ NODE_ENV: 'production', AUTH_ISSUER: ISSUER }));
+    expect(r.success).toBe(false);
+  });
+
+  it('boots production on the GoTrue pair alone, with no SUPABASE_URL', () => {
+    const env: Record<string, string> = baseEnv({
+      NODE_ENV: 'production',
+      AUTH_JWKS_URL: JWKS_URL,
+      AUTH_ISSUER: ISSUER,
+    });
+    delete env.SUPABASE_URL;
+    expect(configSchema.safeParse(env).success).toBe(true);
+  });
+
+  it('refuses production with neither SUPABASE_URL nor the GoTrue pair', () => {
+    const env: Record<string, string> = baseEnv({ NODE_ENV: 'production' });
+    delete env.SUPABASE_URL;
+    const r = configSchema.safeParse(env);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues.some((i) => i.path.includes('SUPABASE_URL'))).toBe(true);
+  });
+});

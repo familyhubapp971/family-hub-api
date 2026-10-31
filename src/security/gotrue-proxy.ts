@@ -193,6 +193,7 @@ export function gotrueProxy(upstream: string, opts: GotrueProxyOptions = {}) {
     try {
       res = await fetch(`${base}${rest}${url.search}`, init);
     } catch (err) {
+      if (opts.limits && email && sendsEmail) opts.limits.refundEmail(email);
       log.warn(
         { path: rest, err: err instanceof Error ? err.message : String(err) },
         'sign-in service unreachable',
@@ -202,6 +203,10 @@ export function gotrueProxy(upstream: string, opts: GotrueProxyOptions = {}) {
 
     if (opts.limits && email && checksSecret && res.status < 500) {
       opts.limits.recordTry(email, res.status >= 200 && res.status < 300);
+    }
+    // GoTrue failed, so no email went out: do not charge it to the address.
+    if (opts.limits && email && sendsEmail && res.status >= 500) {
+      opts.limits.refundEmail(email);
     }
 
     // fetch has already decoded any compressed body, so the original

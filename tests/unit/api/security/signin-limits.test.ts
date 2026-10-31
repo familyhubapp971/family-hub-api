@@ -68,6 +68,13 @@ describe('FHS-695: sign-in emails', () => {
     expect(l.takeEmail('a@b.com').blocked).toBe(false);
   });
 
+  it('gives an email back when it was not actually sent', () => {
+    const { l } = limits();
+    for (let i = 0; i < 5; i++) l.takeEmail('a@b.com');
+    l.refundEmail('A@b.com');
+    expect(l.takeEmail('a@b.com').blocked).toBe(false);
+  });
+
   it('counts each address separately', () => {
     const { l } = limits();
     for (let i = 0; i < 5; i++) l.takeEmail('a@b.com');

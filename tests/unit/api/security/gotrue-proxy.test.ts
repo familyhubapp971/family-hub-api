@@ -237,6 +237,28 @@ describe('FHS-695: limits and the visitor address on the pass-through', () => {
     expect((await post(app, '/auth/v1/otp', { email: 'c@d.com' })).status).toBe(200);
   });
 
+  it('does not charge an email to the address when GoTrue fails to send it', async () => {
+    fetchMock.mockImplementation(async () => new Response('{}', { status: 503 }));
+    const app = limitedApp();
+    for (let i = 0; i < 6; i++) await post(app, '/auth/v1/otp', { email: 'a@b.com' });
+    fetchMock.mockRejectedValue(new TypeError('fetch failed'));
+    for (let i = 0; i < 3; i++) await post(app, '/auth/v1/otp', { email: 'a@b.com' });
+    fetchMock.mockImplementation(async () => new Response('{}', { status: 200 }));
+    expect((await post(app, '/auth/v1/otp', { email: 'a@b.com' })).status).toBe(200);
+  });
+
+  it('does not count a password try that GoTrue could not check', async () => {
+    fetchMock.mockImplementation(async () => new Response('{}', { status: 500 }));
+    const app = limitedApp();
+    for (let i = 0; i < 6; i++) {
+      const res = await post(app, '/auth/v1/token?grant_type=password', {
+        email: 'a@b.com',
+        password: 'x',
+      });
+      expect(res.status).toBe(500);
+    }
+  });
+
   it('sends GoTrue only the visitor address this API trusts', async () => {
     fetchMock.mockImplementation(async () => new Response('{}', { status: 200 }));
     await limitedApp().request('/auth/v1/health', {

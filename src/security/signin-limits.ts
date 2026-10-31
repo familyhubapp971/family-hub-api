@@ -48,6 +48,12 @@ export class SignInLimits {
     return { blocked: false };
   }
 
+  /** Gives back the last counted email when GoTrue failed and sent nothing. */
+  refundEmail(email: string): void {
+    const recent = this.emails.get(email.toLowerCase());
+    if (recent && recent.length > 0) recent.pop();
+  }
+
   /** Call before a password or code try. */
   checkTry(email: string): Allowed | Blocked {
     const state = this.tries.get(email.toLowerCase());
