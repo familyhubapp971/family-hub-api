@@ -73,11 +73,22 @@ jobs:
             mobile-chrome) pnpm -F @familyhub/e2e exec playwright install --with-deps chromium ;;
             *) pnpm -F @familyhub/e2e exec playwright install --with-deps "$BROWSER" ;;
           esac
+      # FHS-685: same three steps as ci-staging.yml; without them this job
+      # found 0 tests and ran against an empty database.
+      - name: Apply DB migrations for the e2e api
+        run: pnpm --filter @familyhub/api exec drizzle-kit migrate
+      - name: Generate BDD specs from .feature files
+        run: pnpm -F @familyhub/e2e exec bddgen test --config playwright.config.ts
+      - name: Assert bddgen produced specs
+        run: pnpm -F @familyhub/e2e run _assert-bddgen
       - name: Run e2e (project=${{ matrix.browser }})
         env:
           PROJECT: ${{ matrix.browser }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+          E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
         run: pnpm -F @familyhub/e2e exec playwright test --config playwright.config.ts --project "$PROJECT"
       - if: always()
         uses: actions/upload-artifact@v4
