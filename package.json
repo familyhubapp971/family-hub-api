@@ -1,5 +1,5 @@
 {
-  "name": "family-hub-app",
+  "name": "family-hub-api",
   "version": "0.0.0",
   "private": true,
   "description": "Multi-tenant SaaS platform for families. Monorepo root.",
@@ -40,9 +40,7 @@
     "typecheck": "pnpm -r typecheck",
     "clean": "pnpm -r exec rm -rf dist .turbo node_modules/.cache",
     "prepare": "husky || true",
-    "feedback:export": "node scripts/data/export-beta-feedback.mjs",
-    "storybook": "pnpm -F @familyhub/ui storybook",
-    "build-storybook": "pnpm -F @familyhub/ui build-storybook"
+    "feedback:export": "node scripts/data/export-beta-feedback.mjs"
   },
   "devDependencies": {
     "@amiceli/vitest-cucumber": "^6.3.0",
