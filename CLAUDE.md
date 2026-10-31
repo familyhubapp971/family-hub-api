@@ -45,48 +45,55 @@ crisp sentences, real names ("the Today screen") not file paths, max 5
 bullets per group. Tech word unavoidable? Explain it in a few plain
 words right after.
 
-**Every reply uses two tables, in this order, under the same two
-headings.** Founder request (2026-08-06): tables, not bullet lists, and
-the two blocks stay split rather than merged into one table.
+**Every reply that hands control back uses an icon summary table, then
+three separate icon-headed bullet lists.** Founder choice (2026-10-31),
+replacing the two-table layout from 2026-08-06. The icon on each block
+makes it easy to spot at a glance. Keep the icons and labels word for
+word.
 
-**Summary** (a plain-English title line)
+**A bold title line** saying the outcome in plain words.
 
-| What                     | Detail               |
+| 📋 Summary               | What happened        |
 | ------------------------ | -------------------- |
-| _short label, 2–4 words_ | _one plain sentence_ |
+| _short label, 1–3 words_ | _one plain sentence_ |
 
-One row per thing that happened, 1–5 rows. The label column is the thing
-("Footer", "Sprint 4", "Tests"), the detail column is the plain sentence.
+**✅ What I did**
 
-**Status** (a plain-English title line)
+- _one finished action_
 
-|                         |                                      |
-| ----------------------- | ------------------------------------ |
-| **What I did**          | _finished actions_                   |
-| **What you need to do** | _or "Nothing for now."_              |
-| **What's next**         | _the upcoming work, or omit the row_ |
+**👉 What you need to do**
 
-Then one clear question with the choices spelled out (e.g.
-**start next ticket / pause**) if you need an answer.
+- _one action for the founder, or "Nothing for now."_
 
-Rules that still apply inside the tables:
+**⏭️ What's next**
 
-- One sentence per cell. If a cell needs two, it is doing too much.
+- _one piece of upcoming work_
+
+- Summary table: 1–5 rows. The label is the thing ("Jira", "Deploy"),
+  the second column is the plain sentence.
+- The three lists: 1–3 bullets each, one sentence per bullet. Drop
+  "What's next" only when there is genuinely nothing next.
+- Then one clear question with the choices spelled out (e.g.
+  **start next ticket / pause**) if you need an answer.
+
+Rules that still apply:
+
+- One sentence per cell or bullet. If it needs two, it is doing too much.
 - No nested bullets, no code blocks, no `***` inside a cell.
 - Plain words. A `path/to/file.ts:LINE` reference is fine; a wall of
   jargon is not.
-- Keep the whole reply under ~150 words including both tables.
-- Ordinary prose answers to a direct question do not need the tables:
-  use them whenever the reply hands control back to the founder.
+- Keep the whole reply under ~150 words.
+- Ordinary prose answers to a direct question do not need this layout:
+  use it whenever the reply hands control back to the founder.
 
 **Put real space between every part** (founder rule, 2026-10-31). Text
-right under a table is hard to tell apart from the table's data. Put a
+right under a table is hard to tell apart from the next block. Put a
 line holding only `&nbsp;`, with a blank line above and below it, in
 each of these places:
 
-- between each title line and the table under it,
-- between each table and the text after it,
-- before and after any note between the tables,
+- between the title line and the summary table,
+- between the summary table and each list, and between the lists,
+- before and after any note,
 - before the closing question.
 
 Plain blank lines collapse, so they do not count. Never use a `---`
