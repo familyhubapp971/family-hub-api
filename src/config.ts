@@ -58,6 +58,21 @@ export const configSchema = z
     // (e.g. http://gotrue.railway.internal:9999). When set, /auth/v1/* is
     // passed through to it; unset, that path does not exist.
     GOTRUE_URL: z.string().url().optional(),
+    // FHS-695: whose sign-in passes to trust. Unset, both fall back to Supabase
+    // (<SUPABASE_URL>/auth/v1 and its key list), so production is unchanged.
+    // Staging points them at our GoTrue: the private key-list address and the
+    // issuer GoTrue stamps on every pass.
+    AUTH_JWKS_URL: z.string().url().optional(),
+    AUTH_ISSUER: z.string().url().optional(),
+    // FHS-695: limits on the /auth/v1 pass-through, per email address. Same
+    // shape as the kid PIN lockout; held in process memory for now.
+    SIGNIN_MAX_FAILED_ATTEMPTS: z.coerce.number().int().positive().default(5),
+    SIGNIN_LOCKOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(15 * 60_000),
+    SIGNIN_EMAILS_PER_HOUR: z.coerce.number().int().positive().default(5),
     // Public origin where the SPA serves the auth callback (e.g.
     // https://frontend-staging-409d.up.railway.app). Used to build the
     // redirectTo URL on Supabase admin invites: the invitee clicks
@@ -176,11 +191,20 @@ export const configSchema = z
         });
       }
     }
-    if (!cfg.SUPABASE_URL && cfg.NODE_ENV === 'production') {
+    const trustsGotrue = Boolean(cfg.AUTH_JWKS_URL && cfg.AUTH_ISSUER);
+    if (!cfg.SUPABASE_URL && !trustsGotrue && cfg.NODE_ENV === 'production') {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['SUPABASE_URL'],
-        message: 'SUPABASE_URL is required in production for JWT verification (FHS-191).',
+        message:
+          'SUPABASE_URL (or AUTH_JWKS_URL plus AUTH_ISSUER) is required in production for JWT verification (FHS-191, FHS-695).',
+      });
+    }
+    if (Boolean(cfg.AUTH_JWKS_URL) !== Boolean(cfg.AUTH_ISSUER)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['AUTH_ISSUER'],
+        message: 'AUTH_JWKS_URL and AUTH_ISSUER must be set together (FHS-695).',
       });
     }
     if (

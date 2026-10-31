@@ -1,4 +1,4 @@
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 import { config } from '../config.js';
 import { createLogger } from '../services/logger.js';
 
@@ -38,6 +38,17 @@ function sweepIdle(now: number, idleMs: number): void {
   }
 }
 
+/**
+ * The caller's address as this API trusts it: the first x-forwarded-for entry,
+ * else x-real-ip. Shared with the GoTrue pass-through (FHS-695) so both apply
+ * the same rule.
+ */
+export function clientIpOf(c: Context): string | undefined {
+  return (
+    c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || undefined
+  );
+}
+
 export function rateLimit({
   capacity,
   windowMs,
@@ -66,10 +77,7 @@ export function rateLimit({
       return;
     }
 
-    const ip =
-      c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
-      c.req.header('x-real-ip') ||
-      undefined;
+    const ip = clientIpOf(c);
 
     // Fail-closed in non-dev when we can't identify the caller. A
     // missing forwarded-for header in production usually means the proxy

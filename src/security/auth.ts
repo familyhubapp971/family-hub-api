@@ -137,9 +137,9 @@ function getDefaultJwks(): JWTVerifyGetKey | undefined {
     return cachedDefaultJwks;
   }
 
-  if (!config.SUPABASE_URL) return undefined;
+  const url = defaultJwksUrl();
+  if (!url) return undefined;
 
-  const url = new URL('/auth/v1/.well-known/jwks.json', config.SUPABASE_URL);
   cachedDefaultJwks = createRemoteJWKSet(url, {
     cacheMaxAge: config.JWKS_CACHE_TTL_MS,
     // 30s cooldown between refreshes triggered by an unknown kid: bounds
@@ -147,6 +147,22 @@ function getDefaultJwks(): JWTVerifyGetKey | undefined {
     cooldownDuration: 30_000,
   });
   return cachedDefaultJwks;
+}
+
+/**
+ * FHS-695: where the sign-in public keys live. AUTH_JWKS_URL (our GoTrue) when
+ * set, otherwise Supabase's key list, so an unconfigured deploy is unchanged.
+ */
+export function defaultJwksUrl(): URL | undefined {
+  if (config.AUTH_JWKS_URL) return new URL(config.AUTH_JWKS_URL);
+  if (config.SUPABASE_URL) return new URL('/auth/v1/.well-known/jwks.json', config.SUPABASE_URL);
+  return undefined;
+}
+
+/** FHS-695: whose sign-in passes to accept, paired with defaultJwksUrl(). */
+export function defaultIssuer(): string | undefined {
+  if (config.AUTH_ISSUER) return config.AUTH_ISSUER;
+  return config.SUPABASE_URL ? `${config.SUPABASE_URL}/auth/v1` : undefined;
 }
 
 /** Test-only: clears the module-level cache so a fresh JWKS is built next call. */
@@ -180,8 +196,7 @@ function unauthorized(c: Context, reason: string, requestId?: string) {
  * short-circuited before any header inspection.
  */
 export function authMiddleware(opts: AuthMiddlewareOptions = {}): MiddlewareHandler {
-  const issuer =
-    opts.issuer ?? (config.SUPABASE_URL ? `${config.SUPABASE_URL}/auth/v1` : undefined);
+  const issuer = opts.issuer ?? defaultIssuer();
   const publicExtras = opts.publicPathPrefixes ?? [];
 
   return async (c, next) => {
