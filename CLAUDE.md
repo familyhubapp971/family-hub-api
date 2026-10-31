@@ -79,6 +79,19 @@ Rules that still apply inside the tables:
 - Ordinary prose answers to a direct question do not need the tables:
   use them whenever the reply hands control back to the founder.
 
+**Put real space between every part** (founder rule, 2026-10-31). Text
+right under a table is hard to tell apart from the table's data. Put a
+line holding only `&nbsp;`, with a blank line above and below it, in
+each of these places:
+
+- between each title line and the table under it,
+- between each table and the text after it,
+- before and after any note between the tables,
+- before the closing question.
+
+Plain blank lines collapse, so they do not count. Never use a `---`
+divider line for this: the founder wants space, not a line.
+
 ---
 
 ## Skill routing: when to use what
