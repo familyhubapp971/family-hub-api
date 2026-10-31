@@ -1,6 +1,6 @@
 # Family Hub: Claude Code Instructions
 
-> **This is `family-hub-api`, the server repo** (ADR 0021, FHS-686).
+> **This is `family-hub-api`, the server repo** ([ADR 0021](https://github.com/familyhubapp971/family-hub-app/blob/staging/documents/decisions/0021-three-repo-split.md), FHS-686).
 > It holds the server, the common rules and the server tests only. The
 > web site lives in `family-hub-web` and the phone app in
 > `family-hub-mobile`. Rules below that mention the web site, browser
