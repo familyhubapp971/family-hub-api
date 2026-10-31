@@ -502,6 +502,7 @@
         ],
         "summary": "Create an assignment; admin/adult only",
         "operationId": "post_api_assignments",
+        "description": "Title is 1-50 characters, notes up to 300. dueDate cannot be in the past (one day of slack for time zones).",
         "parameters": [
           {
             "name": "x-tenant-slug",
@@ -528,7 +529,7 @@
                   "title": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 200
+                    "maxLength": 50
                   },
                   "dueDate": {
                     "type": "string",
@@ -542,7 +543,7 @@
                   },
                   "notes": {
                     "type": "string",
-                    "maxLength": 1000,
+                    "maxLength": 300,
                     "nullable": true
                   }
                 },
@@ -610,6 +611,42 @@
       }
     },
     "/api/assignments/{id}": {
+      "delete": {
+        "tags": [
+          "assignments"
+        ],
+        "summary": "Delete an assignment for good; admin/adult only",
+        "operationId": "delete_api_assignments_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "204 on success. 404 if the assignment is not in this tenant"
+          }
+        }
+      },
       "patch": {
         "tags": [
           "assignments"
@@ -720,7 +757,7 @@
         ],
         "summary": "Replace an assignment's title/notes/dueDate/assignee; admin/adult only",
         "operationId": "put_api_assignments_id",
-        "description": "Completion state (done/doneAt) is owned by PATCH and left untouched here, so editing a done assignment keeps it done.",
+        "description": "Completion state (done/doneAt) is owned by PATCH and left untouched here, so editing a done assignment keeps it done. Same limits as POST, except an unchanged past dueDate is kept so an overdue assignment can still be edited.",
         "parameters": [
           {
             "name": "id",
@@ -755,7 +792,7 @@
                   "title": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 200
+                    "maxLength": 50
                   },
                   "dueDate": {
                     "type": "string",
@@ -769,7 +806,7 @@
                   },
                   "notes": {
                     "type": "string",
-                    "maxLength": 1000,
+                    "maxLength": 300,
                     "nullable": true
                   }
                 },

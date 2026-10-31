@@ -14,6 +14,7 @@ import { getAuthenticatedUser } from '../../security/auth.js';
 // POST: create one assignment (admin/adult only).
 // PATCH /:id: toggle done (admin/adult only). Body: { done: boolean }.
 // `done` true sets done_at = now(); false clears it.
+// DELETE /:id: remove one for good (admin/adult only, FHR-41).
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -34,12 +35,36 @@ export const listAssignmentsResponseSchema = z.object({
 
 export type ListAssignmentsResponse = z.infer<typeof listAssignmentsResponseSchema>;
 
+// FHR-39: short enough that a card stays readable on a phone.
+export const ASSIGNMENT_TITLE_MAX = 50;
+export const ASSIGNMENT_NOTES_MAX = 300;
+
 export const createAssignmentRequestSchema = z.object({
-  title: z.string().trim().min(1, 'title is required').max(200),
+  title: z
+    .string()
+    .trim()
+    .min(1, 'title is required')
+    .max(ASSIGNMENT_TITLE_MAX, `Title must be ${ASSIGNMENT_TITLE_MAX} characters or fewer`),
   dueDate: z.string().regex(ISO_DATE, 'dueDate must be YYYY-MM-DD').nullish(),
   memberId: z.string().uuid().nullish(),
-  notes: z.string().max(1000).nullish(),
+  notes: z
+    .string()
+    .max(ASSIGNMENT_NOTES_MAX, `Notes must be ${ASSIGNMENT_NOTES_MAX} characters or fewer`)
+    .nullish(),
 });
+
+// FHR-40: a due date can't be in the past. The form uses the device's own
+// date; the server can't know the family's time zone, so it allows one day
+// of slack (the earliest local date anywhere is UTC today minus one).
+export function earliestAllowedDueDate(now: Date = new Date()): string {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1));
+  return d.toISOString().slice(0, 10);
+}
+
+const PAST_DUE_DATE = {
+  error: 'invalid request',
+  issues: [{ path: 'dueDate', message: 'Pick today or a later date' }],
+};
 
 export const patchAssignmentRequestSchema = z.object({
   done: z.boolean(),
@@ -137,6 +162,9 @@ export const assignmentsRouter = new Hono()
         },
         400,
       );
+    }
+    if (parsed.data.dueDate && parsed.data.dueDate < earliestAllowedDueDate()) {
+      return c.json(PAST_DUE_DATE, 400);
     }
     if (parsed.data.memberId) {
       const memberRows = await db
@@ -261,6 +289,20 @@ export const assignmentsRouter = new Hono()
         400,
       );
     }
+    // FHR-40: an already-overdue date may stay while other fields are
+    // edited; only a newly chosen date has to be today or later.
+    const newDue = parsed.data.dueDate ?? null;
+    if (newDue && newDue < earliestAllowedDueDate()) {
+      const [current] = await db
+        .select({ dueDate: assignments.dueDate })
+        .from(assignments)
+        .where(and(eq(assignments.tenantId, tenantId), eq(assignments.id, id)))
+        .limit(1);
+      if (!current) {
+        return c.json({ error: 'not found', detail: 'assignment not found in this tenant' }, 404);
+      }
+      if (current.dueDate !== newDue) return c.json(PAST_DUE_DATE, 400);
+    }
     if (parsed.data.memberId) {
       const memberRows = await db
         .select({ id: members.id })
@@ -296,4 +338,37 @@ export const assignmentsRouter = new Hono()
       return c.json({ error: 'not found', detail: 'assignment not found in this tenant' }, 404);
     }
     return c.json(assignmentItemSchema.parse(rowToItem(row)), 200);
+  })
+  // FHR-41: remove an assignment for good. Admin + adult only; tenant-scoped.
+  .delete('/:id', async (c) => {
+    getAuthenticatedUser(c);
+    const userRow = c.get('userRow');
+    if (!userRow) throw new Error('assignments handler reached without userRow');
+    const tenantId = c.get('tenantId');
+    if (!tenantId) {
+      return c.json({ error: 'tenant context required', errorCode: 'TENANT_REQUIRED' }, 400);
+    }
+    const id = c.req.param('id');
+    if (!UUID_RE.test(id)) {
+      return c.json({ error: 'invalid id', detail: 'assignment id must be a UUID' }, 400);
+    }
+    const db = getDb();
+    const caller = await loadCallerMember(db, tenantId, userRow.id);
+    if (!caller) {
+      return c.json({ error: 'forbidden', detail: 'caller is not a member of this tenant' }, 403);
+    }
+    if (!WRITE_ROLES.has(caller.role)) {
+      return c.json(
+        { error: 'forbidden', detail: 'only admins and adults can delete assignments' },
+        403,
+      );
+    }
+    const deleted = await db
+      .delete(assignments)
+      .where(and(eq(assignments.tenantId, tenantId), eq(assignments.id, id)))
+      .returning({ id: assignments.id });
+    if (deleted.length === 0) {
+      return c.json({ error: 'not found', detail: 'assignment not found in this tenant' }, 404);
+    }
+    return c.body(null, 204);
   });

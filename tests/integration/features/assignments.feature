@@ -1,6 +1,6 @@
-Feature: GET / POST / PATCH /api/assignments (FHS-231)
+Feature: GET / POST / PATCH / DELETE /api/assignments (FHS-231, FHR-40, FHR-41)
   Real Postgres on :5433, verifies the assignments list, create,
-  done-toggle, role gate, and tenant isolation.
+  done-toggle, role gate, past-date rule, delete, and tenant isolation.
 
   Background:
     Given the test Postgres has clean tenants, members, assignments, and users tables
@@ -16,7 +16,7 @@ Feature: GET / POST / PATCH /api/assignments (FHS-231)
     And the first assignment is "Maths"
 
   Scenario: POST creates an assignment and GET returns it
-    When the caller POSTs an assignment "Reading" due "2026-05-08" in tenant "khan"
+    When the caller POSTs an assignment "Reading" due "2099-05-08" in tenant "khan"
     Then the POST response status is 201
     And re-fetching /api/assignments for tenant "khan" lists 1 assignments
 
@@ -29,7 +29,7 @@ Feature: GET / POST / PATCH /api/assignments (FHS-231)
 
   Scenario: A child member cannot create assignments
     Given the caller's role in "khan" is "child"
-    When the caller POSTs an assignment "Reading" due "2026-05-08" in tenant "khan"
+    When the caller POSTs an assignment "Reading" due "2099-05-08" in tenant "khan"
     Then the POST response status is 403
 
   Scenario: An assignment can be edited (FHS-310)
@@ -46,3 +46,21 @@ Feature: GET / POST / PATCH /api/assignments (FHS-231)
     Then the GET response status is 200
     And the response includes 1 assignments
     And the first assignment is "Family dinner"
+
+  Scenario: A new assignment cannot be due in the past (FHR-40)
+    When the caller POSTs an assignment "Reading" due "2020-01-01" in tenant "khan"
+    Then the POST response status is 400
+    And re-fetching /api/assignments for tenant "khan" lists 0 assignments
+
+  Scenario: An admin deletes an assignment (FHR-41)
+    Given the "khan" tenant has an assignment "Spelling" due "2026-05-10"
+    When the caller DELETEs the "Spelling" assignment in tenant "khan"
+    Then the DELETE response status is 204
+    And re-fetching /api/assignments for tenant "khan" lists 0 assignments
+
+  Scenario: Tenant isolation: a family cannot delete another family's assignment
+    Given a second tenant "smith" exists with the caller as an admin member
+    And the "smith" tenant has an assignment "Pasta night" due "2026-05-08"
+    When the caller DELETEs the "Pasta night" assignment in tenant "khan"
+    Then the DELETE response status is 404
+    And re-fetching /api/assignments for tenant "smith" lists 1 assignments

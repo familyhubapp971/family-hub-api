@@ -1800,7 +1800,7 @@
                 "assignments"
               ]
             },
-            "description": "Create an assignment; admin/adult only\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 201",
+            "description": "Create an assignment; admin/adult only\n\nTitle is 1-50 characters, notes up to 300. dueDate cannot be in the past (one day of slack for time zones).\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 201",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"title\": \"x\"\n}",
@@ -1864,7 +1864,7 @@
                 }
               ]
             },
-            "description": "Replace an assignment's title/notes/dueDate/assignee; admin/adult only\n\nCompletion state (done/doneAt) is owned by PATCH and left untouched here, so editing a done assignment keeps it done.\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 200",
+            "description": "Replace an assignment's title/notes/dueDate/assignee; admin/adult only\n\nCompletion state (done/doneAt) is owned by PATCH and left untouched here, so editing a done assignment keeps it done. Same limits as POST, except an unchanged past dueDate is kept so an overdue assignment can still be edited.\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 200",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"title\": \"x\"\n}",
@@ -1946,6 +1946,57 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('returns 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/assignments/{id}",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "x-tenant-slug",
+                "value": "{{tenantSlug}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assignments/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assignments",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{assignmentId}}"
+                }
+              ]
+            },
+            "description": "Delete an assignment for good; admin/adult only\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 204"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 204', () => pm.response.to.have.status(204));"
                 ]
               }
             }
