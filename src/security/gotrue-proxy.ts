@@ -1,5 +1,7 @@
 import type { Context } from 'hono';
 import { createLogger } from '../services/logger.js';
+import { clientIpOf } from './rate-limit.js';
+import type { SignInLimits } from './signin-limits.js';
 
 const log = createLogger('gotrue-proxy');
 
@@ -55,7 +57,45 @@ async function readLimited(req: Request, max: number): Promise<ArrayBuffer | nul
   return out.buffer;
 }
 
-export function gotrueProxy(upstream: string) {
+// FHS-695: GoTrue endpoints that send a sign-in email, and those that check a
+// password or a typed code (the guessable ones). Keyed by email address.
+const EMAIL_SENDING = new Set(['otp', 'signup', 'recover', 'magiclink', 'resend']);
+
+function emailFrom(body: ArrayBuffer | undefined): string | undefined {
+  if (!body || body.byteLength === 0) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(body));
+    const email = (parsed as { email?: unknown } | null)?.email;
+    return typeof email === 'string' && email.includes('@')
+      ? email.trim().toLowerCase()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Same shape GoTrue uses for its own limits, so the web app's sign-in client
+// and error wording treat ours exactly like GoTrue's.
+function limited(errorCode: string, msg: string, retryAfterMs: number): Response {
+  return new Response(JSON.stringify({ code: 429, error_code: errorCode, msg }), {
+    status: 429,
+    headers: {
+      'content-type': 'application/json',
+      'retry-after': String(Math.ceil(retryAfterMs / 1000)),
+    },
+  });
+}
+
+function minutes(ms: number): string {
+  const m = Math.max(1, Math.ceil(ms / 60_000));
+  return m === 1 ? '1 minute' : `${m} minutes`;
+}
+
+export interface GotrueProxyOptions {
+  limits?: SignInLimits;
+}
+
+export function gotrueProxy(upstream: string, opts: GotrueProxyOptions = {}) {
   const base = upstream.replace(/\/+$/, '');
 
   return async (c: Context): Promise<Response> => {
@@ -90,6 +130,15 @@ export function gotrueProxy(upstream: string) {
     for (const h of [...HOP_BY_HOP, 'host', 'content-length', 'accept-encoding']) {
       headers.delete(h);
     }
+    // FHS-695: GoTrue sees the caller's address as this API trusts it, not a
+    // chain the browser could pad, so its own per-address limits line up.
+    const ip = clientIpOf(c);
+    headers.delete('x-forwarded-for');
+    headers.delete('x-real-ip');
+    if (ip) {
+      headers.set('x-forwarded-for', ip);
+      headers.set('x-real-ip', ip);
+    }
 
     const method = c.req.method;
     const init: RequestInit = {
@@ -106,6 +155,40 @@ export function gotrueProxy(upstream: string) {
       init.body = body;
     }
 
+    const endpoint = segments[0] ?? '';
+    const isPost = method === 'POST';
+    const checksSecret =
+      isPost &&
+      ((endpoint === 'token' && url.searchParams.get('grant_type') === 'password') ||
+        endpoint === 'verify');
+    const sendsEmail = isPost && EMAIL_SENDING.has(endpoint);
+    const email =
+      opts.limits && (checksSecret || sendsEmail)
+        ? emailFrom(init.body as ArrayBuffer | undefined)
+        : undefined;
+
+    if (opts.limits && email) {
+      if (checksSecret) {
+        const verdict = opts.limits.checkTry(email);
+        if (verdict.blocked) {
+          return limited(
+            'over_request_rate_limit',
+            `Too many sign-in attempts. Please wait ${minutes(verdict.retryAfterMs)} and try again.`,
+            verdict.retryAfterMs,
+          );
+        }
+      } else {
+        const verdict = opts.limits.takeEmail(email);
+        if (verdict.blocked) {
+          return limited(
+            'over_email_send_rate_limit',
+            `Too many sign-in emails to this address. Please wait ${minutes(verdict.retryAfterMs)} and try again.`,
+            verdict.retryAfterMs,
+          );
+        }
+      }
+    }
+
     let res: Response;
     try {
       res = await fetch(`${base}${rest}${url.search}`, init);
@@ -115,6 +198,10 @@ export function gotrueProxy(upstream: string) {
         'sign-in service unreachable',
       );
       return c.json({ error: 'sign-in service unavailable' }, 502);
+    }
+
+    if (opts.limits && email && checksSecret && res.status < 500) {
+      opts.limits.recordTry(email, res.status >= 200 && res.status < 300);
     }
 
     // fetch has already decoded any compressed body, so the original

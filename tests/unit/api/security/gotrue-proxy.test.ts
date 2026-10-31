@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
 import { gotrueProxy, MAX_BODY_BYTES } from '../../../../src/security/gotrue-proxy.js';
+import { SignInLimits } from '../../../../src/security/signin-limits.js';
 
 // FHS-694: the API passes /auth/v1/* through to the private GoTrue server.
 
@@ -146,6 +147,107 @@ describe('FHS-694: gotrueProxy', () => {
     const res = await proxyApp().request('/auth/v1/health');
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ error: 'sign-in service unavailable' });
+  });
+});
+
+describe('FHS-695: limits and the visitor address on the pass-through', () => {
+  const realFetch = global.fetch;
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  function limitedApp() {
+    const app = new Hono();
+    const limits = new SignInLimits({ maxFailedAttempts: 5, lockoutMs: 900_000, emailsPerHour: 5 });
+    app.all('/auth/v1/*', gotrueProxy(UPSTREAM, { limits }));
+    return app;
+  }
+  const post = (app: Hono, path: string, body: unknown, headers: Record<string, string> = {}) =>
+    app.request(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+    });
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+  });
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it('blocks a 6th password try after 5 failures, in GoTrue reply format', async () => {
+    fetchMock.mockImplementation(
+      async () => new Response('{"error_code":"invalid_credentials"}', { status: 400 }),
+    );
+    const app = limitedApp();
+    for (let i = 0; i < 5; i++) {
+      const res = await post(app, '/auth/v1/token?grant_type=password', {
+        email: 'A@b.com',
+        password: 'x',
+      });
+      expect(res.status).toBe(400);
+    }
+    const res = await post(app, '/auth/v1/token?grant_type=password', {
+      email: 'a@b.com',
+      password: 'x',
+    });
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toBe('900');
+    expect(await res.json()).toEqual({
+      code: 429,
+      error_code: 'over_request_rate_limit',
+      msg: 'Too many sign-in attempts. Please wait 15 minutes and try again.',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+  });
+
+  it('counts typed-code checks as tries, but not magic link clicks', async () => {
+    fetchMock.mockImplementation(async () => new Response('{}', { status: 403 }));
+    const app = limitedApp();
+    for (let i = 0; i < 5; i++)
+      await post(app, '/auth/v1/verify', { email: 'a@b.com', token: '000000', type: 'email' });
+    expect(
+      (await post(app, '/auth/v1/verify', { email: 'a@b.com', token: '1', type: 'email' })).status,
+    ).toBe(429);
+    const click = await app.request('/auth/v1/verify?token=abc&type=magiclink');
+    expect(click.status).toBe(403);
+  });
+
+  it('does not count refresh-token requests as tries', async () => {
+    fetchMock.mockImplementation(async () => new Response('{}', { status: 400 }));
+    const app = limitedApp();
+    for (let i = 0; i < 7; i++) {
+      const res = await post(app, '/auth/v1/token?grant_type=refresh_token', {
+        refresh_token: 'r',
+      });
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it('allows 5 sign-in emails to one address an hour, then blocks', async () => {
+    fetchMock.mockImplementation(async () => new Response('{}', { status: 200 }));
+    const app = limitedApp();
+    for (let i = 0; i < 5; i++)
+      expect((await post(app, '/auth/v1/otp', { email: 'a@b.com' })).status).toBe(200);
+    const res = await post(app, '/auth/v1/otp', { email: 'a@b.com' });
+    expect(res.status).toBe(429);
+    expect(((await res.json()) as { error_code: string }).error_code).toBe(
+      'over_email_send_rate_limit',
+    );
+    expect((await post(app, '/auth/v1/otp', { email: 'c@d.com' })).status).toBe(200);
+  });
+
+  it('sends GoTrue only the visitor address this API trusts', async () => {
+    fetchMock.mockImplementation(async () => new Response('{}', { status: 200 }));
+    await limitedApp().request('/auth/v1/health', {
+      headers: {
+        'x-forwarded-for': '203.0.113.7, 10.0.0.1, 10.0.0.2',
+        'x-real-ip': '198.51.100.1',
+      },
+    });
+    const headers = (fetchMock.mock.calls[0]![1] as RequestInit).headers as Headers;
+    expect(headers.get('x-forwarded-for')).toBe('203.0.113.7');
+    expect(headers.get('x-real-ip')).toBe('203.0.113.7');
   });
 });
 

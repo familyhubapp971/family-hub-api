@@ -11,6 +11,7 @@ import { rejectKidTokens } from './security/kid-auth.js';
 import { corsMiddleware } from './security/cors-allowlist.js';
 import { rateLimit } from './security/rate-limit.js';
 import { GOTRUE_PREFIX, gotrueProxy } from './security/gotrue-proxy.js';
+import { SignInLimits } from './security/signin-limits.js';
 import { requestContext } from './services/request-context.js';
 import { requestDb } from './security/request-db.js';
 import {
@@ -150,7 +151,12 @@ export function buildApp(opts: BuildAppOptions = {}) {
   // carry no token yet. ALL routes are left out of the OpenAPI spec: these are
   // GoTrue's endpoints, not ours.
   if (config.GOTRUE_URL) {
-    app.all(`${GOTRUE_PREFIX}/*`, gotrueProxy(config.GOTRUE_URL));
+    const limits = new SignInLimits({
+      maxFailedAttempts: config.SIGNIN_MAX_FAILED_ATTEMPTS,
+      lockoutMs: config.SIGNIN_LOCKOUT_MS,
+      emailsPerHour: config.SIGNIN_EMAILS_PER_HOUR,
+    });
+    app.all(`${GOTRUE_PREFIX}/*`, gotrueProxy(config.GOTRUE_URL, { limits }));
   }
 
   // Auth runs after request-context (so the 401 log line carries the
