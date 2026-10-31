@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveGetStartedSteps } from '../../../../../apps/api/src/areas/family/get-started';
+import { deriveGetStartedSteps } from '../../../../../src/areas/family/get-started';
 
 // FHS-634: the guide used to tick a step when you tapped its button and keep
 // that in the browser. These lock the replacement: a step is done when the

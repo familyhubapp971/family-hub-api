@@ -164,7 +164,7 @@ it's missing from `PATH`.
 
 ## 3. The rate-limit trap: read before running load/stress/soak
 
-`apps/api/src/security/rate-limit.ts` caps every caller at
+`src/security/rate-limit.ts` caps every caller at
 `RATE_LIMIT_PER_MINUTE` (default: 100) requests per 60 seconds, keyed on
 the **caller's IP**. k6 sends all of a run's traffic from one machine, so
 every VU shares **one** bucket, no matter how many VUs you configure.

@@ -4,14 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   mwFinancialRouter,
   createInvestmentRequestSchema,
-} from '../../../../../apps/api/src/areas/my-world/mw-financial.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+} from '../../../../../src/areas/my-world/mw-financial.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-295: validation + tenant/member guards for /api/mw/financial.
 // Save/cashout accounting is covered by the integration tier.
 
 const dbMock = { select: vi.fn() };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({ getDb: () => dbMock }));
+vi.mock('../../../../../src/database/client.js', () => ({ getDb: () => dbMock }));
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '00000000-0000-4000-8000-000000000777';

@@ -1,4 +1,4 @@
-// FHS-395: unit tests for apps/api/src/areas/learn/logic-progress.ts
+// FHS-395: unit tests for src/areas/learn/logic-progress.ts
 //
 // Tests server-authoritative grading: correct answer increments count,
 // cert awarded at CERTIFICATE_THRESHOLD, wrong answer leaves count unchanged,
@@ -36,9 +36,9 @@ import {
   CERTIFICATE_THRESHOLD,
   gradeAndRecord,
   awardCertificate,
-} from '../../../../../apps/api/src/areas/learn/logic-progress.js';
+} from '../../../../../src/areas/learn/logic-progress.js';
 
-import { getQuestionCounts } from '../../../../../apps/api/src/areas/learn/logic-questions.js';
+import { getQuestionCounts } from '../../../../../src/areas/learn/logic-questions.js';
 
 const TENANT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const MEMBER = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -59,7 +59,7 @@ describe('logic-questions: question bank sanity', () => {
 
   it('every question has a non-empty id, type, and explanation', async () => {
     const { getRawQuestions, LOGIC_GAME_TYPES, LOGIC_DIFFICULTIES } = await import(
-      '../../../../../apps/api/src/areas/learn/logic-questions.js'
+      '../../../../../src/areas/learn/logic-questions.js'
     );
     for (const gt of LOGIC_GAME_TYPES) {
       for (const d of LOGIC_DIFFICULTIES) {
@@ -79,9 +79,7 @@ describe('logic-questions: question bank sanity', () => {
 describe('gradeAndRecord: correct answer increments count', () => {
   it('increments correctCount on a right answer', async () => {
     // Grab a real question so we can submit the real answer.
-    const { getRawQuestions } = await import(
-      '../../../../../apps/api/src/areas/learn/logic-questions.js'
-    );
+    const { getRawQuestions } = await import('../../../../../src/areas/learn/logic-questions.js');
     const questions = getRawQuestions('truefalse', 'easy');
     const q = questions[0]!;
 
@@ -116,9 +114,7 @@ describe('gradeAndRecord: correct answer increments count', () => {
   it('does NOT increment correctCount on a wrong answer, but DOES increment totalAttempts', async () => {
     // FHS-401: wrong answers now call upsertProgress(delta=0, attemptsDelta=1)
     // so totalAttempts increments but correctCount stays the same.
-    const { getRawQuestions } = await import(
-      '../../../../../apps/api/src/areas/learn/logic-questions.js'
-    );
+    const { getRawQuestions } = await import('../../../../../src/areas/learn/logic-questions.js');
     const questions = getRawQuestions('truefalse', 'easy');
     const q = questions[0]!;
     const wrongAnswer = !q.answer; // flip boolean
@@ -169,9 +165,7 @@ describe('gradeAndRecord: correct answer increments count', () => {
 
 describe('gradeAndRecord: certificate at CERTIFICATE_THRESHOLD', () => {
   it(`awards a cert when correctCount reaches ${CERTIFICATE_THRESHOLD}`, async () => {
-    const { getRawQuestions } = await import(
-      '../../../../../apps/api/src/areas/learn/logic-questions.js'
-    );
+    const { getRawQuestions } = await import('../../../../../src/areas/learn/logic-questions.js');
     const questions = getRawQuestions('truefalse', 'hard');
     const q = questions[0]!;
 
@@ -274,9 +268,7 @@ describe('gradeAndRecord: unknown question throws', () => {
 
 describe('upsertProgress: totalAttempts counter', () => {
   it('increments totalAttempts on correct answer (delta=1, attemptsDelta=1)', async () => {
-    const { upsertProgress } = await import(
-      '../../../../../apps/api/src/areas/learn/logic-progress.js'
-    );
+    const { upsertProgress } = await import('../../../../../src/areas/learn/logic-progress.js');
 
     const existingRow = {
       id: 'r1',
@@ -308,9 +300,7 @@ describe('upsertProgress: totalAttempts counter', () => {
   });
 
   it('increments totalAttempts but NOT correctCount on wrong answer (delta=0, attemptsDelta=1)', async () => {
-    const { upsertProgress } = await import(
-      '../../../../../apps/api/src/areas/learn/logic-progress.js'
-    );
+    const { upsertProgress } = await import('../../../../../src/areas/learn/logic-progress.js');
 
     const existingRow = {
       id: 'r2',

@@ -16,13 +16,13 @@ import type { MiddlewareHandler } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
 import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/security/auth.js';
-import { adminRouter } from '../../../apps/api/src/areas/admin/admin.js';
-import { tenants, members, users } from '../../../apps/api/src/database/schema.js';
-import type { Database } from '../../../apps/api/src/database/client.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../src/security/auth.js';
+import { adminRouter } from '../../../src/areas/admin/admin.js';
+import { tenants, members, users } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/database/client.js', () => ({ getDb: () => getTestDb() }));
+vi.mock('../../../src/database/client.js', () => ({ getDb: () => getTestDb() }));
 
 const feature = await loadFeature(
   new URL('../features/admin-family-name.feature', import.meta.url).pathname,

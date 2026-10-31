@@ -7,7 +7,7 @@ import {
   isPinEligibleRole,
   KID_ROLES,
   MEMBER_ROLES,
-} from '../../../../packages/shared/src/schemas/member-roles';
+} from '../../../../shared-rules/src/schemas/member-roles';
 
 describe('isKidRole', () => {
   it('counts a child as a kid', () => {

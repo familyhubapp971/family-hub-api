@@ -5,11 +5,11 @@ import { describe, expect, it, vi } from 'vitest';
 // feed it different pg_roles rows without a real Postgres.
 
 const execute = vi.fn();
-vi.mock('../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../src/database/client.js', () => ({
   getRootDb: () => ({ execute }),
 }));
 
-import { assertRlsEnforceable } from '../../../../apps/api/src/security/rls-boot-guard.js';
+import { assertRlsEnforceable } from '../../../../src/security/rls-boot-guard.js';
 
 describe('FHS-351: RLS boot guard', () => {
   it('passes when the connected role cannot bypass RLS (app_runtime)', async () => {

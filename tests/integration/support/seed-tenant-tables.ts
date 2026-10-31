@@ -46,8 +46,8 @@ import {
   weeks,
   worldFlagsLearnProgress,
   worldFlagsProgress,
-} from '../../../apps/api/src/database/schema.js';
-import type { Database } from '../../../apps/api/src/database/client.js';
+} from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 
 interface SeedCtx {
   memberId?: string;

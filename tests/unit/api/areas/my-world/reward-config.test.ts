@@ -1,15 +1,15 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { rewardConfigRouter } from '../../../../../apps/api/src/areas/my-world/reward-config.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { rewardConfigRouter } from '../../../../../src/areas/my-world/reward-config.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-512: GET is readable by any family member; PUT (changing the family
 // rate or a kid's override) is admin-only. Both are tenant-scoped: a caller
 // can only ever read/write their OWN family's config.
 
 const dbMock = { select: vi.fn(), update: vi.fn() };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({ getDb: () => dbMock }));
+vi.mock('../../../../../src/database/client.js', () => ({ getDb: () => dbMock }));
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '00000000-0000-4000-8000-000000000777';

@@ -12,8 +12,8 @@
 import { SignJWT } from 'jose';
 import { Hono } from 'hono';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { config } from '../../../../../apps/api/src/config.js';
-import { KID_ISSUER } from '../../../../../apps/api/src/security/kid-auth.js';
+import { config } from '../../../../../src/config.js';
+import { KID_ISSUER } from '../../../../../src/security/kid-auth.js';
 
 // ─── DB mock ──────────────────────────────────────────────────────────────────
 
@@ -22,12 +22,12 @@ const dbMock = {
   insert: vi.fn(),
 };
 
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
   pinRequestTenant: async () => {},
 }));
 
-const { kidRouter } = await import('../../../../../apps/api/src/areas/kids/kid.js');
+const { kidRouter } = await import('../../../../../src/areas/kids/kid.js');
 
 // ─── Token helpers ────────────────────────────────────────────────────────────
 
@@ -248,9 +248,7 @@ describe('FHS-395: POST /api/kid/logic/answer', () => {
   });
 
   it('200 on correct answer with a real question from the bank', async () => {
-    const { getRawQuestions } = await import(
-      '../../../../../apps/api/src/areas/learn/logic-questions.js'
-    );
+    const { getRawQuestions } = await import('../../../../../src/areas/learn/logic-questions.js');
     const qs = getRawQuestions('truefalse', 'easy');
     const q = qs[0]!;
 
@@ -309,9 +307,7 @@ describe('FHS-395: POST /api/kid/logic/answer', () => {
   });
 
   it('200 with correct:false when wrong answer submitted', async () => {
-    const { getRawQuestions } = await import(
-      '../../../../../apps/api/src/areas/learn/logic-questions.js'
-    );
+    const { getRawQuestions } = await import('../../../../../src/areas/learn/logic-questions.js');
     const qs = getRawQuestions('truefalse', 'easy');
     const q = qs[0]!;
     const wrongAnswer = !q.answer; // flip the boolean
@@ -363,9 +359,7 @@ describe('FHS-395: POST /api/kid/logic/answer', () => {
 
   // #4a: cross-combo boundary: truefalse/easy questionId submitted under sorting/easy → 400
   it('400 when truefalse/easy questionId is submitted with gameType sorting', async () => {
-    const { getRawQuestions } = await import(
-      '../../../../../apps/api/src/areas/learn/logic-questions.js'
-    );
+    const { getRawQuestions } = await import('../../../../../src/areas/learn/logic-questions.js');
     const tfQ = getRawQuestions('truefalse', 'easy')[0]!;
 
     const token = await mintKidToken();
@@ -385,9 +379,7 @@ describe('FHS-395: POST /api/kid/logic/answer', () => {
 
   // #4b: replay same correct questionId 10x → comboCorrect 10 + certificateEarned true on 10th
   it('replaying same correct questionId 10 times awards cert on 10th', async () => {
-    const { getRawQuestions } = await import(
-      '../../../../../apps/api/src/areas/learn/logic-questions.js'
-    );
+    const { getRawQuestions } = await import('../../../../../src/areas/learn/logic-questions.js');
     const q = getRawQuestions('truefalse', 'easy')[0]!;
     const token = await mintKidToken();
 
@@ -481,9 +473,7 @@ describe('FHS-395: POST /api/kid/logic/answer', () => {
 
   // #4c: boolean answer (true) to a string-answer game (sorting) → correct:false
   it('boolean answer against a string-answer sorting question returns correct:false', async () => {
-    const { getRawQuestions } = await import(
-      '../../../../../apps/api/src/areas/learn/logic-questions.js'
-    );
+    const { getRawQuestions } = await import('../../../../../src/areas/learn/logic-questions.js');
     const sortQ = getRawQuestions('sorting', 'easy')[0]!;
 
     // FHS-401: wrong answers call upsertProgress: mock both select and insert.

@@ -48,7 +48,7 @@ export function checkLatency(res, label, maxMs) {
 }
 
 // Monday (UTC) of the week containing `date`, as YYYY-MM-DD: mirrors
-// apps/api/src/areas/my-world/myworld.ts mondayOf() exactly, so ?weekStart matches
+// src/areas/my-world/myworld.ts mondayOf() exactly, so ?weekStart matches
 // what a real browser client would send for "this week".
 export function mondayOf(date) {
   const day = date.getUTCDay(); // 0=Sun..6=Sat
@@ -74,7 +74,7 @@ function parentGet(baseUrl, token, tenantSlug, path, extraTags) {
 }
 
 // FHS-460, the kid ChildWorld session: every GET the kid dashboard makes
-// on open (apps/api/src/areas/kids/kid.ts), in the order a real kid session
+// on open (src/areas/kids/kid.ts), in the order a real kid session
 // hits them. 12 requests. /today is the kid's landing screen, tagged
 // `name:kid-today` so config.js hotScreenThresholds() can budget it
 // separately from the rest.

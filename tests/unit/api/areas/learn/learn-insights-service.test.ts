@@ -15,7 +15,7 @@ import {
   MATHS_CERTS_TOTAL,
   LOGIC_CERTS_TOTAL,
   WORLD_FLAGS_CONTINENTS_TOTAL,
-} from '../../../../../apps/api/src/areas/learn/learn-insights-service.js';
+} from '../../../../../src/areas/learn/learn-insights-service.js';
 
 // ─── Mock the drizzle DB client ───────────────────────────────────────────────
 
@@ -45,7 +45,7 @@ function chainWith(rows: Row[]) {
   };
 }
 
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
 }));
 

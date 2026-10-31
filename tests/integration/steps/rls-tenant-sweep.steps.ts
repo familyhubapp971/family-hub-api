@@ -13,8 +13,8 @@ import { sql } from 'drizzle-orm';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { expect } from 'vitest';
 import { asRuntimeTenant, getTestDb } from '@familyhub/test-utils';
-import { TENANT_SCOPED_TABLES, tenants } from '../../../apps/api/src/database/schema.js';
-import type { Database } from '../../../apps/api/src/database/client.js';
+import { TENANT_SCOPED_TABLES, tenants } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { seedAllTablesForTenant } from '../support/seed-tenant-tables.js';
 
 const tableNames = TENANT_SCOPED_TABLES.map((t) => getTableConfig(t).name);

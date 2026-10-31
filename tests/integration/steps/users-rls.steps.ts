@@ -13,9 +13,9 @@ import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber';
 import { sql } from 'drizzle-orm';
 import { expect } from 'vitest';
 import { asRuntimeUser, getTestDb, runtimeTestDb } from '@familyhub/test-utils';
-import { getOrCreateUser } from '../../../apps/api/src/areas/family/user-mirror.js';
-import { users } from '../../../apps/api/src/database/schema.js';
-import type { Database } from '../../../apps/api/src/database/client.js';
+import { getOrCreateUser } from '../../../src/areas/family/user-mirror.js';
+import { users } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 
 let db: Database;
 let userU: string;

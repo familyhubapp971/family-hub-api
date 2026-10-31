@@ -7,7 +7,7 @@ import {
   signFeedToken,
   verifyFeedSignature,
   type FeedEvent,
-} from '../../../../../apps/api/src/areas/calendar/calendar-feed.js';
+} from '../../../../../src/areas/calendar/calendar-feed.js';
 
 // FHS-445: calendar sync: signed subscribe tokens + ICS generation.
 

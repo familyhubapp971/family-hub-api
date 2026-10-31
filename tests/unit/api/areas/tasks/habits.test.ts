@@ -1,15 +1,15 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { habitsRouter } from '../../../../../apps/api/src/areas/tasks/habits.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { habitsRouter } from '../../../../../src/areas/tasks/habits.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-292: auth/tenant/role guards for /api/habits (sticker model). The
 // DB-backed behaviour (sticker placement, balance, week creation) is
 // covered by the myworld integration tests.
 
 const dbMock = { select: vi.fn(), insert: vi.fn(), update: vi.fn(), delete: vi.fn() };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({ getDb: () => dbMock }));
+vi.mock('../../../../../src/database/client.js', () => ({ getDb: () => dbMock }));
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '00000000-0000-4000-8000-000000000777';

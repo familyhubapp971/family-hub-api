@@ -67,7 +67,7 @@ if (!Number.isInteger(tenantCount) || tenantCount < 1) {
   process.exit(1);
 }
 
-// Same bcrypt cost the api uses for kid PINs (apps/api/src/areas/kids/
+// Same bcrypt cost the api uses for kid PINs (src/areas/kids/
 // auth-kid-pin.ts KID_PIN_BCRYPT_COST) so the seeded hash is shaped
 // exactly like a production one. Every seeded kid gets the SAME known
 // PIN; that's fine, these are throwaway synthetic tenants, not real families.
@@ -129,7 +129,7 @@ function pick(arr) {
 function isoDate(d) {
   return d.toISOString().slice(0, 10);
 }
-// Mirrors apps/api/src/areas/my-world/myworld.ts mondayOf()/isoWeek() exactly, so the
+// Mirrors src/areas/my-world/myworld.ts mondayOf()/isoWeek() exactly, so the
 // seeded "current" mw_weeks row is the SAME row GET /api/kid/habits (no
 // ?weekId) will look up (or auto-create) as "this week".
 function mondayOf(d) {
@@ -298,7 +298,7 @@ async function seedTenant(index) {
     }
 
     // ── a few banked stickers + their cash equivalent (0.5/sticker,
-    //    same STICKER_TO_CASH constant as apps/api/src/areas/my-world/myworld.ts) ────
+    //    same STICKER_TO_CASH constant as src/areas/my-world/myworld.ts) ────
     const savedStickers = randomInt(5, 25);
     await client.query(
       `INSERT INTO mw_savings (tenant_id, member_id, saved_stickers, saved_cash)

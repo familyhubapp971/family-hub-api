@@ -5,7 +5,7 @@ import {
   _resetJwksCacheForTests,
   authMiddleware,
   getAuthenticatedUser,
-} from '../../../../apps/api/src/security/auth.js';
+} from '../../../../src/security/auth.js';
 
 // Stable issuer for every test in this file. Must match what the
 // middleware expects via opts.issuer.

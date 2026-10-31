@@ -1,12 +1,9 @@
 import { Hono } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  authMiddleware,
-  _resetJwksCacheForTests,
-} from '../../../../../apps/api/src/security/auth.js';
-import { publicTenantRouter } from '../../../../../apps/api/src/areas/family/public-tenant.js';
-import type { User, Tenant, Member } from '../../../../../apps/api/src/database/schema.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../../../src/security/auth.js';
+import { publicTenantRouter } from '../../../../../src/areas/family/public-tenant.js';
+import type { User, Tenant, Member } from '../../../../../src/database/schema.js';
 
 // Mock the DB client. The route reaches for `getDb()` directly so we
 // stub it at the module boundary; tests inject the chain shape they want.
@@ -19,7 +16,7 @@ const dbMock = {
 // FHS-351: onboarding now wraps tenant+member creation in db.transaction; the
 // tx exposes the same insert chain + execute (for the set_config tenant pin).
 dbMock.transaction.mockImplementation((cb: (tx: typeof dbMock) => unknown) => cb(dbMock));
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
 }));
 

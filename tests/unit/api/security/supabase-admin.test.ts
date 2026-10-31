@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // (404). The correct GoTrue endpoint is /auth/v1/invite, with redirect_to as a
 // query param. These tests lock the endpoint + the already-registered classifier.
 
-vi.mock('../../../../apps/api/src/config.js', () => ({
+vi.mock('../../../../src/config.js', () => ({
   config: { SUPABASE_URL: 'https://test.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'svc-key' },
 }));
 
@@ -12,7 +12,7 @@ import {
   inviteUserByEmail,
   isEmailAlreadyRegisteredError,
   SupabaseAdminError,
-} from '../../../../apps/api/src/security/supabase-admin.js';
+} from '../../../../src/security/supabase-admin.js';
 
 describe('FHS-352: inviteUserByEmail endpoint', () => {
   const realFetch = global.fetch;

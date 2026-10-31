@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildApp } from '../../../../apps/api/src/app.js';
-import { buildOpenApiSpec } from '../../../../apps/api/src/api-docs/build-spec.js';
+import { buildApp } from '../../../../src/app.js';
+import { buildOpenApiSpec } from '../../../../src/api-docs/build-spec.js';
 
 // FHS-356: the OpenAPI spec is generated from the live Hono route table, so
 // these tests lock the contract: every endpoint is covered, the docs routes are

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   expandWeekOccurrences,
   weekdayOfIso,
-} from '../../../../../apps/api/src/areas/calendar/recurrence.js';
+} from '../../../../../src/areas/calendar/recurrence.js';
 
 // FHS-476: weekly recurring calendar activities (expand-on-read).
 //

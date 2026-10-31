@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { adminRouter } from '../../../../../apps/api/src/areas/admin/admin.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { adminRouter } from '../../../../../src/areas/admin/admin.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-343: the Admin Panel settings endpoint is admin-only. GET is readable by
 // any member; PUT (mutating a setting) requires the admin role.
@@ -19,7 +19,7 @@ const dbMock = {
   delete: vi.fn(),
   transaction: vi.fn(),
 };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({ getDb: () => dbMock }));
+vi.mock('../../../../../src/database/client.js', () => ({ getDb: () => dbMock }));
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '00000000-0000-4000-8000-000000000777';

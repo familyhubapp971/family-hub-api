@@ -8,7 +8,7 @@ import {
   rateMinorToDecimal,
   reverseSkipPenalties,
   sumAdjustmentsMinor,
-} from '../../../../../apps/api/src/areas/my-world/reward-config-service.js';
+} from '../../../../../src/areas/my-world/reward-config-service.js';
 
 // FHS-512: configurable reward economy. MONEY-CRITICAL: every quantity here
 // is an integer minor-unit amount (e.g. 50 = 0.50): these tests exist to

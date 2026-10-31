@@ -1,9 +1,6 @@
 // FHS-672: the founder page token.
 import { describe, it, expect } from 'vitest';
-import {
-  issueFounderToken,
-  verifyFounderToken,
-} from '../../../../../apps/api/src/areas/admin/founder.js';
+import { issueFounderToken, verifyFounderToken } from '../../../../../src/areas/admin/founder.js';
 
 const NOW = 1_800_000_000_000;
 const F = { passcode: '246810', secret: 'test-secret-that-is-at-least-32-characters' };

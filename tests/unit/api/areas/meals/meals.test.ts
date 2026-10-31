@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { mealsRouter } from '../../../../../apps/api/src/areas/meals/meals.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { mealsRouter } from '../../../../../src/areas/meals/meals.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-229: GET + POST /api/meals. DB stubbed at module boundary; user
 // + tenant context set via a tiny middleware. POST exercises the
@@ -13,7 +13,7 @@ const dbMock = {
   insert: vi.fn(),
   delete: vi.fn(),
 };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
 }));
 

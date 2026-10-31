@@ -7,7 +7,7 @@ import {
   rejectKidTokens,
   getKidAuth,
   KID_ISSUER,
-} from '../../../../apps/api/src/security/kid-auth.js';
+} from '../../../../src/security/kid-auth.js';
 
 // FHS-257: kid JWT consumer middleware. Verifies the HS256 kid token,
 // sets kidAuth, and provides the 403 guards for cross-routing.

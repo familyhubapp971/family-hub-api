@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getOrCreateUser,
   resetUserMirrorCache,
-} from '../../../../../apps/api/src/areas/family/user-mirror.js';
-import type { Database } from '../../../../../apps/api/src/database/client.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+} from '../../../../../src/areas/family/user-mirror.js';
+import type { Database } from '../../../../../src/database/client.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-192: getOrCreateUser unit coverage.
 //

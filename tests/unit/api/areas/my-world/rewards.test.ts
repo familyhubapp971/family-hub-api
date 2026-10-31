@@ -1,15 +1,15 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { rewardsRouter } from '../../../../../apps/api/src/areas/my-world/rewards.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { rewardsRouter } from '../../../../../src/areas/my-world/rewards.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-268: validation + tenant guards for /api/rewards. Balance maths +
 // redemption ledger are covered by the integration test
 // (childworld.feature, real Postgres).
 
 const dbMock = { select: vi.fn(), insert: vi.fn() };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({ getDb: () => dbMock }));
+vi.mock('../../../../../src/database/client.js', () => ({ getDb: () => dbMock }));
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '00000000-0000-4000-8000-000000000777';

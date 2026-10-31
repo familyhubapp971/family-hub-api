@@ -4,15 +4,12 @@ import { sql } from 'drizzle-orm';
 import { jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
 import { expect, vi } from 'vitest';
-import {
-  kidPinRouter,
-  _resetKidPinBucketsForTests,
-} from '../../../apps/api/src/areas/kids/auth-kid-pin.js';
-import { tenants, members } from '../../../apps/api/src/database/schema.js';
-import type { Database } from '../../../apps/api/src/database/client.js';
+import { kidPinRouter, _resetKidPinBucketsForTests } from '../../../src/areas/kids/auth-kid-pin.js';
+import { tenants, members } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../src/database/client.js', () => ({
   getDb: () => getTestDb(),
   // FHS-354: pin is a no-op here (tests run as the superuser, which bypasses RLS).
   pinRequestTenant: async () => {},
@@ -21,10 +18,9 @@ vi.mock('../../../apps/api/src/database/client.js', () => ({
 // `vi.mock` factories are hoisted above any module-scope `const`, so
 // the secret has to live inside the factory; we re-export it via the
 // `_KID_AUTH_SECRET_FOR_TESTS` constant below for the assertions.
-vi.mock('../../../apps/api/src/config.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../apps/api/src/config.js')>(
-    '../../../apps/api/src/config.js',
-  );
+vi.mock('../../../src/config.js', async () => {
+  const actual =
+    await vi.importActual<typeof import('../../../src/config.js')>('../../../src/config.js');
   return {
     ...actual,
     config: {

@@ -1,7 +1,7 @@
 // FHS-460: login helpers for k6 scenarios that need REAL authenticated
 // sessions instead of anonymous /health + /hello pings.
 //
-// kidLogin    : POST /api/auth/kid-pin (apps/api/src/areas/kids/auth-kid-pin.ts).
+// kidLogin    : POST /api/auth/kid-pin (src/areas/kids/auth-kid-pin.ts).
 //               Family-shared-device PIN login. Returns a short-lived
 //               HS256 JWT with the tenant baked into the token claims:
 //               kid requests to /api/kid/* send ONLY the bearer token,
@@ -12,7 +12,7 @@
 //               requests DO need an X-Tenant-Slug header alongside the
 //               bearer token, because k6 hits the API origin directly
 //               (no `<slug>.familyhub.app` subdomain routing), see
-//               apps/api/src/security/resolve-tenant.ts source 3.
+//               src/security/resolve-tenant.ts source 3.
 
 import http from 'k6/http';
 import { check, fail } from 'k6';

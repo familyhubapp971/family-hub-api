@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { assignmentsRouter } from '../../../../../apps/api/src/areas/tasks/assignments.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { assignmentsRouter } from '../../../../../src/areas/tasks/assignments.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-231: GET / POST / PATCH /api/assignments. DB stubbed at module
 // boundary; user + tenant context seeded via tiny middleware.
@@ -15,7 +15,7 @@ const dbMock = {
 // Captures the object passed to the most recent `.update(...).set({...})`
 // so PUT tests can assert which columns are (and are NOT) written.
 let lastUpdateSet: Record<string, unknown> | null = null;
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
 }));
 

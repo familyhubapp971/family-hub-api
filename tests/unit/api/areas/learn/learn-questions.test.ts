@@ -6,7 +6,7 @@ import {
   LESSON_SUBJECTS,
   DIFFICULTIES,
   LOGIC_SUBTOPICS,
-} from '../../../../../apps/api/src/areas/learn/learn-questions.js';
+} from '../../../../../src/areas/learn/learn-questions.js';
 
 // FHS-283: the lesson question bank: questions never leak their answer, and
 // grading is correct.

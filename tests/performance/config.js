@@ -8,9 +8,9 @@
 // ─────────────────────────────────────────────────────────────────────────
 // ⚠️  RATE-LIMIT WARNING: read this before running load/stress/soak.
 // ─────────────────────────────────────────────────────────────────────────
-// apps/api/src/security/rate-limit.ts caps every caller at
+// src/security/rate-limit.ts caps every caller at
 // RATE_LIMIT_PER_MINUTE requests per 60s (config.ts default: 100),
-// keyed on the CALLER'S IP (apps/api/src/app.ts mounts it globally,
+// keyed on the CALLER'S IP (src/app.ts mounts it globally,
 // before auth, for every request).
 //
 // k6 sends ALL of a run's traffic from ONE machine → ONE IP → ONE shared

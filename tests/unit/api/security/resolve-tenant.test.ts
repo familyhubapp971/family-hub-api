@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
-import { resolveTenant } from '../../../../apps/api/src/security/resolve-tenant.js';
+import { resolveTenant } from '../../../../src/security/resolve-tenant.js';
 
 // FHS-13 + FHS-249: resolveTenant precedence and edge cases.
 //

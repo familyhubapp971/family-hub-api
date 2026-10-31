@@ -1,14 +1,14 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { membersRouter } from '../../../../../apps/api/src/areas/family/members.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { membersRouter } from '../../../../../src/areas/family/members.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-276: POST / PATCH / DELETE /api/members. Admin-only roster
 // mutations with the last-admin guard.
 
 const dbMock = { select: vi.fn(), insert: vi.fn(), update: vi.fn(), delete: vi.fn() };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
 }));
 

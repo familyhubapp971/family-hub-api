@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createEventRequestSchema,
   eventsRouter,
-} from '../../../../../apps/api/src/areas/calendar/events.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+} from '../../../../../src/areas/calendar/events.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-230: GET + POST /api/events. Same shape as the meals route
 // test: stub db at module boundary; seed user + tenant context via a
@@ -16,7 +16,7 @@ const dbMock = {
   select: vi.fn(),
   insert: vi.fn(),
 };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
 }));
 
