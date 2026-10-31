@@ -1,6 +1,6 @@
 // Member roles, and the one rule for "is this member a kid?" (FHS-569).
 //
-// The role enum lives in the database (apps/api/src/db/schema.ts, member_role)
+// The role enum lives in the database (apps/api/src/database/schema.ts, member_role)
 // and is mirrored here so both the API and the web app can reason about it
 // without importing each other.
 //
@@ -45,7 +45,7 @@ export function isPinEligibleRole(role: string | null | undefined): boolean {
 // FHS-625: who is allowed to do what with a child's money and the family's
 // settings. The dividing line is whether the action can be undone.
 //
-// These mirror `apps/api/src/lib/permissions.ts` (canManage / isAdmin, ADR
+// These mirror `apps/api/src/security/permissions.ts` (canManage / isAdmin, ADR
 // 0015), which is what actually enforces the rule. Nothing here is a gate:
 // the server refuses regardless of what the browser decided to render. They
 // exist so the app can stop offering a door that leads to a locked room, and

@@ -20,12 +20,9 @@ export function buildTenant(overrides: Partial<Tenant> = {}): Tenant {
   };
 }
 
-export async function createTenant(
-  _db: unknown,
-  overrides: Partial<Tenant> = {},
-): Promise<Tenant> {
+export async function createTenant(_db: unknown, overrides: Partial<Tenant> = {}): Promise<Tenant> {
   const tenant = buildTenant(overrides);
-  // INSERT lands in FHS-1 once apps/api/src/db/schema.ts defines the
+  // INSERT lands in FHS-1 once apps/api/src/database/schema.ts defines the
   // tenants table. Today the function is a build-only stub; specs
   // can use it for shape but cannot persist.
   if (process.env['FHS_TEST_UTILS_ALLOW_NOOP'] !== '1') {

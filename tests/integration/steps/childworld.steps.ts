@@ -4,14 +4,14 @@ import type { MiddlewareHandler } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
 import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
-import { habitsRouter } from '../../../apps/api/src/routes/habits.js';
-import { rewardsRouter } from '../../../apps/api/src/routes/rewards.js';
-import { tenants, members, habits, rewards, users } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/security/auth.js';
+import { habitsRouter } from '../../../apps/api/src/areas/tasks/habits.js';
+import { rewardsRouter } from '../../../apps/api/src/areas/my-world/rewards.js';
+import { tenants, members, habits, rewards, users } from '../../../apps/api/src/database/schema.js';
+import type { Database } from '../../../apps/api/src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/db/client.js', () => ({
+vi.mock('../../../apps/api/src/database/client.js', () => ({
   getDb: () => getTestDb(),
 }));
 

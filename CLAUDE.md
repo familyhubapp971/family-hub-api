@@ -1416,7 +1416,7 @@ Per-package `vitest.config.ts` files (`apps/api`, `apps/web`,
 - **Where:** `tests/e2e/`. Two configs: `playwright.config.ts` (full matrix) and `playwright.critical.config.ts` (`@critical`-tagged subset, chromium only).
 - **Traceability contract:** scenario names in `tests/e2e/features/<slug>.feature` are **character-for-character identical** to the Gherkin scenarios in `documents/features/<slug>.md`. `bddgen` generates the spec; the generated `test()` name carries through. This is the Jira AC ↔ test traceability mechanism.
 - **Page objects:** `tests/e2e/support/pages/<FeatureName>Page.ts`. No raw `page.locator()` in step files.
-- **Authenticated pages (FHS-516):** a spec that needs a signed-in `/t/:slug/*` page imports `test`/`expect` from `tests/e2e/support/fixtures.ts` (not `@playwright/test`) and depends on the **`authedFamily`** fixture: it seeds a fresh isolated family + admin/child/habit, mints an ES256 JWT the local api trusts (via the test-only `E2E_TEST_JWKS` override in `apps/api/src/middleware/auth.ts`, honoured **only** under `NODE_ENV=test`), and injects a supabase-js session into `localStorage`, so the spec can `page.goto('/t/<slug>/…')` already logged in. The configs point the web dev's `VITE_API_URL` at the local api so the browser hits the api that trusts the test token. `authed-smoke.feature` is the reference example.
+- **Authenticated pages (FHS-516):** a spec that needs a signed-in `/t/:slug/*` page imports `test`/`expect` from `tests/e2e/support/fixtures.ts` (not `@playwright/test`) and depends on the **`authedFamily`** fixture: it seeds a fresh isolated family + admin/child/habit, mints an ES256 JWT the local api trusts (via the test-only `E2E_TEST_JWKS` override in `apps/api/src/security/auth.ts`, honoured **only** under `NODE_ENV=test`), and injects a supabase-js session into `localStorage`, so the spec can `page.goto('/t/<slug>/…')` already logged in. The configs point the web dev's `VITE_API_URL` at the local api so the browser hits the api that trusts the test token. `authed-smoke.feature` is the reference example.
 - **Browser matrix:** chromium only on PR (critical subset, fast); full matrix (chromium + webkit + mobile-chrome) post-merge to staging.
 - **Run:** `pnpm test:e2e` (full), `pnpm test:e2e:critical` (PR-fast subset), `pnpm test:e2e:ui` (interactive). Each script runs `bddgen` first then `playwright test`.
 
@@ -1467,8 +1467,8 @@ The rule (apply to every API ticket, every time):
   `API_DOCS_ENABLED=true` is set (staging sets it explicitly).
 - **Describe every endpoint fully, every time (FHS-664).** Path + method
   coverage is automatic; the request/response **shape** comes from the
-  handlers' own Zod schemas via `apps/api/src/openapi/registry.ts` and the
-  per-area files in `apps/api/src/openapi/meta/`. When you add or change an
+  handlers' own Zod schemas via `apps/api/src/api-docs/registry.ts` and the
+  per-area files in `apps/api/src/api-docs/meta/`. When you add or change an
   endpoint, its entry MUST carry: a plain `summary` (say who may call it), the
   `request` schema (or `bodyless: true`), the `response` schema, the real
   success `status` (201 for creates, 204 for empty replies) and any
@@ -1482,7 +1482,7 @@ The rule (apply to every API ticket, every time):
   `family-hub-api.postman_collection.json` plus `local` and `staging`
   environment files, all built from the spec by the same command. Never edit
   them by hand: change the registry or the builder
-  (`apps/api/src/openapi/build-postman.ts`) and regenerate. Tokens stay blank
+  (`apps/api/src/api-docs/build-postman.ts`) and regenerate. Tokens stay blank
   in the committed environments; testers fill them in locally.
 - **Breaking changes** (removed/renamed fields, changed types, removed
   endpoints, changed status codes) bump the API version in the spec and add a
@@ -1560,7 +1560,7 @@ mirrors this list):
 - [ ] **Types:** TypeScript strict, no new `any`, schemas validate at boundaries
 - [ ] **Multi-tenancy:** queries respect `tenant_id` / RLS; no `bypassrls`
 - [ ] **Secrets:** nothing in git that should be in `.env.local` or Railway env
-- [ ] **OpenAPI/Swagger + Postman:** EVERY new/changed/removed endpoint has a full entry (summary, request or `bodyless`, response, status) in `apps/api/src/openapi/registry.ts` or `meta/`; run `pnpm -F api openapi:generate` and commit `apps/api/openapi.json` and `apps/api/postman/` (CI's `openapi:check` enforces it). Mandatory, not deferrable.
+- [ ] **OpenAPI/Swagger + Postman:** EVERY new/changed/removed endpoint has a full entry (summary, request or `bodyless`, response, status) in `apps/api/src/api-docs/registry.ts` or `meta/`; run `pnpm -F api openapi:generate` and commit `apps/api/openapi.json` and `apps/api/postman/` (CI's `openapi:check` enforces it). Mandatory, not deferrable.
 - [ ] **Docs:** `documents/features/` or `documents/technical/` updated; ADR added in `documents/decisions/` if a decision was made
 - [ ] **Migrations:** Drizzle migration committed; rollback path noted in PR body
 - [ ] **Observability:** new failure modes have logs/metrics; alerts updated if SLO-relevant

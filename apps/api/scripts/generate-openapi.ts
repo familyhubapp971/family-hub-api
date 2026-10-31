@@ -3,8 +3,8 @@
 // any API change (enforced by the CI staleness gate + the pre-merge checklist).
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { buildApp } from '../src/app.js';
-import { buildOpenApiSpec } from '../src/openapi/build-spec.js';
-import { buildPostmanFiles } from '../src/openapi/build-postman.js';
+import { buildOpenApiSpec } from '../src/api-docs/build-spec.js';
+import { buildPostmanFiles } from '../src/api-docs/build-postman.js';
 
 const spec = buildOpenApiSpec(buildApp());
 const out = new URL('../openapi.json', import.meta.url);

@@ -3,7 +3,7 @@
 //   - createX(db, overrides?): build + INSERT (throws until FHS-1+ adds the table)
 //
 // Once Sprint 1 (FHS-1) adds the tenants/users/families tables in
-// apps/api/src/db/schema.ts, the createX implementations get wired
+// apps/api/src/database/schema.ts, the createX implementations get wired
 // against Drizzle inserts. Until then the build* helpers cover all
 // tier-1 unit-test needs (typed object construction).
 

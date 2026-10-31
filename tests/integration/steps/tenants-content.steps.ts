@@ -2,8 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber';
 import { and, eq, sql } from 'drizzle-orm';
 import { expect } from 'vitest';
-import { activityLogs, appSettings, members, tenants } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import {
+  activityLogs,
+  appSettings,
+  members,
+  tenants,
+} from '../../../apps/api/src/database/schema.js';
+import type { Database } from '../../../apps/api/src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
 const feature = await loadFeature(

@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
-// Mirror of the prod tenant middleware (apps/api/src/middleware/tenant.ts:
+// Mirror of the prod tenant middleware (apps/api/src/security/resolve-tenant.ts:
 // landing in FHS-12). Per ADR 0001, every tenant-scoped query runs inside
 // an AsyncLocalStorage scope that sets `app.tenant_id` on the connection;
 // RLS policies then filter at the storage layer.
