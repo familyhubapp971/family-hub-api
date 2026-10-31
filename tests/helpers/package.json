@@ -12,8 +12,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc",
-    "test": "vitest run --passWithNoTests"
+    "build": "tsc"
   },
   "dependencies": {
     "@faker-js/faker": "9.0.3"

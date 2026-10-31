@@ -1,6 +1,5 @@
-// ESLint flat config: root for the whole monorepo. Single source of
-// truth so apps/api, apps/web, packages/* all lint against the same
-// rules without per-package configs drifting.
+// ESLint flat config for the server repo: one config for src/,
+// shared-rules/, tests/ and scripts/, so nothing drifts.
 //
 // Bootstrap stance (Sprint 0): minimal, opinionated rules. ESLint
 // recommended + typescript-eslint recommended + react/react-hooks/jsx-a11y
@@ -65,14 +64,10 @@ export default tseslint.config(
     },
   },
 
-  // 4b. React + hooks + a11y plugins for apps/web, packages/ui, and the
-  //     test-utils web wrapper (which also renders JSX).
+  // 4b. React + hooks + a11y plugins for the test helpers' web wrapper,
+  //     the only code in this repo that renders JSX.
   {
-    files: [
-      'apps/web/**/*.{ts,tsx,js,jsx}',
-      'packages/ui/**/*.{ts,tsx,js,jsx}',
-      'tests/helpers/src/web/**/*.{ts,tsx}',
-    ],
+    files: ['tests/helpers/src/web/**/*.{ts,tsx}'],
     plugins: {
       react,
       'react-hooks': reactHooks,

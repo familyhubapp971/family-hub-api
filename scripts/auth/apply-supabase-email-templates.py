@@ -73,7 +73,7 @@ def auth_headers(token: str) -> dict:
         "Content-Type": "application/json",
         # Supabase's Cloudflare layer rejects requests with the default
         # python-urllib UA. A static, identifiable UA is enough to pass.
-        "User-Agent": "family-hub-app/apply-supabase-email-templates",
+        "User-Agent": "family-hub-api/apply-supabase-email-templates",
     }
 
 
