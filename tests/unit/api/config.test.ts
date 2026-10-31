@@ -88,3 +88,24 @@ describe('config: GoTrue trust settings (FHS-695)', () => {
     if (!r.success) expect(r.error.issues.some((i) => i.path.includes('SUPABASE_URL'))).toBe(true);
   });
 });
+
+// FHS-698: the GoTrue admin secret, when set, must be a real secret.
+describe('config: GOTRUE_ADMIN_JWT_SECRET (FHS-698)', () => {
+  it('is optional', () => {
+    expect(configSchema.safeParse(baseEnv({ NODE_ENV: 'production' })).success).toBe(true);
+  });
+
+  it('refuses a short secret', () => {
+    const r = configSchema.safeParse(
+      baseEnv({ NODE_ENV: 'production', GOTRUE_ADMIN_JWT_SECRET: 'too-short' }),
+    );
+    expect(r.success).toBe(false);
+  });
+
+  it('accepts a secret of 32 characters or more', () => {
+    const r = configSchema.safeParse(
+      baseEnv({ NODE_ENV: 'production', GOTRUE_ADMIN_JWT_SECRET: 'x'.repeat(64) }),
+    );
+    expect(r.success).toBe(true);
+  });
+});

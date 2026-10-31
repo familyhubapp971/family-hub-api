@@ -275,7 +275,7 @@ export const invitationsRouter = new Hono().post('/', async (c) => {
     }
 
     const status =
-      err instanceof SupabaseAdminError ? `supabase ${err.status}` : 'admin call failed';
+      err instanceof SupabaseAdminError ? `auth admin ${err.status}` : 'admin call failed';
     log.error(
       {
         err: err instanceof Error ? err.message : String(err),

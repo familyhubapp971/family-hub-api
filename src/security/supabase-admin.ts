@@ -1,13 +1,13 @@
 import { SignJWT } from 'jose';
 import { config } from '../config.js';
 
-// Thin wrapper around Supabase's auth admin REST API. We hit /auth/v1
-// directly via fetch rather than pulling in `@supabase/supabase-js`:
-// the api only needs a handful of admin endpoints, and avoiding the
-// SDK keeps our dep tree small and the failure surface explicit.
+// Thin wrapper around the sign-in server's admin REST API: our own GoTrue when
+// GOTRUE_URL + GOTRUE_ADMIN_JWT_SECRET are set (FHS-698), otherwise Supabase
+// (which runs GoTrue too, under /auth/v1). Plain fetch rather than
+// `@supabase/supabase-js`: the api only needs a handful of admin endpoints.
 //
-// The service-role key is required: it grants full admin access to
-// Supabase Auth. NEVER expose it to clients.
+// Admin access can act as any user. NEVER expose the service-role key, the
+// GoTrue secret or a pass signed with it to clients.
 
 export interface SupabaseInviteUserOptions {
   /** Email address to invite. */
@@ -87,7 +87,7 @@ interface AdminTarget {
  */
 async function adminTarget(): Promise<AdminTarget> {
   if (config.GOTRUE_URL && config.GOTRUE_ADMIN_JWT_SECRET) {
-    const token = await new SignJWT({ role: 'service_role' })
+    const token = await new SignJWT({ role: 'service_role', iss: 'supabase' })
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .setIssuedAt()
       .setExpirationTime('60s')
@@ -111,7 +111,7 @@ async function adminTarget(): Promise<AdminTarget> {
 }
 
 /**
- * Send a magic-link invitation via Supabase admin. Returns the created
+ * Send a magic-link invitation via the sign-in server's admin API. Returns the created
  * (or pre-existing: Supabase upserts) auth user. The invitee receives
  * a Supabase-templated email with a one-time link to `redirectTo`.
  *
@@ -136,12 +136,12 @@ export async function inviteUserByEmail(
 
   const text = await res.text();
   if (!res.ok) {
-    throw new SupabaseAdminError(`Supabase admin invite failed: ${res.status}`, res.status, text);
+    throw new SupabaseAdminError(`auth admin invite failed: ${res.status}`, res.status, text);
   }
 
   const parsed = JSON.parse(text) as { id?: string; email?: string };
   if (!parsed.id) {
-    throw new SupabaseAdminError('Supabase admin invite returned no user id', res.status, text);
+    throw new SupabaseAdminError('auth admin invite returned no user id', res.status, text);
   }
   return { id: parsed.id, ...(parsed.email ? { email: parsed.email } : {}) };
 }
@@ -153,7 +153,8 @@ export async function inviteUserByEmail(
  * emailed to that exact address), so there's no need for Supabase to send a
  * SECOND confirmation email on top of ours.
  *
- * Maps to `PUT {SUPABASE_URL}/auth/v1/admin/users/{userId}`.
+ * Maps to `PUT {GOTRUE_URL}/admin/users/{userId}`, or
+ * `PUT {SUPABASE_URL}/auth/v1/admin/users/{userId}` while on Supabase.
  */
 export async function updateUserEmailById(userId: string, email: string): Promise<void> {
   const { base, headers } = await adminTarget();
@@ -165,10 +166,6 @@ export async function updateUserEmailById(userId: string, email: string): Promis
 
   if (!res.ok) {
     const text = await res.text();
-    throw new SupabaseAdminError(
-      `Supabase admin update-email failed: ${res.status}`,
-      res.status,
-      text,
-    );
+    throw new SupabaseAdminError(`auth admin update-email failed: ${res.status}`, res.status, text);
   }
 }
