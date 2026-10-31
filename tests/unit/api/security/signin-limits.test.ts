@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SignInLimits } from '../../../../src/security/signin-limits.js';
+import { SignInLimits, limitKey } from '../../../../src/security/signin-limits.js';
 
 // FHS-695: per-email sign-in limits on the GoTrue pass-through.
 
@@ -68,16 +68,36 @@ describe('FHS-695: sign-in emails', () => {
     expect(l.takeEmail('a@b.com').blocked).toBe(false);
   });
 
-  it('gives an email back when it was not actually sent', () => {
-    const { l } = limits();
-    for (let i = 0; i < 5; i++) l.takeEmail('a@b.com');
-    l.refundEmail('A@b.com');
+  it('gives back exactly the email that was not sent', () => {
+    const { l, advance } = limits();
+    const sent: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const v = l.takeEmail('a@b.com');
+      if (!v.blocked) sent.push(v.sentAt);
+      advance(1000);
+    }
+    l.refundEmail('A@b.com', sent[2]!);
     expect(l.takeEmail('a@b.com').blocked).toBe(false);
+    expect(l.takeEmail('a@b.com').blocked).toBe(true);
+  });
+
+  it('shares one allowance across +tag spellings of an address', () => {
+    const { l } = limits();
+    for (let i = 0; i < 5; i++) l.takeEmail(`parent+${i}@gmail.com`);
+    expect(l.takeEmail('Parent@gmail.com').blocked).toBe(true);
   });
 
   it('counts each address separately', () => {
     const { l } = limits();
     for (let i = 0; i < 5; i++) l.takeEmail('a@b.com');
     expect(l.takeEmail('c@d.com').blocked).toBe(false);
+  });
+});
+
+describe('FHS-695: limitKey', () => {
+  it('lower-cases and drops any +tag', () => {
+    expect(limitKey(' Parent+School@Gmail.com ')).toBe('parent@gmail.com');
+    expect(limitKey('a@b.com')).toBe('a@b.com');
+    expect(limitKey('+x@b.com')).toBe('+x@b.com');
   });
 });

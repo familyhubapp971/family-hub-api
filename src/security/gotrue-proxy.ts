@@ -167,6 +167,7 @@ export function gotrueProxy(upstream: string, opts: GotrueProxyOptions = {}) {
         ? emailFrom(init.body as ArrayBuffer | undefined)
         : undefined;
 
+    let emailSentAt: number | undefined;
     if (opts.limits && email) {
       if (checksSecret) {
         const verdict = opts.limits.checkTry(email);
@@ -179,6 +180,7 @@ export function gotrueProxy(upstream: string, opts: GotrueProxyOptions = {}) {
         }
       } else {
         const verdict = opts.limits.takeEmail(email);
+        if (!verdict.blocked) emailSentAt = verdict.sentAt;
         if (verdict.blocked) {
           return limited(
             'over_email_send_rate_limit',
@@ -193,7 +195,9 @@ export function gotrueProxy(upstream: string, opts: GotrueProxyOptions = {}) {
     try {
       res = await fetch(`${base}${rest}${url.search}`, init);
     } catch (err) {
-      if (opts.limits && email && sendsEmail) opts.limits.refundEmail(email);
+      if (opts.limits && email && emailSentAt !== undefined) {
+        opts.limits.refundEmail(email, emailSentAt);
+      }
       log.warn(
         { path: rest, err: err instanceof Error ? err.message : String(err) },
         'sign-in service unreachable',
@@ -205,8 +209,8 @@ export function gotrueProxy(upstream: string, opts: GotrueProxyOptions = {}) {
       opts.limits.recordTry(email, res.status >= 200 && res.status < 300);
     }
     // GoTrue failed, so no email went out: do not charge it to the address.
-    if (opts.limits && email && sendsEmail && res.status >= 500) {
-      opts.limits.refundEmail(email);
+    if (opts.limits && email && emailSentAt !== undefined && res.status >= 500) {
+      opts.limits.refundEmail(email, emailSentAt);
     }
 
     // fetch has already decoded any compressed body, so the original
