@@ -1,12 +1,13 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { jwtVerify } from 'jose';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
+import { exportJWK, generateKeyPair, jwtVerify, type KeyLike } from 'jose';
 
-// FHS-698: with GOTRUE_URL + GOTRUE_ADMIN_JWT_SECRET set, invites and email
-// changes go to our private GoTrue server with a short-lived admin pass.
-// Anything less falls back to Supabase, exactly as before.
+// FHS-698: with GOTRUE_URL + GOTRUE_ADMIN_SIGNING_KEYS set, invites and email
+// changes go to our private GoTrue server with a short-lived admin pass signed
+// by GoTrue's own ES256 key. Anything less falls back to Supabase, as before.
 
-const SECRET = 'a'.repeat(64);
 const settings: Record<string, string | undefined> = {};
+let publicKey: KeyLike;
+let keyList: string;
 
 vi.mock('../../../../src/config.js', () => ({
   config: new Proxy({}, { get: (_t, key: string) => settings[key] }),
@@ -16,6 +17,13 @@ const { inviteUserByEmail, updateUserEmailById } = await import(
   '../../../../src/security/supabase-admin.js'
 );
 
+beforeAll(async () => {
+  const pair = await generateKeyPair('ES256', { extractable: true });
+  publicKey = pair.publicKey;
+  const jwk = { ...(await exportJWK(pair.privateKey)), kid: 'kid-1', alg: 'ES256', use: 'sig' };
+  keyList = JSON.stringify([jwk]);
+});
+
 describe('FHS-698: where admin calls go', () => {
   const realFetch = global.fetch;
   let fetchMock: ReturnType<typeof vi.fn>;
@@ -23,7 +31,7 @@ describe('FHS-698: where admin calls go', () => {
   beforeEach(() => {
     Object.assign(settings, {
       GOTRUE_URL: 'http://gotrue.test:9999/',
-      GOTRUE_ADMIN_JWT_SECRET: SECRET,
+      GOTRUE_ADMIN_SIGNING_KEYS: keyList,
       SUPABASE_URL: 'https://test.supabase.co',
       SUPABASE_SERVICE_ROLE_KEY: 'svc-key',
     });
@@ -46,18 +54,17 @@ describe('FHS-698: where admin calls go', () => {
   async function passFrom(n: number) {
     const { headers } = call(n)[1];
     expect(headers.apikey).toBeUndefined();
-    const token = headers.Authorization!.replace(/^Bearer /, '');
-    return jwtVerify(token, new TextEncoder().encode(SECRET));
+    return jwtVerify(headers.Authorization!.replace(/^Bearer /, ''), publicKey);
   }
 
-  it('sends invites to GoTrue at /invite with a one-minute service_role pass', async () => {
+  it("signs a one-minute service_role pass with GoTrue's ES256 key and its key id", async () => {
     await inviteUserByEmail({ email: 'a@b.com', redirectTo: 'https://web.example/auth/callback' });
     expect(call(0)[0]).toBe(
       'http://gotrue.test:9999/invite?redirect_to=' +
         encodeURIComponent('https://web.example/auth/callback'),
     );
     const { payload, protectedHeader } = await passFrom(0);
-    expect(protectedHeader.alg).toBe('HS256');
+    expect(protectedHeader).toMatchObject({ alg: 'ES256', kid: 'kid-1' });
     expect(payload.role).toBe('service_role');
     expect(payload.exp! - payload.iat!).toBe(60);
   });
@@ -75,21 +82,35 @@ describe('FHS-698: where admin calls go', () => {
     await updateUserEmailById('u1', 'x@b.com');
     vi.setSystemTime(new Date('2026-10-31T12:00:05Z'));
     await updateUserEmailById('u1', 'y@b.com');
-    const decode = (n: number) =>
-      JSON.parse(
-        Buffer.from(call(n)[1].headers.Authorization!.split('.')[1]!, 'base64url').toString(),
-      ) as { iat: number };
-    expect(decode(1).iat - decode(0).iat).toBe(5);
+    const iat = (n: number) =>
+      (
+        JSON.parse(
+          Buffer.from(call(n)[1].headers.Authorization!.split('.')[1]!, 'base64url').toString(),
+        ) as { iat: number }
+      ).iat;
+    expect(iat(1) - iat(0)).toBe(5);
   });
 
-  it('stays on Supabase when GOTRUE_URL is set but the secret is not', async () => {
-    delete settings.GOTRUE_ADMIN_JWT_SECRET;
+  it('fails clearly, without echoing key material, on a bad key list', async () => {
+    settings.GOTRUE_ADMIN_SIGNING_KEYS = 'not json {secret-ish}';
+    await expect(updateUserEmailById('u1', 'x@b.com')).rejects.toThrow(
+      'GOTRUE_ADMIN_SIGNING_KEYS is not valid JSON',
+    );
+    settings.GOTRUE_ADMIN_SIGNING_KEYS = '[{"kty":"EC","x":"pub-only"}]';
+    await expect(updateUserEmailById('u1', 'x@b.com')).rejects.toThrow(
+      'GOTRUE_ADMIN_SIGNING_KEYS holds no ES256 private key',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('stays on Supabase when GOTRUE_URL is set but the keys are not', async () => {
+    delete settings.GOTRUE_ADMIN_SIGNING_KEYS;
     await updateUserEmailById('u1', 'x@b.com');
     expect(call(0)[0]).toBe('https://test.supabase.co/auth/v1/admin/users/u1');
     expect(call(0)[1].headers.apikey).toBe('svc-key');
   });
 
-  it('stays on Supabase when the secret is set but GOTRUE_URL is not', async () => {
+  it('stays on Supabase when the keys are set but GOTRUE_URL is not', async () => {
     delete settings.GOTRUE_URL;
     await inviteUserByEmail({ email: 'a@b.com', redirectTo: 'https://web.example/cb' });
     expect(call(0)[0]).toMatch(/^https:\/\/test\.supabase\.co\/auth\/v1\/invite\?/);

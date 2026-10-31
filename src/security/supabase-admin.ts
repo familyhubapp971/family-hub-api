@@ -1,8 +1,8 @@
-import { SignJWT } from 'jose';
+import { SignJWT, importJWK, type JWK } from 'jose';
 import { config } from '../config.js';
 
 // Thin wrapper around the sign-in server's admin REST API: our own GoTrue when
-// GOTRUE_URL + GOTRUE_ADMIN_JWT_SECRET are set (FHS-698), otherwise Supabase
+// GOTRUE_URL + GOTRUE_ADMIN_SIGNING_KEYS are set (FHS-698), otherwise Supabase
 // (which runs GoTrue too, under /auth/v1). Plain fetch rather than
 // `@supabase/supabase-js`: the api only needs a handful of admin endpoints.
 //
@@ -79,19 +79,41 @@ interface AdminTarget {
   headers: Record<string, string>;
 }
 
+type SigningKey = Awaited<ReturnType<typeof importJWK>>;
+let signer: { raw: string; key: SigningKey; kid: string | undefined } | undefined;
+
+/** The ES256 private key from GoTrue's own key list. Errors never echo key material. */
+async function gotrueSigner(raw: string): Promise<{ key: SigningKey; kid: string | undefined }> {
+  if (signer?.raw === raw) return signer;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error('GOTRUE_ADMIN_SIGNING_KEYS is not valid JSON');
+  }
+  const list = Array.isArray(parsed) ? parsed : (parsed as { keys?: unknown } | null)?.keys;
+  const jwk = Array.isArray(list)
+    ? (list as JWK[]).find((k) => k.kty === 'EC' && k.d && (k.alg ?? 'ES256') === 'ES256')
+    : undefined;
+  if (!jwk) throw new Error('GOTRUE_ADMIN_SIGNING_KEYS holds no ES256 private key');
+  signer = { raw, key: await importJWK(jwk, 'ES256'), kid: jwk.kid };
+  return signer;
+}
+
 /**
- * FHS-698: where admin calls go. With GOTRUE_URL and GOTRUE_ADMIN_JWT_SECRET
+ * FHS-698: where admin calls go. With GOTRUE_URL and GOTRUE_ADMIN_SIGNING_KEYS
  * set, they go straight to our private GoTrue server with a one-minute
- * service_role pass signed by its own secret, so no long-lived admin key
+ * service_role pass signed by GoTrue's own key, so no long-lived admin key
  * exists. Otherwise they go to Supabase with its service-role key, as before.
  */
 async function adminTarget(): Promise<AdminTarget> {
-  if (config.GOTRUE_URL && config.GOTRUE_ADMIN_JWT_SECRET) {
+  if (config.GOTRUE_URL && config.GOTRUE_ADMIN_SIGNING_KEYS) {
+    const { key, kid } = await gotrueSigner(config.GOTRUE_ADMIN_SIGNING_KEYS);
     const token = await new SignJWT({ role: 'service_role', iss: 'supabase' })
-      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .setProtectedHeader({ alg: 'ES256', typ: 'JWT', ...(kid ? { kid } : {}) })
       .setIssuedAt()
       .setExpirationTime('60s')
-      .sign(new TextEncoder().encode(config.GOTRUE_ADMIN_JWT_SECRET));
+      .sign(key);
     return {
       base: config.GOTRUE_URL.replace(/\/+$/, ''),
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

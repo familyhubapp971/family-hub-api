@@ -89,22 +89,15 @@ describe('config: GoTrue trust settings (FHS-695)', () => {
   });
 });
 
-// FHS-698: the GoTrue admin secret, when set, must be a real secret.
-describe('config: GOTRUE_ADMIN_JWT_SECRET (FHS-698)', () => {
+// FHS-698: GoTrue's signing keys for admin calls are optional.
+describe('config: GOTRUE_ADMIN_SIGNING_KEYS (FHS-698)', () => {
   it('is optional', () => {
     expect(configSchema.safeParse(baseEnv({ NODE_ENV: 'production' })).success).toBe(true);
   });
 
-  it('refuses a short secret', () => {
+  it('accepts a key list', () => {
     const r = configSchema.safeParse(
-      baseEnv({ NODE_ENV: 'production', GOTRUE_ADMIN_JWT_SECRET: 'too-short' }),
-    );
-    expect(r.success).toBe(false);
-  });
-
-  it('accepts a secret of 32 characters or more', () => {
-    const r = configSchema.safeParse(
-      baseEnv({ NODE_ENV: 'production', GOTRUE_ADMIN_JWT_SECRET: 'x'.repeat(64) }),
+      baseEnv({ NODE_ENV: 'production', GOTRUE_ADMIN_SIGNING_KEYS: '[{"kty":"EC"}]' }),
     );
     expect(r.success).toBe(true);
   });

@@ -58,11 +58,13 @@ export const configSchema = z
     // (e.g. http://gotrue.railway.internal:9999). When set, /auth/v1/* is
     // passed through to it; unset, that path does not exist.
     GOTRUE_URL: z.string().url().optional(),
-    // FHS-698: GoTrue's own signing secret (a Railway reference to the gotrue
-    // service's GOTRUE_JWT_SECRET). With GOTRUE_URL set, invites and email
-    // changes go to GoTrue with a one-minute admin pass signed by it; unset,
-    // they stay on Supabase.
-    GOTRUE_ADMIN_JWT_SECRET: z.string().min(32).optional(),
+    // FHS-698: GoTrue's own signing keys (a Railway reference to the gotrue
+    // service's GOTRUE_JWT_KEYS, a JSON list holding its ES256 private key).
+    // With GOTRUE_URL set, invites and email changes go to GoTrue with a
+    // one-minute admin pass signed by that key; unset, they stay on Supabase.
+    // (GoTrue refuses HS256 passes signed with its plain secret once it uses
+    // ES256 keys, found live on staging.)
+    GOTRUE_ADMIN_SIGNING_KEYS: z.string().min(2).optional(),
     // FHS-695: whose sign-in passes to trust. Unset, both fall back to Supabase
     // (<SUPABASE_URL>/auth/v1 and its key list), so production is unchanged.
     // Staging points them at our GoTrue: the private key-list address and the
