@@ -1,7 +1,10 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { assignmentsRouter } from '../../../../../src/areas/tasks/assignments.js';
+import {
+  assignmentsRouter,
+  earliestAllowedDueDate,
+} from '../../../../../src/areas/tasks/assignments.js';
 import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-231: GET / POST / PATCH /api/assignments. DB stubbed at module
@@ -11,6 +14,7 @@ const dbMock = {
   select: vi.fn(),
   insert: vi.fn(),
   update: vi.fn(),
+  delete: vi.fn(),
 };
 // Captures the object passed to the most recent `.update(...).set({...})`
 // so PUT tests can assert which columns are (and are NOT) written.
@@ -34,6 +38,8 @@ interface SeedOpts {
   callerMissing?: boolean;
   callerRole?: string;
   memberLookupHits?: boolean;
+  // PUT with a past dueDate: the assignment's stored dueDate (FHR-40).
+  currentDueDate?: string | null;
 }
 
 function buildAppWithSeed(
@@ -41,6 +47,7 @@ function buildAppWithSeed(
   listRows: unknown[] = [],
   insertReturn: unknown[] = [],
   updateReturn: unknown[] = [],
+  deleteReturn: unknown[] = [],
 ) {
   const seed: MiddlewareHandler = async (c, next) => {
     c.set('user', { id: USER_ID, email: USER_EMAIL, claims: {} });
@@ -74,7 +81,14 @@ function buildAppWithSeed(
         from: () => ({
           where: () => ({
             orderBy: () => Promise.resolve(listRows),
-            limit: () => Promise.resolve(opts.memberLookupHits ? [{ id: 'm-1' }] : []),
+            limit: () =>
+              Promise.resolve(
+                opts.currentDueDate !== undefined
+                  ? [{ dueDate: opts.currentDueDate }]
+                  : opts.memberLookupHits
+                    ? [{ id: 'm-1' }]
+                    : [],
+              ),
           }),
         }),
       };
@@ -100,6 +114,10 @@ function buildAppWithSeed(
     },
   }));
 
+  dbMock.delete.mockImplementation(() => ({
+    where: () => ({ returning: () => Promise.resolve(deleteReturn) }),
+  }));
+
   const app = new Hono();
   app.use('*', seed);
   app.route('/api/assignments', assignmentsRouter);
@@ -110,6 +128,7 @@ beforeEach(() => {
   dbMock.select.mockReset();
   dbMock.insert.mockReset();
   dbMock.update.mockReset();
+  dbMock.delete.mockReset();
   lastUpdateSet = null;
 });
 
@@ -221,7 +240,7 @@ describe('FHS-231: POST /api/assignments', () => {
           id: A1,
           title: 'Spelling',
           notes: null,
-          dueDate: '2026-05-05',
+          dueDate: '2099-05-05',
           memberId: null,
           doneAt: null,
         },
@@ -229,7 +248,7 @@ describe('FHS-231: POST /api/assignments', () => {
     );
     const res = await app.request(
       '/api/assignments',
-      postBody({ title: 'Spelling', dueDate: '2026-05-05' }),
+      postBody({ title: 'Spelling', dueDate: '2099-05-05' }),
     );
     expect(res.status).toBe(201);
     const body = (await res.json()) as { id: string; title: string; done: boolean };
@@ -261,7 +280,7 @@ describe('FHS-310: PUT /api/assignments/:id', () => {
           id: A1,
           title: 'Spelling revised',
           notes: 'new note',
-          dueDate: '2026-05-12',
+          dueDate: '2099-05-12',
           memberId: null,
           doneAt: doneTime,
         },
@@ -269,13 +288,13 @@ describe('FHS-310: PUT /api/assignments/:id', () => {
     );
     const res = await app.request(
       `/api/assignments/${A1}`,
-      putBody({ title: 'Spelling revised', dueDate: '2026-05-12', notes: 'new note' }),
+      putBody({ title: 'Spelling revised', dueDate: '2099-05-12', notes: 'new note' }),
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { id: string; title: string; dueDate: string };
     expect(body.id).toBe(A1);
     expect(body.title).toBe('Spelling revised');
-    expect(body.dueDate).toBe('2026-05-12');
+    expect(body.dueDate).toBe('2099-05-12');
   });
 
   it('does not clear doneAt when editing an already-done assignment', async () => {
@@ -397,5 +416,130 @@ describe('FHS-231: PATCH /api/assignments/:id', () => {
     const body = (await res.json()) as { done: boolean; doneAt: string | null };
     expect(body.done).toBe(false);
     expect(body.doneAt).toBeNull();
+  });
+});
+
+describe('FHR-39: assignment text limits', () => {
+  function postBody(body: unknown): RequestInit {
+    return {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    };
+  }
+
+  it('rejects a title longer than 50 characters', async () => {
+    const app = buildAppWithSeed({});
+    const res = await app.request('/api/assignments', postBody({ title: 'x'.repeat(51) }));
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { issues: Array<{ message: string }> };
+    expect(body.issues[0]?.message).toBe('Title must be 50 characters or fewer');
+  });
+
+  it('rejects notes longer than 300 characters', async () => {
+    const app = buildAppWithSeed({});
+    const res = await app.request(
+      '/api/assignments',
+      postBody({ title: 'Maths', notes: 'n'.repeat(301) }),
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('FHR-40: no past due dates', () => {
+  const A1 = '22222222-2222-4222-8222-222222222222';
+  const row = (dueDate: string) => ({
+    id: A1,
+    title: 'Spelling',
+    notes: null,
+    dueDate,
+    memberId: null,
+    doneAt: null,
+  });
+  function send(method: string, body: unknown): RequestInit {
+    return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+  }
+
+  it('earliest allowed date is UTC today minus one day, for time zones behind UTC', () => {
+    expect(earliestAllowedDueDate(new Date('2026-10-31T23:30:00Z'))).toBe('2026-10-30');
+    expect(earliestAllowedDueDate(new Date('2026-03-01T00:10:00Z'))).toBe('2026-02-28');
+  });
+
+  it('a new assignment cannot be due in the past', async () => {
+    const app = buildAppWithSeed({});
+    const res = await app.request(
+      '/api/assignments',
+      send('POST', { title: 'Maths', dueDate: '2020-01-01' }),
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { issues: Array<{ path: string; message: string }> };
+    expect(body.issues[0]).toEqual({ path: 'dueDate', message: 'Pick today or a later date' });
+  });
+
+  it('a new assignment due on the earliest local date anywhere is accepted', async () => {
+    const due = earliestAllowedDueDate();
+    const app = buildAppWithSeed({}, [], [row(due)]);
+    const res = await app.request(
+      '/api/assignments',
+      send('POST', { title: 'Maths', dueDate: due }),
+    );
+    expect(res.status).toBe(201);
+  });
+
+  it('editing an overdue assignment keeps its unchanged past date', async () => {
+    const app = buildAppWithSeed({ currentDueDate: '2020-01-01' }, [], [], [row('2020-01-01')]);
+    const res = await app.request(
+      `/api/assignments/${A1}`,
+      send('PUT', { title: 'Spelling fixed', dueDate: '2020-01-01' }),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('editing cannot move a due date to a different past date', async () => {
+    const app = buildAppWithSeed({ currentDueDate: '2020-01-01' }, [], [], [row('2020-01-02')]);
+    const res = await app.request(
+      `/api/assignments/${A1}`,
+      send('PUT', { title: 'Spelling', dueDate: '2020-01-02' }),
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('FHR-41: DELETE /api/assignments/:id', () => {
+  const A1 = '22222222-2222-4222-8222-222222222222';
+  const del: RequestInit = { method: 'DELETE' };
+
+  it('an admin deletes an assignment and gets 204 with no body', async () => {
+    const app = buildAppWithSeed({}, [], [], [], [{ id: A1 }]);
+    const res = await app.request(`/api/assignments/${A1}`, del);
+    expect(res.status).toBe(204);
+    expect(await res.text()).toBe('');
+  });
+
+  it('an adult can delete too', async () => {
+    const app = buildAppWithSeed({ callerRole: 'adult' }, [], [], [], [{ id: A1 }]);
+    const res = await app.request(`/api/assignments/${A1}`, del);
+    expect(res.status).toBe(204);
+  });
+
+  it('children and teens cannot delete', async () => {
+    for (const callerRole of ['child', 'teen', 'guest']) {
+      const app = buildAppWithSeed({ callerRole }, [], [], [], [{ id: A1 }]);
+      const res = await app.request(`/api/assignments/${A1}`, del);
+      expect(res.status, `role ${callerRole}`).toBe(403);
+    }
+    expect(dbMock.delete).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the assignment is not in this family', async () => {
+    const app = buildAppWithSeed({}, [], [], [], []);
+    const res = await app.request(`/api/assignments/${A1}`, del);
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 400 for a malformed id', async () => {
+    const app = buildAppWithSeed({});
+    const res = await app.request('/api/assignments/not-a-uuid', del);
+    expect(res.status).toBe(400);
   });
 });
