@@ -64,7 +64,7 @@ import {
   getRootDb,
   runWithRequestDb,
   pinRequestTenant,
-} from '../../../../apps/api/src/database/client.js';
+} from '../../../../src/database/client.js';
 
 const tick = () => new Promise((r) => setTimeout(r, 5));
 

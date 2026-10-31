@@ -1,12 +1,8 @@
 import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber';
 import { sql } from 'drizzle-orm';
 import { expect } from 'vitest';
-import {
-  SEED_DEFAULT_TENANT_ID,
-  tenants,
-  type NewTenant,
-} from '../../../apps/api/src/database/schema.js';
-import type { Database } from '../../../apps/api/src/database/client.js';
+import { SEED_DEFAULT_TENANT_ID, tenants, type NewTenant } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
 const feature = await loadFeature(new URL('../features/tenants.feature', import.meta.url).pathname);

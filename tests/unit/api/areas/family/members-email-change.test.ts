@@ -2,9 +2,9 @@ import { createHash } from 'node:crypto';
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { membersRouter } from '../../../../../apps/api/src/areas/family/members.js';
-import { memberEmailChanges, users } from '../../../../../apps/api/src/database/schema.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { membersRouter } from '../../../../../src/areas/family/members.js';
+import { memberEmailChanges, users } from '../../../../../src/database/schema.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-510: a member changes THEIR OWN sign-in email, confirmed by a
 // one-time emailed link. Self-serve only: nobody can change someone
@@ -22,7 +22,7 @@ const dbMock = {
   execute: vi.fn(),
   transaction: vi.fn(),
 };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
   pinRequestTenant: (...args: unknown[]) => pinRequestTenant(...args),
 }));
@@ -30,10 +30,10 @@ vi.mock('../../../../../apps/api/src/database/client.js', () => ({
 // Mocks ONLY `sendEmail`: `escapeHtml` stays the real implementation so the
 // HTML-escaping tests below exercise the actual escaping logic, not a stub.
 const sendEmail = vi.fn();
-vi.mock('../../../../../apps/api/src/services/email.js', async () => {
-  const actual = await vi.importActual<
-    typeof import('../../../../../apps/api/src/services/email.js')
-  >('../../../../../apps/api/src/services/email.js');
+vi.mock('../../../../../src/services/email.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../../../src/services/email.js')>(
+    '../../../../../src/services/email.js',
+  );
   return {
     ...actual,
     sendEmail: (...args: unknown[]) => sendEmail(...args),
@@ -41,19 +41,19 @@ vi.mock('../../../../../apps/api/src/services/email.js', async () => {
 });
 
 const updateUserEmailById = vi.fn();
-vi.mock('../../../../../apps/api/src/security/supabase-admin.js', async () => {
+vi.mock('../../../../../src/security/supabase-admin.js', async () => {
   const actual = await vi.importActual<
-    typeof import('../../../../../apps/api/src/security/supabase-admin.js')
-  >('../../../../../apps/api/src/security/supabase-admin.js');
+    typeof import('../../../../../src/security/supabase-admin.js')
+  >('../../../../../src/security/supabase-admin.js');
   return {
     ...actual,
     updateUserEmailById: (...args: unknown[]) => updateUserEmailById(...args),
   };
 });
 
-vi.mock('../../../../../apps/api/src/config.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../../../apps/api/src/config.js')>(
-    '../../../../../apps/api/src/config.js',
+vi.mock('../../../../../src/config.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../../../src/config.js')>(
+    '../../../../../src/config.js',
   );
   return {
     ...actual,

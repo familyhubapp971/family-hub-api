@@ -20,17 +20,17 @@ import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../src/database/client.js', () => ({
   getDb: () => getTestDb(),
   pinRequestTenant: async () => {},
 }));
 
-import { config } from '../../../apps/api/src/config.js';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/security/auth.js';
-import { kidRouter } from '../../../apps/api/src/areas/kids/kid.js';
-import { habitsRouter } from '../../../apps/api/src/areas/tasks/habits.js';
-import { mwWeeksRouter } from '../../../apps/api/src/areas/my-world/mw-weeks.js';
-import { mwFinancialRouter } from '../../../apps/api/src/areas/my-world/mw-financial.js';
+import { config } from '../../../src/config.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../src/security/auth.js';
+import { kidRouter } from '../../../src/areas/kids/kid.js';
+import { habitsRouter } from '../../../src/areas/tasks/habits.js';
+import { mwWeeksRouter } from '../../../src/areas/my-world/mw-weeks.js';
+import { mwFinancialRouter } from '../../../src/areas/my-world/mw-financial.js';
 import {
   tenants,
   members,
@@ -39,8 +39,8 @@ import {
   mwWeeks,
   mwSavings,
   users,
-} from '../../../apps/api/src/database/schema.js';
-import type { Database } from '../../../apps/api/src/database/client.js';
+} from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 

@@ -7,9 +7,9 @@
 
     "baseUrl": ".",
     "paths": {
-      "@familyhub/*": ["packages/*/src"]
+      "@familyhub/shared": ["shared-rules/src"],
+      "@familyhub/test-utils": ["tests/helpers/src"]
     },
-
 
     "strict": true,
     "noUncheckedIndexedAccess": true,

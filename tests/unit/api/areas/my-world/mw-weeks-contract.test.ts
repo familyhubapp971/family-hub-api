@@ -6,7 +6,7 @@ import {
   weekActionSchema,
   finalizeRequestSchema,
   weekCashRequestSchema,
-} from '../../../../../apps/api/src/areas/my-world/mw-weeks.js';
+} from '../../../../../src/areas/my-world/mw-weeks.js';
 
 // FHS-627: the week endpoints are documented from these schemas, so the docs
 // are only true while the schemas match what the handlers actually produce.

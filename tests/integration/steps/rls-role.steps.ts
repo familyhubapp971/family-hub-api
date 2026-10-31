@@ -11,8 +11,8 @@ import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber';
 import { sql } from 'drizzle-orm';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { expect } from 'vitest';
-import { TENANT_SCOPED_TABLES } from '../../../apps/api/src/database/schema.js';
-import type { Database } from '../../../apps/api/src/database/client.js';
+import { TENANT_SCOPED_TABLES } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
 const ROLE = 'app_runtime';

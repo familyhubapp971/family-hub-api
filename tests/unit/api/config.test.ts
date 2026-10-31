@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { configSchema } from '../../../apps/api/src/config';
+import { configSchema } from '../../../src/config';
 
 // FHS-516: lock the E2E_TEST_JWKS security gate. The var wires a local test
 // JWKS into the api's JWT verification so the e2e harness can mint its own

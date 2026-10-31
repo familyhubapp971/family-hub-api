@@ -4,4 +4,4 @@ import { defineWorkspace } from 'vitest/config';
 // root discovers every package's tests and rolls coverage up into one
 // report under /coverage. Per-package `pnpm --filter <pkg> test`
 // still works: vitest picks up each package's own config.
-export default defineWorkspace(['packages/shared', 'packages/test-utils', 'apps/api']);
+export default defineWorkspace(['shared-rules', 'tests/helpers', './vitest.api.config.ts']);

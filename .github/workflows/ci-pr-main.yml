@@ -56,7 +56,7 @@ jobs:
       - name: Boot api in background
         run: |
           NODE_ENV=test PORT=3001 LOG_LEVEL=error \
-            pnpm --filter @familyhub/api dev > /tmp/api.log 2>&1 &
+            pnpm dev > /tmp/api.log 2>&1 &
           API_PID=$!
           echo "API_PID=$API_PID" >> "$GITHUB_ENV"
           for i in {1..30}; do

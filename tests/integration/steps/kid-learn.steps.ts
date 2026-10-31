@@ -17,16 +17,16 @@ import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../src/database/client.js', () => ({
   getDb: () => getTestDb(),
   pinRequestTenant: async () => {},
 }));
 
-import { config } from '../../../apps/api/src/config.js';
-import { kidRouter } from '../../../apps/api/src/areas/kids/kid.js';
-import { tenants, members } from '../../../apps/api/src/database/schema.js';
-import { CERTIFICATE_TARGET } from '../../../apps/api/src/areas/learn/learn-questions.js';
-import type { Database } from '../../../apps/api/src/database/client.js';
+import { config } from '../../../src/config.js';
+import { kidRouter } from '../../../src/areas/kids/kid.js';
+import { tenants, members } from '../../../src/database/schema.js';
+import { CERTIFICATE_TARGET } from '../../../src/areas/learn/learn-questions.js';
+import type { Database } from '../../../src/database/client.js';
 
 const KID_ISSUER = 'family-hub-kid-auth';
 

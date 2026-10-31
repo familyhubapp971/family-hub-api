@@ -1,14 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildApp } from '../../../../apps/api/src/app.js';
-import {
-  buildOpenApiSpec,
-  findUndocumented,
-} from '../../../../apps/api/src/api-docs/build-spec.js';
+import { buildApp } from '../../../../src/app.js';
+import { buildOpenApiSpec, findUndocumented } from '../../../../src/api-docs/build-spec.js';
 import {
   buildPostmanCollection,
   buildPostmanFiles,
   sampleFor,
-} from '../../../../apps/api/src/api-docs/build-postman.js';
+} from '../../../../src/api-docs/build-postman.js';
 
 // FHS-664: the Postman collection is built from the OpenAPI spec, so these
 // tests lock what a tester relies on: one request per endpoint, the right

@@ -46,8 +46,8 @@ import {
   worldFlagsProgress,
   // Global tables: not scoped, used to verify they're NOT in the registry.
   users,
-} from '../../../apps/api/src/database/schema.js';
-import type { Database } from '../../../apps/api/src/database/client.js';
+} from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 import { seedAllTablesForTenant } from '../support/seed-tenant-tables.js';
 
@@ -129,7 +129,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
         if (hasTenantId && !registeredTableNames.has(config.name)) {
           expect.fail(
             `[FHS-6] table "${config.name}" has tenant_id but is NOT in TENANT_SCOPED_TABLES. ` +
-              `Add it to the registry in apps/api/src/database/schema.ts.`,
+              `Add it to the registry in src/database/schema.ts.`,
           );
         }
       }

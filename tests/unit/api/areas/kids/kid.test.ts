@@ -1,8 +1,8 @@
 import { SignJWT } from 'jose';
 import { describe, expect, it } from 'vitest';
-import { buildApp } from '../../../../../apps/api/src/app.js';
-import { config } from '../../../../../apps/api/src/config.js';
-import { KID_ISSUER } from '../../../../../apps/api/src/security/kid-auth.js';
+import { buildApp } from '../../../../../src/app.js';
+import { config } from '../../../../../src/config.js';
+import { KID_ISSUER } from '../../../../../src/security/kid-auth.js';
 
 // FHS-257: GET /api/kid/me on the REAL app. Proves /api/kid is excluded
 // from the parent (ES256) auth middleware and served by the kid HS256

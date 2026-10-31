@@ -3,7 +3,7 @@ import {
   DEFAULT_HABITS,
   DEFAULT_REWARDS,
   seedTenantDefaults,
-} from '../../../../apps/api/src/database/seed-tenant-defaults.js';
+} from '../../../../src/database/seed-tenant-defaults.js';
 
 // FHS-40: pure-helper tests for the onboarding seed function.
 // Schema integration (rows actually land in PG with the right

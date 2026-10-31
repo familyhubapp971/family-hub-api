@@ -15,10 +15,10 @@ import type { MiddlewareHandler } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
 import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/security/auth.js';
-import { habitsRouter } from '../../../apps/api/src/areas/tasks/habits.js';
-import { mwWeeksRouter } from '../../../apps/api/src/areas/my-world/mw-weeks.js';
-import { mwFinancialRouter } from '../../../apps/api/src/areas/my-world/mw-financial.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../src/security/auth.js';
+import { habitsRouter } from '../../../src/areas/tasks/habits.js';
+import { mwWeeksRouter } from '../../../src/areas/my-world/mw-weeks.js';
+import { mwFinancialRouter } from '../../../src/areas/my-world/mw-financial.js';
 import {
   tenants,
   members,
@@ -26,12 +26,12 @@ import {
   habitStickers,
   mwSavings,
   users,
-} from '../../../apps/api/src/database/schema.js';
+} from '../../../src/database/schema.js';
 import { eq, and } from 'drizzle-orm';
-import type { Database } from '../../../apps/api/src/database/client.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../src/database/client.js', () => ({
   getDb: () => getTestDb(),
 }));
 

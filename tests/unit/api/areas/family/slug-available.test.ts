@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { slugAvailableRouter } from '../../../../../apps/api/src/areas/family/slug-available.js';
+import { slugAvailableRouter } from '../../../../../src/areas/family/slug-available.js';
 
 const dbMock = { select: vi.fn() };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
 }));
 

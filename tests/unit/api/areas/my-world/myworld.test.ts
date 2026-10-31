@@ -7,8 +7,8 @@ import {
   stickerBalances,
   stickerDayRelation,
   STICKER_TO_CASH,
-} from '../../../../../apps/api/src/areas/my-world/myworld.js';
-import { kidSavingsResponseSchema } from '../../../../../apps/api/src/areas/kids/kid.js';
+} from '../../../../../src/areas/my-world/myworld.js';
+import { kidSavingsResponseSchema } from '../../../../../src/areas/kids/kid.js';
 
 // FHS-335: date helpers behind the "past day is admin-only" rule.
 describe('dayDateOf', () => {

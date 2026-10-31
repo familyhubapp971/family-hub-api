@@ -15,20 +15,15 @@ import type { MiddlewareHandler } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
 import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/security/auth.js';
-import { learnInsightsRouter } from '../../../apps/api/src/areas/learn/learn-insights.js';
-import {
-  members,
-  mwMathsCertificates,
-  tenants,
-  users,
-} from '../../../apps/api/src/database/schema.js';
-import type { Database } from '../../../apps/api/src/database/client.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../src/security/auth.js';
+import { learnInsightsRouter } from '../../../src/areas/learn/learn-insights.js';
+import { members, mwMathsCertificates, tenants, users } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
 // ─── Mock the DB so the router calls the test pool ───────────────────────────
 
-vi.mock('../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../src/database/client.js', () => ({
   getDb: () => getTestDb(),
 }));
 

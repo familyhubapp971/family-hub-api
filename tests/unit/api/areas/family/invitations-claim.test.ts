@@ -1,16 +1,16 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { invitationClaimRouter } from '../../../../../apps/api/src/areas/family/invitations.js';
-import { members, pendingInvitations } from '../../../../../apps/api/src/database/schema.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { invitationClaimRouter } from '../../../../../src/areas/family/invitations.js';
+import { members, pendingInvitations } from '../../../../../src/database/schema.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-275: POST /api/invitations/claim. The invited parent signs in
 // for the first time; pending invitations addressed to their email
 // link their login to the wizard-created member seat.
 
 const dbMock = { select: vi.fn(), update: vi.fn(), insert: vi.fn(), execute: vi.fn() };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
   pinRequestTenant: async () => {},
 }));

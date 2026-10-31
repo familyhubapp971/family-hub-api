@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { buildApp } from '../../../../apps/api/src/app.js';
-import { _resetRateLimitForTests } from '../../../../apps/api/src/security/rate-limit.js';
+import { buildApp } from '../../../../src/app.js';
+import { _resetRateLimitForTests } from '../../../../src/security/rate-limit.js';
 
 afterEach(() => {
   _resetRateLimitForTests();

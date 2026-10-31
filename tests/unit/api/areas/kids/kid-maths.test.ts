@@ -14,8 +14,8 @@
 import { SignJWT } from 'jose';
 import { Hono } from 'hono';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { config } from '../../../../../apps/api/src/config.js';
-import { KID_ISSUER } from '../../../../../apps/api/src/security/kid-auth.js';
+import { config } from '../../../../../src/config.js';
+import { KID_ISSUER } from '../../../../../src/security/kid-auth.js';
 
 // ─── DB mock ──────────────────────────────────────────────────────────────────
 
@@ -24,12 +24,12 @@ const dbMock = {
   insert: vi.fn(),
 };
 
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
   pinRequestTenant: async () => {},
 }));
 
-const { kidRouter } = await import('../../../../../apps/api/src/areas/kids/kid.js');
+const { kidRouter } = await import('../../../../../src/areas/kids/kid.js');
 
 // ─── Token helpers ────────────────────────────────────────────────────────────
 

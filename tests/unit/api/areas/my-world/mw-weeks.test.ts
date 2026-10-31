@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { mwWeeksRouter } from '../../../../../apps/api/src/areas/my-world/mw-weeks.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { mwWeeksRouter } from '../../../../../src/areas/my-world/mw-weeks.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-293: unit guard tests for /api/mw/weeks.
 // DB-backed behaviour + sticker math is covered by integration tests.
@@ -10,15 +10,15 @@ import type { User } from '../../../../../apps/api/src/database/schema.js';
 // ─── DB mock: every select returns the next item in a queue ─────────────────
 
 const dbMock = { select: vi.fn(), insert: vi.fn() };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({ getDb: () => dbMock }));
+vi.mock('../../../../../src/database/client.js', () => ({ getDb: () => dbMock }));
 
 // Stub out getOrCreateCurrentWeek so routes that call it don't need real DB,
 // but keep the real shared loaders (loadWeekActions/Stats/loadWeeksForMember,
 // FHS-374): they were extracted verbatim from these routes and consume the
 // same DB query queue, so the queue-based dbMock still drives them.
-vi.mock('../../../../../apps/api/src/areas/my-world/myworld.js', async (importActual) => {
+vi.mock('../../../../../src/areas/my-world/myworld.js', async (importActual) => {
   const actual =
-    await importActual<typeof import('../../../../../apps/api/src/areas/my-world/myworld.js')>();
+    await importActual<typeof import('../../../../../src/areas/my-world/myworld.js')>();
   return {
     ...actual,
     getOrCreateCurrentWeek: vi.fn().mockResolvedValue({

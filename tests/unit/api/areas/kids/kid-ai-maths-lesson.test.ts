@@ -12,18 +12,18 @@
 import { SignJWT } from 'jose';
 import { Hono } from 'hono';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { config } from '../../../../../apps/api/src/config.js';
-import { KID_ISSUER } from '../../../../../apps/api/src/security/kid-auth.js';
+import { config } from '../../../../../src/config.js';
+import { KID_ISSUER } from '../../../../../src/security/kid-auth.js';
 
 // ─── DB mock: scoped to this module ────────────────────────────────────────
 
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => ({}),
   pinRequestTenant: async () => {},
 }));
 
 // Import AFTER mock so routes pick up the mocked client.
-const { kidRouter } = await import('../../../../../apps/api/src/areas/kids/kid.js');
+const { kidRouter } = await import('../../../../../src/areas/kids/kid.js');
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 

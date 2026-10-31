@@ -8,17 +8,17 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { learnInsightsRouter } from '../../../../../apps/api/src/areas/learn/learn-insights.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { learnInsightsRouter } from '../../../../../src/areas/learn/learn-insights.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // ─── Mock the DB client ───────────────────────────────────────────────────────
 
 const dbMock = { select: vi.fn() };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({ getDb: () => dbMock }));
+vi.mock('../../../../../src/database/client.js', () => ({ getDb: () => dbMock }));
 
 // ─── Mock the aggregation helper ─────────────────────────────────────────────
 
-vi.mock('../../../../../apps/api/src/areas/learn/learn-insights-service.js', () => ({
+vi.mock('../../../../../src/areas/learn/learn-insights-service.js', () => ({
   computeLearnInsights: vi.fn(),
   MATHS_CERTS_TOTAL: 48,
   LOGIC_CERTS_TOTAL: 15,
@@ -26,7 +26,7 @@ vi.mock('../../../../../apps/api/src/areas/learn/learn-insights-service.js', () 
   WORLD_FLAGS_CONTINENTS_TOTAL: 6,
 }));
 
-import { computeLearnInsights } from '../../../../../apps/api/src/areas/learn/learn-insights-service.js';
+import { computeLearnInsights } from '../../../../../src/areas/learn/learn-insights-service.js';
 const mockCompute = computeLearnInsights as ReturnType<typeof vi.fn>;
 
 // ─── Constants ────────────────────────────────────────────────────────────────

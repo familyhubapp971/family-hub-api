@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { journalRouter } from '../../../../../apps/api/src/areas/journal/journal.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { journalRouter } from '../../../../../src/areas/journal/journal.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-270: per-day journal unit tests (mocked DB).
 // DB-backed behaviour + member-scoping covered by journal.feature integration tests.
@@ -10,7 +10,7 @@ import type { User } from '../../../../../apps/api/src/database/schema.js';
 // ─── DB mock ─────────────────────────────────────────────────────────────────
 
 const dbMock = { select: vi.fn(), insert: vi.fn() };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({ getDb: () => dbMock }));
+vi.mock('../../../../../src/database/client.js', () => ({ getDb: () => dbMock }));
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

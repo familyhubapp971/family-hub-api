@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { invitationsRouter } from '../../../../../apps/api/src/areas/family/invitations.js';
-import type { User, PendingInvitation } from '../../../../../apps/api/src/database/schema.js';
+import { invitationsRouter } from '../../../../../src/areas/family/invitations.js';
+import type { User, PendingInvitation } from '../../../../../src/database/schema.js';
 
 // FHS-91: POST /api/invitations.
 //
@@ -18,15 +18,15 @@ const dbMock = {
   insert: vi.fn(),
   update: vi.fn(),
 };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
 }));
 
 const inviteUserByEmail = vi.fn();
-vi.mock('../../../../../apps/api/src/security/supabase-admin.js', async () => {
+vi.mock('../../../../../src/security/supabase-admin.js', async () => {
   const actual = await vi.importActual<
-    typeof import('../../../../../apps/api/src/security/supabase-admin.js')
-  >('../../../../../apps/api/src/security/supabase-admin.js');
+    typeof import('../../../../../src/security/supabase-admin.js')
+  >('../../../../../src/security/supabase-admin.js');
   return {
     ...actual,
     inviteUserByEmail: (...args: unknown[]) => inviteUserByEmail(...args),
@@ -34,9 +34,9 @@ vi.mock('../../../../../apps/api/src/security/supabase-admin.js', async () => {
 });
 
 // Pin APP_BASE_URL so the route doesn't 500 with "server misconfigured".
-vi.mock('../../../../../apps/api/src/config.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../../../apps/api/src/config.js')>(
-    '../../../../../apps/api/src/config.js',
+vi.mock('../../../../../src/config.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../../../src/config.js')>(
+    '../../../../../src/config.js',
   );
   return {
     ...actual,

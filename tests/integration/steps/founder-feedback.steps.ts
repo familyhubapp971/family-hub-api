@@ -6,16 +6,16 @@ import { asRuntimeTenant } from '@familyhub/test-utils';
 import {
   _resetFounderLockoutForTests,
   createFounderRouter,
-} from '../../../apps/api/src/areas/admin/founder.js';
-import { tenants, betaFeedback, publicFeedback } from '../../../apps/api/src/database/schema.js';
-import type { Database } from '../../../apps/api/src/database/client.js';
+} from '../../../src/areas/admin/founder.js';
+import { tenants, betaFeedback, publicFeedback } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
 // FHS-672. A made-up passcode for tests; the real one lives only in Railway.
 const PASSCODE = '246810';
 const SECRETS = { passcode: PASSCODE, secret: 'integration-test-secret-at-least-32-chars' };
 
-vi.mock('../../../apps/api/src/database/client.js', () => ({ getDb: () => getTestDb() }));
+vi.mock('../../../src/database/client.js', () => ({ getDb: () => getTestDb() }));
 
 const feature = await loadFeature(
   new URL('../features/founder-feedback.feature', import.meta.url).pathname,

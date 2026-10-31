@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { dashboardRouter } from '../../../../../apps/api/src/areas/today/dashboard.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { dashboardRouter } from '../../../../../src/areas/today/dashboard.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-228 / FHS-262 / FHS-306 / FHS-439 / FHS-463: GET /api/dashboard/today.
 //
@@ -33,18 +33,18 @@ import type { User } from '../../../../../apps/api/src/database/schema.js';
 //   stickerBalances(): batched per-kid star balance (mocked helper)
 
 const dbMock = { select: vi.fn(), execute: vi.fn() };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
 }));
 
 // Stub stickerBalances so unit tests don't need to simulate its two batched
 // selects. Default returns an empty Map; per-kid values come from the seed's
 // `stickerBalances` map (see buildAppWithSeed).
-vi.mock('../../../../../apps/api/src/areas/my-world/myworld.js', () => ({
+vi.mock('../../../../../src/areas/my-world/myworld.js', () => ({
   stickerBalances: vi.fn().mockResolvedValue(new Map()),
 }));
 
-import { stickerBalances } from '../../../../../apps/api/src/areas/my-world/myworld.js';
+import { stickerBalances } from '../../../../../src/areas/my-world/myworld.js';
 const stickerBalancesMock = vi.mocked(stickerBalances);
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';

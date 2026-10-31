@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { tasksRouter } from '../../../../../apps/api/src/areas/tasks/tasks.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { tasksRouter } from '../../../../../src/areas/tasks/tasks.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-233 / FHS-267: GET / POST / PATCH / DELETE /api/tasks. Shared-to-
 // see, private-to-edit family board (ADR 0013): GET returns every
@@ -15,7 +15,7 @@ const dbMock = {
   update: vi.fn(),
   delete: vi.fn(),
 };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
 }));
 

@@ -1,18 +1,15 @@
 import { Hono } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  authMiddleware,
-  _resetJwksCacheForTests,
-} from '../../../../../apps/api/src/security/auth.js';
-import { meRouter, meResponseSchema } from '../../../../../apps/api/src/areas/family/me.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../../../src/security/auth.js';
+import { meRouter, meResponseSchema } from '../../../../../src/areas/family/me.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // /api/me reads the user's memberships across families via the
 // app_user_memberships SECURITY DEFINER function (FHS-354), executed as raw SQL.
 // Stub getDb so the route uses our mock instead of opening a real pool.
 const dbMock = { execute: vi.fn(), select: vi.fn() };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
 }));
 

@@ -56,7 +56,7 @@ export default tseslint.config(
 
   // 4. JSX/TSX everywhere: enable the JSX parser feature for any tsx
   //    file regardless of which workspace, so future tsx outside
-  //    web/ui (e.g. in packages/shared) parses correctly. Plugin
+  //    web/ui (e.g. in shared-rules) parses correctly. Plugin
   //    registration is scoped to web/ui in the next block.
   {
     files: ['**/*.{tsx,jsx}'],
@@ -71,7 +71,7 @@ export default tseslint.config(
     files: [
       'apps/web/**/*.{ts,tsx,js,jsx}',
       'packages/ui/**/*.{ts,tsx,js,jsx}',
-      'packages/test-utils/src/web/**/*.{ts,tsx}',
+      'tests/helpers/src/web/**/*.{ts,tsx}',
     ],
     plugins: {
       react,
@@ -98,9 +98,10 @@ export default tseslint.config(
   // 5. Node globals for api / scripts / configs / tests.
   {
     files: [
-      'apps/api/**/*.{ts,js,mjs,cjs}',
-      'packages/shared/**/*.{ts,js}',
-      'packages/test-utils/**/*.{ts,js}',
+      'src/**/*.{ts,js,mjs,cjs}',
+      'scripts/server/**/*.{ts,js,mjs,cjs}',
+      'shared-rules/**/*.{ts,js}',
+      'tests/helpers/**/*.{ts,js}',
       'tests/**/*.{ts,js,mjs}',
       '**/*.config.{ts,js,mjs,cjs}',
       'scripts/**/*.{js,mjs,ts}',

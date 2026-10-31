@@ -1,4 +1,4 @@
-// FHS-394: unit tests for apps/api/src/areas/learn/maths-progress.ts
+// FHS-394: unit tests for src/areas/learn/maths-progress.ts
 //
 // Covers:
 //  1. applyPlacement: cascade logic (pure, DB mocked)
@@ -49,7 +49,7 @@ import {
   PRACTICE_THRESHOLD,
   PROVE_SCORE_THRESHOLD,
   PLACEMENT_TIME_THRESHOLD_SECONDS,
-} from '../../../../../apps/api/src/areas/learn/maths-progress.js';
+} from '../../../../../src/areas/learn/maths-progress.js';
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const MEMBER = '22222222-2222-4222-8222-222222222222';

@@ -5,7 +5,7 @@ import {
   deriveStatusText,
   isoDateInTimezone,
   weekdayKeyInTimezone,
-} from '../../../../../apps/api/src/areas/today/dashboard.js';
+} from '../../../../../src/areas/today/dashboard.js';
 
 // FHS-262: pure derivation helpers behind GET /api/dashboard/today.
 // These carry the non-trivial logic (weekly streaks, status copy,

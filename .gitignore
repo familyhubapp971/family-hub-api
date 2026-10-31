@@ -89,7 +89,7 @@ documents/commercial/
 documents/impact/
 documents/investments/
 documents/qa/
-# Local copy of apps/api/postman for sharing; refreshed by openapi:generate (FHS-665).
+# Local copy of api-docs/postman for sharing; refreshed by openapi:generate (FHS-665).
 documents/postman/
 # Signed contracts hold personal details; their sources stay local only.
 scripts/docs/doc-src/fh-qa-contractor-*.html

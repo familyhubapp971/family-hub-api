@@ -4,19 +4,19 @@ import bcrypt from 'bcryptjs';
 import {
   kidPinRouter,
   _resetKidPinBucketsForTests,
-} from '../../../../../apps/api/src/areas/kids/auth-kid-pin.js';
+} from '../../../../../src/areas/kids/auth-kid-pin.js';
 
 // FHS-236: POST /api/auth/kid-pin. DB stubbed at module boundary.
 
 const dbMock = { select: vi.fn() };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
   pinRequestTenant: async () => {},
 }));
 
-vi.mock('../../../../../apps/api/src/config.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../../../apps/api/src/config.js')>(
-    '../../../../../apps/api/src/config.js',
+vi.mock('../../../../../src/config.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../../../src/config.js')>(
+    '../../../../../src/config.js',
   );
   return {
     ...actual,

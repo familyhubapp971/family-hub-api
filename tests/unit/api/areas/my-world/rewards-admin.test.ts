@@ -1,18 +1,18 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { rewardsRouter } from '../../../../../apps/api/src/areas/my-world/rewards.js';
-import type { User } from '../../../../../apps/api/src/database/schema.js';
+import { rewardsRouter } from '../../../../../src/areas/my-world/rewards.js';
+import type { User } from '../../../../../src/database/schema.js';
 
 // FHS-483: parents manage the reward-shop catalogue: POST/PATCH/DELETE
 // /api/rewards[/:id]. Admin-only, tenant-scoped: same guard chain as
-// apps/api/src/areas/admin/admin.ts (auth → tenant context → member → admin).
+// src/areas/admin/admin.ts (auth → tenant context → member → admin).
 // DELETE is a soft-delete (archived_at), never a hard DELETE. Real Postgres
 // tenant-isolation + soft-delete-survives-FK coverage lives in the
 // integration spec (rewards-admin.feature).
 
 const dbMock = { select: vi.fn(), insert: vi.fn(), update: vi.fn() };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({ getDb: () => dbMock }));
+vi.mock('../../../../../src/database/client.js', () => ({ getDb: () => dbMock }));
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '00000000-0000-4000-8000-000000000777';

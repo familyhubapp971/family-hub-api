@@ -3,7 +3,7 @@
 // Drizzle migration SQL files so specs see the schema.
 //
 // FHS-192 wired up the first migration (users mirror table). Subsequent
-// tickets just drop new SQL files into apps/api/drizzle/ and the loop
+// tickets just drop new SQL files into src/database/migrations/ and the loop
 // below picks them up in journal order.
 
 import fs from 'node:fs/promises';
@@ -16,7 +16,7 @@ function url(): string {
   );
 }
 
-const MIGRATIONS_DIR = path.resolve(__dirname, '../../../apps/api/drizzle');
+const MIGRATIONS_DIR = path.resolve(__dirname, '../../../src/database/migrations');
 
 interface JournalEntry {
   idx: number;

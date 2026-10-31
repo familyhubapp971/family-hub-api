@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildApp } from '../../../../../apps/api/src/app.js';
-import { healthResponseSchema } from '../../../../../apps/api/src/areas/health/health.js';
+import { buildApp } from '../../../../../src/app.js';
+import { healthResponseSchema } from '../../../../../src/areas/health/health.js';
 
 describe('GET /health', () => {
   it('returns 200 with status, version, uptime', async () => {

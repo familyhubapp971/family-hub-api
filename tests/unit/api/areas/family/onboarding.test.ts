@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { onboardingRouter } from '../../../../../apps/api/src/areas/family/onboarding.js';
-import { habits, members, rewards } from '../../../../../apps/api/src/database/schema.js';
-import type { Tenant, User } from '../../../../../apps/api/src/database/schema.js';
+import { onboardingRouter } from '../../../../../src/areas/family/onboarding.js';
+import { habits, members, rewards } from '../../../../../src/database/schema.js';
+import type { Tenant, User } from '../../../../../src/database/schema.js';
 
 // FHS-37: POST /api/onboarding/complete tests. Same shape as the
 // FHS-91 invitations test: stub DB at the module boundary, seed user +
@@ -13,7 +13,7 @@ const dbMock = {
   select: vi.fn(),
   transaction: vi.fn(),
 };
-vi.mock('../../../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../../../src/database/client.js', () => ({
   getDb: () => dbMock,
 }));
 

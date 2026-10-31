@@ -4,13 +4,13 @@ import type { MiddlewareHandler } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
 import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/security/auth.js';
-import { mealsRouter } from '../../../apps/api/src/areas/meals/meals.js';
-import { tenants, members, mealTemplates, users } from '../../../apps/api/src/database/schema.js';
-import type { Database } from '../../../apps/api/src/database/client.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../src/security/auth.js';
+import { mealsRouter } from '../../../src/areas/meals/meals.js';
+import { tenants, members, mealTemplates, users } from '../../../src/database/schema.js';
+import type { Database } from '../../../src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/database/client.js', () => ({
+vi.mock('../../../src/database/client.js', () => ({
   getDb: () => getTestDb(),
 }));
 
