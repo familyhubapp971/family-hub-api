@@ -1,12 +1,13 @@
+import { SignJWT } from 'jose';
 import { config } from '../config.js';
 
-// Thin wrapper around Supabase's auth admin REST API. We hit /auth/v1
-// directly via fetch rather than pulling in `@supabase/supabase-js`:
-// the api only needs a handful of admin endpoints, and avoiding the
-// SDK keeps our dep tree small and the failure surface explicit.
+// Thin wrapper around the sign-in server's admin REST API: our own GoTrue when
+// GOTRUE_URL + GOTRUE_ADMIN_JWT_SECRET are set (FHS-698), otherwise Supabase
+// (which runs GoTrue too, under /auth/v1). Plain fetch rather than
+// `@supabase/supabase-js`: the api only needs a handful of admin endpoints.
 //
-// The service-role key is required: it grants full admin access to
-// Supabase Auth. NEVER expose it to clients.
+// Admin access can act as any user. NEVER expose the service-role key, the
+// GoTrue secret or a pass signed with it to clients.
 
 export interface SupabaseInviteUserOptions {
   /** Email address to invite. */
@@ -72,18 +73,45 @@ export function isEmailAlreadyRegisteredError(err: unknown): boolean {
   );
 }
 
-function requireConfig(): { url: string; key: string } {
+interface AdminTarget {
+  /** Base of the admin endpoints: GoTrue's root, or Supabase's /auth/v1. */
+  base: string;
+  headers: Record<string, string>;
+}
+
+/**
+ * FHS-698: where admin calls go. With GOTRUE_URL and GOTRUE_ADMIN_JWT_SECRET
+ * set, they go straight to our private GoTrue server with a one-minute
+ * service_role pass signed by its own secret, so no long-lived admin key
+ * exists. Otherwise they go to Supabase with its service-role key, as before.
+ */
+async function adminTarget(): Promise<AdminTarget> {
+  if (config.GOTRUE_URL && config.GOTRUE_ADMIN_JWT_SECRET) {
+    const token = await new SignJWT({ role: 'service_role', iss: 'supabase' })
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .setIssuedAt()
+      .setExpirationTime('60s')
+      .sign(new TextEncoder().encode(config.GOTRUE_ADMIN_JWT_SECRET));
+    return {
+      base: config.GOTRUE_URL.replace(/\/+$/, ''),
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    };
+  }
   if (!config.SUPABASE_URL) {
     throw new Error('SUPABASE_URL is required for the Supabase admin client');
   }
   if (!config.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY is required for the Supabase admin client');
   }
-  return { url: config.SUPABASE_URL, key: config.SUPABASE_SERVICE_ROLE_KEY };
+  const key = config.SUPABASE_SERVICE_ROLE_KEY;
+  return {
+    base: `${config.SUPABASE_URL}/auth/v1`,
+    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+  };
 }
 
 /**
- * Send a magic-link invitation via Supabase admin. Returns the created
+ * Send a magic-link invitation via the sign-in server's admin API. Returns the created
  * (or pre-existing: Supabase upserts) auth user. The invitee receives
  * a Supabase-templated email with a one-time link to `redirectTo`.
  *
@@ -92,18 +120,14 @@ function requireConfig(): { url: string; key: string } {
 export async function inviteUserByEmail(
   opts: SupabaseInviteUserOptions,
 ): Promise<SupabaseInvitedUser> {
-  const { url, key } = requireConfig();
-  // GoTrue's admin invite endpoint is `/auth/v1/invite`: NOT `/auth/v1/admin/invite`,
-  // which 404s (that 404 is why invites never sent; FHS-352). `redirect_to` is a
-  // query parameter here, not a body field.
-  const inviteUrl = `${url}/auth/v1/invite?redirect_to=${encodeURIComponent(opts.redirectTo)}`;
+  const { base, headers } = await adminTarget();
+  // GoTrue's admin invite endpoint is `/invite` (`/auth/v1/invite` on Supabase):
+  // NOT `/admin/invite`, which 404s (that 404 is why invites never sent;
+  // FHS-352). `redirect_to` is a query parameter here, not a body field.
+  const inviteUrl = `${base}/invite?redirect_to=${encodeURIComponent(opts.redirectTo)}`;
   const res = await fetch(inviteUrl, {
     method: 'POST',
-    headers: {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({
       email: opts.email,
       data: opts.data ?? {},
@@ -112,12 +136,12 @@ export async function inviteUserByEmail(
 
   const text = await res.text();
   if (!res.ok) {
-    throw new SupabaseAdminError(`Supabase admin invite failed: ${res.status}`, res.status, text);
+    throw new SupabaseAdminError(`auth admin invite failed: ${res.status}`, res.status, text);
   }
 
   const parsed = JSON.parse(text) as { id?: string; email?: string };
   if (!parsed.id) {
-    throw new SupabaseAdminError('Supabase admin invite returned no user id', res.status, text);
+    throw new SupabaseAdminError('auth admin invite returned no user id', res.status, text);
   }
   return { id: parsed.id, ...(parsed.email ? { email: parsed.email } : {}) };
 }
@@ -129,26 +153,19 @@ export async function inviteUserByEmail(
  * emailed to that exact address), so there's no need for Supabase to send a
  * SECOND confirmation email on top of ours.
  *
- * Maps to `PUT {SUPABASE_URL}/auth/v1/admin/users/{userId}`.
+ * Maps to `PUT {GOTRUE_URL}/admin/users/{userId}`, or
+ * `PUT {SUPABASE_URL}/auth/v1/admin/users/{userId}` while on Supabase.
  */
 export async function updateUserEmailById(userId: string, email: string): Promise<void> {
-  const { url, key } = requireConfig();
-  const res = await fetch(`${url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+  const { base, headers } = await adminTarget();
+  const res = await fetch(`${base}/admin/users/${encodeURIComponent(userId)}`, {
     method: 'PUT',
-    headers: {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({ email, email_confirm: true }),
   });
 
   if (!res.ok) {
     const text = await res.text();
-    throw new SupabaseAdminError(
-      `Supabase admin update-email failed: ${res.status}`,
-      res.status,
-      text,
-    );
+    throw new SupabaseAdminError(`auth admin update-email failed: ${res.status}`, res.status, text);
   }
 }
