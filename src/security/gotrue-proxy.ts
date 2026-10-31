@@ -25,21 +25,39 @@ const HOP_BY_HOP = [
 
 const UPSTREAM_TIMEOUT_MS = 15_000;
 
+// Sign-in requests are tiny (an email, a code, a token). Anything bigger is
+// refused before it is read, since this path is open to anyone.
+export const MAX_BODY_BYTES = 64 * 1024;
+
 export function gotrueProxy(upstream: string) {
   const base = upstream.replace(/\/+$/, '');
 
   return async (c: Context): Promise<Response> => {
     const url = new URL(c.req.url);
-    const rest = url.pathname.slice(GOTRUE_PREFIX.length) || '/';
 
-    let decoded: string;
+    // Rebuild the path from its segments so `//admin`, `./admin` and similar
+    // spellings cannot slip past the admin check, then forward the clean form.
+    const rawSegments = url.pathname
+      .slice(GOTRUE_PREFIX.length)
+      .split('/')
+      .filter((s) => s !== '' && s !== '.');
+    let segments: string[];
     try {
-      decoded = decodeURIComponent(rest).toLowerCase();
+      segments = rawSegments.map((s) => decodeURIComponent(s).toLowerCase());
     } catch {
       return c.json({ error: 'bad request' }, 400);
     }
-    if (decoded === '/admin' || decoded.startsWith('/admin/')) {
+    if (segments.some((s) => s === '..' || s === '.' || s.includes('/') || s.includes('\\'))) {
+      return c.json({ error: 'bad request' }, 400);
+    }
+    if (segments[0] === 'admin') {
       return c.json({ error: 'not found' }, 404);
+    }
+    const rest = `/${rawSegments.join('/')}`;
+
+    const declared = Number(c.req.header('content-length') ?? 0);
+    if (declared > MAX_BODY_BYTES) {
+      return c.json({ error: 'request too large' }, 413);
     }
 
     const headers = new Headers(c.req.raw.headers);
@@ -55,7 +73,11 @@ export function gotrueProxy(upstream: string) {
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     };
     if (method !== 'GET' && method !== 'HEAD') {
-      init.body = await c.req.raw.arrayBuffer();
+      const body = await c.req.raw.arrayBuffer();
+      if (body.byteLength > MAX_BODY_BYTES) {
+        return c.json({ error: 'request too large' }, 413);
+      }
+      init.body = body;
     }
 
     let res: Response;

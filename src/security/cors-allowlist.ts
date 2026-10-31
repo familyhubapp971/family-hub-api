@@ -47,12 +47,18 @@ export function corsMiddleware(): MiddlewareHandler {
     // x-request-id: surfaced by request-context middleware; harmless to
     // accept from the client (server overrides anyway) and lets the web
     // attach a correlation id for support tickets.
+    // FHS-694: apikey, x-client-info and x-supabase-api-version are sent by
+    // the web app's sign-in client on every /auth/v1 call (passed through to
+    // our GoTrue server). Without them the browser's preflight fails.
     allowHeaders: [
       'Content-Type',
       'Authorization',
       'x-tenant-slug',
       'x-request-id',
       'x-founder-token',
+      'apikey',
+      'x-client-info',
+      'x-supabase-api-version',
     ],
     credentials: true,
     maxAge: 600,

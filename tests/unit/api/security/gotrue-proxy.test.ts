@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
-import { gotrueProxy } from '../../../../src/security/gotrue-proxy.js';
+import { gotrueProxy, MAX_BODY_BYTES } from '../../../../src/security/gotrue-proxy.js';
 
 // FHS-694: the API passes /auth/v1/* through to the private GoTrue server.
 
@@ -65,11 +65,58 @@ describe('FHS-694: gotrueProxy', () => {
   });
 
   it('refuses admin paths without calling GoTrue', async () => {
-    for (const path of ['/auth/v1/admin/users', '/auth/v1/ADMIN', '/auth/v1/%61dmin/users']) {
+    for (const path of [
+      '/auth/v1/admin/users',
+      '/auth/v1/ADMIN',
+      '/auth/v1/%61dmin/users',
+      '/auth/v1//admin/users',
+      '/auth/v1///admin',
+      '/auth/v1/./admin/users',
+    ]) {
       const res = await proxyApp().request(path);
-      expect(res.status).toBe(404);
+      expect(res.status, path).toBe(404);
     }
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses dot-dot and encoded slashes without calling GoTrue', async () => {
+    for (const path of ['/auth/v1/%2Fadmin/users', '/auth/v1/x%5c..%5cadmin']) {
+      const res = await proxyApp().request(path);
+      expect(res.status, path).toBe(400);
+    }
+    // The URL parser itself resolves %2e%2e as "..", so this one never even
+    // matches /auth/v1/*. Either way it must not reach GoTrue.
+    const res = await proxyApp().request('/auth/v1/%2e%2e/admin');
+    expect(res.status).toBe(404);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('forwards the cleaned path, not repeated slashes', async () => {
+    await proxyApp().request('/auth/v1//health');
+    expect(fetchMock.mock.calls[0]![0]).toBe(`${UPSTREAM}/health`);
+  });
+
+  it('refuses bodies over the size limit without calling GoTrue', async () => {
+    const res = await proxyApp().request('/auth/v1/otp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: 'x'.repeat(MAX_BODY_BYTES + 1),
+    });
+    expect(res.status).toBe(413);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('sends HEAD requests on without a body', async () => {
+    await proxyApp().request('/auth/v1/health', { method: 'HEAD' });
+    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    expect(init.method).toBe('HEAD');
+    expect(init.body).toBeUndefined();
+  });
+
+  it('answers 502 when GoTrue is too slow', async () => {
+    fetchMock.mockRejectedValue(new DOMException('timed out', 'TimeoutError'));
+    const res = await proxyApp().request('/auth/v1/health');
+    expect(res.status).toBe(502);
   });
 
   it('answers 502 with a plain message when GoTrue cannot be reached', async () => {
@@ -100,6 +147,33 @@ describe('FHS-694: /auth/v1 in the full app', () => {
     const { buildApp } = await import('../../../../src/app.js');
     const res = await buildApp().request('/auth/v1/health');
     expect(res.status).toBe(200);
+  });
+
+  it("lets the web app's sign-in headers through the browser preflight", async () => {
+    process.env.GOTRUE_URL = UPSTREAM;
+    const realOrigins = process.env.CORS_ALLOWED_ORIGINS;
+    process.env.CORS_ALLOWED_ORIGINS = 'https://web.example';
+    vi.resetModules();
+    try {
+      const { buildApp } = await import('../../../../src/app.js');
+      const res = await buildApp().request('/auth/v1/otp', {
+        method: 'OPTIONS',
+        headers: {
+          origin: 'https://web.example',
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'apikey, x-client-info, x-supabase-api-version',
+        },
+      });
+      expect(res.status).toBe(204);
+      expect(res.headers.get('access-control-allow-origin')).toBe('https://web.example');
+      const allowed = (res.headers.get('access-control-allow-headers') ?? '').toLowerCase();
+      for (const h of ['apikey', 'x-client-info', 'x-supabase-api-version']) {
+        expect(allowed).toContain(h);
+      }
+    } finally {
+      if (realOrigins === undefined) delete process.env.CORS_ALLOWED_ORIGINS;
+      else process.env.CORS_ALLOWED_ORIGINS = realOrigins;
+    }
   });
 
   it('does not exist when GOTRUE_URL is unset', async () => {
