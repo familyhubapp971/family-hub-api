@@ -1,13 +1,13 @@
 // Sentry MUST initialise before app.js imports anything that might throw:
 // the SDK patches global handlers at init time.
-import { initSentry } from './sentry.js';
+import { initSentry } from './services/sentry.js';
 initSentry();
 
 import { serve } from '@hono/node-server';
 import { app } from './app.js';
 import { config } from './config.js';
-import { createLogger } from './logger.js';
-import { assertRlsEnforceable } from './lib/rls-boot-guard.js';
+import { createLogger } from './services/logger.js';
+import { assertRlsEnforceable } from './security/rls-boot-guard.js';
 
 const log = createLogger('server');
 

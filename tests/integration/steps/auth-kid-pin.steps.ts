@@ -7,12 +7,12 @@ import { expect, vi } from 'vitest';
 import {
   kidPinRouter,
   _resetKidPinBucketsForTests,
-} from '../../../apps/api/src/routes/auth-kid-pin.js';
-import { tenants, members } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+} from '../../../apps/api/src/areas/kids/auth-kid-pin.js';
+import { tenants, members } from '../../../apps/api/src/database/schema.js';
+import type { Database } from '../../../apps/api/src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/db/client.js', () => ({
+vi.mock('../../../apps/api/src/database/client.js', () => ({
   getDb: () => getTestDb(),
   // FHS-354: pin is a no-op here (tests run as the superuser, which bypasses RLS).
   pinRequestTenant: async () => {},

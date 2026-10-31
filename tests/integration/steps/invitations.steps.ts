@@ -4,16 +4,16 @@ import type { MiddlewareHandler } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
 import { eq, sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
-import { invitationsRouter } from '../../../apps/api/src/routes/invitations.js';
-import { tenants, members, users } from '../../../apps/api/src/db/schema.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/security/auth.js';
+import { invitationsRouter } from '../../../apps/api/src/areas/family/invitations.js';
+import { tenants, members, users } from '../../../apps/api/src/database/schema.js';
 // The supabase-admin module is mocked below (spreads ...actual), so this is the
 // real SupabaseAdminError class: `instanceof` matches what the handler sees.
-import { SupabaseAdminError } from '../../../apps/api/src/lib/supabase-admin.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { SupabaseAdminError } from '../../../apps/api/src/security/supabase-admin.js';
+import type { Database } from '../../../apps/api/src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
-vi.mock('../../../apps/api/src/db/client.js', () => ({
+vi.mock('../../../apps/api/src/database/client.js', () => ({
   getDb: () => getTestDb(),
 }));
 
@@ -37,10 +37,10 @@ vi.mock('../../../apps/api/src/config.js', async () => {
 // Mock the Supabase admin call so the integration tests don't hit the
 // real Supabase API: we still exercise the full DB + auth path here.
 const inviteUserByEmail = vi.fn();
-vi.mock('../../../apps/api/src/lib/supabase-admin.js', async () => {
+vi.mock('../../../apps/api/src/security/supabase-admin.js', async () => {
   const actual = await vi.importActual<
-    typeof import('../../../apps/api/src/lib/supabase-admin.js')
-  >('../../../apps/api/src/lib/supabase-admin.js');
+    typeof import('../../../apps/api/src/security/supabase-admin.js')
+  >('../../../apps/api/src/security/supabase-admin.js');
   return {
     ...actual,
     inviteUserByEmail: (...args: unknown[]) => inviteUserByEmail(...args),

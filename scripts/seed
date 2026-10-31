@@ -3,7 +3,7 @@
 #
 # Idempotent: safe to re-run. Until Sprint 1 lands the tenants/users
 # tables (ADR 0001), this is a no-op that warns the schema isn't ready.
-# Once the schema exists, edit apps/api/src/db/seed.ts SEED constant
+# Once the schema exists, edit apps/api/src/database/seed.ts SEED constant
 # and uncomment the insert block.
 
 set -euo pipefail

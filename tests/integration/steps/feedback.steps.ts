@@ -4,10 +4,10 @@ import type { MiddlewareHandler } from 'hono';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jose';
 import { sql, eq } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
-import { feedbackRouter } from '../../../apps/api/src/routes/feedback.js';
-import { tenants, members, users, betaFeedback } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/security/auth.js';
+import { feedbackRouter } from '../../../apps/api/src/areas/feedback/feedback.js';
+import { tenants, members, users, betaFeedback } from '../../../apps/api/src/database/schema.js';
+import type { Database } from '../../../apps/api/src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
 // Unique KID + USER_ID so this file doesn't collide with other step files
@@ -17,7 +17,7 @@ const KID = 'feedback-int-kid';
 const USER_ID = '00000000-0000-4000-8000-000000000fbd';
 const USER_EMAIL = 'feedback-tester@example.com';
 
-vi.mock('../../../apps/api/src/db/client.js', () => ({ getDb: () => getTestDb() }));
+vi.mock('../../../apps/api/src/database/client.js', () => ({ getDb: () => getTestDb() }));
 
 const feature = await loadFeature(
   new URL('../features/feedback.feature', import.meta.url).pathname,

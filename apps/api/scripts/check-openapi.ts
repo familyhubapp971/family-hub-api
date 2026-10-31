@@ -2,8 +2,8 @@
 // routes, forcing `pnpm -F api openapi:generate` to be run + committed.
 import { readFileSync } from 'node:fs';
 import { buildApp } from '../src/app.js';
-import { buildOpenApiSpec, findUndocumented } from '../src/openapi/build-spec.js';
-import { buildPostmanFiles } from '../src/openapi/build-postman.js';
+import { buildOpenApiSpec, findUndocumented } from '../src/api-docs/build-spec.js';
+import { buildPostmanFiles } from '../src/api-docs/build-postman.js';
 
 const spec = buildOpenApiSpec(buildApp());
 const generated = JSON.stringify(spec, null, 2) + '\n';

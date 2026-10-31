@@ -1,0 +1,672 @@
+// FHS-356: OpenAPI enrichment registry.
+//
+// Every endpoint is discovered automatically from the live Hono route table
+// (see build-spec.ts), so the spec can never silently miss a route. This map
+// only adds the human-friendly detail on top: a summary plus the request /
+// response shape, reusing the SAME Zod schemas the handlers validate with: so
+// the docs can't drift from the contract.
+//
+// Keyed by `${METHOD} ${openApiPath}` where openApiPath uses `{param}` (not
+// Hono's `:param`). Endpoints not listed here still appear in the spec with an
+// auto-generated summary and a generic 200 response: fill them in over time.
+
+import { z } from 'zod';
+import type { ZodTypeAny } from 'zod';
+import { meResponseSchema } from '../areas/family/me.js';
+import {
+  kidInvestmentsResponseSchema,
+  kidMeResponseSchema,
+  kidProfileResponseSchema,
+  kidRewardsResponseSchema,
+  kidSavingsResponseSchema,
+  kidTasksResponseSchema,
+  kidTodayResponseSchema,
+  kidWeeksResponseSchema,
+  kidWeekStatsResponseSchema,
+  kidWorldFlagsExploredResponseSchema,
+  kidWorldFlagsLearnResponseSchema,
+  kidAiMathLessonBodySchema,
+  kidAiMathLessonResponseSchema,
+  mathsPlacementResponseSchema,
+  mathsCertResponseSchema,
+  listMathsProgressResponseSchema,
+  listMathsCertsResponseSchema,
+  updateProgressBodySchema,
+  placementBodySchema,
+  certBodySchema,
+  mathsProgressRowSchema,
+} from '../areas/kids/kid.js';
+import {
+  listHabitsResponseSchema,
+  habitItemSchema,
+  updateHabitRequestSchema,
+} from '../areas/tasks/habits.js';
+import { listRedemptionRequestsResponseSchema } from '../areas/my-world/mw-redemption-requests.js';
+import { listMealsResponseSchema } from '../areas/meals/meals.js';
+import {
+  createEventRequestSchema,
+  eventItemSchema,
+  listEventsResponseSchema,
+} from '../areas/calendar/events.js';
+import { calendarFeedResponseSchema } from '../areas/calendar/calendar.js';
+import {
+  journalDayResponseSchema,
+  journalEntriesResponseSchema,
+  journalEarliestResponseSchema,
+} from '../areas/journal/journal.js';
+import {
+  kidLearnAnswerSchema,
+  kidReadingCreateSchema,
+  kidReadingPatchSchema,
+  logicQuestionsResponseSchema,
+  logicAnswerResponseSchema,
+  logicCertificatesResponseSchema,
+} from '../areas/kids/kid.js';
+import { answerBodySchema as logicAnswerBodySchema } from '../areas/learn/logic-progress.js';
+import {
+  worldFlagsExploreBodySchema,
+  worldFlagsLearnCompleteBodySchema,
+} from '../areas/learn/world-flags.js';
+import { bookSchema, listBooksResponseSchema } from '../areas/learn/reading-log-shared.js';
+import { mwAnalyticsResponseSchema } from '../areas/my-world/mw-analytics.js';
+import { listNoticesResponseSchema } from '../areas/calendar/notices.js';
+import {
+  createTenantRequestSchema,
+  createTenantResponseSchema,
+} from '../areas/family/public-tenant.js';
+import { slugAvailableResponseSchema } from '../areas/family/slug-available.js';
+import { publicKidMembersResponseSchema } from '../areas/family/public-kid-members.js';
+import { kidPinRequestSchema, kidPinResponseSchema } from '../areas/kids/auth-kid-pin.js';
+import {
+  confirmEmailChangeBodySchema,
+  confirmEmailChangeResponseSchema,
+  listMembersResponseSchema,
+  memberEmailChangeRequestBodySchema,
+  memberEmailChangeRequestResponseSchema,
+} from '../areas/family/members.js';
+import { listTasksResponseSchema } from '../areas/tasks/tasks.js';
+import {
+  createInvestmentRequestSchema,
+  investmentSettingsRequestSchema,
+  investmentRecordSchema,
+  saveSchema,
+  cashoutSchema,
+  savingsMutationResponseSchema,
+  adminSetSavingsRequestSchema,
+  withdrawInvestmentRequestSchema,
+} from '../areas/my-world/mw-financial.js';
+import {
+  weeksResponseSchema,
+  weekResponseSchema,
+  weekStatsResponseSchema,
+  weekActionsResponseSchema,
+} from '../areas/my-world/mw-weeks.js';
+import {
+  difficultySchema,
+  listLearnResponseSchema,
+  lessonQuestionsResponseSchema,
+  lessonAnswerResponseSchema,
+  subtopicSchema,
+} from '../areas/learn/learn-shared.js';
+import { learnInsightsResponseSchema } from '../areas/learn/learn-insights.js';
+import { feedbackRequestSchema, feedbackResponseSchema } from '../areas/feedback/feedback.js';
+import {
+  publicFeedbackRequestSchema,
+  publicFeedbackResponseSchema,
+} from '../areas/feedback/public-feedback.js';
+import {
+  founderFeedbackResponseSchema,
+  founderSessionRequestSchema,
+  founderSessionResponseSchema,
+} from '../areas/admin/founder.js';
+import {
+  adminSettingsResponseSchema,
+  adminSettingsPutRequestSchema,
+  adminSettingsPutResponseSchema,
+  adminExportResponseSchema,
+  adminDeleteAccountRequestSchema,
+  adminDeleteAccountResponseSchema,
+} from '../areas/admin/admin.js';
+import { rewardItemSchema, updateRewardRequestSchema } from '../areas/my-world/rewards.js';
+import {
+  rewardConfigResponseSchema,
+  rewardConfigPutRequestSchema,
+} from '../areas/my-world/reward-config.js';
+import { getStartedStateSchema } from '@familyhub/shared';
+import { areaMeta } from './meta/index.js';
+
+export interface QueryParamMeta {
+  description?: string;
+  required?: boolean;
+  schema: ZodTypeAny;
+}
+
+export interface RouteMeta {
+  summary?: string;
+  description?: string;
+  request?: ZodTypeAny;
+  response?: ZodTypeAny;
+  responseDesc?: string;
+  /** Success status code. Defaults to 200; use 204 for routes that reply with no body. */
+  status?: 200 | 201 | 202 | 204;
+  /** Non-JSON success body, e.g. 'text/calendar'. Documented as a string. */
+  responseContentType?: string;
+  /** POST/PUT/PATCH that genuinely reads no JSON body (so no `request` schema). */
+  bodyless?: true;
+  /** Optional query parameters to document (name → meta). */
+  queryParams?: Record<string, QueryParamMeta>;
+}
+
+const baseMeta: Record<string, RouteMeta> = {
+  'GET /api/me': {
+    summary: 'The signed-in user + their families',
+    response: meResponseSchema,
+    responseDesc: 'The user and the tenants they belong to',
+  },
+
+  // Public / pre-tenant.
+  'POST /api/public/tenant': {
+    summary: 'Create a family (sign-up onboarding)',
+    request: createTenantRequestSchema,
+    response: createTenantResponseSchema,
+  },
+  'GET /api/public/slug-available': {
+    summary: 'Check if a family URL slug is free',
+    response: slugAvailableResponseSchema,
+  },
+  'GET /api/public/kid-members/{slug}': {
+    summary: "List a family's kids who can log in with a PIN",
+    response: publicKidMembersResponseSchema,
+  },
+  'POST /api/auth/kid-pin': {
+    summary: 'Exchange a kid PIN for a kid session token',
+    request: kidPinRequestSchema,
+    response: kidPinResponseSchema,
+  },
+
+  // Kid-scoped (kid token).
+  'GET /api/kid/me': { summary: 'The logged-in kid (token claims)', response: kidMeResponseSchema },
+  'GET /api/kid/profile': {
+    summary: "The kid's profile for the dashboard header (name, avatar, stars/cash)",
+    response: kidProfileResponseSchema,
+  },
+  'GET /api/kid/tasks': { summary: "The kid's own tasks", response: kidTasksResponseSchema },
+  'GET /api/kid/today': {
+    summary: "The kid's own habits for today",
+    response: kidTodayResponseSchema,
+  },
+  'GET /api/kid/weeks': {
+    summary: "The kid's weeks (full shape, identical to parent GET /mw/weeks)",
+    response: kidWeeksResponseSchema,
+  },
+  'GET /api/kid/weeks/{id}/stats': {
+    summary: "Sticker counts + cash value for one of the kid's weeks",
+    response: kidWeekStatsResponseSchema,
+  },
+  'GET /api/kid/habits': {
+    summary: "The kid's habits + stickers + balance (identical to parent GET /api/habits)",
+    response: listHabitsResponseSchema,
+  },
+  'GET /api/kid/rewards': {
+    summary: "The kid's reward shop + star balance + their latest request status per reward",
+    response: kidRewardsResponseSchema,
+  },
+  'GET /api/kid/financial/savings': {
+    summary: "The kid's banked savings + currency (identical to parent GET /mw/financial/savings)",
+    response: kidSavingsResponseSchema,
+  },
+  'GET /api/kid/financial/investments': {
+    summary:
+      "The kid's active investments with live value (identical to parent GET /mw/financial/investments)",
+    response: kidInvestmentsResponseSchema,
+  },
+  'GET /api/kid/meals': {
+    summary: "The kid's meals (their own + family-wide)",
+    response: listMealsResponseSchema,
+  },
+  'GET /api/kid/events': {
+    summary: "The kid's schedule for a week (their own + family-wide)",
+    response: listEventsResponseSchema,
+  },
+
+  // Calendar activities (FHS-230, FHS-265, FHS-476).
+  'GET /api/events': {
+    summary: "The family's calendar activities for a week (?weekStart=YYYY-MM-DD)",
+    response: listEventsResponseSchema,
+    responseDesc:
+      'One entry per occurrence in the 7-day window. A weekly-recurring series (recurrenceDays set) contributes one entry per matching weekday, all sharing the same series id, with isRecurring: true',
+    queryParams: {
+      weekStart: {
+        description: 'Monday of the week to fetch (YYYY-MM-DD)',
+        required: true,
+        schema: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      },
+    },
+  },
+  'PUT /api/events/{id}': {
+    summary: 'Replace an event (full update); admin/adult only',
+    description:
+      'For a recurring series this edits the WHOLE series (start date, weekdays, end date, and all other fields): not a single occurrence. Single-occurrence editing is a follow-up.',
+    request: createEventRequestSchema,
+    response: eventItemSchema,
+  },
+  'GET /api/calendar/feed': {
+    summary: 'The family calendar subscribe URL (creates the feed key on first call)',
+    response: calendarFeedResponseSchema,
+    responseDesc: 'An absolute ICS subscribe URL for Google / Apple / Outlook',
+  },
+  'GET /api/kid/journal': {
+    summary: "The kid's journal entry for a day (+ the day's quote)",
+    response: journalDayResponseSchema,
+  },
+  'GET /api/kid/journal/entries': {
+    summary: "The kid's past journal entries",
+    response: journalEntriesResponseSchema,
+  },
+  'GET /api/kid/journal/earliest': {
+    summary: "The kid's earliest journal date",
+    response: journalEarliestResponseSchema,
+  },
+  'GET /api/kid/learn': {
+    summary: "The kid's lesson subjects + progress",
+    response: listLearnResponseSchema,
+  },
+  'GET /api/kid/learn/{subject}/questions': {
+    summary: "Questions for the kid's lesson + their stats",
+    response: lessonQuestionsResponseSchema,
+    queryParams: {
+      difficulty: { schema: difficultySchema, description: 'Lesson difficulty (default: easy)' },
+      subtopic: {
+        schema: subtopicSchema,
+        description:
+          'Logic sub-topic filter (patterns|odd-one-out|if-then|sorting). Logic only; ignored for other subjects.',
+      },
+    },
+  },
+  'POST /api/kid/learn/{subject}/answer': {
+    summary: "Grade one of the kid's answers",
+    request: kidLearnAnswerSchema,
+    response: lessonAnswerResponseSchema,
+  },
+  'GET /api/kid/reading-log': {
+    summary: "The kid's reading log",
+    response: listBooksResponseSchema,
+  },
+  'POST /api/kid/reading-log': {
+    summary: 'Add a book to the kid reading log',
+    request: kidReadingCreateSchema,
+    response: bookSchema,
+  },
+  'PATCH /api/kid/reading-log/{id}': {
+    summary: 'Mark a kid book finished/unfinished',
+    request: kidReadingPatchSchema,
+    response: bookSchema,
+  },
+  'GET /api/kid/analytics': {
+    summary: "The kid's My World analytics (stats view)",
+    response: mwAnalyticsResponseSchema,
+  },
+  'GET /api/kid/world-flags': {
+    summary: "The kid's explored country flags",
+    response: kidWorldFlagsExploredResponseSchema,
+    responseDesc: 'All country codes this kid has explored, in DB order',
+  },
+  'POST /api/kid/world-flags/explore': {
+    summary: 'Mark a country flag as explored (idempotent)',
+    request: worldFlagsExploreBodySchema,
+    response: z.object({ explored: z.literal(true) }),
+    responseDesc: '{ explored: true }: always, even if already recorded',
+  },
+  'GET /api/kid/world-flags/learn': {
+    summary: "The kid's world-flags learn progress per continent",
+    response: kidWorldFlagsLearnResponseSchema,
+    responseDesc: 'Completed set indices per continent, each array sorted ascending',
+  },
+  'POST /api/kid/world-flags/learn-complete': {
+    summary: 'Mark a learn-path set as mastered (idempotent)',
+    request: worldFlagsLearnCompleteBodySchema,
+    response: z.object({ completed: z.literal(true) }),
+    responseDesc: '{ completed: true }: always, even if already recorded',
+  },
+  // FHS-389: AI Maths lesson (feature-flagged OFF by default).
+  'GET /api/kid/learn/maths/ai-lesson/status': {
+    summary: 'Whether AI Maths lessons are enabled (cheap probe, no generation)',
+    response: z.object({ enabled: z.boolean() }),
+  },
+  'POST /api/kid/learn/maths/ai-lesson': {
+    summary: 'Generate an AI Maths lesson for the kid (feature-flagged)',
+    request: kidAiMathLessonBodySchema,
+    response: kidAiMathLessonResponseSchema,
+    responseDesc:
+      '{ enabled: false } when the flag is off; { enabled: true, lesson } on success; { enabled: true, lesson: null, error } on AI failure',
+  },
+  // FHS-384: Learn Insights (parent view of one child's learning progress).
+  'GET /api/learn/insights': {
+    summary: "A child's Learn insights across Maths, Logic, Science, and World Flags (parent view)",
+    response: learnInsightsResponseSchema,
+    responseDesc:
+      'Aggregated insights for the requested child. hasActivity: false when the child has no Learn activity at all.',
+    queryParams: {
+      memberId: {
+        description: 'UUID of the child member to query (must belong to the same family)',
+        required: true,
+        schema: z.string().uuid(),
+      },
+    },
+  },
+
+  'GET /api/mw/analytics': {
+    summary: "A child's My World analytics (parent view)",
+    response: mwAnalyticsResponseSchema,
+  },
+
+  // FHS-418: Beta feedback (authenticated, tenant-scoped).
+  'POST /api/feedback': {
+    summary: 'Submit a beta survey response',
+    description:
+      'Signed-in grown-ups submit product feedback, either the general survey or the per-screen form (FHS-670). The per-screen form also sends screen, features and visitId. Every answer field is optional but at least one must be present.',
+    request: feedbackRequestSchema,
+    response: feedbackResponseSchema,
+    responseDesc: '201: the new feedback row id',
+  },
+
+  // FHS-672: the founder's /admin feedback page (passcode, not family sign-in).
+  'POST /api/founder/session': {
+    summary: 'Founder only: swap the passcode for an 8-hour page token',
+    description:
+      'Checks FOUNDER_PASSCODE. Five wrong tries lock the page for 15 minutes for everyone (429 with retryAfter). 404 when no passcode is set on the server.',
+    request: founderSessionRequestSchema,
+    response: founderSessionResponseSchema,
+    responseDesc: 'The page token and when it expires',
+  },
+  'GET /api/founder/feedback': {
+    summary: "Founder only: every family's feedback, newest first",
+    description:
+      'Send the token from POST /api/founder/session in the x-founder-token header. Returns up to 2000 answers from the in-app survey, the per-screen form and the homepage survey. 401 when the token is missing or expired.',
+    response: founderFeedbackResponseSchema,
+    responseDesc: 'Feedback rows across every family',
+  },
+
+  // FHS-429: Public (anonymous) feedback from the logged-out homepage.
+  'POST /api/public/feedback': {
+    summary: 'Submit anonymous homepage feedback',
+    description:
+      'Unauthenticated visitors submit product feedback from the public homepage. All fields optional but at least one survey field (not just name/email) must be present.',
+    request: publicFeedbackRequestSchema,
+    response: publicFeedbackResponseSchema,
+    responseDesc: '201: the new public_feedback row id',
+  },
+
+  // My World savings (FHS-606): the Your Savings card's split.
+  'GET /api/mw/financial/savings': {
+    summary: "A child's banked savings, split into last week's banking and earlier (?memberId=)",
+    response: kidSavingsResponseSchema.extend({
+      earnedLastWeekStickers: z.number().int(),
+      keptFromEarlierStickers: z.number().int(),
+    }),
+    responseDesc: 'earnedLastWeekStickers + keptFromEarlierStickers always equals savedStickers',
+  },
+
+  // FHS-627: the rest of the money endpoints. Each summary says who may call
+  // it, so the next reader does not have to trace the guards to find out.
+  'POST /api/mw/financial/savings': {
+    summary:
+      "Bank this week's spare stickers, as stickers or as cash. Any grown-up, or the child themself",
+    request: saveSchema,
+    response: savingsMutationResponseSchema,
+    responseDesc:
+      "Banks at most what is spare this week. Asking for cash converts at the child's own sticker rate",
+  },
+  'POST /api/mw/financial/savings/cashout': {
+    summary: 'Turn banked savings into real money. Any grown-up, or the child themself',
+    request: cashoutSchema,
+    response: savingsMutationResponseSchema,
+    responseDesc: '409 when the child does not have that much saved',
+  },
+  'PUT /api/mw/financial/savings/admin-set': {
+    summary: "Set a child's balance by hand, overwriting what is there. ADMIN ONLY",
+    request: adminSetSavingsRequestSchema,
+    response: savingsMutationResponseSchema,
+    responseDesc: 'Writes the figures as given. Use to correct a mistake, not for everyday moves',
+  },
+  'POST /api/mw/financial/investments/{id}/withdraw': {
+    summary:
+      'Take stickers back out of a running investment, all or part. Any grown-up, or the child themself',
+    request: withdrawInvestmentRequestSchema,
+    response: savingsMutationResponseSchema,
+    responseDesc:
+      'Omit `stickers` to take the lot. What comes out goes to savings; the rest keeps growing',
+  },
+
+  // FHS-627: the week endpoints. Every one of these was listed with nothing
+  // said about it, and they are what a finished week's record is built from.
+  'GET /api/mw/weeks': {
+    summary:
+      'Every week for a child, oldest first (?memberId=). Any grown-up, or the child themself',
+    response: weeksResponseSchema,
+    responseDesc: 'Creates the current week if it does not exist yet, so the list is never empty',
+  },
+  'GET /api/mw/weeks/current': {
+    summary:
+      "The child's open week, creating it if needed (?memberId=). Any grown-up, or the child themself",
+    response: weekResponseSchema,
+  },
+  'GET /api/mw/weeks/{id}/stats': {
+    summary:
+      "One week's sticker counts and what they are worth (?memberId=). Any grown-up, or the child themself",
+    response: weekStatsResponseSchema,
+    responseDesc: 'unallocatedStickers is what is still spare; allocatedStickers is what has moved',
+  },
+  'GET /api/mw/weeks/{id}/actions': {
+    summary:
+      "Everything that happened to a week's stickers, newest first (?memberId=). Any grown-up, or the child themself",
+    response: weekActionsResponseSchema,
+    responseDesc:
+      "This is the record a finished week is summarised from. `invest_continue` carries a running investment's WHOLE value, not new money (FHS-617)",
+  },
+
+  // My World investments (FHS-296 / FHS-378).
+  'GET /api/mw/financial/investments': {
+    summary: "A child's active investments with live value (?memberId=)",
+    response: kidInvestmentsResponseSchema,
+    responseDesc:
+      'Each item carries `deductible`: false means missed days count but apply no penalty',
+  },
+  'POST /api/mw/financial/investments': {
+    summary: 'Create an investment (optional `deductible`, default true)',
+    request: createInvestmentRequestSchema,
+    response: investmentRecordSchema,
+    responseDesc: 'The created investment row',
+  },
+  'POST /api/mw/financial/investments/{id}/settings': {
+    summary: "Toggle an active investment's deductible flag (FHS-378)",
+    request: investmentSettingsRequestSchema,
+    response: investmentRecordSchema,
+    responseDesc: 'The updated investment row (404 if missing, 409 if not active)',
+  },
+
+  // Redemption requests (FHS-376): kid asks, admin approves/declines.
+  'GET /api/mw/redemption-requests': {
+    summary: "The family's reward redemption requests (?status=pending|approved|declined)",
+    response: listRedemptionRequestsResponseSchema,
+  },
+
+  // Invitations.
+
+  // Members.
+  'GET /api/members': {
+    summary: 'List family members',
+    response: listMembersResponseSchema,
+    responseDesc:
+      "email and pendingEmail (FHS-510) are admin-only: a non-admin caller always gets null on both, regardless of the member's actual state.",
+  },
+
+  // FHS-510: admin-initiated sign-in email change, confirmed by a one-time link.
+  'POST /api/members/{id}/email-change': {
+    summary: "Start changing a grown-up member's sign-in email; admin-only",
+    description:
+      'Emails a one-time confirm link to the NEW address, plus a best-effort heads-up notice to the OLD address (never blocks this response). The old address keeps working until the link is clicked. 400 NO_LOGIN_EMAIL if the target has no linked login; 409 if the new email already belongs to a Family Hub account, or if a concurrent request for the same member won the race.',
+    request: memberEmailChangeRequestBodySchema,
+    response: memberEmailChangeRequestResponseSchema,
+    responseDesc: '{ pendingEmail }: the address the confirm link was sent to',
+  },
+  'POST /api/members/email-change/confirm': {
+    summary: 'Apply a pending email change from the emailed confirm link',
+    description:
+      'PUBLIC: the recipient may not be signed in. The token is the credential (its SHA-256 hash is matched server-side); single-use and expires 24h after the admin started the change. Sends a best-effort completion notice to the OLD address on success (never blocks this response). The web ConfirmEmail screen requires an explicit click before calling this: it never auto-fires on page load, so an email link-scanner prefetch cannot burn the token.',
+    request: confirmEmailChangeBodySchema,
+    response: confirmEmailChangeResponseSchema,
+    responseDesc:
+      '200 on success. 410 { error: "expired" } if the link is missing/used/expired: the recipient should ask an admin for a new one. 502/500 { errorCode: "EMAIL_CHANGE_APPLY_FAILED" } on a transient failure (Supabase hiccup, or a post-apply drift): the token may still be valid, so the caller should retry rather than treat it as expired.',
+  },
+
+  // Notices / tasks.
+  'GET /api/notices': { summary: 'The family noticeboard', response: listNoticesResponseSchema },
+  'GET /api/tasks': { summary: 'List tasks', response: listTasksResponseSchema },
+
+  // FHS-394: Kid Maths progression.
+  'GET /api/kid/maths/progress': {
+    summary: 'All maths progress rows for this kid (all operations + tables)',
+    response: listMathsProgressResponseSchema,
+    responseDesc: 'Every (operation, table_number) row the kid has touched, in DB order',
+  },
+  'PUT /api/kid/maths/progress': {
+    summary: 'Upsert one maths progress row: only supplied fields are updated',
+    request: updateProgressBodySchema,
+    response: mathsProgressRowSchema,
+    responseDesc: 'The upserted row after the update',
+  },
+  'POST /api/kid/maths/placement': {
+    summary: 'Apply placement test results and auto-master qualifying tables',
+    request: placementBodySchema,
+    response: mathsPlacementResponseSchema,
+    responseDesc:
+      'unlocked[]: the table numbers newly mastered by this call (already-mastered tables are excluded)',
+  },
+  'GET /api/kid/maths/certificates': {
+    summary: 'All earned maths certificates for this kid',
+    response: listMathsCertsResponseSchema,
+    responseDesc:
+      'Certificates in DB order; difficulty is the table number string or easy/medium/hard',
+  },
+  'POST /api/kid/maths/certificates': {
+    summary: 'Award a certificate (idempotent: returns existing if already earned)',
+    request: certBodySchema,
+    response: mathsCertResponseSchema,
+    responseDesc: '{ certificate, alreadyEarned }: 200 if already earned, 201 if newly created',
+  },
+
+  // FHS-395: Kid Logic progression.
+  'GET /api/kid/logic/questions': {
+    summary: 'Questions for a logic game-type × difficulty combo (answers stripped)',
+    response: logicQuestionsResponseSchema,
+    responseDesc: 'questions[]: type-specific fields for the renderer; correct answer not included',
+    queryParams: {
+      gameType: {
+        description: 'One of: truefalse, patterns, oddoneout, ifthen, sorting',
+        required: true,
+        schema: logicAnswerBodySchema.shape.gameType,
+      },
+      difficulty: {
+        description: 'One of: easy, medium, hard',
+        required: true,
+        schema: logicAnswerBodySchema.shape.difficulty,
+      },
+    },
+  },
+  'POST /api/kid/logic/answer': {
+    summary: 'Grade a logic answer server-side; award certificate at 10 correct per combo',
+    request: logicAnswerBodySchema,
+    response: logicAnswerResponseSchema,
+    responseDesc:
+      '{ correct, correctAnswer, explanation, comboCorrect, certificateEarned }: comboCorrect is the running total for this gameType×difficulty',
+  },
+  'GET /api/kid/logic/certificates': {
+    summary: 'All earned logic certificates for this kid',
+    response: logicCertificatesResponseSchema,
+    responseDesc:
+      'certificates[]: one row per gameType×difficulty where the kid reached 10 correct answers',
+  },
+
+  // Admin Panel: App Info settings (FHS-308, FHS-441).
+  'GET /api/admin/settings': {
+    summary: "The family's app_settings map, plus its currency under the `currency` key",
+    response: adminSettingsResponseSchema,
+    responseDesc:
+      '{ [key]: value }: includes appName/appSubtitle (if set) and always includes currency (from tenants.currency, default USD)',
+  },
+  // FHS-626: the family name is a real column, not a loose setting, so it is
+  // called out rather than left inside the generic key description.
+  'PUT /api/admin/settings/familyName': {
+    summary: "Rename the family. ADMIN ONLY. Never changes the family's web address",
+    request: z.object({ value: z.string().min(1).max(80) }),
+    response: z.object({ key: z.literal('familyName'), value: z.string() }),
+    responseDesc: 'A blank name is refused. The slug the family lives at is untouched',
+  },
+  'PUT /api/admin/settings/{key}': {
+    summary: 'Upsert one setting; admin-only. `currency` writes tenants.currency, not app_settings',
+    request: adminSettingsPutRequestSchema,
+    response: adminSettingsPutResponseSchema,
+    responseDesc:
+      'For key=currency: { key, value } where value is the 3-letter ISO 4217 code just saved. Otherwise the upserted app_settings row',
+  },
+
+  // My World habits: FHS-292, boost + skip-penalty fields added FHS-512.
+  'PUT /api/habits/{id}': {
+    summary: 'Update a habit (name/icon/color/boost/skipPenaltyMinor); admin-only',
+    request: updateHabitRequestSchema,
+    response: habitItemSchema,
+  },
+
+  // FHS-512: configurable reward economy ("Pocket money" settings screen).
+  'GET /api/reward-config': {
+    summary: "The family's sticker rate + each kid's rate override",
+    response: rewardConfigResponseSchema,
+    responseDesc:
+      'currency, familyRateMinor (integer minor units, e.g. 50 = 0.50), and members[]: one row per kid with rateMinor (their override, null = uses the family default) and effectiveRateMinor (the resolved rate actually used)',
+  },
+  'PUT /api/reward-config': {
+    summary:
+      "Update the family's default sticker rate and/or one or more kids' overrides; admin-only",
+    request: rewardConfigPutRequestSchema,
+    response: rewardConfigResponseSchema,
+    responseDesc:
+      'The updated config, same shape as GET. Unknown/foreign memberIds in memberOverrides are silently skipped',
+  },
+
+  // GDPR: export my data + delete my account (FHS-435).
+  'GET /api/admin/export': {
+    summary: "Download the family's full data as one JSON file (GDPR data portability); admin-only",
+    response: adminExportResponseSchema,
+    responseDesc:
+      'Content-Disposition: attachment. { exportedAt, family, data }: data has one array per tenant-scoped table (e.g. members, tasks, habits, habitStickers), each row filtered to this tenant only',
+  },
+  'POST /api/admin/delete-account': {
+    summary: "IRREVERSIBLE: permanently deletes the caller's family and all its data; admin-only",
+    request: adminDeleteAccountRequestSchema,
+    response: adminDeleteAccountResponseSchema,
+    responseDesc:
+      '{ deleted: true } on success. 400 CONFIRM_MISMATCH if `confirm` does not exactly equal the family name: nothing is deleted in that case',
+  },
+
+  // FHS-483: parent-managed reward-shop catalogue (create/edit/archive).
+  'PATCH /api/rewards/{id}': {
+    summary: "Partially update a reward's name/description/stickerCost/icon; admin-only",
+    request: updateRewardRequestSchema,
+    response: rewardItemSchema,
+    responseDesc: "The updated reward. 404 if the reward is not in the caller's tenant",
+  },
+
+  // FHS-634: the dashboard "Getting started" guide, stored per member so it
+  // stops re-appearing on every new browser.
+  'GET /api/onboarding/get-started': {
+    summary: 'State of the dashboard setup guide for the calling admin',
+    response: getStartedStateSchema,
+    responseDesc:
+      'dismissed (this member hid the guide), steps.{kids,pins,rate,habits} derived from the family\'s own data, and firstKidId for the "open their world" deep link. 403 for non-admins',
+  },
+};
+
+// FHS-664: the per-area files in ./meta hold the rest of the entries. Later
+// spreads win, so an area file may also correct an entry above.
+export const routeMeta: Record<string, RouteMeta> = { ...baseMeta, ...areaMeta };

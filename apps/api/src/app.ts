@@ -2,58 +2,58 @@ import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import { swaggerUI } from '@hono/swagger-ui';
 import { config } from './config.js';
-import { buildOpenApiSpec } from './openapi/build-spec.js';
-import { createLogger } from './logger.js';
-import { getDb } from './db/client.js';
-import { getOrCreateUser } from './lib/user-mirror.js';
-import { authMiddleware, type AuthMiddlewareOptions } from './middleware/auth.js';
-import { rejectKidTokens } from './middleware/kid-auth.js';
-import { corsMiddleware } from './middleware/cors-allowlist.js';
-import { rateLimit } from './middleware/rate-limit.js';
-import { requestContext } from './middleware/request-context.js';
-import { requestDb } from './middleware/request-db.js';
+import { buildOpenApiSpec } from './api-docs/build-spec.js';
+import { createLogger } from './services/logger.js';
+import { getDb } from './database/client.js';
+import { getOrCreateUser } from './areas/family/user-mirror.js';
+import { authMiddleware, type AuthMiddlewareOptions } from './security/auth.js';
+import { rejectKidTokens } from './security/kid-auth.js';
+import { corsMiddleware } from './security/cors-allowlist.js';
+import { rateLimit } from './security/rate-limit.js';
+import { requestContext } from './services/request-context.js';
+import { requestDb } from './security/request-db.js';
 import {
   makeDbLookup,
   resolveTenant,
   type ResolveTenantOptions,
-} from './middleware/resolve-tenant.js';
-import { adminRouter } from './routes/admin.js';
-import { assignmentsRouter } from './routes/assignments.js';
-import { kidPinRouter } from './routes/auth-kid-pin.js';
-import { dashboardRouter } from './routes/dashboard.js';
-import { eventsRouter } from './routes/events.js';
-import { habitsRouter } from './routes/habits.js';
-import { mwWeeksRouter } from './routes/mw-weeks.js';
-import { mwFinancialRouter } from './routes/mw-financial.js';
-import { mwAnalyticsRouter } from './routes/mw-analytics.js';
-import { rewardsRouter } from './routes/rewards.js';
-import { mwRedemptionRequestsRouter } from './routes/mw-redemption-requests.js';
-import { rewardConfigRouter } from './routes/reward-config.js';
-import { journalRouter } from './routes/journal.js';
-import { healthRouter } from './routes/health.js';
-import { helloRouter } from './routes/hello.js';
+} from './security/resolve-tenant.js';
+import { adminRouter } from './areas/admin/admin.js';
+import { assignmentsRouter } from './areas/tasks/assignments.js';
+import { kidPinRouter } from './areas/kids/auth-kid-pin.js';
+import { dashboardRouter } from './areas/today/dashboard.js';
+import { eventsRouter } from './areas/calendar/events.js';
+import { habitsRouter } from './areas/tasks/habits.js';
+import { mwWeeksRouter } from './areas/my-world/mw-weeks.js';
+import { mwFinancialRouter } from './areas/my-world/mw-financial.js';
+import { mwAnalyticsRouter } from './areas/my-world/mw-analytics.js';
+import { rewardsRouter } from './areas/my-world/rewards.js';
+import { mwRedemptionRequestsRouter } from './areas/my-world/mw-redemption-requests.js';
+import { rewardConfigRouter } from './areas/my-world/reward-config.js';
+import { journalRouter } from './areas/journal/journal.js';
+import { healthRouter } from './areas/health/health.js';
+import { helloRouter } from './areas/health/hello.js';
 import {
   invitationClaimRouter,
   invitationResendRouter,
   invitationsRouter,
-} from './routes/invitations.js';
-import { kidRouter } from './routes/kid.js';
-import { meRouter } from './routes/me.js';
-import { mealsRouter } from './routes/meals.js';
-import { membersRouter } from './routes/members.js';
-import { noticesRouter } from './routes/notices.js';
-import { feedbackRouter } from './routes/feedback.js';
-import { learnInsightsRouter } from './routes/learn-insights.js';
-import { onboardingRouter } from './routes/onboarding.js';
-import { tasksRouter } from './routes/tasks.js';
-import { publicKidMembersRouter } from './routes/public-kid-members.js';
-import { publicTenantRouter } from './routes/public-tenant.js';
-import { publicFeedbackRouter } from './routes/public-feedback.js';
-import { founderRouter } from './routes/founder.js';
-import { calendarRouter } from './routes/calendar.js';
-import { publicCalendarRouter } from './routes/public-calendar.js';
-import { slugAvailableRouter } from './routes/slug-available.js';
-import { captureException, captureMessage } from './sentry.js';
+} from './areas/family/invitations.js';
+import { kidRouter } from './areas/kids/kid.js';
+import { meRouter } from './areas/family/me.js';
+import { mealsRouter } from './areas/meals/meals.js';
+import { membersRouter } from './areas/family/members.js';
+import { noticesRouter } from './areas/calendar/notices.js';
+import { feedbackRouter } from './areas/feedback/feedback.js';
+import { learnInsightsRouter } from './areas/learn/learn-insights.js';
+import { onboardingRouter } from './areas/family/onboarding.js';
+import { tasksRouter } from './areas/tasks/tasks.js';
+import { publicKidMembersRouter } from './areas/family/public-kid-members.js';
+import { publicTenantRouter } from './areas/family/public-tenant.js';
+import { publicFeedbackRouter } from './areas/feedback/public-feedback.js';
+import { founderRouter } from './areas/admin/founder.js';
+import { calendarRouter } from './areas/calendar/calendar.js';
+import { publicCalendarRouter } from './areas/calendar/public-calendar.js';
+import { slugAvailableRouter } from './areas/family/slug-available.js';
+import { captureException, captureMessage } from './services/sentry.js';
 
 const log = createLogger('app');
 

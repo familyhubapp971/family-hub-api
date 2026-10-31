@@ -5,17 +5,17 @@ import { SignJWT, exportJWK, generateKeyPair, type JWK, type KeyLike } from 'jos
 import { and, eq, sql } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { expect, vi } from 'vitest';
-import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/middleware/auth.js';
-import { onboardingRouter } from '../../../apps/api/src/routes/onboarding.js';
-import { tenants, members, habits, users } from '../../../apps/api/src/db/schema.js';
-import type { Database } from '../../../apps/api/src/db/client.js';
+import { authMiddleware, _resetJwksCacheForTests } from '../../../apps/api/src/security/auth.js';
+import { onboardingRouter } from '../../../apps/api/src/areas/family/onboarding.js';
+import { tenants, members, habits, users } from '../../../apps/api/src/database/schema.js';
+import type { Database } from '../../../apps/api/src/database/client.js';
 import { getTestDb } from '../support/db.js';
 
 // FHS-634: the dashboard setup guide, read from real data against real
 // Postgres. The bug this pins: state used to live in localStorage, so the
 // answers changed with the browser rather than with the family.
 
-vi.mock('../../../apps/api/src/db/client.js', () => ({
+vi.mock('../../../apps/api/src/database/client.js', () => ({
   getDb: () => getTestDb(),
   pinRequestTenant: async () => {},
 }));
