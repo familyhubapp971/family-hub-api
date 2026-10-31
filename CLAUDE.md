@@ -1,5 +1,11 @@
 # Family Hub: Claude Code Instructions
 
+> **This is `family-hub-api`, the server repo** (ADR 0021, FHS-686).
+> It holds the server, the common rules and the server tests only. The
+> web site lives in `family-hub-web` and the phone app in
+> `family-hub-mobile`. Rules below that mention the web site, browser
+> tests, Storybook, or `documents/` apply in `family-hub-web`.
+
 This file is automatically loaded by Claude Code in this repo. It augments
 the global config at `~/.claude/CLAUDE.md`, which exposes the full local
 skill catalogue (Anthropic skills, SWE Superpowers, Plugins Plus, subagents,
