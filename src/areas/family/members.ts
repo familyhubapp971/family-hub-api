@@ -14,6 +14,7 @@ import {
 import { getAuthenticatedUser } from '../../security/auth.js';
 import { config } from '../../config.js';
 import { escapeHtml, sendEmail } from '../../services/email.js';
+import { brandedEmail } from '../../services/email-layout.js';
 import { updateUserEmailById } from '../../security/supabase-admin.js';
 import { createLogger } from '../../services/logger.js';
 import { KID_PIN_BCRYPT_COST, resetKidPinBucketForMember } from '../kids/auth-kid-pin.js';
@@ -709,18 +710,25 @@ function emailChangeHtml(opts: {
   const fromLine = currentEmail
     ? `from <strong>${currentEmail}</strong> to <strong>${newEmail}</strong>`
     : `to <strong>${newEmail}</strong>`;
-  return `
-    <h1>Confirm your new email</h1>
-    <p>Hi ${displayName},</p>
-    <p>You asked to change your Family Hub sign-in email ${fromLine}. Confirm the change so it takes effect:</p>
-    <p>
-      <a href="${confirmUrl}" style="display:inline-block;padding:12px 20px;background:#1f2937;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Confirm new email</a>
-    </p>
-    <p>If the button doesn't work, paste this link into your browser:</p>
-    <p><a href="${confirmUrl}">${confirmUrl}</a></p>
-    <p>${currentEmail ? `Your old email (${currentEmail}) keeps working until you click the link above.` : ''} If you didn't request this, you can safely ignore this email: nothing changes until this link is clicked.</p>
-    <p>The Family Hub team</p>
-  `.trim();
+  const keepsWorking = currentEmail
+    ? `Your old email (${currentEmail}) keeps working until you click the link above. `
+    : '';
+  return brandedEmail({
+    title: 'Confirm your new email',
+    blocks: [
+      { kind: 'text', html: `Hi ${displayName},` },
+      {
+        kind: 'text',
+        html: `You asked to change your Family Hub sign-in email ${fromLine}. Confirm the change so it takes effect:`,
+      },
+      { kind: 'button', label: 'Confirm new email', url: confirmUrl },
+      { kind: 'fallback', url: confirmUrl },
+      {
+        kind: 'note',
+        html: `${keepsWorking}If you didn't request this, you can safely ignore this email: nothing changes until this link is clicked.`,
+      },
+    ],
+  });
 }
 
 // FHS-510 blocker #2: the CURRENT (old) email is always notified, so if a
@@ -731,25 +739,36 @@ function emailChangeHtml(opts: {
 function emailChangeStartedOldEmailHtml(opts: { displayName: string; newEmail: string }): string {
   const displayName = escapeHtml(opts.displayName);
   const newEmail = escapeHtml(opts.newEmail);
-  return `
-    <h1>Your Family Hub sign-in email is changing</h1>
-    <p>Hi ${displayName},</p>
-    <p>A request was made to change your Family Hub sign-in email to <strong>${newEmail}</strong>. It only takes effect when the link sent to the new address is confirmed.</p>
-    <p>If this wasn't you, don't confirm anything: change your password to secure your account.</p>
-    <p>The Family Hub team</p>
-  `.trim();
+  return brandedEmail({
+    title: 'Your Family Hub sign-in email is changing',
+    blocks: [
+      { kind: 'text', html: `Hi ${displayName},` },
+      {
+        kind: 'text',
+        html: `A request was made to change your Family Hub sign-in email to <strong>${newEmail}</strong>. It only takes effect when the link sent to the new address is confirmed.`,
+      },
+      {
+        kind: 'note',
+        html: "If this wasn't you, don't confirm anything: change your password to secure your account.",
+      },
+    ],
+  });
 }
 
 function emailChangeCompletedOldEmailHtml(opts: { displayName: string; newEmail: string }): string {
   const displayName = escapeHtml(opts.displayName);
   const newEmail = escapeHtml(opts.newEmail);
-  return `
-    <h1>Your Family Hub sign-in email was changed</h1>
-    <p>Hi ${displayName},</p>
-    <p>Your Family Hub sign-in email was changed to <strong>${newEmail}</strong>.</p>
-    <p>If this wasn't you, change your password to secure your account.</p>
-    <p>The Family Hub team</p>
-  `.trim();
+  return brandedEmail({
+    title: 'Your Family Hub sign-in email was changed',
+    blocks: [
+      { kind: 'text', html: `Hi ${displayName},` },
+      {
+        kind: 'text',
+        html: `Your Family Hub sign-in email was changed to <strong>${newEmail}</strong>.`,
+      },
+      { kind: 'note', html: "If this wasn't you, change your password to secure your account." },
+    ],
+  });
 }
 
 // POST /api/members/:id/email-change: self-serve: a member changes their OWN

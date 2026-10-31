@@ -16,6 +16,22 @@ the email body.
 | `email_change.html`     | `mailer_templates_email_change_content`     | `{{ .ConfirmationURL }}`, `{{ .Email }}`, `{{ .NewEmail }}` |
 | `reauthentication.html` | `mailer_templates_reauthentication_content` | `{{ .Token }}`                                              |
 
+## Built files (FHS-703)
+
+These HTML files are **built**, not hand-edited. The wording lives in
+`src/services/auth-email-templates.ts` and the look in
+`src/services/email-layout.ts` (the design system's colours, fonts, borders and
+shadows), shared with the emails the server sends itself. To change one:
+
+1. Edit the wording in `src/services/auth-email-templates.ts`.
+2. Run `pnpm email-templates:build` and commit the HTML. A unit test fails if
+   the files and the source disagree.
+3. Staging's GoTrue reads these files from the `staging` branch on GitHub;
+   production will read them from `main`.
+
+The section below describes the older Supabase flow, kept until production
+moves to GoTrue.
+
 ## Editing
 
 1. Edit the HTML file. Keep it simple: a single `h1`, short paragraphs,

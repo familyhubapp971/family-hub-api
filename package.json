@@ -48,7 +48,8 @@
     "format:check": "prettier --check .",
     "clean": "pnpm -r exec rm -rf dist .turbo node_modules/.cache",
     "prepare": "husky || true",
-    "feedback:export": "node scripts/data/export-beta-feedback.mjs"
+    "feedback:export": "node scripts/data/export-beta-feedback.mjs",
+    "email-templates:build": "tsx scripts/server/build-email-templates.ts"
   },
   "devDependencies": {
     "@amiceli/vitest-cucumber": "^6.3.0",
