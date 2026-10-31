@@ -208,8 +208,14 @@ export function gotrueProxy(upstream: string, opts: GotrueProxyOptions = {}) {
     if (opts.limits && email && checksSecret && res.status < 500) {
       opts.limits.recordTry(email, res.status >= 200 && res.status < 300);
     }
-    // GoTrue failed, so no email went out: do not charge it to the address.
-    if (opts.limits && email && emailSentAt !== undefined && res.status >= 500) {
+    // Only an email GoTrue actually sent counts. Its own refusals (such as its
+    // one-a-minute rule) and failures send nothing, so they are given back.
+    if (
+      opts.limits &&
+      email &&
+      emailSentAt !== undefined &&
+      (res.status < 200 || res.status >= 300)
+    ) {
       opts.limits.refundEmail(email, emailSentAt);
     }
 

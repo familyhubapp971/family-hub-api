@@ -247,6 +247,16 @@ describe('FHS-695: limits and the visitor address on the pass-through', () => {
     expect((await post(app, '/auth/v1/otp', { email: 'a@b.com' })).status).toBe(200);
   });
 
+  it("does not charge GoTrue's own refusals, such as its one-a-minute rule", async () => {
+    fetchMock.mockImplementation(
+      async () => new Response('{"error_code":"over_email_send_rate_limit"}', { status: 429 }),
+    );
+    const app = limitedApp();
+    for (let i = 0; i < 8; i++) await post(app, '/auth/v1/otp', { email: 'a@b.com' });
+    fetchMock.mockImplementation(async () => new Response('{}', { status: 200 }));
+    expect((await post(app, '/auth/v1/otp', { email: 'a@b.com' })).status).toBe(200);
+  });
+
   it('does not count a password try that GoTrue could not check', async () => {
     fetchMock.mockImplementation(async () => new Response('{}', { status: 500 }));
     const app = limitedApp();
