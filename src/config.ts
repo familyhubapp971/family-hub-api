@@ -54,6 +54,10 @@ export const configSchema = z
     // FHS-91). Optional in dev so health/hello stay bootable without
     // it, but routes that need it fail loudly when it's missing.
     SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+    // FHS-694: private address of our own GoTrue sign-in server on Railway
+    // (e.g. http://gotrue.railway.internal:9999). When set, /auth/v1/* is
+    // passed through to it; unset, that path does not exist.
+    GOTRUE_URL: z.string().url().optional(),
     // Public origin where the SPA serves the auth callback (e.g.
     // https://frontend-staging-409d.up.railway.app). Used to build the
     // redirectTo URL on Supabase admin invites: the invitee clicks
