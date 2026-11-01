@@ -114,11 +114,19 @@ import {
 import { learnInsightsResponseSchema } from '../areas/learn/learn-insights.js';
 import { feedbackRequestSchema, feedbackResponseSchema } from '../areas/feedback/feedback.js';
 import {
+  MAX_PHOTOS,
+  issueReportCreatedSchema,
+  issueReportFieldsSchema,
+} from '../areas/feedback/issue-reports.js';
+import {
   publicFeedbackRequestSchema,
   publicFeedbackResponseSchema,
 } from '../areas/feedback/public-feedback.js';
 import {
   founderFeedbackResponseSchema,
+  founderIssueStatusRequestSchema,
+  founderIssueStatusResponseSchema,
+  founderIssuesResponseSchema,
   founderSessionRequestSchema,
   founderSessionResponseSchema,
 } from '../areas/admin/founder.js';
@@ -152,8 +160,15 @@ export interface RouteMeta {
   responseDesc?: string;
   /** Success status code. Defaults to 200; use 204 for routes that reply with no body. */
   status?: 200 | 201 | 202 | 204;
-  /** Non-JSON success body, e.g. 'text/calendar'. Documented as a string. */
-  responseContentType?: string;
+  /**
+   * Non-JSON success body, e.g. 'text/calendar'. Documented as a string, and as
+   * raw bytes for images. A list means the reply is one of those types.
+   */
+  responseContentType?: string | string[];
+  /** Request body type when it is not JSON, e.g. a form with files. */
+  requestContentType?: 'multipart/form-data';
+  /** File fields of a multipart form (name → how many files and what they are). */
+  requestFiles?: Record<string, { maxItems: number; description: string }>;
   /** POST/PUT/PATCH that genuinely reads no JSON body (so no `request` schema). */
   bodyless?: true;
   /** Optional query parameters to document (name → meta). */
@@ -378,6 +393,24 @@ const baseMeta: Record<string, RouteMeta> = {
     responseDesc: '201: the new feedback row id',
   },
 
+  // FHS-717: report an issue with photos.
+  'POST /api/feedback/issues': {
+    summary: 'Grown-ups only (family admin or adult): report a problem with up to 3 photos',
+    description:
+      'Send as multipart/form-data with screen, an optional description (trimmed, up to 2000 characters), an optional visitId and 0 to 3 files named photos. Needs a description or at least one photo. Each photo is 1 MB or less and must really be a JPEG, PNG or WebP (checked from its first bytes, not its name). 400 for a missing family, a bad field, an empty report, a 4th photo or a file that is not one of those images; 403 for kids, teens, guests and non-members; 413 for a photo over 1 MB or a request over about 3.5 MB; 429 after 20 reports in an hour.',
+    request: issueReportFieldsSchema,
+    requestContentType: 'multipart/form-data',
+    requestFiles: {
+      photos: {
+        maxItems: MAX_PHOTOS,
+        description: 'Up to 3 photos, each 1 MB or less: JPEG, PNG or WebP.',
+      },
+    },
+    response: issueReportCreatedSchema,
+    responseDesc: '201: the new report id',
+    status: 201,
+  },
+
   // FHS-672: the founder's /admin feedback page (passcode, not family sign-in).
   'POST /api/founder/session': {
     summary: 'Founder only: swap the passcode for an 8-hour page token',
@@ -393,6 +426,29 @@ const baseMeta: Record<string, RouteMeta> = {
       'Send the token from POST /api/founder/session in the x-founder-token header. Returns up to 2000 answers from the in-app survey, the per-screen form and the homepage survey. 401 when the token is missing or expired.',
     response: founderFeedbackResponseSchema,
     responseDesc: 'Feedback rows across every family',
+  },
+  // FHS-717: issue reports on the same page.
+  'GET /api/founder/issues': {
+    summary: "Founder only: every family's issue reports, newest first",
+    description:
+      "Send the page token in the x-founder-token header. Returns up to 500 reports with each photo's id, type and size; fetch the photo itself from the photo route. 401 when the token is missing or expired.",
+    response: founderIssuesResponseSchema,
+    responseDesc: 'Issue reports across every family',
+  },
+  'GET /api/founder/issues/{id}/photos/{photoId}': {
+    summary: "Founder only: one issue report photo's image",
+    description:
+      'Send the page token in the x-founder-token header. Replies with the raw image and its stored type, never cached. 404 when the photo is not part of that report; 401 when the token is missing or expired.',
+    responseContentType: ['image/jpeg', 'image/png', 'image/webp'],
+    responseDesc: 'The photo',
+  },
+  'PATCH /api/founder/issues/{id}': {
+    summary: 'Founder only: mark an issue report fixed, or reopen it',
+    description:
+      "Send the page token in the x-founder-token header. 'fixed' stamps fixedAt; 'new' clears it. 404 for an unknown report; 401 when the token is missing or expired.",
+    request: founderIssueStatusRequestSchema,
+    response: founderIssueStatusResponseSchema,
+    responseDesc: 'The report status after the change',
   },
 
   // FHS-429: Public (anonymous) feedback from the logged-out homepage.

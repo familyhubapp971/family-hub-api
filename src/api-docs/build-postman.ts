@@ -294,6 +294,28 @@ function requestItem(path: string, method: string, op: Json): Json {
 
   const body = (op['requestBody'] as Json | undefined)?.['content'] as Json | undefined;
   const bodySchema = (body?.['application/json'] as Json | undefined)?.['schema'];
+  const formSchema = (body?.['multipart/form-data'] as Json | undefined)?.['schema'] as
+    | Json
+    | undefined;
+  if (formSchema) {
+    // A form with files: Postman sets the Content-Type and boundary itself.
+    const props = (formSchema['properties'] ?? {}) as Record<string, Json>;
+    const required = new Set((formSchema['required'] as string[] | undefined) ?? []);
+    request['body'] = {
+      mode: 'formdata',
+      formdata: Object.entries(props).map(([key, prop]) => {
+        const isFile = (prop['items'] as Json | undefined)?.['format'] === 'binary';
+        return isFile
+          ? { key, type: 'file', src: [], description: prop['description'] ?? '' }
+          : {
+              key,
+              type: 'text',
+              value: String(sampleFor(prop) ?? ''),
+              disabled: !required.has(key),
+            };
+      }),
+    };
+  }
   if (bodySchema) {
     headers.push({ key: 'Content-Type', value: 'application/json' });
     request['body'] = {

@@ -98,6 +98,18 @@ describe('FHS-664: Postman collection from the OpenAPI spec', () => {
     expect(staging.values.find((v: any) => v.key === 'userToken').type).toBe('secret');
   });
 
+  it('FHS-717: sends the issue report as a form with a file box for photos', () => {
+    const r = find('POST', '{{baseUrl}}/api/feedback/issues');
+    expect(r?.request.body.mode).toBe('formdata');
+    const fields = r?.request.body.formdata as Array<Record<string, unknown>>;
+    expect(fields.find((f) => f['key'] === 'photos')).toMatchObject({ type: 'file' });
+    expect(fields.find((f) => f['key'] === 'screen')).toMatchObject({
+      type: 'text',
+      disabled: false,
+    });
+    expect(fields.find((f) => f['key'] === 'description')).toMatchObject({ disabled: true });
+  });
+
   it('builds a sample body that respects formats and required fields', () => {
     expect(
       sampleFor({

@@ -4903,6 +4903,80 @@
               }
             }
           ]
+        },
+        {
+          "name": "/api/feedback/issues",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "x-tenant-slug",
+                "value": "{{tenantSlug}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/feedback/issues",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "feedback",
+                "issues"
+              ]
+            },
+            "description": "Grown-ups only (family admin or adult): report a problem with up to 3 photos\n\nSend as multipart/form-data with screen, an optional description (trimmed, up to 2000 characters), an optional visitId and 0 to 3 files named photos. Needs a description or at least one photo. Each photo is 1 MB or less and must really be a JPEG, PNG or WebP (checked from its first bytes, not its name). 400 for a missing family, a bad field, an empty report, a 4th photo or a file that is not one of those images; 403 for kids, teens, guests and non-members; 413 for a photo over 1 MB or a request over about 3.5 MB; 429 after 20 reports in an hour.\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 201",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "screen",
+                  "type": "text",
+                  "value": "x",
+                  "disabled": false
+                },
+                {
+                  "key": "description",
+                  "type": "text",
+                  "value": "x",
+                  "disabled": true
+                },
+                {
+                  "key": "visitId",
+                  "type": "text",
+                  "value": "00000000-0000-4000-8000-000000000000",
+                  "disabled": true
+                },
+                {
+                  "key": "photos",
+                  "type": "file",
+                  "src": [],
+                  "description": "Up to 3 photos, each 1 MB or less: JPEG, PNG or WebP."
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -7015,6 +7089,139 @@
               ]
             },
             "description": "Founder only: every family's feedback, newest first\n\nSend the token from POST /api/founder/session in the x-founder-token header. Returns up to 2000 answers from the in-app survey, the per-screen form and the homepage survey. 401 when the token is missing or expired.\n\n**Sign-in:** none\n**Success:** 200"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/founder/issues",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/founder/issues",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "founder",
+                "issues"
+              ]
+            },
+            "description": "Founder only: every family's issue reports, newest first\n\nSend the page token in the x-founder-token header. Returns up to 500 reports with each photo's id, type and size; fetch the photo itself from the photo route. 401 when the token is missing or expired.\n\n**Sign-in:** none\n**Success:** 200"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/founder/issues/{id}",
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/founder/issues/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "founder",
+                "issues",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{issueId}}"
+                }
+              ]
+            },
+            "description": "Founder only: mark an issue report fixed, or reopen it\n\nSend the page token in the x-founder-token header. 'fixed' stamps fixedAt; 'new' clears it. 404 for an unknown report; 401 when the token is missing or expired.\n\n**Sign-in:** none\n**Success:** 200",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"new\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/founder/issues/{id}/photos/{photoId}",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/founder/issues/:id/photos/:photoId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "founder",
+                "issues",
+                ":id",
+                "photos",
+                ":photoId"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{issueId}}"
+                },
+                {
+                  "key": "photoId",
+                  "value": "{{photoId}}"
+                }
+              ]
+            },
+            "description": "Founder only: one issue report photo's image\n\nSend the page token in the x-founder-token header. Replies with the raw image and its stored type, never cached. 404 when the photo is not part of that report; 401 when the token is missing or expired.\n\n**Sign-in:** none\n**Success:** 200"
           },
           "event": [
             {
