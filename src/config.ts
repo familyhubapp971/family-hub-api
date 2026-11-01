@@ -80,6 +80,23 @@ export const configSchema = z
       .positive()
       .default(15 * 60_000),
     SIGNIN_EMAILS_PER_HOUR: z.coerce.number().int().positive().default(5),
+    // FHS-704: the only addresses allowed to sign in with a password through
+    // /auth/v1, comma separated. Family Hub never uses passwords (ADR 0011), so
+    // only staging sets it, to the browser-test account. Unset = none.
+    PASSWORD_SIGNIN_EMAILS: z
+      .string()
+      .optional()
+      .transform((v) =>
+        (v ?? '')
+          .split(',')
+          .map((e) => e.trim().toLowerCase())
+          .filter(Boolean),
+      )
+      // Only made-up .test addresses (a reserved domain nobody can own), so a
+      // real person can never be given a password sign-in by mistake.
+      .refine((list) => list.every((e) => e.endsWith('.test')), {
+        message: 'PASSWORD_SIGNIN_EMAILS may only list .test addresses (FHS-704).',
+      }),
     // Public origin where the SPA serves the auth callback (e.g.
     // https://frontend-staging-409d.up.railway.app). Used to build the
     // redirectTo URL on Supabase admin invites: the invitee clicks

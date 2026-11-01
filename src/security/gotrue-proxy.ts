@@ -59,20 +59,76 @@ async function readLimited(req: Request, max: number): Promise<ArrayBuffer | nul
 
 // FHS-695: GoTrue endpoints that send a sign-in email, and those that check a
 // password or a typed code (the guessable ones). Keyed by email address.
-const EMAIL_SENDING = new Set(['otp', 'signup', 'recover', 'magiclink', 'resend']);
+const EMAIL_SENDING = new Set(['otp', 'resend']);
 
-function emailFrom(body: ArrayBuffer | undefined): string | undefined {
-  if (!body || body.byteLength === 0) return undefined;
+// FHS-704: the only GoTrue routes the web app uses, and their methods. Anything
+// else (MFA, SSO, magic-link, reauthenticate and routes added in later GoTrue
+// versions) stops here. A Map, so names like "constructor" cannot match.
+const READ = ['GET', 'HEAD'];
+const ROUTES = new Map<string, readonly string[]>([
+  ['health', READ],
+  ['settings', READ],
+  ['.well-known', READ],
+  ['authorize', READ],
+  ['user', READ],
+  ['callback', [...READ, 'POST']],
+  ['verify', [...READ, 'POST']],
+  ['otp', ['POST']],
+  ['resend', ['POST']],
+  ['token', ['POST']],
+  ['logout', ['POST']],
+]);
+
+function jsonObject(body: ArrayBuffer): Record<string, unknown> | undefined {
   try {
     const parsed: unknown = JSON.parse(new TextDecoder().decode(body));
-    const email = (parsed as { email?: unknown } | null)?.email;
-    return typeof email === 'string' && email.includes('@')
-      ? email.trim().toLowerCase()
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
       : undefined;
   } catch {
     return undefined;
   }
 }
+
+// GoTrue is written in Go, whose JSON reader matches field names ignoring case
+// (with Unicode folding, so the long-s letter counts as "s") and keeps the last
+// match. Bodies are therefore checked and forwarded as one parsed object, with
+// at most one key that folds to "email", so both sides read the same address.
+function goFold(key: string): string {
+  return key
+    .replace(/\u017f/g, 's')
+    .replace(/\u212a/g, 'k')
+    .toLowerCase();
+}
+
+function emailKeys(body: Record<string, unknown>): string[] {
+  return Object.keys(body).filter((key) => goFold(key) === 'email');
+}
+
+function emailFrom(body: Record<string, unknown> | undefined): string | undefined {
+  const key = body ? emailKeys(body)[0] : undefined;
+  const email = key === undefined ? undefined : body![key];
+  return typeof email === 'string' && email.includes('@') ? email.trim().toLowerCase() : undefined;
+}
+
+// FHS-704: Family Hub never uses passwords (ADR 0011); parents sign in with an
+// email link or Google. GoTrue still offers password sign-up, sign-in, reset
+// and change. Password sign-up let an outsider put a password on someone
+// else's address before they joined, then sign in as them once the owner
+// confirmed it (proven on staging). So those routes stop here, as does GoTrue's
+// own account-change route: email changes go through the app's checked flow.
+function refused(errorCode: string, msg: string): Response {
+  return new Response(JSON.stringify({ code: 403, error_code: errorCode, msg }), {
+    status: 403,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+const passwordsOff = () =>
+  refused(
+    'password_sign_in_disabled',
+    'Family Hub does not use passwords. Sign in with an email link or Google.',
+  );
 
 // Same shape GoTrue uses for its own limits, so the web app's sign-in client
 // and error wording treat ours exactly like GoTrue's.
@@ -93,6 +149,8 @@ function minutes(ms: number): string {
 
 export interface GotrueProxyOptions {
   limits?: SignInLimits;
+  /** FHS-704: the only addresses allowed a password sign-in (lower case). */
+  passwordSignInEmails?: readonly string[];
 }
 
 export function gotrueProxy(upstream: string, opts: GotrueProxyOptions = {}) {
@@ -155,17 +213,53 @@ export function gotrueProxy(upstream: string, opts: GotrueProxyOptions = {}) {
       init.body = body;
     }
 
-    const endpoint = segments[0] ?? '';
+    // Trailing dots stripped, as for the admin check above.
+    const endpoint = (segments[0] ?? '').replace(/\.+$/, '');
     const isPost = method === 'POST';
-    const checksSecret =
-      isPost &&
-      ((endpoint === 'token' && url.searchParams.get('grant_type') === 'password') ||
-        endpoint === 'verify');
+
+    if (endpoint === 'signup' || endpoint === 'recover') return passwordsOff();
+    if (endpoint === 'user' && method !== 'GET' && method !== 'HEAD') {
+      return refused(
+        'account_update_disabled',
+        "Change your account details in Family Hub's settings.",
+      );
+    }
+    if (!ROUTES.get(endpoint)?.includes(method)) {
+      return c.json({ error: 'not found' }, 404);
+    }
+
+    // FHS-704: GoTrue reads a form-encoded body ahead of the query string, so a
+    // form body could say grant_type=password behind a harmless address. The
+    // web app only sends JSON objects, so any other body is refused (the Google
+    // return trip, /callback, is left alone). GoTrue is sent the parsed object
+    // back as JSON, so it reads exactly what was checked here.
+    const raw = init.body as ArrayBuffer | undefined;
+    let body: Record<string, unknown> | undefined;
+    if (raw && raw.byteLength > 0 && endpoint !== 'callback') {
+      const mediaType = (c.req.header('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
+      if (mediaType !== 'application/json') {
+        return c.json({ error: 'unsupported content type' }, 415);
+      }
+      body = jsonObject(raw);
+      if (!body || emailKeys(body).length > 1) return c.json({ error: 'bad request' }, 400);
+      init.body = new TextEncoder().encode(JSON.stringify(body));
+    }
+    // Exactly one grant_type, so this check and GoTrue cannot read different ones
+    // (Go drops query pairs holding a ";", the browser's reader keeps them).
+    const grantTypes = url.searchParams.getAll('grant_type');
+    if (isPost && endpoint === 'token' && grantTypes.length !== 1) {
+      return c.json({ error: 'bad request' }, 400);
+    }
+    const isPasswordGrant = endpoint === 'token' && grantTypes[0] === 'password';
+
+    if (isPost && isPasswordGrant) {
+      const who = emailFrom(body);
+      if (!who || !(opts.passwordSignInEmails ?? []).includes(who)) return passwordsOff();
+    }
+
+    const checksSecret = isPost && (isPasswordGrant || endpoint === 'verify');
     const sendsEmail = isPost && EMAIL_SENDING.has(endpoint);
-    const email =
-      opts.limits && (checksSecret || sendsEmail)
-        ? emailFrom(init.body as ArrayBuffer | undefined)
-        : undefined;
+    const email = opts.limits && (checksSecret || sendsEmail) ? emailFrom(body) : undefined;
 
     let emailSentAt: number | undefined;
     if (opts.limits && email) {

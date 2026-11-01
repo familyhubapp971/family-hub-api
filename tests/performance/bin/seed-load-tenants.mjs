@@ -364,7 +364,8 @@ console.error(`    2. Edit fixtures[].parent.password to the password you set.`)
 console.error(`    3. Link that account to the seeded admin member row:`);
 console.error(`         UPDATE members SET user_id = '<sign-in-account-id>'`);
 console.error(`           WHERE id = '<fixtures[].parent.adminMemberId>';`);
-console.error(`    4. Run with -e AUTH_URL=<the api address>.`);
+console.error(`    4. Add the address to PASSWORD_SIGNIN_EMAILS on that api (FHS-704).`);
+console.error(`    5. Run with -e AUTH_URL=<the api address>.`);
 console.error(`  Full walkthrough: tests/performance/README.md.`);
 console.error(`\nPurge these tenants later with:`);
 console.error(

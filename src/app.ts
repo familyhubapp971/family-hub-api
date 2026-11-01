@@ -156,7 +156,13 @@ export function buildApp(opts: BuildAppOptions = {}) {
       lockoutMs: config.SIGNIN_LOCKOUT_MS,
       emailsPerHour: config.SIGNIN_EMAILS_PER_HOUR,
     });
-    app.all(`${GOTRUE_PREFIX}/*`, gotrueProxy(config.GOTRUE_URL, { limits }));
+    app.all(
+      `${GOTRUE_PREFIX}/*`,
+      gotrueProxy(config.GOTRUE_URL, {
+        limits,
+        passwordSignInEmails: config.PASSWORD_SIGNIN_EMAILS,
+      }),
+    );
   }
 
   // Auth runs after request-context (so the 401 log line carries the

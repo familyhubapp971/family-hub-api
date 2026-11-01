@@ -127,7 +127,9 @@ app data. So parent sessions are opt-in:
      WHERE id = '<fixtures[].parent.adminMemberId>';
    ```
 
-4. Pass `-e AUTH_URL=<the api address>` when running.
+4. Add the address to `PASSWORD_SIGNIN_EMAILS` on that api (comma separated):
+   password sign-in is refused for every other address (FHS-704).
+5. Pass `-e AUTH_URL=<the api address>` when running.
 
 Without this, scenarios still run: they just run **kid sessions only**
 (the loader warns once per run and skips `parentSession`).
