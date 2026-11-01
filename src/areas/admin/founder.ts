@@ -1,5 +1,6 @@
 import { createHmac, scryptSync, timingSafeEqual } from 'node:crypto';
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { config } from '../../config.js';
@@ -8,11 +9,17 @@ import { createLogger } from '../../services/logger.js';
 
 // FHS-672: the founder's /admin feedback page.
 //
-//   POST /api/founder/session   { passcode } -> { token, expiresAt }
-//   GET  /api/founder/feedback  x-founder-token -> every family's feedback
+//   POST  /api/founder/session   { passcode } -> { token, expiresAt }
+//   GET   /api/founder/feedback  x-founder-token -> every family's feedback
+//
+// FHS-717 adds the issue reports grown-ups send with photos:
+//
+//   GET   /api/founder/issues                         every family's reports
+//   GET   /api/founder/issues/:id/photos/:photoId     one photo's bytes
+//   PATCH /api/founder/issues/:id  { status }         mark fixed, or reopen
 //
 // No parent sign-in: the passcode (FOUNDER_PASSCODE, a server setting) is the
-// credential. Unset means both routes answer 404.
+// credential. Unset means every founder route answers 404.
 //
 // Lockout is ONE bucket for everyone, not per IP: an attacker can rotate
 // X-Forwarded-For, but cannot get past a shared count. Five wrong tries lock
@@ -34,6 +41,7 @@ const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60_000;
 const TOKEN_TTL_MS = 8 * 60 * 60_000;
 const FEEDBACK_LIMIT = 2000;
+const ISSUES_LIMIT = 500;
 
 const lockout = { failures: 0, lockedUntil: 0 };
 
@@ -123,6 +131,41 @@ export const founderFeedbackResponseSchema = z.object({
   rows: z.array(founderFeedbackRowSchema),
 });
 
+export const founderIssuePhotoSchema = z.object({
+  id: z.string().uuid(),
+  contentType: z.string(),
+  sizeBytes: z.number().int(),
+});
+
+export const founderIssueSchema = z.object({
+  id: z.string().uuid(),
+  createdAt: z.string().datetime(),
+  screen: z.string(),
+  description: z.string(),
+  status: z.enum(['new', 'fixed']),
+  fixedAt: z.string().datetime().nullable(),
+  familyName: z.string(),
+  reporterEmail: z.string().nullable(),
+  reporterName: z.string().nullable(),
+  photos: z.array(founderIssuePhotoSchema),
+});
+
+export const founderIssuesResponseSchema = z.object({
+  issues: z.array(founderIssueSchema),
+});
+
+export const founderIssueStatusRequestSchema = z.object({
+  status: z.enum(['new', 'fixed']),
+});
+
+export const founderIssueStatusResponseSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(['new', 'fixed']),
+  fixedAt: z.string().datetime().nullable(),
+});
+
+const uuidSchema = z.string().uuid();
+
 type FeedbackDbRow = Record<string, unknown> & {
   source: 'in_app' | 'screen' | 'public';
   family_slug: string | null;
@@ -143,9 +186,48 @@ type FeedbackDbRow = Record<string, unknown> & {
   created_at: Date | string;
 };
 
+type IssueDbRow = Record<string, unknown> & {
+  id: string;
+  created_at: Date | string;
+  screen: string;
+  description: string;
+  status: 'new' | 'fixed';
+  fixed_at: Date | string | null;
+  family_name: string;
+  reporter_email: string | null;
+  reporter_name: string | null;
+  photos: Array<{ id: string; contentType: string; sizeBytes: number }> | null;
+};
+
+type IssuePhotoDbRow = Record<string, unknown> & {
+  content_type: string;
+  size_bytes: number;
+  data: Buffer;
+};
+
+type IssueStatusDbRow = Record<string, unknown> & {
+  id: string;
+  status: 'new' | 'fixed';
+  fixed_at: Date | string | null;
+};
+
+const isoOrNull = (d: Date | string | null) => (d === null ? null : new Date(d).toISOString());
+
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export function createFounderRouter(getSecrets: () => FounderSecrets | null) {
+  // The one check every founder read uses: 404 when the page is switched off,
+  // 401 without a live page token. Null means the founder may go ahead.
+  function founderGate(c: Context): Response | null {
+    const f = getSecrets();
+    if (!f) return c.json({ error: 'not found' }, 404);
+    const token = c.req.header('x-founder-token') ?? '';
+    if (!verifyFounderToken(f, token)) {
+      return c.json({ error: 'sign in again', errorCode: 'FOUNDER_TOKEN' }, 401);
+    }
+    return null;
+  }
+
   return (
     new Hono()
       .post('/session', async (c) => {
@@ -184,12 +266,8 @@ export function createFounderRouter(getSecrets: () => FounderSecrets | null) {
 
       // GET /api/founder/feedback: newest first, every family.
       .get('/feedback', async (c) => {
-        const f = getSecrets();
-        if (!f) return c.json({ error: 'not found' }, 404);
-        const token = c.req.header('x-founder-token') ?? '';
-        if (!verifyFounderToken(f, token)) {
-          return c.json({ error: 'sign in again', errorCode: 'FOUNDER_TOKEN' }, 401);
-        }
+        const denied = founderGate(c);
+        if (denied) return denied;
 
         const { rows: dbRows } = await getDb().execute<FeedbackDbRow>(
           sql`select * from app_founder_feedback(${FEEDBACK_LIMIT})`,
@@ -215,6 +293,87 @@ export function createFounderRouter(getSecrets: () => FounderSecrets | null) {
         }));
         c.header('Cache-Control', 'no-store');
         return c.json(founderFeedbackResponseSchema.parse({ rows }));
+      })
+
+      // GET /api/founder/issues: FHS-717, newest first, every family. Photo
+      // details only; the bytes come one at a time from the photo route.
+      .get('/issues', async (c) => {
+        const denied = founderGate(c);
+        if (denied) return denied;
+
+        const { rows } = await getDb().execute<IssueDbRow>(
+          sql`select * from app_founder_issues(${ISSUES_LIMIT})`,
+        );
+        const issues = rows.map((r) => ({
+          id: r.id,
+          createdAt: new Date(r.created_at).toISOString(),
+          screen: r.screen,
+          description: r.description,
+          status: r.status,
+          fixedAt: isoOrNull(r.fixed_at),
+          familyName: r.family_name,
+          reporterEmail: r.reporter_email,
+          reporterName: r.reporter_name,
+          photos: r.photos ?? [],
+        }));
+        c.header('Cache-Control', 'no-store');
+        return c.json(founderIssuesResponseSchema.parse({ issues }));
+      })
+
+      // GET /api/founder/issues/:id/photos/:photoId: one photo's raw bytes.
+      // 404 unless the photo belongs to that report.
+      .get('/issues/:id/photos/:photoId', async (c) => {
+        const denied = founderGate(c);
+        if (denied) return denied;
+        const id = c.req.param('id');
+        const photoId = c.req.param('photoId');
+        if (!uuidSchema.safeParse(id).success || !uuidSchema.safeParse(photoId).success) {
+          return c.json({ error: 'not found' }, 404);
+        }
+
+        const { rows } = await getDb().execute<IssuePhotoDbRow>(
+          sql`select * from app_founder_issue_photo(${id}::uuid, ${photoId}::uuid)`,
+        );
+        const photo = rows[0];
+        if (!photo) return c.json({ error: 'not found' }, 404);
+
+        const { data } = photo;
+        const body = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+        return c.body(body as ArrayBuffer, 200, {
+          'Content-Type': photo.content_type,
+          'Cache-Control': 'private, no-store',
+          'X-Content-Type-Options': 'nosniff',
+          'Content-Disposition': 'inline',
+        });
+      })
+
+      // PATCH /api/founder/issues/:id { status }: 'fixed' stamps fixedAt,
+      // 'new' reopens it and clears fixedAt.
+      .patch('/issues/:id', async (c) => {
+        const denied = founderGate(c);
+        if (denied) return denied;
+        const id = c.req.param('id');
+        if (!uuidSchema.safeParse(id).success) return c.json({ error: 'not found' }, 404);
+
+        const raw: unknown = await c.req.json().catch(() => null);
+        const parsed = founderIssueStatusRequestSchema.safeParse(raw);
+        if (!parsed.success) {
+          return c.json({ error: 'invalid request', errorCode: 'INVALID_STATUS' }, 400);
+        }
+
+        const { rows } = await getDb().execute<IssueStatusDbRow>(
+          sql`select * from app_founder_set_issue_status(${id}::uuid, ${parsed.data.status})`,
+        );
+        const row = rows[0];
+        if (!row) return c.json({ error: 'not found' }, 404);
+        c.header('Cache-Control', 'no-store');
+        return c.json(
+          founderIssueStatusResponseSchema.parse({
+            id: row.id,
+            status: row.status,
+            fixedAt: isoOrNull(row.fixed_at),
+          }),
+        );
       })
   );
 }
