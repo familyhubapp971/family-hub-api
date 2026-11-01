@@ -98,6 +98,44 @@ describe('FHS-664: Postman collection from the OpenAPI spec', () => {
     expect(staging.values.find((v: any) => v.key === 'userToken').type).toBe('secret');
   });
 
+  it('FHS-717: sends the issue report as a form with a file box for photos', () => {
+    const r = find('POST', '{{baseUrl}}/api/feedback/issues');
+    expect(r?.request.body.mode).toBe('formdata');
+    const fields = r?.request.body.formdata as Array<Record<string, unknown>>;
+    expect(fields.find((f) => f['key'] === 'photos')).toMatchObject({ type: 'file' });
+    expect(fields.find((f) => f['key'] === 'screen')).toMatchObject({
+      type: 'text',
+      disabled: false,
+    });
+    expect(fields.find((f) => f['key'] === 'description')).toMatchObject({ disabled: true });
+  });
+
+  it('FHS-717: founder issue requests send the founder token and save the ids they need', () => {
+    const list = find('GET', '{{baseUrl}}/api/founder/issues');
+    const photo = find('GET', '{{baseUrl}}/api/founder/issues/:id/photos/:photoId');
+    const mark = find('PATCH', '{{baseUrl}}/api/founder/issues/:id');
+    for (const r of [list, photo, mark]) {
+      expect(r?.request.header).toContainEqual({
+        key: 'x-founder-token',
+        value: '{{founderToken}}',
+      });
+    }
+    expect(photo?.request.url.variable).toEqual([
+      { key: 'id', value: '{{issueId}}' },
+      { key: 'photoId', value: '{{photoId}}' },
+    ]);
+    const saves = (list?.event[0].script.exec as string[]).join('\n');
+    expect(saves).toContain("pm.environment.set('issueId'");
+    expect(saves).toContain("pm.environment.set('photoId'");
+    const session = find('POST', '{{baseUrl}}/api/founder/session');
+    expect((session?.event[0].script.exec as string[]).join('\n')).toContain(
+      "pm.environment.set('founderToken'",
+    );
+    expect(session?.request.header).not.toContainEqual(
+      expect.objectContaining({ key: 'x-founder-token' }),
+    );
+  });
+
   it('builds a sample body that respects formats and required fields', () => {
     expect(
       sampleFor({

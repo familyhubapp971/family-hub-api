@@ -99,6 +99,13 @@ function camelizeRow(row: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
+// FHS-717: tables whose export lists only these columns. Issue report photos
+// are up to 3 MB of image bytes per report: the export says which photos
+// exist and leaves the bytes out, so the download stays small.
+const EXPORT_COLUMNS: Record<string, readonly string[]> = {
+  issue_report_photos: ['id', 'report_id', 'content_type', 'size_bytes', 'created_at'],
+};
+
 type Db = ReturnType<typeof getDb>;
 
 async function guardTenant(
@@ -264,8 +271,15 @@ export const adminRouter = new Hono()
     const data: Record<string, unknown[]> = {};
     for (const table of TENANT_SCOPED_TABLES) {
       const name = getTableConfig(table).name;
+      const only = EXPORT_COLUMNS[name];
+      const columns = only
+        ? sql.join(
+            only.map((col) => sql.identifier(col)),
+            sql`, `,
+          )
+        : sql`*`;
       const result = await db.execute(
-        sql`select * from ${sql.identifier(name)} where tenant_id = ${tenantId}`,
+        sql`select ${columns} from ${sql.identifier(name)} where tenant_id = ${tenantId}`,
       );
       data[toCamelCase(name)] = result.rows.map((row) => {
         const camel = camelizeRow(row) as Record<string, unknown>;

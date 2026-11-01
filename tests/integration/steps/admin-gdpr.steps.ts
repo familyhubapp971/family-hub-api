@@ -251,6 +251,20 @@ describeFeature(feature, ({ Background, Scenario }) => {
           expect(rows, `[FHS-435] "${key}" expected ${expectedCount} row(s)`).toHaveLength(
             expectedCount,
           );
+          // FHS-717: photo rows carry no family column (see the next step);
+          // their report must be one of this family's exported reports.
+          if (name === 'issue_report_photos') {
+            const ownReports = new Set(
+              (data['issueReports'] as Array<Record<string, unknown>>).map((r) => r['id']),
+            );
+            for (const row of rows!) {
+              expect(
+                ownReports.has((row as Record<string, unknown>)['reportId']),
+                `[FHS-717] "${key}" row points at another family's report`,
+              ).toBe(true);
+            }
+            continue;
+          }
           for (const row of rows!) {
             expect(
               (row as Record<string, unknown>)['tenantId'],
@@ -260,6 +274,17 @@ describeFeature(feature, ({ Background, Scenario }) => {
         }
       },
     );
+
+    And('the exported issue report photos leave out the image bytes', () => {
+      const data = lastExport.body['data'] as Record<string, Array<Record<string, unknown>>>;
+      const photos = data['issueReportPhotos']!;
+      expect(photos.length).toBeGreaterThan(0);
+      for (const row of photos) {
+        expect(Object.keys(row).sort()).toEqual(
+          ['contentType', 'createdAt', 'id', 'reportId', 'sizeBytes'].sort(),
+        );
+      }
+    });
   });
 
   // ─── Scenario: export admin-only ─────────────────────────────────────────

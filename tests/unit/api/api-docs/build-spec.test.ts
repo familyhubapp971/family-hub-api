@@ -105,4 +105,33 @@ describe('FHS-356: docs are served', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
   });
+
+  it('FHS-717: documents the issue report form with its photo files', () => {
+    const body = (spec.paths['/api/feedback/issues']!['post'] as Record<string, any>)[
+      'requestBody'
+    ];
+    const schema = body.content['multipart/form-data'].schema;
+    expect(schema.required).toEqual(['screen']);
+    expect(schema.properties.photos).toMatchObject({
+      type: 'array',
+      maxItems: 3,
+      items: { type: 'string', format: 'binary' },
+    });
+  });
+
+  it('FHS-717: documents the founder photo reply as raw image bytes', () => {
+    const op = spec.paths['/api/founder/issues/{id}/photos/{photoId}']!['get'] as Record<
+      string,
+      any
+    >;
+    expect(Object.keys(op['responses']['200'].content)).toEqual([
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+    ]);
+    expect(op['responses']['200'].content['image/png'].schema).toEqual({
+      type: 'string',
+      format: 'binary',
+    });
+  });
 });

@@ -29,6 +29,7 @@ const DESCRIPTION = [
   'Other variables:',
   '- `tenantSlug`: the family web address, e.g. `khan-family`.',
   '- `kidToken`: saved by POST /api/auth/kid-pin (needs `kidMemberId` and `kidPin`).',
+  '- `founderToken`: saved by POST /api/founder/session (needs the founder passcode).',
   '- `*Id` variables: the id of the record a request acts on.',
 ].join('\n');
 
@@ -268,6 +269,9 @@ function requestItem(path: string, method: string, op: Json): Json {
   if (params.some((p) => p['in'] === 'header' && p['name'] === 'x-tenant-slug')) {
     headers.push({ key: 'x-tenant-slug', value: '{{tenantSlug}}' });
   }
+  if (params.some((p) => p['in'] === 'header' && p['name'] === 'x-founder-token')) {
+    headers.push({ key: 'x-founder-token', value: '{{founderToken}}' });
+  }
 
   const security = op['security'] as Array<Record<string, unknown>> | undefined;
   const scheme = security?.[0] ? Object.keys(security[0])[0] : undefined;
@@ -294,6 +298,28 @@ function requestItem(path: string, method: string, op: Json): Json {
 
   const body = (op['requestBody'] as Json | undefined)?.['content'] as Json | undefined;
   const bodySchema = (body?.['application/json'] as Json | undefined)?.['schema'];
+  const formSchema = (body?.['multipart/form-data'] as Json | undefined)?.['schema'] as
+    | Json
+    | undefined;
+  if (formSchema) {
+    // A form with files: Postman sets the Content-Type and boundary itself.
+    const props = (formSchema['properties'] ?? {}) as Record<string, Json>;
+    const required = new Set((formSchema['required'] as string[] | undefined) ?? []);
+    request['body'] = {
+      mode: 'formdata',
+      formdata: Object.entries(props).map(([key, prop]) => {
+        const isFile = (prop['items'] as Json | undefined)?.['format'] === 'binary';
+        return isFile
+          ? { key, type: 'file', src: [], description: prop['description'] ?? '' }
+          : {
+              key,
+              type: 'text',
+              value: String(sampleFor(prop) ?? ''),
+              disabled: !required.has(key),
+            };
+      }),
+    };
+  }
   if (bodySchema) {
     headers.push({ key: 'Content-Type', value: 'application/json' });
     request['body'] = {
@@ -319,6 +345,24 @@ function requestItem(path: string, method: string, op: Json): Json {
       ),
       options: { raw: { language: 'json' } },
     };
+  }
+
+  // FHS-717: the founder page token, and the report and photo the next
+  // founder requests act on (a report that has a photo, when there is one).
+  if (path === '/api/founder/session' && method === 'post') {
+    tests.push(
+      "if (pm.response.code === 200) pm.environment.set('founderToken', pm.response.json().token);",
+    );
+  }
+  if (path === '/api/founder/issues' && method === 'get') {
+    tests.push(
+      'if (pm.response.code === 200) {',
+      '  const issues = pm.response.json().issues;',
+      '  const pick = issues.find((i) => i.photos.length > 0) || issues[0];',
+      "  if (pick) pm.environment.set('issueId', pick.id);",
+      "  if (pick && pick.photos.length > 0) pm.environment.set('photoId', pick.photos[0].id);",
+      '}',
+    );
   }
 
   // Postman shows the method as a badge, so the path alone is the name.
@@ -361,7 +405,7 @@ export function collectionVariables(collection: Json): string[] {
   return [...found].sort();
 }
 
-const SECRET = new Set(['userToken', 'kidToken', 'kidPin']);
+const SECRET = new Set(['userToken', 'kidToken', 'kidPin', 'founderToken']);
 
 export function buildPostmanEnvironment(
   name: keyof typeof POSTMAN_ENVIRONMENTS,

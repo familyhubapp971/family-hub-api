@@ -47,6 +47,8 @@ function tagFor(path: string): string {
   return m ? (m[1] as string) : 'other';
 }
 
+const isBinary = (type: string) => type.startsWith('image/') || type === 'application/octet-stream';
+
 function jsonSchema(schema: Parameters<typeof zodToJsonSchema>[0]): unknown {
   // openApi3 target keeps it OpenAPI-3.0 compatible; inline (no $ref) so each
   // operation is self-contained and easy to read in Swagger UI.
@@ -159,7 +161,20 @@ export function buildOpenApiSpec(app: Pick<Hono, 'routes'>): OpenApiSpec {
             },
           ]
         : [];
-    const allParams = [...pathParams, ...queryParams, ...tenantHeader];
+    // FHS-717: the founder page's own pass, from POST /api/founder/session.
+    const founderHeader =
+      oaPath.startsWith('/api/founder/') && oaPath !== '/api/founder/session'
+        ? [
+            {
+              name: 'x-founder-token',
+              in: 'header',
+              required: true,
+              description: 'The page token from POST /api/founder/session.',
+              schema: { type: 'string' },
+            },
+          ]
+        : [];
+    const allParams = [...pathParams, ...queryParams, ...tenantHeader, ...founderHeader];
     if (allParams.length) {
       operation['parameters'] = allParams;
     }
@@ -174,9 +189,27 @@ export function buildOpenApiSpec(app: Pick<Hono, 'routes'>): OpenApiSpec {
     }
 
     if (meta?.request) {
+      const body = jsonSchema(meta.request) as Record<string, unknown>;
+      // File fields cannot be described in Zod, so they are added here.
+      if (meta.requestFiles) {
+        body['properties'] = {
+          ...(body['properties'] as Record<string, unknown>),
+          ...Object.fromEntries(
+            Object.entries(meta.requestFiles).map(([name, f]) => [
+              name,
+              {
+                type: 'array',
+                items: { type: 'string', format: 'binary' },
+                maxItems: f.maxItems,
+                description: f.description,
+              },
+            ]),
+          ),
+        };
+      }
       operation['requestBody'] = {
         required: true,
-        content: { 'application/json': { schema: jsonSchema(meta.request) } },
+        content: { [meta.requestContentType ?? 'application/json']: { schema: body } },
       };
     }
 
@@ -192,7 +225,16 @@ export function buildOpenApiSpec(app: Pick<Hono, 'routes'>): OpenApiSpec {
         ? {
             [status]: {
               description: meta.responseDesc ?? 'Success',
-              content: { [meta.responseContentType]: { schema: { type: 'string' } } },
+              content: Object.fromEntries(
+                [meta.responseContentType].flat().map((type) => [
+                  type,
+                  {
+                    schema: isBinary(type)
+                      ? { type: 'string', format: 'binary' }
+                      : { type: 'string' },
+                  },
+                ]),
+              ),
             },
           }
         : { [status]: { description: meta?.responseDesc ?? 'Success' } };

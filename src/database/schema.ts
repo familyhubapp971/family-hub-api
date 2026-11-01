@@ -11,7 +11,10 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
+  customType,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -22,6 +25,7 @@ import {
   real,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   varchar,
@@ -1786,6 +1790,91 @@ export const publicFeedback = pgTable('public_feedback', {
 export type PublicFeedback = typeof publicFeedback.$inferSelect;
 export type NewPublicFeedback = typeof publicFeedback.$inferInsert;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Issue reports (FHS-717)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Drizzle has no built-in bytea column, so this maps Postgres bytea to a Buffer.
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return 'bytea';
+  },
+});
+
+/**
+ * `issue_reports`: a grown-up's report of a problem on one screen. The founder
+ * reads every family's reports on /admin and marks them fixed. Status is
+ * 'new' or 'fixed'; fixed_at is set only while it is fixed.
+ */
+export const issueReports = pgTable(
+  'issue_reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    submittedByUserId: uuid('submitted_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    submittedByMemberId: uuid('submitted_by_member_id').references(() => members.id, {
+      onDelete: 'set null',
+    }),
+    screen: text('screen').notNull(),
+    description: text('description').notNull().default(''),
+    visitId: uuid('visit_id'),
+    status: text('status').notNull().default('new'),
+    fixedAt: timestamp('fixed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('issue_reports_created_idx').on(t.createdAt.desc()),
+    index('issue_reports_tenant_id_idx').on(t.tenantId),
+    // Lets a photo point at (report, family), so it can never sit in another
+    // family than its report. A new table, so push adds it with no prompt.
+    unique('issue_reports_id_tenant_id_unique').on(t.id, t.tenantId),
+    check('issue_reports_status_check', sql`"status" IN ('new', 'fixed')`),
+  ],
+);
+
+export type IssueReport = typeof issueReports.$inferSelect;
+export type NewIssueReport = typeof issueReports.$inferInsert;
+
+/**
+ * `issue_report_photos`: up to 3 photos per report, kept as bytes in our own
+ * database (founder choice: no storage bucket). Each is 1 MB or less and is a
+ * real JPEG, PNG or WebP, checked from its first bytes before it is saved.
+ */
+export const issueReportPhotos = pgTable(
+  'issue_report_photos',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    reportId: uuid('report_id').notNull(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    contentType: text('content_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    data: bytea('data').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      name: 'issue_report_photos_report_family_fk',
+      columns: [t.reportId, t.tenantId],
+      foreignColumns: [issueReports.id, issueReports.tenantId],
+    }).onDelete('cascade'),
+    index('issue_report_photos_report_id_idx').on(t.reportId),
+    index('issue_report_photos_tenant_id_idx').on(t.tenantId),
+    check(
+      'issue_report_photos_content_type_check',
+      sql`"content_type" IN ('image/jpeg', 'image/png', 'image/webp')`,
+    ),
+  ],
+);
+
+export type IssueReportPhoto = typeof issueReportPhotos.$inferSelect;
+export type NewIssueReportPhoto = typeof issueReportPhotos.$inferInsert;
+
 /**
  * Registry of every tenant-scoped table. Drives the cross-tenant leak
  * audit (FHS-6) and any future cross-cutting tooling that needs to walk
@@ -1830,4 +1919,6 @@ export const TENANT_SCOPED_TABLES = [
   mwLogicProgress,
   mwLogicCertificates,
   betaFeedback,
+  issueReports,
+  issueReportPhotos,
 ] as const;

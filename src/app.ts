@@ -46,6 +46,7 @@ import { mealsRouter } from './areas/meals/meals.js';
 import { membersRouter } from './areas/family/members.js';
 import { noticesRouter } from './areas/calendar/notices.js';
 import { feedbackRouter } from './areas/feedback/feedback.js';
+import { issueReportsRouter } from './areas/feedback/issue-reports.js';
 import { learnInsightsRouter } from './areas/learn/learn-insights.js';
 import { onboardingRouter } from './areas/family/onboarding.js';
 import { tasksRouter } from './areas/tasks/tasks.js';
@@ -282,6 +283,8 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/api/rewards', rewardsRouter);
   app.route('/api/reward-config', rewardConfigRouter);
   app.route('/api/journal', journalRouter);
+  // FHS-717: grown-ups report a problem with up to 3 photos.
+  app.route('/api/feedback/issues', issueReportsRouter);
   app.route('/api/feedback', feedbackRouter);
   app.route('/api/learn/insights', learnInsightsRouter);
   app.route('/api/onboarding', onboardingRouter);

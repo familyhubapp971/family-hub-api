@@ -18,6 +18,8 @@ import {
   habitLogs,
   habitStickers,
   investments,
+  issueReportPhotos,
+  issueReports,
   journalEntries,
   learnProgress,
   mealTemplates,
@@ -56,6 +58,7 @@ interface SeedCtx {
   rewardId?: string;
   savingsId?: string;
   mwWeekId?: string;
+  issueReportId?: string;
 }
 
 /**
@@ -409,6 +412,29 @@ export async function seedRow(
       });
       break;
     }
+    case 'issue_reports': {
+      const [row] = await db
+        .insert(issueReports)
+        .values({
+          tenantId,
+          submittedByMemberId: ctx.memberId!,
+          screen: 'today',
+          description: `seed-issue-${tenantId.slice(0, 4)}`,
+        })
+        .returning();
+      ctx.issueReportId = row!.id;
+      break;
+    }
+    case 'issue_report_photos': {
+      await db.insert(issueReportPhotos).values({
+        reportId: ctx.issueReportId!,
+        tenantId,
+        contentType: 'image/png',
+        sizeBytes: 8,
+        data: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      });
+      break;
+    }
     default:
       throw new Error(`seedRow: unknown table "${name}"`);
   }
@@ -454,6 +480,8 @@ const DEPENDENCY_ORDER = [
   'app_settings',
   'activity_logs',
   'beta_feedback',
+  'issue_reports',
+  'issue_report_photos',
 ] as const;
 
 /** Seed one fixture row per tenant-scoped table for `tenantId`, FK-ordered. */

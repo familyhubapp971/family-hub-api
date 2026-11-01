@@ -27,6 +27,8 @@ const FILES = [
   // FHS-510: member_email_changes tenant isolation (push never applies RLS).
   // After 0028 so app_current_tenant() exists.
   'apply-email-change-rls.sql',
+  // FHS-717: issue_reports and issue_report_photos family lock.
+  'apply-issue-reports-rls.sql',
 ];
 
 const url = process.env.DATABASE_URL;
