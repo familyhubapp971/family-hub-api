@@ -25,6 +25,8 @@ const FILES = [
   'apply-email-change-function.sql',
   // FHS-672: app_founder_feedback reader for the /admin feedback page.
   '0047_founder_feedback_reader.sql',
+  // FHS-717: founder issue report readers and the fixed/new switch.
+  'apply-issue-reports-functions.sql',
 ];
 
 const url = process.env.DATABASE_URL;

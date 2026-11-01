@@ -17,13 +17,19 @@ const log = createLogger('rate-limit');
 interface Bucket {
   tokens: number;
   lastRefillMs: number;
+  // How long this bucket may sit unused before the sweep drops it. Kept per
+  // bucket because limiters with different windows share the one map.
+  idleMs: number;
 }
 
 interface Options {
   capacity: number;
   windowMs: number;
-  /** Override how a key is derived from the request. Default: client IP. */
-  keyFor?: (clientIp: string | undefined) => string;
+  /**
+   * Override how a key is derived from the request. Default: client IP. The
+   * request is passed too, so a route can count per signed-in person instead.
+   */
+  keyFor?: (clientIp: string | undefined, c: Context) => string;
 }
 
 const buckets = new Map<string, Bucket>();
@@ -32,9 +38,9 @@ const SWEEP_INTERVAL_MS = 5 * 60_000;
 let sweepTimer: ReturnType<typeof setInterval> | undefined;
 let warnedMissingIp = false;
 
-function sweepIdle(now: number, idleMs: number): void {
+function sweepIdle(now: number): void {
   for (const [key, b] of buckets) {
-    if (now - b.lastRefillMs > idleMs) buckets.delete(key);
+    if (now - b.lastRefillMs > b.idleMs) buckets.delete(key);
   }
 }
 
@@ -64,7 +70,7 @@ export function rateLimit({
   const refillPerMs = capacity / windowMs;
 
   if (!sweepTimer && typeof setInterval !== 'undefined') {
-    sweepTimer = setInterval(() => sweepIdle(Date.now(), windowMs * 4), SWEEP_INTERVAL_MS);
+    sweepTimer = setInterval(() => sweepIdle(Date.now()), SWEEP_INTERVAL_MS);
     sweepTimer.unref?.();
   }
 
@@ -94,12 +100,12 @@ export function rateLimit({
       return c.json({ error: 'rate limit: client identity unavailable' }, 429);
     }
 
-    const key = keyFor(ip);
+    const key = keyFor(ip, c);
     const now = Date.now();
 
     let bucket = buckets.get(key);
     if (!bucket) {
-      bucket = { tokens: capacity, lastRefillMs: now };
+      bucket = { tokens: capacity, lastRefillMs: now, idleMs: windowMs * 4 };
       buckets.set(key, bucket);
     } else {
       const elapsed = now - bucket.lastRefillMs;
