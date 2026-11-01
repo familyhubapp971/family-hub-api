@@ -120,9 +120,13 @@ describe('config: PASSWORD_SIGNIN_EMAILS (FHS-704)', () => {
   });
 
   it('reads a comma list as lower-case addresses, ignoring blanks', () => {
-    expect(parse(' E2E@FamilyHub.test, ,other@example.com ')).toEqual([
+    expect(parse(' E2E@FamilyHub.test, ,admin+x@familyhub.test ')).toEqual([
       'e2e@familyhub.test',
-      'other@example.com',
+      'admin+x@familyhub.test',
     ]);
+  });
+
+  it('refuses a real-looking address, so no real person gets a password sign-in', () => {
+    expect(() => parse('e2e@familyhub.test,parent@gmail.com')).toThrow();
   });
 });

@@ -91,7 +91,12 @@ export const configSchema = z
           .split(',')
           .map((e) => e.trim().toLowerCase())
           .filter(Boolean),
-      ),
+      )
+      // Only made-up .test addresses (a reserved domain nobody can own), so a
+      // real person can never be given a password sign-in by mistake.
+      .refine((list) => list.every((e) => e.endsWith('.test')), {
+        message: 'PASSWORD_SIGNIN_EMAILS may only list .test addresses (FHS-704).',
+      }),
     // Public origin where the SPA serves the auth callback (e.g.
     // https://frontend-staging-409d.up.railway.app). Used to build the
     // redirectTo URL on Supabase admin invites: the invitee clicks
