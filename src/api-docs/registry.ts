@@ -397,7 +397,7 @@ const baseMeta: Record<string, RouteMeta> = {
   'POST /api/feedback/issues': {
     summary: 'Grown-ups only (family admin or adult): report a problem with up to 3 photos',
     description:
-      'Send as multipart/form-data with screen, an optional description (trimmed, up to 2000 characters), an optional visitId and 0 to 3 files named photos. Needs a description or at least one photo. Each photo is 1 MB or less and must really be a JPEG, PNG or WebP (checked from its first bytes, not its name). 400 for a missing family, a bad field, an empty report, a 4th photo or a file that is not one of those images; 403 for kids, teens, guests and non-members; 413 for a photo over 1 MB or a request over about 3.5 MB; 429 after 20 reports in an hour.',
+      'Send as multipart/form-data with screen, an optional description, an optional visitId and 0 to 3 files named photos. The description is trimmed and may be up to 2000 characters, with each line break counted once (CRLF is stored as one line break) and control characters other than tab and line break removed. Needs a description or at least one photo. Each photo is 1 MB or less and must really be a JPEG, PNG or WebP (checked from its first bytes, not its name). 400 for a missing family, a bad field, an empty report, a 4th photo, a file that is not one of those images, or a file under any field name other than photos; 403 for kids, teens, guests and non-members; 408 when the form takes over 60 seconds to arrive; 413 for a photo over 1 MB or a request over about 3.5 MB; 429 after 20 reports in an hour from one person or 30 in 24 hours from one family.',
     request: issueReportFieldsSchema,
     requestContentType: 'multipart/form-data',
     requestFiles: {
@@ -431,7 +431,7 @@ const baseMeta: Record<string, RouteMeta> = {
   'GET /api/founder/issues': {
     summary: "Founder only: every family's issue reports, newest first",
     description:
-      "Send the page token in the x-founder-token header. Returns up to 500 reports with each photo's id, type and size; fetch the photo itself from the photo route. 401 when the token is missing or expired.",
+      "Send the page token in the x-founder-token header. Returns every new report plus the newest 500 fixed ones, newest first, with each photo's id, type and size; fetch the photo itself from the photo route. 401 when the token is missing or expired.",
     response: founderIssuesResponseSchema,
     responseDesc: 'Issue reports across every family',
   },

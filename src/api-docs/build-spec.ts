@@ -161,7 +161,20 @@ export function buildOpenApiSpec(app: Pick<Hono, 'routes'>): OpenApiSpec {
             },
           ]
         : [];
-    const allParams = [...pathParams, ...queryParams, ...tenantHeader];
+    // FHS-717: the founder page's own pass, from POST /api/founder/session.
+    const founderHeader =
+      oaPath.startsWith('/api/founder/') && oaPath !== '/api/founder/session'
+        ? [
+            {
+              name: 'x-founder-token',
+              in: 'header',
+              required: true,
+              description: 'The page token from POST /api/founder/session.',
+              schema: { type: 'string' },
+            },
+          ]
+        : [];
+    const allParams = [...pathParams, ...queryParams, ...tenantHeader, ...founderHeader];
     if (allParams.length) {
       operation['parameters'] = allParams;
     }

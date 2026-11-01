@@ -2124,7 +2124,7 @@
         ],
         "summary": "Grown-ups only (family admin or adult): report a problem with up to 3 photos",
         "operationId": "post_api_feedback_issues",
-        "description": "Send as multipart/form-data with screen, an optional description (trimmed, up to 2000 characters), an optional visitId and 0 to 3 files named photos. Needs a description or at least one photo. Each photo is 1 MB or less and must really be a JPEG, PNG or WebP (checked from its first bytes, not its name). 400 for a missing family, a bad field, an empty report, a 4th photo or a file that is not one of those images; 403 for kids, teens, guests and non-members; 413 for a photo over 1 MB or a request over about 3.5 MB; 429 after 20 reports in an hour.",
+        "description": "Send as multipart/form-data with screen, an optional description, an optional visitId and 0 to 3 files named photos. The description is trimmed and may be up to 2000 characters, with each line break counted once (CRLF is stored as one line break) and control characters other than tab and line break removed. Needs a description or at least one photo. Each photo is 1 MB or less and must really be a JPEG, PNG or WebP (checked from its first bytes, not its name). 400 for a missing family, a bad field, an empty report, a 4th photo, a file that is not one of those images, or a file under any field name other than photos; 403 for kids, teens, guests and non-members; 408 when the form takes over 60 seconds to arrive; 413 for a photo over 1 MB or a request over about 3.5 MB; 429 after 20 reports in an hour from one person or 30 in 24 hours from one family.",
         "parameters": [
           {
             "name": "x-tenant-slug",
@@ -2210,6 +2210,17 @@
         "summary": "Founder only: every family's feedback, newest first",
         "operationId": "get_api_founder_feedback",
         "description": "Send the token from POST /api/founder/session in the x-founder-token header. Returns up to 2000 answers from the in-app survey, the per-screen form and the homepage survey. 401 when the token is missing or expired.",
+        "parameters": [
+          {
+            "name": "x-founder-token",
+            "in": "header",
+            "required": true,
+            "description": "The page token from POST /api/founder/session.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Feedback rows across every family",
@@ -2338,7 +2349,18 @@
         ],
         "summary": "Founder only: every family's issue reports, newest first",
         "operationId": "get_api_founder_issues",
-        "description": "Send the page token in the x-founder-token header. Returns up to 500 reports with each photo's id, type and size; fetch the photo itself from the photo route. 401 when the token is missing or expired.",
+        "description": "Send the page token in the x-founder-token header. Returns every new report plus the newest 500 fixed ones, newest first, with each photo's id, type and size; fetch the photo itself from the photo route. 401 when the token is missing or expired.",
+        "parameters": [
+          {
+            "name": "x-founder-token",
+            "in": "header",
+            "required": true,
+            "description": "The page token from POST /api/founder/session.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Issue reports across every family",
@@ -2457,6 +2479,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "x-founder-token",
+            "in": "header",
+            "required": true,
+            "description": "The page token from POST /api/founder/session.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -2541,6 +2572,15 @@
             "name": "photoId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-founder-token",
+            "in": "header",
+            "required": true,
+            "description": "The page token from POST /api/founder/session.",
             "schema": {
               "type": "string"
             }
