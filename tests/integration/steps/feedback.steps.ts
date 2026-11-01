@@ -12,7 +12,7 @@ import { getTestDb } from '../support/db.js';
 
 // Unique KID + USER_ID so this file doesn't collide with other step files
 // running on the same Postgres instance.
-const ISSUER = 'https://test.supabase.local/auth/v1';
+const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'feedback-int-kid';
 const USER_ID = '00000000-0000-4000-8000-000000000fbd';
 const USER_EMAIL = 'feedback-tester@example.com';

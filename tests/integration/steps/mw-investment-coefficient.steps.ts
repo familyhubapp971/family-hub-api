@@ -39,7 +39,7 @@ const feature = await loadFeature(
   new URL('../features/mw-investment-coefficient.feature', import.meta.url).pathname,
 );
 
-const ISSUER = 'https://test.supabase.local/auth/v1';
+const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'mw-investment-coefficient-kid';
 const USER_ID = '00000000-0000-4000-8000-0000000007e9';
 const USER_EMAIL = 'coefficient@example.com';

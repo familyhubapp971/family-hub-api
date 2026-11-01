@@ -42,7 +42,7 @@ const feature = await loadFeature(
   new URL('../features/members-set-pin.feature', import.meta.url).pathname,
 );
 
-const ISSUER = 'https://test.supabase.local/auth/v1';
+const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'members-pin-int-kid';
 const ADMIN_USER_ID = '00000000-0000-4000-8000-000000000901';
 const ADMIN_USER_EMAIL = 'admin-pin@example.com';

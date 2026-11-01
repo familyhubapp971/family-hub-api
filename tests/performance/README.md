@@ -15,8 +15,8 @@ The suite now drives **real, authenticated family sessions**:
   screen the kid ChildWorld dashboard loads on open: profile, Today,
   tasks, calendar, meals, habits, weeks, savings, investments, rewards,
   learn. 12 requests.
-- **Parent session** (`parentSession`): logs in with a real Supabase
-  password (the same flow a parent uses) and hits the parent Today
+- **Parent session** (`parentSession`): signs in with a real password
+  through the api's `/auth/v1` (our own sign-in server, FHS-700) and hits the parent Today
   dashboard, family members, calendar, tasks, meals, and one kid's habit
   grid. 7 requests.
 
@@ -87,7 +87,7 @@ k6 scenarios read via `-e LOAD_FIXTURES=<path>`.
 ### ⚠️ Check which database you're about to write to
 
 This repo's local `.env.local` `DATABASE_URL` may already point at a
-**shared Supabase Postgres project** (staging), not a local database:
+**shared database** (staging), not a local one:
 check `echo $DATABASE_URL` (or the value in `.env.local`) before running
 the seed script. Seeding writes real rows to whatever `DATABASE_URL`
 resolves to. If you want a local-only seed, point `DATABASE_URL` at your
@@ -109,22 +109,25 @@ DELETE FROM tenants WHERE slug LIKE 'loadtest-%';
 
 ### Parent accounts (manual step)
 
-The seed script **cannot** create Supabase Auth users: that needs the
-Supabase Admin API / dashboard, not a database connection, and this
-script deliberately carries no Supabase credentials. So parent sessions
-are opt-in:
+The seed script **cannot** create sign-in accounts: they live in the
+sign-in server's `auth` tables, and this script deliberately touches only
+app data. So parent sessions are opt-in:
 
-1. In the **same Supabase project** the target api points at (staging),
-   create a user with the email from `fixtures[].parent.email`.
+1. On the **same environment** the target api uses (staging), add a
+   sign-in account for `fixtures[].parent.email` with a password, the
+   same way as the browser-test account (see "Browser-test account" in
+   family-hub-web's `documents/technical/deployment.md`).
 2. Edit `fixtures[].parent.password` in the fixtures JSON to the password
    you set (it starts as `null`, which fails loudly instead of silently
    if you forget this step and try to run parent sessions anyway).
-3. Link the new Supabase user to the seeded admin member row:
+3. Link the new account to the seeded admin member row:
 
    ```sql
-   UPDATE members SET user_id = '<supabase-user-uuid>'
+   UPDATE members SET user_id = '<sign-in-account-id>'
      WHERE id = '<fixtures[].parent.adminMemberId>';
    ```
+
+4. Pass `-e AUTH_URL=<the api address>` when running.
 
 Without this, scenarios still run: they just run **kid sessions only**
 (the loader warns once per run and skips `parentSession`).
@@ -136,11 +139,11 @@ Without this, scenarios still run: they just run **kid sessions only**
 k6 run -e LOAD_FIXTURES=tests/performance/fixtures/load-tenants.json \
        tests/performance/scenarios/smoke.js
 
-# Against staging, with Supabase creds so parent sessions run too:
-k6 run -e BASE_URL="$STAGING_API_URL" \
+# Against staging, signing parents in too (never point this at api-fhapp:
+# that is production):
+k6 run -e BASE_URL=https://fh-api-staging.up.railway.app \
+       -e AUTH_URL=https://fh-api-staging.up.railway.app \
        -e LOAD_FIXTURES=tests/performance/fixtures/load-tenants.json \
-       -e SUPABASE_URL="$SUPABASE_URL_STAGING" \
-       -e SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY_STAGING" \
        tests/performance/scenarios/load.js
 
 # No fixtures at all: falls back to a health-only ping (NOT a real test,
@@ -188,7 +191,7 @@ capacity finding. Don't report it as one.
 - **GET-only.** These scenarios never POST/PUT/PATCH/DELETE against a
   real endpoint that mutates data. Kid and parent sessions are read-only
   by design (see `lib/helpers.js`); keep it that way. Login calls
-  (`POST /api/auth/kid-pin`, the Supabase password grant) are the only
+  (`POST /api/auth/kid-pin`, the `/auth/v1` password sign-in) are the only
   writes-adjacent calls, and neither mutates family data.
 - **Only run against `loadtest-` synthetic tenants.** Every fixture the
   seed script produces uses a `loadtest-<runId>-N` slug. Never point

@@ -6,12 +6,11 @@
 // tells you nothing about real-world latency: a family with 40 events,
 // 25 tasks, and 16 habits behaves very differently under load.
 //
-// WHAT THIS CANNOT DO: parent (Supabase) accounts. Supabase Auth users
-// are created via the Supabase Admin API, not this database, and this
-// script deliberately carries no Supabase credentials. So it fully
-// seeds the KID path (no external dependency, the priority per
-// FHS-460) and prints/records the manual step to link a Supabase parent
-// account afterwards. See the console output at the end, and
+// WHAT THIS CANNOT DO: parent sign-in accounts. They live in the sign-in
+// server's own `auth` tables, which this script deliberately never
+// touches. So it fully seeds the KID path (no external dependency, the
+// priority per FHS-460) and prints/records the manual step to link a
+// parent sign-in account afterwards. See the console output at the end, and
 // tests/performance/README.md.
 //
 // Usage:
@@ -334,7 +333,7 @@ await client.end();
 const fixtures = results.map((r) => ({
   tenantSlug: r.tenantSlug,
   parent: {
-    // No Supabase account exists yet for this member: see the "Parent
+    // No sign-in account exists yet for this member: see the "Parent
     // accounts" step printed below + tests/performance/README.md.
     // `password: null` makes a scenario fail LOUDLY (not silently) if it
     // tries to log this parent in before the manual step is done.
@@ -356,15 +355,16 @@ console.error(`\nWrote ${fixtures.length} tenant fixture(s) to ${fixturesOutPath
 console.error(`\nKid sessions are ready to run right now:`);
 console.error(`  k6 run -e LOAD_FIXTURES=${fixturesOutPath} tests/performance/scenarios/smoke.js`);
 console.error(`\nParent accounts (manual step, only needed for parentSession load testing):`);
-console.error(`  This script CANNOT create Supabase Auth users: no Supabase Admin API`);
-console.error(`  credentials here, by design (FHS-460). For each tenant above:`);
-console.error(`    1. Create a Supabase user (dashboard or Admin API) with the email from`);
-console.error(`       fixtures[].parent.email, in the SAME Supabase project the target api`);
-console.error(`       points at (staging).`);
+console.error(`  This script CANNOT create sign-in accounts, by design (FHS-460).`);
+console.error(`  For each tenant above:`);
+console.error(`    1. Add a sign-in account with a password for fixtures[].parent.email`);
+console.error(`       on the SAME environment the target api uses (staging), like the`);
+console.error(`       browser-test account in family-hub-web's deployment.md.`);
 console.error(`    2. Edit fixtures[].parent.password to the password you set.`);
-console.error(`    3. Link that Supabase user to the seeded admin member row:`);
-console.error(`         UPDATE members SET user_id = '<supabase-user-uuid>'`);
+console.error(`    3. Link that account to the seeded admin member row:`);
+console.error(`         UPDATE members SET user_id = '<sign-in-account-id>'`);
 console.error(`           WHERE id = '<fixtures[].parent.adminMemberId>';`);
+console.error(`    4. Run with -e AUTH_URL=<the api address>.`);
 console.error(`  Full walkthrough: tests/performance/README.md.`);
 console.error(`\nPurge these tenants later with:`);
 console.error(

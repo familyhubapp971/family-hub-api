@@ -3,11 +3,11 @@
  *
  * Cross-side consistency: a KID write (POST to kid Learn endpoints via HS256
  * token) must immediately surface in the PARENT Learn Insights read (GET via
- * Supabase ES256 token). Both sides share lib/learn-insights.ts + the same
+ * parent ES256 token). Both sides share lib/learn-insights.ts + the same
  * Postgres rows, so these tests lock that wiring against regressions.
  *
  * Pattern mirrors kid-myworld-cross-side.steps.ts exactly:
- *  - parentApp: Supabase ES256 JWT + x-test-tenant header
+ *  - parentApp: parent ES256 JWT + x-test-tenant header
  *  - kidApp:    HS256 kid JWT (scope: child)
  */
 
@@ -35,10 +35,10 @@ import type { Database } from '../../../src/database/client.js';
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const KID_ISSUER = 'family-hub-kid-auth';
-const SUPA_ISSUER = 'https://test.supabase.local/auth/v1';
+const PARENT_ISSUER = 'https://auth.test.local/auth/v1';
 const KID_JWK_ID = 'li-cross-side-int-kid';
 
-// Stable Supabase user id for the admin parent. Distinct from myworld suite.
+// Stable sign-in account id for the admin parent. Distinct from myworld suite.
 const ADMIN_USER_ID = '00000000-0000-4000-8000-000000000406';
 
 // ── Science question IDs from learn-questions.ts ─────────────────────────────
@@ -69,11 +69,11 @@ const CERT_ANSWERS = [
 // ── Shared state (reset per Background) ──────────────────────────────────────
 
 let db: Database;
-let parentApp: Hono; // Supabase auth + tenant header + learn-insights route
+let parentApp: Hono; // parent sign-in + tenant header + learn-insights route
 let kidApp: Hono; // kid HS256 routes
 
-let supaPrivateKey: KeyLike;
-let supaPublicJwk: JWK;
+let parentPrivateKey: KeyLike;
+let parentPublicJwk: JWK;
 
 const ctx: {
   tenantId: string;
@@ -90,7 +90,7 @@ const ctx: {
 
 // ── Key + token helpers (same pattern as kid-myworld-cross-side.steps.ts) ────
 
-async function genSupaKey() {
+async function genParentKey() {
   const { publicKey, privateKey } = await generateKeyPair('ES256', { extractable: true });
   const publicJwk = await exportJWK(publicKey);
   publicJwk.alg = 'ES256';
@@ -99,14 +99,14 @@ async function genSupaKey() {
   return { privateKey, publicJwk };
 }
 
-async function mintSupaToken(userId: string, email: string): Promise<string> {
+async function mintParentToken(userId: string, email: string): Promise<string> {
   return new SignJWT({ email })
     .setProtectedHeader({ alg: 'ES256', kid: KID_JWK_ID })
     .setSubject(userId)
-    .setIssuer(SUPA_ISSUER)
+    .setIssuer(PARENT_ISSUER)
     .setIssuedAt()
     .setExpirationTime(Math.floor(Date.now() / 1000) + 3600)
-    .sign(supaPrivateKey);
+    .sign(parentPrivateKey);
 }
 
 function makeJwks(publicJwk: JWK) {
@@ -158,10 +158,10 @@ describeFeature(feature, ({ Background, Scenario }) => {
         await db.execute(sql`DELETE FROM users WHERE id = ${ADMIN_USER_ID}`);
         _resetJwksCacheForTests();
 
-        // Supabase key + JWKS for parent route auth.
-        const k = await genSupaKey();
-        supaPrivateKey = k.privateKey;
-        supaPublicJwk = k.publicJwk;
+        // Signing key + JWKS for parent route auth.
+        const k = await genParentKey();
+        parentPrivateKey = k.privateKey;
+        parentPublicJwk = k.publicJwk;
 
         // Users mirror row for the admin parent.
         await db.execute(
@@ -194,7 +194,7 @@ describeFeature(feature, ({ Background, Scenario }) => {
         ctx.imanId = iman!.id;
 
         // Mint tokens.
-        ctx.adminToken = await mintSupaToken(ADMIN_USER_ID, 'admin406@example.com');
+        ctx.adminToken = await mintParentToken(ADMIN_USER_ID, 'admin406@example.com');
         ctx.imanKidToken = await mintKidToken(iman!.id, t!.id, t!.slug);
 
         // Reset per-step state.
@@ -204,13 +204,13 @@ describeFeature(feature, ({ Background, Scenario }) => {
         ctx.lastParentStatus = 0;
         ctx.lastParentBody = {};
 
-        // Parent app: Supabase auth + tenant-from-header + learn-insights route.
+        // Parent app: parent sign-in + tenant-from-header + learn-insights route.
         parentApp = new Hono();
         parentApp.use(
           '*',
           authMiddleware({
-            issuer: SUPA_ISSUER,
-            jwks: makeJwks(supaPublicJwk),
+            issuer: PARENT_ISSUER,
+            jwks: makeJwks(parentPublicJwk),
             userMirrorSync: async (claims) => {
               const rows = await db
                 .select()

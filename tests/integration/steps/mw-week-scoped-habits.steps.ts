@@ -19,7 +19,7 @@ const feature = await loadFeature(
   new URL('../features/mw-week-scoped-habits.feature', import.meta.url).pathname,
 );
 
-const ISSUER = 'https://test.supabase.local/auth/v1';
+const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'mw-week-scoped-habits-kid';
 const USER_ID = '00000000-0000-4000-8000-0000000006b6';
 const USER_EMAIL = 'weekscopedhabits@example.com';

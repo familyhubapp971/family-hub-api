@@ -9,7 +9,7 @@ import {
 
 // Stable issuer for every test in this file. Must match what the
 // middleware expects via opts.issuer.
-const ISSUER = 'https://test.supabase.local/auth/v1';
+const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'test-key-1';
 const ALG = 'ES256';
 

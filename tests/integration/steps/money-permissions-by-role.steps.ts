@@ -26,7 +26,7 @@ const feature = await loadFeature(
   new URL('../features/money-permissions-by-role.feature', import.meta.url).pathname,
 );
 
-const ISSUER = 'https://test.supabase.local/auth/v1';
+const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'money-perms-int-kid';
 
 // One signed-in user per role, plus the child (kids can hold an account).

@@ -91,7 +91,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
-        "description": "Supabase user JWT (parent / adult sign-in)."
+        "description": "Parent / adult sign-in pass (ES256 JWT). Get one through /auth/v1/* on this api, which passes it on to our own sign-in server (GoTrue): 5 sign-in emails an hour per address, and 5 wrong codes lock the address for 15 minutes. Production signs in with Supabase until FHS-701."
       },
       "kidAuth": {
         "type": "http",
@@ -3003,7 +3003,7 @@
         ],
         "summary": "Resend a still-pending invitation email; admin or adult only",
         "operationId": "post_api_invitations_id_resend",
-        "description": "Re-fires the Supabase invite email (e.g. a typo'd address, or the email got lost). 404 if the invitation is not in this tenant; 409 if it is no longer pending (already accepted/expired).",
+        "description": "Re-sends the invite email (e.g. a typo'd address, or the email got lost). 404 if the invitation is not in this tenant; 409 if it is no longer pending (already accepted/expired).",
         "parameters": [
           {
             "name": "id",
@@ -8394,7 +8394,7 @@
         },
         "responses": {
           "200": {
-            "description": "200 on success. 410 { error: \"expired\" } if the link is missing/used/expired: the recipient should ask an admin for a new one. 502/500 { errorCode: \"EMAIL_CHANGE_APPLY_FAILED\" } on a transient failure (Supabase hiccup, or a post-apply drift): the token may still be valid, so the caller should retry rather than treat it as expired.",
+            "description": "200 on success. 410 { error: \"expired\" } if the link is missing/used/expired: the recipient should ask an admin for a new one. 502/500 { errorCode: \"EMAIL_CHANGE_APPLY_FAILED\" } on a transient failure (sign-in service hiccup, or a post-apply drift): the token may still be valid, so the caller should retry rather than treat it as expired.",
             "content": {
               "application/json": {
                 "schema": {

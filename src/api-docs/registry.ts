@@ -517,7 +517,7 @@ const baseMeta: Record<string, RouteMeta> = {
     request: confirmEmailChangeBodySchema,
     response: confirmEmailChangeResponseSchema,
     responseDesc:
-      '200 on success. 410 { error: "expired" } if the link is missing/used/expired: the recipient should ask an admin for a new one. 502/500 { errorCode: "EMAIL_CHANGE_APPLY_FAILED" } on a transient failure (Supabase hiccup, or a post-apply drift): the token may still be valid, so the caller should retry rather than treat it as expired.',
+      '200 on success. 410 { error: "expired" } if the link is missing/used/expired: the recipient should ask an admin for a new one. 502/500 { errorCode: "EMAIL_CHANGE_APPLY_FAILED" } on a transient failure (sign-in service hiccup, or a post-apply drift): the token may still be valid, so the caller should retry rather than treat it as expired.',
   },
 
   // Notices / tasks.

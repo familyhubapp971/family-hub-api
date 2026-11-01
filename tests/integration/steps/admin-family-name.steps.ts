@@ -28,7 +28,7 @@ const feature = await loadFeature(
   new URL('../features/admin-family-name.feature', import.meta.url).pathname,
 );
 
-const ISSUER = 'https://test.supabase.local/auth/v1';
+const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'admin-family-name-kid';
 const ADMIN_ID = '00000000-0000-4000-8000-000000000626';
 const ADMIN_EMAIL = 'familyname-admin@example.com';

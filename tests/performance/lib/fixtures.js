@@ -20,8 +20,9 @@ import { kidLogin, parentLogin } from './auth.js';
 
 const RAW_FIXTURES = __ENV.LOAD_FIXTURES ? open(__ENV.LOAD_FIXTURES) : null;
 
-const SUPABASE_URL = __ENV.SUPABASE_URL || __ENV.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = __ENV.SUPABASE_ANON_KEY || __ENV.VITE_SUPABASE_ANON_KEY;
+// FHS-700: the api whose /auth/v1 signs parents in, usually the same as
+// BASE_URL. Left unset, parent sessions are skipped.
+const AUTH_URL = __ENV.AUTH_URL;
 
 /**
  * Parses the fixtures file read at init time. Returns [] (never throws)
@@ -44,18 +45,18 @@ export function loadFixtures() {
 
 /**
  * Logs in every kid (always, no external dependency, needs only the api)
- * and every parent (only when SUPABASE_URL + SUPABASE_ANON_KEY are set),
+ * and every parent (only when AUTH_URL is set),
  * ONCE per fixture, during setup(). Returns the same array with `.token`
  * attached to each kid and to `.parent`.
  */
 export function loginAllFixtures(baseUrl, fixtures) {
-  const canLoginParents = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+  const canLoginParents = !!AUTH_URL;
   if (!canLoginParents && fixtures.length > 0) {
     console.warn(
-      '[perf] SUPABASE_URL/SUPABASE_ANON_KEY not set: skipping parent login for ' +
-        'this run. Kid sessions still run; parent sessions (dashboard, /api/me, ' +
-        'etc.) are skipped. See tests/performance/README.md for the manual step ' +
-        'to create Supabase parent accounts for the seeded synthetic tenants.',
+      '[perf] AUTH_URL not set: skipping parent login for this run. Kid ' +
+        'sessions still run; parent sessions (dashboard, /api/me, etc.) are ' +
+        'skipped. See tests/performance/README.md for the manual step to ' +
+        'create sign-in accounts for the seeded synthetic tenants.',
     );
   }
   return fixtures.map((fixture) => ({
@@ -63,7 +64,7 @@ export function loginAllFixtures(baseUrl, fixtures) {
     parent: {
       ...fixture.parent,
       token: canLoginParents
-        ? parentLogin(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        ? parentLogin(AUTH_URL, {
             email: fixture.parent.email,
             password: fixture.parent.password,
           })
