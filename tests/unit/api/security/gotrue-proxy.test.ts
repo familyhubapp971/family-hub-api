@@ -157,7 +157,8 @@ describe('FHS-695: limits and the visitor address on the pass-through', () => {
   function limitedApp() {
     const app = new Hono();
     const limits = new SignInLimits({ maxFailedAttempts: 5, lockoutMs: 900_000, emailsPerHour: 5 });
-    app.all('/auth/v1/*', gotrueProxy(UPSTREAM, { limits }));
+    // FHS-704: password sign-in is refused unless the address is listed.
+    app.all('/auth/v1/*', gotrueProxy(UPSTREAM, { limits, passwordSignInEmails: ['a@b.com'] }));
     return app;
   }
   const post = (app: Hono, path: string, body: unknown, headers: Record<string, string> = {}) =>
@@ -280,6 +281,127 @@ describe('FHS-695: limits and the visitor address on the pass-through', () => {
     const headers = (fetchMock.mock.calls[0]![1] as RequestInit).headers as Headers;
     expect(headers.get('x-forwarded-for')).toBe('203.0.113.7');
     expect(headers.get('x-real-ip')).toBe('203.0.113.7');
+  });
+});
+
+describe('FHS-704: password routes are refused', () => {
+  const realFetch = global.fetch;
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  function app() {
+    const a = new Hono();
+    a.all('/auth/v1/*', gotrueProxy(UPSTREAM, { passwordSignInEmails: ['e2e@familyhub.test'] }));
+    return a;
+  }
+  const send = (
+    path: string,
+    body: unknown,
+    { method = 'POST', type = 'application/json' }: { method?: string; type?: string } = {},
+  ) =>
+    app().request(path, {
+      method,
+      headers: { 'content-type': type },
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    });
+  const errorCode = async (res: Response) =>
+    ((await res.json()) as { error_code?: string }).error_code;
+
+  beforeEach(() => {
+    fetchMock = vi.fn().mockImplementation(async () => new Response('{}', { status: 200 }));
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+  });
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it('refuses password sign-up, however the path is spelled, without calling GoTrue', async () => {
+    for (const path of ['/auth/v1/signup', '/auth/v1/SIGNUP', '/auth/v1/signup/']) {
+      const res = await send(path, { email: 'victim@example.com', password: 'secret123' });
+      expect(res.status).toBe(403);
+      expect(await errorCode(res)).toBe('password_sign_in_disabled');
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses password reset emails', async () => {
+    const res = await send('/auth/v1/recover', { email: 'a@b.com' });
+    expect(res.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses account changes through GoTrue, but still lets the web app read the account', async () => {
+    for (const change of [{ password: 'x' }, { email: 'new@example.com' }, { data: {} }]) {
+      const res = await send('/auth/v1/user', change, { method: 'PUT' });
+      expect(res.status).toBe(403);
+      expect(await errorCode(res)).toBe('account_update_disabled');
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect((await app().request('/auth/v1/user')).status).toBe(200);
+  });
+
+  it('allows a password sign-in only for a listed address', async () => {
+    const listed = await send('/auth/v1/token?grant_type=password', {
+      email: 'E2E@familyhub.test',
+      password: 'x',
+    });
+    expect(listed.status).toBe(200);
+    for (const body of [
+      { email: 'victim@example.com', password: 'x' },
+      { phone: '+447700900000', password: 'x' },
+      // Go reads field names ignoring case and keeps the last one, so a second
+      // "EMAIL" key would be the address GoTrue actually checks.
+      { email: 'e2e@familyhub.test', EMAIL: 'victim@example.com', password: 'x' },
+    ]) {
+      const res = await send('/auth/v1/token?grant_type=password', body);
+      expect(res.status).toBe(403);
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a form body, which GoTrue would read ahead of the address', async () => {
+    for (const type of [
+      'application/x-www-form-urlencoded',
+      'application/x-www-form-urlencoded; note=application/json',
+      'multipart/form-data; boundary=x',
+    ]) {
+      const res = await send(
+        '/auth/v1/token?grant_type=refresh_token',
+        'grant_type=password&email=victim%40example.com&password=x',
+        { type },
+      );
+      expect(res.status).toBe(415);
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses a token request with no grant type or more than one', async () => {
+    for (const query of [
+      '',
+      '?grant_type=refresh_token&grant_type=password',
+      '?grant_type=refresh_token;x&grant_type=password',
+    ]) {
+      const res = await send(`/auth/v1/token${query}`, {
+        email: 'victim@example.com',
+        password: 'x',
+      });
+      expect(res.status).toBe(400);
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('still passes email links, Google and session refresh through', async () => {
+    const otp = await send(
+      '/auth/v1/otp',
+      { email: 'a@b.com', create_user: true },
+      { type: 'application/json;charset=UTF-8' },
+    );
+    expect(otp.status).toBe(200);
+    expect((await app().request('/auth/v1/authorize?provider=google')).status).toBe(200);
+    expect((await app().request('/auth/v1/verify?token=abc&type=magiclink')).status).toBe(200);
+    expect(
+      (await send('/auth/v1/token?grant_type=refresh_token', { refresh_token: 'r' })).status,
+    ).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 });
 

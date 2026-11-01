@@ -102,3 +102,27 @@ describe('config: GOTRUE_ADMIN_SIGNING_KEYS (FHS-698)', () => {
     expect(r.success).toBe(true);
   });
 });
+
+describe('config: PASSWORD_SIGNIN_EMAILS (FHS-704)', () => {
+  const parse = (v?: string) => {
+    const r = configSchema.safeParse(
+      baseEnv({
+        NODE_ENV: 'production',
+        ...(v === undefined ? {} : { PASSWORD_SIGNIN_EMAILS: v }),
+      }),
+    );
+    if (!r.success) throw new Error('config did not parse');
+    return r.data.PASSWORD_SIGNIN_EMAILS;
+  };
+
+  it('allows no one when unset', () => {
+    expect(parse()).toEqual([]);
+  });
+
+  it('reads a comma list as lower-case addresses, ignoring blanks', () => {
+    expect(parse(' E2E@FamilyHub.test, ,other@example.com ')).toEqual([
+      'e2e@familyhub.test',
+      'other@example.com',
+    ]);
+  });
+});
