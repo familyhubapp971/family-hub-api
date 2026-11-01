@@ -1883,6 +1883,57 @@
         }
       }
     },
+    "/api/family-address": {
+      "get": {
+        "tags": [
+          "family-address"
+        ],
+        "summary": "The family's private code and the old address it replaced (members only)",
+        "operationId": "get_api_family_address",
+        "parameters": [
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "previousSlug": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "slug",
+                    "previousSlug"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/family-address/{oldSlug}": {
       "get": {
         "tags": [

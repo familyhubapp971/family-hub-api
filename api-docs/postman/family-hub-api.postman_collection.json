@@ -7114,6 +7114,50 @@
       "name": "family-address",
       "item": [
         {
+          "name": "/api/family-address",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "x-tenant-slug",
+                "value": "{{tenantSlug}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/family-address",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "family-address"
+              ]
+            },
+            "description": "The family's private code and the old address it replaced (members only)\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 200"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "/api/family-address/{oldSlug}",
           "request": {
             "method": "GET",

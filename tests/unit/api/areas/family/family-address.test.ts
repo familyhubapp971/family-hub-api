@@ -11,6 +11,10 @@ import type { User } from '../../../../../src/database/schema.js';
 const dbMock = { select: vi.fn(), execute: vi.fn(), transaction: vi.fn() };
 dbMock.transaction.mockImplementation((cb: (tx: typeof dbMock) => unknown) => cb(dbMock));
 vi.mock('../../../../../src/database/client.js', () => ({ getDb: () => dbMock }));
+const mockLoadCaller = vi.fn();
+vi.mock('../../../../../src/security/permissions.js', () => ({
+  loadCaller: (...args: unknown[]) => mockLoadCaller(...args),
+}));
 
 const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'family-address-kid';
@@ -39,8 +43,14 @@ function token(privateKey: KeyLike) {
     .sign(privateKey);
 }
 
-function app(publicJwk: JWK) {
+function app(publicJwk: JWK, tenantId?: string) {
   const a = new Hono();
+  if (tenantId) {
+    a.use('*', async (c, next) => {
+      c.set('tenantId', tenantId);
+      await next();
+    });
+  }
   a.use(
     '*',
     authMiddleware({
@@ -106,5 +116,31 @@ describe('FHS-715: GET /api/family-address/:oldSlug', () => {
     const { publicJwk } = await keys();
     const res = await app(publicJwk).request('/api/family-address/smith');
     expect(res.status).toBe(401);
+  });
+
+  it("tells a family's member its code and the old address it replaced", async () => {
+    const { privateKey, publicJwk } = await keys();
+    mockLoadCaller.mockResolvedValueOnce({ id: 'm-1', role: 'admin' });
+    dbMock.select.mockReturnValueOnce({
+      from: () => ({
+        where: () => ({
+          limit: () => Promise.resolve([{ slug: 'e29b-41d4', previousSlug: 'smith' }]),
+        }),
+      }),
+    });
+    const res = await app(publicJwk, 't-1').request('/api/family-address', {
+      headers: { Authorization: `Bearer ${await token(privateKey)}` },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ slug: 'e29b-41d4', previousSlug: 'smith' });
+  });
+
+  it("keeps a family's code from someone who is not a member", async () => {
+    const { privateKey, publicJwk } = await keys();
+    mockLoadCaller.mockResolvedValueOnce(null);
+    const res = await app(publicJwk, 't-1').request('/api/family-address', {
+      headers: { Authorization: `Bearer ${await token(privateKey)}` },
+    });
+    expect(res.status).toBe(403);
   });
 });
