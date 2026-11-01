@@ -26,9 +26,19 @@ SLEEP_BETWEEN=5
 i=1
 while [ "$i" -le "$MAX_ATTEMPTS" ]; do
   echo "[boot] migrate attempt $i/$MAX_ATTEMPTS: running drizzle-kit push --force (migrate role)"
-  if DATABASE_URL="$MIGRATE_URL" node node_modules/drizzle-kit/bin.cjs push --force; then
-    echo "[boot] migrate succeeded on attempt $i"
-    break
+  # FHS-715: drizzle-kit can print an error (for example a question it cannot
+  # ask without a terminal) and still exit 0, which used to boot the api on a
+  # stale schema. Treat any "Error" in its output as a failed attempt.
+  if PUSH_OUT=$(DATABASE_URL="$MIGRATE_URL" node node_modules/drizzle-kit/bin.cjs push --force 2>&1); then
+    echo "$PUSH_OUT"
+    if echo "$PUSH_OUT" | grep -q "Error"; then
+      echo "[boot] migrate printed an error on attempt $i"
+    else
+      echo "[boot] migrate succeeded on attempt $i"
+      break
+    fi
+  else
+    echo "$PUSH_OUT"
   fi
   if [ "$i" -eq "$MAX_ATTEMPTS" ]; then
     echo "[boot] migrate failed $MAX_ATTEMPTS times: refusing to start the api"

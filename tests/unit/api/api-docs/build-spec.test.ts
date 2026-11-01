@@ -36,7 +36,7 @@ describe('FHS-356: OpenAPI spec from the live route table', () => {
   });
 
   it('marks public/auth routes without bearer auth and tenant routes with it', () => {
-    expect(spec.paths['/api/public/slug-available']?.['get']).not.toHaveProperty('security');
+    expect(spec.paths['/api/public/kid-members/{slug}']?.['get']).not.toHaveProperty('security');
     expect(spec.paths['/api/auth/kid-pin']?.['post']).not.toHaveProperty('security');
     // FHS-666: creating a family needs the new parent's sign-in, despite the /public path.
     expect(
@@ -77,7 +77,7 @@ describe('FHS-356: OpenAPI spec from the live route table', () => {
       ).map((p) => p.name);
     expect(names('/api/tasks', 'get')).toContain('x-tenant-slug');
     expect(names('/api/kid/me', 'get')).not.toContain('x-tenant-slug');
-    expect(names('/api/public/slug-available', 'get')).not.toContain('x-tenant-slug');
+    expect(names('/api/public/kid-members/{slug}', 'get')).not.toContain('x-tenant-slug');
   });
 
   it('FHS-664: documents real status codes and non-JSON replies', () => {

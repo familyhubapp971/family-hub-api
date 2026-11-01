@@ -337,6 +337,13 @@
       "when": 1784198400000,
       "tag": "0047_founder_feedback_reader",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793545475507,
+      "tag": "0048_family_code",
+      "breakpoints": true
     }
   ]
 }

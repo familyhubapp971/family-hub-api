@@ -20,7 +20,7 @@ import { createLogger } from '../services/logger.js';
 //      interim mechanism (see ADR 0012) until we own a real domain.
 //
 // On miss the context vars stay undefined. Public routes that don't
-// need a tenant (e.g. /api/public/slug-available) work either way;
+// need a tenant (e.g. /api/public/kid-members) work either way;
 // protected routes that DO require a tenant should reject the request
 // in their own handlers (or via a future requireTenant middleware).
 
@@ -45,10 +45,8 @@ const RESERVED_SUBDOMAINS = new Set([
 // forged Host header / hostile JWT claim / typo in the URL doesn't
 // trigger an indexed lookup or pass an unexpected value downstream.
 //
-// Slug uniqueness AND reservation (no `admin`, `www`, etc.) are
-// enforced at signup time by `slug-available` (FHS-27) and
-// `POST /api/public/tenant` (FHS-25). The middleware doesn't re-check
-// reservations because they cannot exist in the table.
+// Since FHS-715 every new family's slug is a private code the server makes
+// (e29b-41d4) in `POST /api/public/tenant`, so reserved words cannot occur.
 export const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 // Extract `<slug>` from `/t/<slug>/...`. Anchored at the path root so
