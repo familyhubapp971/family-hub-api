@@ -1,10 +1,15 @@
 import { defineConfig } from 'vitest/config';
 
-// Root-level coverage defaults. Per-package config overrides environment
-// (jsdom for web, node for api/shared) and keeps test paths scoped.
-// Re-run with `pnpm test:coverage` to collect a merged lcov report.
+// Unit tests for the server, the shared rules and the test helpers.
+// Integration tests have their own config: tests/integration/vitest.config.ts.
 export default defineConfig({
   test: {
+    environment: 'node',
+    include: [
+      'tests/unit/api/**/*.{test,spec}.{ts,tsx}',
+      'tests/unit/shared/**/*.{test,spec}.ts',
+      'tests/helpers/src/**/*.{test,spec}.ts',
+    ],
     passWithNoTests: true,
     coverage: {
       provider: 'v8',
@@ -21,12 +26,6 @@ export default defineConfig({
         '**/*.test.{ts,tsx}',
         '**/*.spec.{ts,tsx}',
         '**/*.d.ts',
-        'apps/*/vite.config.ts',
-        'apps/*/drizzle.config.ts',
-        'apps/*/postcss.config.js',
-        'apps/*/tailwind.config.js',
-        'apps/*/src/main.tsx',
-        'apps/*/src/test/**', // setup files, not logic
       ],
       all: true,
     },

@@ -16,7 +16,7 @@ vi.mock('../../../src/database/client.js', () => ({
 
 const feature = await loadFeature(new URL('../features/meals.feature', import.meta.url).pathname);
 
-const ISSUER = 'https://test.supabase.local/auth/v1';
+const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'meals-int-kid';
 const USER_ID = '00000000-0000-4000-8000-000000000777';
 const USER_EMAIL = 'sarah@example.com';

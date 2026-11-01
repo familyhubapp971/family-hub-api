@@ -25,14 +25,19 @@ overview.
 
 **Stack:** Hono + Drizzle + Zod (API) · React + Vite + Tailwind (web) ·
 Postgres with RLS (data) · Vitest + Playwright + k6 (testing) · Railway
-(hosting) · Supabase (auth + email).
+(hosting) · our own GoTrue on Railway (sign-in, ADR 0022 in family-hub-web; production on Supabase until FHS-701) · Resend (email).
 
-**Repo layout (planned):**
+**Repo layout:**
 
 ```text
-apps/api    apps/web
-shared-rules  tests/helpers
-documents/{features,technical,decisions,strategy}
+src/            the server: areas/ (one folder per product area), database/,
+                security/, services/, api-docs/, app.ts, index.ts
+shared-rules/   rules shared with the web site and the phone app (a package)
+email-templates/  sign-in and invite emails
+api-docs/       generated endpoint list (openapi.json) and Postman files
+scripts/        auth, data, seed and server scripts
+tests/          unit/, integration/, performance/, helpers/
+infra/          Supabase settings (production sign-in until FHS-701)
 ```
 
 **Branches:** `main` (production) · `staging` (pre-prod) · feature → PR into
@@ -969,31 +974,10 @@ Rules:
   that would break accessibility, privacy or a product decision is fixed
   in the implementation and written down with the reason, not copied.
 
-### Design system (packages/ui): single source of truth
+### Design system
 
-**Any design change updates the design system in the same PR.** When a
-ticket introduces or alters a visual component (badge styles, role
-colour maps, chips, stat tiles, progress bars, avatar discs, form
-shells), the reusable piece lives in `packages/ui`: never copy-pasted
-across pages. Rules:
-
-- New component used (or clearly usable) by 2+ pages → extract to
-  `packages/ui/src/<Name>.tsx`, export from `index.ts`, unit-test it
-  under `tests/unit/ui/`.
-- **Every component ships with a Storybook story** at
-  `packages/ui/src/<Name>.stories.tsx` covering the props that actually
-  branch (each variant, disabled, error, long text). `pnpm storybook`
-  opens the catalogue. The guard test
-  [`tests/unit/web/ui/stories-coverage.test.ts`](tests/unit/web/ui/stories-coverage.test.ts)
-  fails the build on a component with no story, so this is a merge gate,
-  not a suggestion. See
-  [design-system.md](documents/technical/design-system.md) (FHS-643).
-- Shared visual constants (role → colour/label maps, pastel palettes,
-  status chip styles) live in `packages/ui`, not per-page consts.
-- When matching a Magic Patterns design, port the mock's component into
-  the design system first, then consume it from the page.
-- Drift check at PR self-review: if the diff adds a styled block that
-  already exists elsewhere, consolidate before merging.
+The design system lives in `family-hub-web` (`design-system/`). This repo
+has no screens, so its rules apply there.
 
 ### Code style
 
@@ -1002,7 +986,7 @@ across pages. Rules:
   2026-08-03). Use a comma, colon, parentheses or a period instead.
   Removal of pre-existing ones across the repo is tracked in FHS-553.
 - TypeScript strict mode everywhere.
-- 2-space indent, LF line endings, UTF-8 (enforced by `.editorconfig`).
+- 2-space indent, LF line endings, UTF-8 (enforced by Prettier, settings in `package.json`).
 - No comments unless the _why_ is non-obvious.
 - Avoid premature abstraction: three similar lines beats a wrong helper.
 
@@ -1326,14 +1310,14 @@ layout, reorganised by package within each tier.
 A ticket isn't done (and the PR isn't mergeable) until the right
 tiers are green. Use this matrix to decide what's required:
 
-| Ticket scope                                           | Unit                              | Integration                       | E2E                                                             | Perf              |
-| ------------------------------------------------------ | --------------------------------- | --------------------------------- | --------------------------------------------------------------- | ----------------- |
-| Pure logic / utility / type-only                       | required                          | n/a                               | n/a                                                             | n/a               |
-| `packages/ui` primitive (Button, Card, PinInput, etc.) | required (per prop / interaction) | n/a                               | n/a                                                             | n/a               |
-| API endpoint or middleware                             | required (handler logic)          | required (real Postgres + RLS)    | required if user-visible                                        | smoke if hot path |
-| Page / route (apps/web)                                | required (component shape)        | n/a                               | required (Gherkin scenario from `documents/features/<slug>.md`) | n/a               |
-| Schema migration                                       | required (drizzle-kit dry-run)    | required (RLS + tenant-isolation) | required if it affects a user flow                              | n/a               |
-| Cross-cutting (auth, feature flag, billing)            | required                          | required                          | required (full happy + sad path)                                | smoke             |
+| Ticket scope                                | Unit                              | Integration                       | E2E                                                             | Perf              |
+| ------------------------------------------- | --------------------------------- | --------------------------------- | --------------------------------------------------------------- | ----------------- |
+| Pure logic / utility / type-only            | required                          | n/a                               | n/a                                                             | n/a               |
+| design system primitive (family-hub-web)    | required (per prop / interaction) | n/a                               | n/a                                                             | n/a               |
+| API endpoint or middleware                  | required (handler logic)          | required (real Postgres + RLS)    | required if user-visible                                        | smoke if hot path |
+| Page / route (family-hub-web)               | required (component shape)        | n/a                               | required (Gherkin scenario from `documents/features/<slug>.md`) | n/a               |
+| Schema migration                            | required (drizzle-kit dry-run)    | required (RLS + tenant-isolation) | required if it affects a user flow                              | n/a               |
+| Cross-cutting (auth, feature flag, billing) | required                          | required                          | required (full happy + sad path)                                | smoke             |
 
 Rules of thumb:
 
@@ -1358,9 +1342,8 @@ needed" silently: that's how regressions creep in.
 ```text
 tests/
   unit/
-    api/{routes,middleware,lib}/      # mirrors src/
-    web/{components,hooks}/           # mirrors apps/web/src/
-    shared/{schemas}/                 # mirrors shared-rules/src/
+    api/                              # mirrors src/ (areas, database, security, services)
+    shared/                           # mirrors shared-rules/src/
   integration/
     vitest.config.ts                  # separate config from unit
     specs/                            # one spec per domain
@@ -1379,9 +1362,9 @@ tests/
     reports/                          # gitignored
 ```
 
-Per-package `vitest.config.ts` files (`apps/api`, `apps/web`,
-`shared-rules`) keep working: their `include` glob points at
-`../../tests/unit/<pkg>/`.
+One `vitest.config.ts` at the repo root runs every unit test (server,
+shared rules and test helpers). Integration tests keep their own config in
+`tests/integration/`. Browser tests (`tests/e2e/`) live in `family-hub-web`.
 
 > **Current state (2026-04-25):** test files added in FHS-150 / FHS-151
 > are temporarily colocated. Migration into `tests/unit/<pkg>/` is
@@ -1392,10 +1375,10 @@ Per-package `vitest.config.ts` files (`apps/api`, `apps/web`,
 
 ### Unit: Vitest
 
-- **Where:** `tests/unit/{api,web,shared}/...` mirroring source hierarchy.
+- **Where:** `tests/unit/{api,shared}/...` mirroring source hierarchy.
 - **File naming:** `*.test.ts` / `*.test.tsx` (reserve `*.spec.ts` for integration).
-- **Run:** `pnpm test` (root, via `vitest.workspace.ts`, runs all packages); `pnpm test:watch`; `pnpm test:coverage` for merged lcov.
-- **Environment:** `node` for api + shared; `jsdom` + `@testing-library/react` for web.
+- **Run:** `pnpm test` (root `vitest.config.ts`, runs every unit test); `pnpm test:watch`; `pnpm test:coverage` for merged lcov.
+- **Environment:** `node`.
 - **Coverage thresholds (starting):** lines 70%, branches 60%, functions 70%: raise to 80/70/80 after FHS-186 baseline. Hard-gating only after thresholds calibrate.
 - **Scope:** pure functions, single class/module, no I/O. Mock external collaborators, **never** mock the thing under test.
 
@@ -1403,7 +1386,7 @@ Per-package `vitest.config.ts` files (`apps/api`, `apps/web`,
 
 - **Where:** `tests/integration/features/*.feature` (Gherkin scenarios) bound by `tests/integration/steps/*.steps.ts` (Vitest step definitions). Powered by [`@amiceli/vitest-cucumber`](https://github.com/amiceli/vitest-cucumber): same BDD style as the E2E tier (FHS-218).
 - **Config:** dedicated `tests/integration/vitest.config.ts` includes both `steps/**/*.steps.ts` (current) and `specs/**/*.spec.ts` (legacy, drained as scenarios migrate).
-- **Run:** `pnpm test:integration`: spins Postgres 16 via `docker-compose.test.yml` on port 5433 (offset from dev's 5432). CI uses GitHub Actions `services:` block.
+- **Run:** `pnpm test:integration`: spins Postgres 16 (the `postgres-test` service in `docker-compose.yml`, `test` profile) on port 5433 (offset from dev's 5432). CI uses GitHub Actions `services:` block.
 - **Setup:** drop + recreate test DB, `drizzle-kit push --force` to apply schema + RLS policies. Each scenario starts from a clean state via `Background:` in the .feature file (typically `TRUNCATE` or per-scenario seed).
 - **Mandatory pattern:** every feature touching a tenant-scoped endpoint includes a `tenant isolation` scenario: tenant B reads return zero rows from tenant A. Defence in depth for [ADR 0001](documents/decisions/0001-multi-tenancy.md).
 - **Cover the edges, not just the happy path:** boundary timestamps, oversized payloads, malformed Authorization headers, concurrent fan-out, unique-constraint races. The unit tier covers shape; integration covers what real Postgres + real network do.

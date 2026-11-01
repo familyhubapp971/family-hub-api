@@ -35,6 +35,8 @@ export const tasksHabitsMeta: Record<string, RouteMeta> = {
   },
   'POST /api/assignments': {
     summary: 'Create an assignment; admin/adult only',
+    description:
+      'Title is 1-50 characters, notes up to 300. dueDate cannot be in the past (one day of slack for time zones).',
     request: createAssignmentRequestSchema,
     response: assignmentItemSchema,
     status: 201,
@@ -50,10 +52,16 @@ export const tasksHabitsMeta: Record<string, RouteMeta> = {
   'PUT /api/assignments/{id}': {
     summary: "Replace an assignment's title/notes/dueDate/assignee; admin/adult only",
     description:
-      'Completion state (done/doneAt) is owned by PATCH and left untouched here, so editing a done assignment keeps it done.',
+      'Completion state (done/doneAt) is owned by PATCH and left untouched here, so editing a done assignment keeps it done. Same limits as POST, except an unchanged past dueDate is kept so an overdue assignment can still be edited.',
     request: createAssignmentRequestSchema,
     response: assignmentItemSchema,
     responseDesc: '404 if the assignment is not in this tenant',
+  },
+  'DELETE /api/assignments/{id}': {
+    summary: 'Delete an assignment for good; admin/adult only',
+    bodyless: true,
+    status: 204,
+    responseDesc: '204 on success. 404 if the assignment is not in this tenant',
   },
 
   // Tasks (FHS-233/FHS-267): shared-to-see, private-to-edit (ADR 0013). GET

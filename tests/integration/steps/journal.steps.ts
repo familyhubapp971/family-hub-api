@@ -12,7 +12,7 @@ import { getTestDb } from '../support/db.js';
 
 // UNIQUE kid so this steps file doesn't collide with journal-learn.steps.ts
 // (which uses sarah@example.com on the same Postgres instance).
-const ISSUER = 'https://test.supabase.local/auth/v1';
+const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'journal-per-day-int-kid';
 const USER_ID = '00000000-0000-4000-8000-000000000888';
 const USER_EMAIL = 'zara-parent@example.com';

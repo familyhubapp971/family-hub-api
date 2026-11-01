@@ -125,7 +125,7 @@ describe('FHS-257: kid-only route (kidAuthMiddleware + requireKidAuth)', () => {
     const parentToken = await new SignJWT({ email: 'mum@example.com' })
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .setSubject('parent-user-id')
-      .setIssuer('https://supabase.local/auth/v1')
+      .setIssuer('https://auth.test.local/auth/v1')
       .setIssuedAt()
       .setExpirationTime(Math.floor(Date.now() / 1000) + 3600)
       .sign(KEY);
@@ -147,7 +147,7 @@ describe('FHS-257: parent-only route (rejectKidTokens)', () => {
     const parentToken = await new SignJWT({ email: 'mum@example.com' })
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .setSubject('parent-user-id')
-      .setIssuer('https://supabase.local/auth/v1')
+      .setIssuer('https://auth.test.local/auth/v1')
       .setIssuedAt()
       .setExpirationTime(Math.floor(Date.now() / 1000) + 3600)
       .sign(KEY);

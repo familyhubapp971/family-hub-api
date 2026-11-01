@@ -30,7 +30,7 @@ describe('FHS-664: Postman collection from the OpenAPI spec', () => {
           .length,
       0,
     );
-    // Plus the 3 Supabase sign-in requests, which are not part of our API.
+    // Plus the 3 sign-in requests, which GoTrue answers through the api.
     expect(requests).toHaveLength(ops + 3);
   });
 
@@ -51,7 +51,7 @@ describe('FHS-664: Postman collection from the OpenAPI spec', () => {
   it('FHS-666: names requests by path and orders folders by the tester journey', () => {
     expect(find('GET', '{{baseUrl}}/api/tasks')?.name).toBe('/api/tasks');
     expect(collection.item[0]?.name).toBe('00 Health checks');
-    expect(collection.item[1]?.name).toBe('01 Parent sign-in and sign-up (Supabase)');
+    expect(collection.item[1]?.name).toBe('01 Parent sign-in and sign-up');
   });
 
   it('FHS-666: verifying the email link saves the parent token', () => {
@@ -61,16 +61,19 @@ describe('FHS-664: Postman collection from the OpenAPI spec', () => {
     expect(scripts).toContain("pm.environment.set('emailTokenHash'");
   });
 
-  it('FHS-666: keeps the Supabase key blank unless the local copy fills it', () => {
-    const blank = JSON.parse(buildPostmanFiles(spec)['staging.postman_environment.json'] as string);
-    const filled = JSON.parse(
-      buildPostmanFiles(spec, { supabaseAnonKey: 'k' })[
-        'staging.postman_environment.json'
-      ] as string,
+  it('FHS-700: signs a parent in through the api, with no key', () => {
+    const send = collection.item[1]?.item.find((r) => r.name === 'Send sign-in email');
+    expect(send?.request.url.raw).toBe('{{baseUrl}}/auth/v1/otp');
+    expect(send?.request.header.map((h: any) => h.key)).toEqual(['Content-Type']);
+  });
+
+  it('FHS-700: the staging environment points at the staging api, never production', () => {
+    const staging = JSON.parse(
+      buildPostmanFiles(spec)['staging.postman_environment.json'] as string,
     );
-    const key = (env: any) => env.values.find((v: any) => v.key === 'supabaseAnonKey').value;
-    expect(key(blank)).toBe('');
-    expect(key(filled)).toBe('k');
+    const baseUrl = staging.values.find((v: any) => v.key === 'baseUrl').value;
+    expect(baseUrl).toBe('https://fh-api-staging.up.railway.app');
+    expect(JSON.stringify(staging)).not.toContain('api-fhapp');
   });
 
   it('saves the kid token after a kid PIN sign-in', () => {

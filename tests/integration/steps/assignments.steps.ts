@@ -18,7 +18,7 @@ const feature = await loadFeature(
   new URL('../features/assignments.feature', import.meta.url).pathname,
 );
 
-const ISSUER = 'https://test.supabase.local/auth/v1';
+const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'assignments-int-kid';
 const USER_ID = '00000000-0000-4000-8000-000000000777';
 const USER_EMAIL = 'sarah@example.com';
@@ -340,6 +340,90 @@ describeFeature(feature, ({ Background, Scenario }) => {
       },
     );
   });
+
+  async function deleteAssignment(slug: string, id: string) {
+    return app.request(`/api/assignments/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}`, 'x-test-tenant': tenantIds[slug]! },
+    });
+  }
+
+  const seedOne = async (_ctx: unknown, slug: string, title: string, dueDate: string) => {
+    const [row] = await db
+      .insert(assignments)
+      .values({ tenantId: tenantIds[slug]!, title, dueDate })
+      .returning();
+    assignmentIds[title] = row!.id;
+  };
+
+  const expectCount = async (_ctx: unknown, slug: string, n: number) => {
+    const out = await getAssignments(slug);
+    expect(out.res.status).toBe(200);
+    expect(out.body.assignments).toHaveLength(n);
+  };
+
+  Scenario('A new assignment cannot be due in the past (FHR-40)', ({ When, Then, And }) => {
+    let postRes: Response;
+    When(
+      'the caller POSTs an assignment {string} due {string} in tenant {string}',
+      async (_ctx, title: string, dueDate: string, slug: string) => {
+        postRes = await postAssignment(slug, title, dueDate);
+      },
+    );
+    Then('the POST response status is 400', () => {
+      expect(postRes.status).toBe(400);
+    });
+    And('re-fetching /api/assignments for tenant {string} lists {int} assignments', expectCount);
+  });
+
+  Scenario('An admin deletes an assignment (FHR-41)', ({ Given, When, Then, And }) => {
+    let delRes: Response;
+    Given('the {string} tenant has an assignment {string} due {string}', seedOne);
+    When(
+      'the caller DELETEs the {string} assignment in tenant {string}',
+      async (_ctx, title: string, slug: string) => {
+        delRes = await deleteAssignment(slug, assignmentIds[title]!);
+      },
+    );
+    Then('the DELETE response status is 204', () => {
+      expect(delRes.status).toBe(204);
+    });
+    And('re-fetching /api/assignments for tenant {string} lists {int} assignments', expectCount);
+  });
+
+  Scenario(
+    "Tenant isolation: a family cannot delete another family's assignment",
+    ({ Given, And, When, Then }) => {
+      let delRes: Response;
+      Given(
+        'a second tenant {string} exists with the caller as an admin member',
+        async (_ctx, slug: string) => {
+          const [tenant] = await db
+            .insert(tenants)
+            .values({ slug, name: `${slug} Family` })
+            .returning();
+          tenantIds[slug] = tenant!.id;
+          await db.insert(members).values({
+            tenantId: tenant!.id,
+            userId: USER_ID,
+            displayName: 'Caller',
+            role: 'admin',
+          });
+        },
+      );
+      And('the {string} tenant has an assignment {string} due {string}', seedOne);
+      When(
+        'the caller DELETEs the {string} assignment in tenant {string}',
+        async (_ctx, title: string, slug: string) => {
+          delRes = await deleteAssignment(slug, assignmentIds[title]!);
+        },
+      );
+      Then('the DELETE response status is 404', () => {
+        expect(delRes.status).toBe(404);
+      });
+      And('re-fetching /api/assignments for tenant {string} lists {int} assignments', expectCount);
+    },
+  );
 
   Scenario(
     "Tenant isolation: another tenant's assignments never appear",

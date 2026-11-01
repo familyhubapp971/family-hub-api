@@ -54,6 +54,49 @@ export const configSchema = z
     // FHS-91). Optional in dev so health/hello stay bootable without
     // it, but routes that need it fail loudly when it's missing.
     SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+    // FHS-694: private address of our own GoTrue sign-in server on Railway
+    // (e.g. http://gotrue.railway.internal:9999). When set, /auth/v1/* is
+    // passed through to it; unset, that path does not exist.
+    GOTRUE_URL: z.string().url().optional(),
+    // FHS-698: GoTrue's own signing keys (a Railway reference to the gotrue
+    // service's GOTRUE_JWT_KEYS, a JSON list holding its ES256 private key).
+    // With GOTRUE_URL set, invites and email changes go to GoTrue with a
+    // one-minute admin pass signed by that key; unset, they stay on Supabase.
+    // (GoTrue refuses HS256 passes signed with its plain secret once it uses
+    // ES256 keys, found live on staging.)
+    GOTRUE_ADMIN_SIGNING_KEYS: z.string().min(2).optional(),
+    // FHS-695: whose sign-in passes to trust. Unset, both fall back to Supabase
+    // (<SUPABASE_URL>/auth/v1 and its key list), so production is unchanged.
+    // Staging points them at our GoTrue: the private key-list address and the
+    // issuer GoTrue stamps on every pass.
+    AUTH_JWKS_URL: z.string().url().optional(),
+    AUTH_ISSUER: z.string().url().optional(),
+    // FHS-695: limits on the /auth/v1 pass-through, per email address. Same
+    // shape as the kid PIN lockout; held in process memory for now.
+    SIGNIN_MAX_FAILED_ATTEMPTS: z.coerce.number().int().positive().default(5),
+    SIGNIN_LOCKOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(15 * 60_000),
+    SIGNIN_EMAILS_PER_HOUR: z.coerce.number().int().positive().default(5),
+    // FHS-704: the only addresses allowed to sign in with a password through
+    // /auth/v1, comma separated. Family Hub never uses passwords (ADR 0011), so
+    // only staging sets it, to the browser-test account. Unset = none.
+    PASSWORD_SIGNIN_EMAILS: z
+      .string()
+      .optional()
+      .transform((v) =>
+        (v ?? '')
+          .split(',')
+          .map((e) => e.trim().toLowerCase())
+          .filter(Boolean),
+      )
+      // Only made-up .test addresses (a reserved domain nobody can own), so a
+      // real person can never be given a password sign-in by mistake.
+      .refine((list) => list.every((e) => e.endsWith('.test')), {
+        message: 'PASSWORD_SIGNIN_EMAILS may only list .test addresses (FHS-704).',
+      }),
     // Public origin where the SPA serves the auth callback (e.g.
     // https://frontend-staging-409d.up.railway.app). Used to build the
     // redirectTo URL on Supabase admin invites: the invitee clicks
@@ -172,11 +215,20 @@ export const configSchema = z
         });
       }
     }
-    if (!cfg.SUPABASE_URL && cfg.NODE_ENV === 'production') {
+    const trustsGotrue = Boolean(cfg.AUTH_JWKS_URL && cfg.AUTH_ISSUER);
+    if (!cfg.SUPABASE_URL && !trustsGotrue && cfg.NODE_ENV === 'production') {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['SUPABASE_URL'],
-        message: 'SUPABASE_URL is required in production for JWT verification (FHS-191).',
+        message:
+          'SUPABASE_URL (or AUTH_JWKS_URL plus AUTH_ISSUER) is required in production for JWT verification (FHS-191, FHS-695).',
+      });
+    }
+    if (Boolean(cfg.AUTH_JWKS_URL) !== Boolean(cfg.AUTH_ISSUER)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['AUTH_ISSUER'],
+        message: 'AUTH_JWKS_URL and AUTH_ISSUER must be set together (FHS-695).',
       });
     }
     if (

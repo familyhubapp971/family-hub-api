@@ -3,7 +3,7 @@ import path from 'node:path';
 
 // Integration tier: DELIBERATELY separate from the unit Vitest workspace.
 // Run via `pnpm test:integration` (not via the root `pnpm test` workspace
-// runner); requires Postgres on port 5433 (docker-compose.test.yml).
+// runner); requires Postgres on port 5433 (pnpm test:db:up).
 
 const ROOT = path.resolve(__dirname, '..', '..');
 

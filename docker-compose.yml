@@ -1,8 +1,9 @@
-# Local dev Postgres. Listens on port 5432 (matches the default in
-# .env.example: postgres://localhost:5432/familyhub_dev).
-#
-# Test Postgres lives separately in docker-compose.test.yml on :5433
-# so dev and integration tests can run side-by-side without colliding.
+# Two local Postgres databases, so dev and integration tests can run
+# side by side without colliding:
+#   postgres       dev database on :5432 (matches .env.example)
+#   postgres-test  integration test database on :5433, started only with
+#                  the "test" profile: pnpm test:db:up / pnpm test:db:down.
+#                  CI uses a GitHub Actions service container instead.
 #
 # Lifecycle:
 #   docker compose up -d         # start, daemonised
@@ -35,6 +36,26 @@ services:
     # `pnpm dev:up` / `pnpm dev:down`; auto-restart-after-reboot is a
     # surprise more than a feature on a workstation.
     restart: 'no'
+
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: familyhub-postgres-test
+    profiles: ['test']
+    environment:
+      POSTGRES_DB: familyhub_test
+      POSTGRES_USER: fh_test
+      POSTGRES_PASSWORD: fh_test
+    ports:
+      - '5433:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U fh_test -d familyhub_test']
+      interval: 1s
+      timeout: 5s
+      retries: 30
+    tmpfs:
+      # In-memory data directory: fast and throwaway. The integration
+      # global setup rebuilds the schema on every run.
+      - /var/lib/postgresql/data
 
 volumes:
   familyhub-postgres-dev-data:

@@ -10,6 +10,8 @@ import { authMiddleware, type AuthMiddlewareOptions } from './security/auth.js';
 import { rejectKidTokens } from './security/kid-auth.js';
 import { corsMiddleware } from './security/cors-allowlist.js';
 import { rateLimit } from './security/rate-limit.js';
+import { GOTRUE_PREFIX, gotrueProxy } from './security/gotrue-proxy.js';
+import { SignInLimits } from './security/signin-limits.js';
 import { requestContext } from './services/request-context.js';
 import { requestDb } from './security/request-db.js';
 import {
@@ -143,6 +145,25 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.use('*', requestContext());
 
   app.use('*', rateLimit({ capacity: config.RATE_LIMIT_PER_MINUTE, windowMs: 60_000 }));
+
+  // FHS-694: sign-in requests pass through to our private GoTrue server. Mounted
+  // before the auth middleware, which would otherwise reject sign-in calls that
+  // carry no token yet. ALL routes are left out of the OpenAPI spec: these are
+  // GoTrue's endpoints, not ours.
+  if (config.GOTRUE_URL) {
+    const limits = new SignInLimits({
+      maxFailedAttempts: config.SIGNIN_MAX_FAILED_ATTEMPTS,
+      lockoutMs: config.SIGNIN_LOCKOUT_MS,
+      emailsPerHour: config.SIGNIN_EMAILS_PER_HOUR,
+    });
+    app.all(
+      `${GOTRUE_PREFIX}/*`,
+      gotrueProxy(config.GOTRUE_URL, {
+        limits,
+        passwordSignInEmails: config.PASSWORD_SIGNIN_EMAILS,
+      }),
+    );
+  }
 
   // Auth runs after request-context (so the 401 log line carries the
   // request id) but before any tenant-context resolution that keys off

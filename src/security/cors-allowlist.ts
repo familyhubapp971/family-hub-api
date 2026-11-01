@@ -39,7 +39,7 @@ export function corsMiddleware(): MiddlewareHandler {
     },
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     // x-tenant-slug: every tenant-scoped fetch from the web app sets this
-    // (apps/web/.../OnboardingPage.tsx, MembersPage.tsx, every dashboard
+    // (family-hub-web: the onboarding page, the members page, every dashboard
     // tab panel) and resolveTenantMiddleware reads it. Missing it from
     // Allow-Headers blocks the OPTIONS preflight on every authenticated
     // call, with the visible failure landing on whichever endpoint the
@@ -47,12 +47,18 @@ export function corsMiddleware(): MiddlewareHandler {
     // x-request-id: surfaced by request-context middleware; harmless to
     // accept from the client (server overrides anyway) and lets the web
     // attach a correlation id for support tickets.
+    // FHS-694: apikey, x-client-info and x-supabase-api-version are sent by
+    // the web app's sign-in client on every /auth/v1 call (passed through to
+    // our GoTrue server). Without them the browser's preflight fails.
     allowHeaders: [
       'Content-Type',
       'Authorization',
       'x-tenant-slug',
       'x-request-id',
       'x-founder-token',
+      'apikey',
+      'x-client-info',
+      'x-supabase-api-version',
     ],
     credentials: true,
     maxAge: 600,

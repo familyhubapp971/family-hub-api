@@ -20,7 +20,7 @@ const feature = await loadFeature(
   new URL('../features/mw-close-week.feature', import.meta.url).pathname,
 );
 
-const ISSUER = 'https://test.supabase.local/auth/v1';
+const ISSUER = 'https://auth.test.local/auth/v1';
 const KID = 'mw-close-week-kid';
 const USER_ID = '00000000-0000-4000-8000-0000000007a7';
 const USER_EMAIL = 'closeweek@example.com';

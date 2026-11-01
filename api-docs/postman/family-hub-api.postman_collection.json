@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Family Hub API",
-    "description": "Family Hub API, generated from api-docs/openapi.json. Do not edit by hand:\nrun `pnpm openapi:generate` after any API change.\n\n**Get a parent token (folder 01):** set `supabaseAnonKey` and `signInEmail`, send\n\"Send sign-in email\" (or \"Send sign-up email\" for a new parent). Copy the link in the\nemail (do not click it: a click uses it up), paste it into `emailLink`, then send\n\"Verify email link\". It saves `userToken`.\nA new parent then creates their family with POST /api/public/tenant (folder 04).\n\nOther variables:\n- `tenantSlug`: the family web address, e.g. `khan-family`.\n- `kidToken`: saved by POST /api/auth/kid-pin (needs `kidMemberId` and `kidPin`).\n- `*Id` variables: the id of the record a request acts on.",
+    "description": "Family Hub API, generated from api-docs/openapi.json. Do not edit by hand:\nrun `pnpm openapi:generate` after any API change.\n\n**Get a parent token (folder 01):** set `signInEmail`, send \"Send sign-in email\"\n(or \"Send sign-up email\" for a new parent). Copy the link in the email (do not click\nit: a click uses it up), paste it into `emailLink`, then send \"Verify email link\".\nIt saves `userToken`. Each address gets 5 sign-in emails an hour.\nA new parent then creates their family with POST /api/public/tenant (folder 04).\n\nOther variables:\n- `tenantSlug`: the family web address, e.g. `khan-family`.\n- `kidToken`: saved by POST /api/auth/kid-pin (needs `kidMemberId` and `kidPin`).\n- `*Id` variables: the id of the record a request acts on.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -73,7 +73,7 @@
       ]
     },
     {
-      "name": "01 Parent sign-in and sign-up (Supabase)",
+      "name": "01 Parent sign-in and sign-up",
       "item": [
         {
           "name": "Send sign-in email",
@@ -84,18 +84,14 @@
             },
             "header": [
               {
-                "key": "apikey",
-                "value": "{{supabaseAnonKey}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
             "url": {
-              "raw": "{{supabaseUrl}}/auth/v1/otp",
+              "raw": "{{baseUrl}}/auth/v1/otp",
               "host": [
-                "{{supabaseUrl}}"
+                "{{baseUrl}}"
               ],
               "path": [
                 "auth",
@@ -112,7 +108,7 @@
                 }
               }
             },
-            "description": "Emails a sign-in link to an existing parent at `signInEmail`.\n\n**Sign-in:** none (Supabase public key)\n**Success:** 200"
+            "description": "Emails a sign-in link to an existing parent at `signInEmail`.\n\n**Sign-in:** none (5 emails an hour per address)\n**Success:** 200"
           },
           "event": [
             {
@@ -135,18 +131,14 @@
             },
             "header": [
               {
-                "key": "apikey",
-                "value": "{{supabaseAnonKey}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
             "url": {
-              "raw": "{{supabaseUrl}}/auth/v1/otp",
+              "raw": "{{baseUrl}}/auth/v1/otp",
               "host": [
-                "{{supabaseUrl}}"
+                "{{baseUrl}}"
               ],
               "path": [
                 "auth",
@@ -163,7 +155,7 @@
                 }
               }
             },
-            "description": "Creates the parent account if needed and emails a confirmation link to `signInEmail`.\n\n**Sign-in:** none (Supabase public key)\n**Success:** 200"
+            "description": "Creates the parent account if needed and emails a confirmation link to `signInEmail`.\n\n**Sign-in:** none (5 emails an hour per address)\n**Success:** 200"
           },
           "event": [
             {
@@ -186,18 +178,14 @@
             },
             "header": [
               {
-                "key": "apikey",
-                "value": "{{supabaseAnonKey}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
             "url": {
-              "raw": "{{supabaseUrl}}/auth/v1/verify",
+              "raw": "{{baseUrl}}/auth/v1/verify",
               "host": [
-                "{{supabaseUrl}}"
+                "{{baseUrl}}"
               ],
               "path": [
                 "auth",
@@ -214,7 +202,7 @@
                 }
               }
             },
-            "description": "Copy the whole link from the email (do not click it) into `emailLink` first. Saves `userToken` for every parent request.\n\n**Sign-in:** none (Supabase public key)\n**Success:** 200"
+            "description": "Copy the whole link from the email (do not click it) into `emailLink` first. Saves `userToken` for every parent request.\n\n**Sign-in:** none (5 wrong links lock the address for 15 minutes)\n**Success:** 200"
           },
           "event": [
             {
@@ -1323,7 +1311,7 @@
                 }
               ]
             },
-            "description": "Resend a still-pending invitation email; admin or adult only\n\nRe-fires the Supabase invite email (e.g. a typo'd address, or the email got lost). 404 if the invitation is not in this tenant; 409 if it is no longer pending (already accepted/expired).\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 200"
+            "description": "Resend a still-pending invitation email; admin or adult only\n\nRe-sends the invite email (e.g. a typo'd address, or the email got lost). 404 if the invitation is not in this tenant; 409 if it is no longer pending (already accepted/expired).\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 200"
           },
           "event": [
             {
@@ -1800,7 +1788,7 @@
                 "assignments"
               ]
             },
-            "description": "Create an assignment; admin/adult only\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 201",
+            "description": "Create an assignment; admin/adult only\n\nTitle is 1-50 characters, notes up to 300. dueDate cannot be in the past (one day of slack for time zones).\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 201",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"title\": \"x\"\n}",
@@ -1864,7 +1852,7 @@
                 }
               ]
             },
-            "description": "Replace an assignment's title/notes/dueDate/assignee; admin/adult only\n\nCompletion state (done/doneAt) is owned by PATCH and left untouched here, so editing a done assignment keeps it done.\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 200",
+            "description": "Replace an assignment's title/notes/dueDate/assignee; admin/adult only\n\nCompletion state (done/doneAt) is owned by PATCH and left untouched here, so editing a done assignment keeps it done. Same limits as POST, except an unchanged past dueDate is kept so an overdue assignment can still be edited.\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 200",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"title\": \"x\"\n}",
@@ -1946,6 +1934,57 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('returns 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/assignments/{id}",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "x-tenant-slug",
+                "value": "{{tenantSlug}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assignments/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assignments",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{assignmentId}}"
+                }
+              ]
+            },
+            "description": "Delete an assignment for good; admin/adult only\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 204"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 204', () => pm.response.to.have.status(204));"
                 ]
               }
             }

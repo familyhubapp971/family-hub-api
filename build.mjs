@@ -3,7 +3,7 @@
 // `shared-rules/package.json` exports raw .ts source (`"main": "./src/index.ts"`)
 // so that dev (tsx watch), tests (vitest) and typecheck consume the workspace dep
 // without a build step. The trade-off: when api's tsc compiles, the
-// `@familyhub/shared` and `@familyhub/test-utils` path aliases in tsconfig.base.json pulls shared's
+// `@familyhub/shared` and `@familyhub/test-utils` path aliases in tsconfig.json pulls shared's
 // .ts files into the program graph, widening rootDir to the longest common path
 // (the repo root). tsc then emits to dist/src/index.js, and
 // `node dist/index.js` (Railway's start command) fails with MODULE_NOT_FOUND.
@@ -15,7 +15,7 @@
 import { build } from 'esbuild';
 
 // Externalize every bare specifier EXCEPT @familyhub/* workspace packages. If we
-// ever add another path alias in tsconfig.base.json, add it to the allow-list
+// ever add another path alias in tsconfig.json, add it to the allow-list
 // below or it will be wrongly externalized at runtime.
 const externalizeNodeModules = {
   name: 'externalize-node-modules',

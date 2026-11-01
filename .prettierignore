@@ -19,3 +19,6 @@ pnpm-lock.yaml
 # Design review artefacts: large self-contained HTML with inline Tailwind.
 # Prettier reformatting breaks inline layout and the files are generated.
 documents/design/**/*.html
+# Built by `pnpm email-templates:build` from src/services/auth-email-templates.ts
+# (FHS-703); a test checks they match, so Prettier must not reformat them.
+email-templates/*.html
