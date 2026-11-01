@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '../../database/client.js';
 import { tenants, members, type Tenant, type Member } from '../../database/schema.js';
 import { getAuthenticatedUser } from '../../security/auth.js';
@@ -35,8 +35,10 @@ const slugSchema = z
   .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, 'slug must be lowercase, digits, hyphens');
 
 export const createTenantRequestSchema = z.object({
-  familyName: z.string().min(2, 'family name is required').max(80),
-  displayName: z.string().min(2, 'display name is required').max(80),
+  // FHS-714: at least one character, so a family called 李 or a person called
+  // Bo or Jo is welcome (every kind of family).
+  familyName: z.string().trim().min(1, 'family name is required').max(80),
+  displayName: z.string().trim().min(1, 'display name is required').max(80),
   slug: slugSchema,
 });
 
@@ -106,11 +108,34 @@ export const publicTenantRouter = new Hono().post('/', async (c) => {
   // the pre-check just lets us return a clean 409 with a useful body
   // when there's no race in flight.
   const existing = await db
-    .select({ id: tenants.id })
+    .select()
     .from(tenants)
     .where(eq(tenants.slug, parsed.data.slug))
     .limit(1);
-  if (existing.length > 0) {
+  const taken = existing[0];
+  if (taken) {
+    // FHS-714: a lost reply (weak signal, a slow server) makes the website or
+    // app ask again. If this person already made this family, answer with it
+    // instead of "taken", so nobody is pushed into making a second family.
+    const own = await db.transaction(async (tx) => {
+      await tx.execute(sql`select set_config('app.current_tenant', ${taken.id}, true)`);
+      const rows = await tx
+        .select()
+        .from(members)
+        .where(
+          and(
+            eq(members.tenantId, taken.id),
+            eq(members.userId, userRow.id),
+            eq(members.role, 'admin'),
+          ),
+        )
+        .limit(1);
+      return rows[0];
+    });
+    if (own) {
+      log.info({ tenantId: taken.id, userId: userRow.id }, 'tenant create repeated: returning it');
+      return c.json(createTenantResponseSchema.parse(project(taken, own)), 200);
+    }
     return c.json({ error: 'slug taken', field: 'slug', slug: parsed.data.slug }, 409);
   }
 
