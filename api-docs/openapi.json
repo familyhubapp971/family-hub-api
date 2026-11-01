@@ -11356,47 +11356,6 @@
         }
       }
     },
-    "/api/public/slug-available": {
-      "get": {
-        "tags": [
-          "public"
-        ],
-        "summary": "Check if a family URL slug is free",
-        "operationId": "get_api_public_slug_available",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "slug": {
-                      "type": "string"
-                    },
-                    "available": {
-                      "type": "boolean"
-                    },
-                    "suggestions": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    }
-                  },
-                  "required": [
-                    "slug",
-                    "available",
-                    "suggestions"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/public/tenant": {
       "post": {
         "tags": [

@@ -28,7 +28,6 @@ const PUBLIC_PATH_PREFIXES = [
   // FHS-27: slug availability is a yes/no fact about the public DNS
   // namespace; gating it behind auth would force the signup form to
   // sign the user in before they've even picked a family name.
-  '/api/public/slug-available',
   // FHS-236: kid-PIN login is itself the authentication step; it
   // cannot be behind the auth middleware.
   '/api/auth/kid-pin',

@@ -78,7 +78,6 @@ import {
   createTenantRequestSchema,
   createTenantResponseSchema,
 } from '../areas/family/public-tenant.js';
-import { slugAvailableResponseSchema } from '../areas/family/slug-available.js';
 import { publicKidMembersResponseSchema } from '../areas/family/public-kid-members.js';
 import { kidPinRequestSchema, kidPinResponseSchema } from '../areas/kids/auth-kid-pin.js';
 import {
@@ -182,10 +181,6 @@ const baseMeta: Record<string, RouteMeta> = {
     summary: 'Create a family (sign-up onboarding)',
     request: createTenantRequestSchema,
     response: createTenantResponseSchema,
-  },
-  'GET /api/public/slug-available': {
-    summary: 'Check if a family URL slug is free',
-    response: slugAvailableResponseSchema,
   },
   'GET /api/public/kid-members/{slug}': {
     summary: "List a family's kids who can log in with a PIN",

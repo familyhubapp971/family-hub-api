@@ -99,18 +99,19 @@ beforeEach(() => {
   dbMock.transaction.mockClear();
 });
 
-/** No family created by this person yet (FHS-716 check finds nothing). */
-function noFamilyYet() {
-  dbMock.select.mockReturnValue({
-    from: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }),
-  });
+/** A select chain that answers `rows`, with or without an orderBy step. */
+function answer(rows: unknown[]) {
+  const limit = () => Promise.resolve(rows);
+  return { from: () => ({ where: () => ({ limit, orderBy: () => ({ limit }) }) }) };
 }
 
-/** First select: the family this person created; second: their seat in it. */
+/** No family created by this person yet (FHS-716 checks find nothing). */
+function noFamilyYet() {
+  dbMock.select.mockReturnValue(answer([]));
+}
+
+/** First select: the families this person created; second: their seat in it. */
 function selectsReturn(tenantRows: unknown[], ownSeatRows: unknown[]) {
-  const answer = (rows: unknown[]) => ({
-    from: () => ({ where: () => ({ limit: () => Promise.resolve(rows) }) }),
-  });
   dbMock.select.mockReturnValueOnce(answer(tenantRows)).mockReturnValueOnce(answer(ownSeatRows));
 }
 
@@ -237,5 +238,26 @@ describe('FHS-25: POST /api/public/tenant', () => {
     });
     expect(res.status).toBe(201);
     expect(dbMock.transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it('FHS-716: two taps at the same moment make one family; the second gets it back', async () => {
+    const { privateKey, publicJwk } = await genKey();
+    const tenant = fixedTenant('e29b-41d4');
+    // Before the lock: no family yet. Inside the lock: the first tap's family
+    // is now there. Then that family and the caller's seat in it.
+    dbMock.select
+      .mockReturnValueOnce(answer([]))
+      .mockReturnValueOnce(answer([{ id: tenant.id }]))
+      .mockReturnValueOnce(answer([tenant]))
+      .mockReturnValueOnce(answer([fixedMember(tenant.id)]));
+    const app = buildAppWithAuth(publicJwk);
+    const token = await mintToken(privateKey);
+    const res = await app.request('/api/public/tenant', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ familyName: 'The Smith Family', displayName: 'Sam' }),
+    });
+    expect(res.status).toBe(200);
+    expect(dbMock.insert).not.toHaveBeenCalled();
   });
 });

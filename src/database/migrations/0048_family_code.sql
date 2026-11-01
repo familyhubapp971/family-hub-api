@@ -13,4 +13,4 @@
 
 ALTER TABLE "tenants" ADD COLUMN IF NOT EXISTS "previous_slug" varchar(63);--> statement-breakpoint
 ALTER TABLE "tenants" ADD COLUMN IF NOT EXISTS "created_by" uuid;--> statement-breakpoint
-ALTER TABLE "tenants" ADD CONSTRAINT "tenants_previous_slug_unique" UNIQUE("previous_slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "tenants_previous_slug_unique" ON "tenants" USING btree ("previous_slug");

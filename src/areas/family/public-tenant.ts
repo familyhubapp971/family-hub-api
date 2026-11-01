@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { getDb } from '../../database/client.js';
 import { tenants, members, type Tenant, type Member } from '../../database/schema.js';
 import { getAuthenticatedUser } from '../../security/auth.js';
@@ -70,25 +70,37 @@ function project(tenant: Tenant, member: Member): CreateTenantResponse {
   };
 }
 
-/** The family this person created (FHS-716), with their admin seat in it. */
+/**
+ * The family this person created (FHS-716) and their seat in it: the oldest
+ * one they still belong to, if they made more than one before this rule.
+ */
 async function findOwnFamily(
   db: ReturnType<typeof getDb>,
   userId: string,
 ): Promise<{ tenant: Tenant; member: Member } | null> {
-  const rows = await db.select().from(tenants).where(eq(tenants.createdBy, userId)).limit(1);
-  const tenant = rows[0];
-  if (!tenant) return null;
-  const member = await db.transaction(async (tx) => {
-    await tx.execute(sql`select set_config('app.current_tenant', ${tenant.id}, true)`);
-    const seats = await tx
-      .select()
-      .from(members)
-      .where(and(eq(members.tenantId, tenant.id), eq(members.userId, userId)))
-      .limit(1);
-    return seats[0];
-  });
-  return member ? { tenant, member } : null;
+  const made = await db
+    .select()
+    .from(tenants)
+    .where(eq(tenants.createdBy, userId))
+    .orderBy(asc(tenants.createdAt))
+    .limit(5);
+  for (const tenant of made) {
+    const member = await db.transaction(async (tx) => {
+      await tx.execute(sql`select set_config('app.current_tenant', ${tenant.id}, true)`);
+      const seats = await tx
+        .select()
+        .from(members)
+        .where(and(eq(members.tenantId, tenant.id), eq(members.userId, userId)))
+        .limit(1);
+      return seats[0];
+    });
+    if (member) return { tenant, member };
+  }
+  return null;
 }
+
+/** Thrown inside the create transaction when a parallel request already made the family. */
+class AlreadyCreated extends Error {}
 
 export const publicTenantRouter = new Hono().post('/', async (c) => {
   // getAuthenticatedUser asserts the request was through authMiddleware.
@@ -142,6 +154,15 @@ export const publicTenantRouter = new Hono().post('/', async (c) => {
       // rejected without this pin. set_config(..., true) is transaction-local and
       // auto-clears on commit.
       const created = await db.transaction(async (tx) => {
+        // Two taps at the same moment: only one creates; the other waits here,
+        // then sees the family the first one made.
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userRow.id}))`);
+        const already = await tx
+          .select({ id: tenants.id })
+          .from(tenants)
+          .where(eq(tenants.createdBy, userRow.id))
+          .limit(1);
+        if (already[0]) throw new AlreadyCreated();
         const insertedTenants = await tx
           .insert(tenants)
           .values({ slug: code, name: parsed.data.familyName, createdBy: userRow.id })
@@ -167,6 +188,12 @@ export const publicTenantRouter = new Hono().post('/', async (c) => {
       tenant = created.tenant;
       member = created.member;
     } catch (err) {
+      if (err instanceof AlreadyCreated) {
+        const own = await findOwnFamily(db, userRow.id);
+        if (own)
+          return c.json(createTenantResponseSchema.parse(project(own.tenant, own.member)), 200);
+        throw err;
+      }
       // Postgres error code 23505 = unique_violation: the code was taken.
       const isUniqueViolation =
         typeof err === 'object' &&
