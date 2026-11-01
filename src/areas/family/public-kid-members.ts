@@ -24,11 +24,15 @@ import { members, tenants } from '../../database/schema.js';
 // for rate-limiting if it materialises in practice.
 
 const paramsSchema = z.object({
-  slug: z
-    .string()
-    .min(2, 'slug must be at least 2 characters')
-    .max(63, 'slug must be at most 63 characters')
-    .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, 'invalid tenant slug'),
+  // FHS-714: "Khan" and "khan" are the same family code.
+  slug: z.preprocess(
+    (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+    z
+      .string()
+      .min(2, 'slug must be at least 2 characters')
+      .max(63, 'slug must be at most 63 characters')
+      .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, 'invalid tenant slug'),
+  ),
 });
 
 export const publicKidMembersResponseSchema = z.object({

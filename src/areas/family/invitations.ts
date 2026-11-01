@@ -13,6 +13,7 @@ import { getAuthenticatedUser } from '../../security/auth.js';
 import {
   inviteUserByEmail,
   isEmailAlreadyRegisteredError,
+  sendSignInLink,
   SupabaseAdminError,
 } from '../../security/supabase-admin.js';
 import { createLogger } from '../../services/logger.js';
@@ -235,6 +236,25 @@ export const invitationsRouter = new Hono().post('/', async (c) => {
       .where(eq(pendingInvitations.id, invitation.id));
     invitation = { ...invitation, supabaseInviteId: supabaseUser.id };
   } catch (err) {
+    // FHS-714: the email already has a Family Hub account, so the sign-in
+    // server will not send an invite. This used to delete the invitation and
+    // tell the admin "ask them to sign in to join", which then joined nothing.
+    // Keep the invitation (and seat) waiting instead: they join this family
+    // the next time they sign in. Email them a sign-in link so they know.
+    if (isEmailAlreadyRegisteredError(err)) {
+      await sendSignInLink({ email, redirectTo }).catch((linkErr: unknown) =>
+        log.warn(
+          { err: linkErr instanceof Error ? linkErr.message : String(linkErr), tenantId },
+          'sign-in link for existing account failed; invite still waiting',
+        ),
+      );
+      log.info(
+        { invitationId: invitation.id, tenantId, email, role, invitedBy: caller.id },
+        'invitation kept for an existing account',
+      );
+      return c.json(createInvitationResponseSchema.parse(project(invitation)), 201);
+    }
+
     // FHS-352: roll back the failed attempt so it never leaves a ghost
     // "pending" member on the dashboard. When a named seat was created, delete
     // it: `pending_invitations.member_id` is ON DELETE CASCADE, so that one
@@ -255,22 +275,6 @@ export const invitationsRouter = new Hono().post('/', async (c) => {
       log.error(
         { err: cleanupErr, seatMemberId, invitationId: invitation.id, tenantId },
         'invite rollback cleanup failed',
-      );
-    }
-
-    // The email already has a Family Hub account: Supabase admin invite rejects
-    // it. Surface a clear, actionable 409 instead of a confusing 502.
-    if (isEmailAlreadyRegisteredError(err)) {
-      log.info({ tenantId, email }, 'invite skipped: email already registered');
-      return c.json(
-        {
-          error: 'email already registered',
-          field: 'email',
-          email,
-          detail:
-            'That email already has a Family Hub account. Ask them to sign in: they can join this family from their invites.',
-        },
-        409,
       );
     }
 

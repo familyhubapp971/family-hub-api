@@ -638,7 +638,7 @@
             "description": "Create a family (sign-up onboarding)\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 200",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"familyName\": \"xx\",\n  \"displayName\": \"xx\",\n  \"slug\": \"xx\"\n}",
+              "raw": "{\n  \"familyName\": \"x\",\n  \"displayName\": \"x\",\n  \"slug\": \"xx\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

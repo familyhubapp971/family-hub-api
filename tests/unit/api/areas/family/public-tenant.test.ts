@@ -96,7 +96,16 @@ function buildAppWithAuth(publicJwk: JWK, sync = vi.fn().mockResolvedValue(FIXED
 beforeEach(() => {
   dbMock.select.mockReset();
   dbMock.insert.mockReset();
+  dbMock.transaction.mockClear();
 });
+
+/** First select: the family with this address; second: the caller's admin seat in it. */
+function selectsReturn(tenantRows: unknown[], ownSeatRows: unknown[]) {
+  const answer = (rows: unknown[]) => ({
+    from: () => ({ where: () => ({ limit: () => Promise.resolve(rows) }) }),
+  });
+  dbMock.select.mockReturnValueOnce(answer(tenantRows)).mockReturnValueOnce(answer(ownSeatRows));
+}
 
 afterEach(() => {
   _resetJwksCacheForTests();
@@ -143,14 +152,8 @@ describe('FHS-25: POST /api/public/tenant', () => {
 
   it('returns 409 when the slug already exists (pre-check path)', async () => {
     const { privateKey, publicJwk } = await genKey();
-    // Pre-check returns one row → 409 before we touch insert.
-    dbMock.select.mockReturnValue({
-      from: () => ({
-        where: () => ({
-          limit: () => Promise.resolve([{ id: 'existing' }]),
-        }),
-      }),
-    });
+    // Pre-check finds the family, and it is someone else's → 409 before insert.
+    selectsReturn([fixedTenant('khan')], []);
     const app = buildAppWithAuth(publicJwk);
     const token = await mintToken(privateKey);
     const res = await app.request('/api/public/tenant', {
@@ -168,6 +171,37 @@ describe('FHS-25: POST /api/public/tenant', () => {
     expect(body.field).toBe('slug');
     expect(body.slug).toBe('khan');
     expect(dbMock.insert).not.toHaveBeenCalled();
+  });
+
+  it('FHS-714: hands back the family when the same person asks again after a lost reply', async () => {
+    const { privateKey, publicJwk } = await genKey();
+    const tenant = fixedTenant('khan');
+    selectsReturn([tenant], [fixedMember(tenant.id)]);
+    const app = buildAppWithAuth(publicJwk);
+    const token = await mintToken(privateKey);
+    const res = await app.request('/api/public/tenant', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ familyName: 'The Khan Family', displayName: 'Sarah', slug: 'khan' }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { tenant: { slug: string } };
+    expect(body.tenant.slug).toBe('khan');
+    expect(dbMock.insert).not.toHaveBeenCalled();
+  });
+
+  it('FHS-714: welcomes a one-character family name', async () => {
+    const { privateKey, publicJwk } = await genKey();
+    selectsReturn([fixedTenant('li')], []);
+    const app = buildAppWithAuth(publicJwk);
+    const token = await mintToken(privateKey);
+    const res = await app.request('/api/public/tenant', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ familyName: '李', displayName: 'Bo', slug: 'li' }),
+    });
+    // Not refused as "required": it reaches the address check (taken here).
+    expect(res.status).toBe(409);
   });
 
   it('returns 201 with the new tenant + member on the happy path', async () => {
