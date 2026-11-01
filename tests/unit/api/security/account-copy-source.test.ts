@@ -65,6 +65,20 @@ describe('FHS-705: readSourceAccounts', () => {
     ).rejects.toThrow('source read failed: 401');
   });
 
+  it('stops, rather than returning a short list, when a read fails part way', async () => {
+    const C = '33333333-3333-4333-8333-333333333333';
+    const fetchFn = vi.fn(async (url: string) => {
+      if (url.includes('/users?')) return json({ users: [{ id: A }, { id: B }, { id: C }] });
+      if (url.endsWith(B)) return json({ msg: 'busy' }, 500);
+      const id = url.split('/').pop()!;
+      return json({ id, identities: [link(id, 'email')] });
+    });
+    await expect(
+      readSourceAccounts(BASE, 'svc', fetchFn as unknown as typeof fetch),
+    ).rejects.toThrow('source read failed: 500');
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+  });
+
   it('stops when the one-account view answers for a different account', async () => {
     const fetchFn = vi.fn(async (url: string) =>
       url.includes('/users?') ? json({ users: [{ id: A }] }) : json({ id: B, identities: [] }),
