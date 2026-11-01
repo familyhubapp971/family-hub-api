@@ -35,8 +35,8 @@ const slugSchema = z
   .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, 'slug must be lowercase, digits, hyphens');
 
 export const createTenantRequestSchema = z.object({
-  // FHS-714: at least one character, so a family called 李 or a person called
-  // Bo or Jo is welcome (every kind of family).
+  // FHS-714: at least one character, so a family called 李 or a one-letter
+  // name is welcome (every kind of family).
   familyName: z.string().trim().min(1, 'family name is required').max(80),
   displayName: z.string().trim().min(1, 'display name is required').max(80),
   slug: slugSchema,
