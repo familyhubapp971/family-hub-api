@@ -7,6 +7,7 @@ import {
   identityRows,
   missingIds,
   userRow,
+  usersWithoutLinks,
   type SourceUser,
 } from '../../../../src/security/account-copy.js';
 
@@ -97,5 +98,13 @@ describe('FHS-699: account copy mapping', () => {
   it('finds app accounts that would have no sign-in account to copy', () => {
     expect(missingIds(['a', 'b', 'c'], ['a', 'c'])).toEqual(['b']);
     expect(missingIds(['a'], ['a'])).toEqual([]);
+  });
+});
+
+describe('FHS-705: usersWithoutLinks', () => {
+  it('names the accounts with no sign-in link, which nobody could sign in to', () => {
+    const bare: SourceUser = { id: '33333333-3333-4333-8333-333333333333', identities: [] };
+    const missing: SourceUser = { id: '44444444-4444-4444-8444-444444444444' };
+    expect(usersWithoutLinks([google, bare, missing])).toEqual([bare.id, missing.id]);
   });
 });

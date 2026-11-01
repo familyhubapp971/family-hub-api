@@ -1,6 +1,7 @@
 // FHS-699: copy accounts and their sign-in links (Google etc.) from Supabase
 // into our own GoTrue database, keeping every id. Reads Supabase through its
-// admin API (read only); writes auth.users and auth.identities in one
+// admin API (read only), one account at a time, because its account list
+// leaves the links out (FHS-705); writes auth.users and auth.identities in one
 // transaction. Prints counts and checks only, never email addresses.
 //
 // Usage (dry run first, then --apply):
@@ -29,8 +30,10 @@ import {
   identityRows,
   missingIds,
   userRow,
+  usersWithoutLinks,
   type SourceUser,
 } from '../../src/security/account-copy.js';
+import { readSourceAccounts } from '../../src/security/account-copy-source.js';
 
 function need(name: string): string {
   const v = process.env[name];
@@ -39,20 +42,6 @@ function need(name: string): string {
     process.exit(2);
   }
   return v;
-}
-
-async function fetchAllUsers(base: string, key: string): Promise<SourceUser[]> {
-  const users: SourceUser[] = [];
-  for (let page = 1; ; page++) {
-    const res = await fetch(`${base}/auth/v1/admin/users?page=${page}&per_page=500`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}` },
-    });
-    if (!res.ok) throw new Error(`source list failed: ${res.status}`);
-    const body = (await res.json()) as { users?: SourceUser[] };
-    const batch = body.users ?? [];
-    users.push(...batch);
-    if (batch.length < 500) return users;
-  }
 }
 
 function placeholders(rows: number, cols: number): string {
@@ -74,11 +63,19 @@ async function main() {
     users = (JSON.parse(readFileSync(file, 'utf8')) as { users: SourceUser[] }).users;
   } else {
     const source = need('SOURCE_SUPABASE_URL').replace(/\/+$/, '');
-    users = await fetchAllUsers(source, need('SOURCE_SUPABASE_SERVICE_ROLE_KEY'));
+    users = await readSourceAccounts(source, need('SOURCE_SUPABASE_SERVICE_ROLE_KEY'));
   }
   const sourceIds = users.map((u) => u.id);
   const byProvider = identitiesByProvider(users);
   console.warn(`source: ${users.length} accounts, sign-in links ${JSON.stringify(byProvider)}`);
+
+  // FHS-705: an account with no sign-in link could not be signed in to after
+  // the copy. Seeing one most likely means the links were not read at all.
+  const noLinks = usersWithoutLinks(users);
+  if (noLinks.length > 0) {
+    console.error(`stop: ${noLinks.length} accounts have no sign-in link`);
+    process.exit(1);
+  }
 
   if (appIdsArg !== -1) {
     const file = process.argv[appIdsArg + 1];
