@@ -7,14 +7,22 @@
 --                        founder chose our own database over a storage bucket;
 --                        the device shrinks each photo to 1 MB or less first.
 --
--- Both tables are family-locked like beta_feedback. The founder reads and the
--- fixed/new switch go through three SECURITY DEFINER functions, like
--- app_founder_feedback (0047).
+-- The family lock (row level security policies) for both tables is defined
+-- in this file. On staging and production it switches on only through the
+-- APPLY_RLS boot step: apply-rls.mjs runs apply-issue-reports-rls.sql, a copy
+-- of the lock below, when APPLY_RLS=true. Until then the tables have no lock
+-- and only the app's own family checks protect them.
 --
--- Staging and production get the tables from drizzle-kit push on boot, the
--- RLS from apply-issue-reports-rls.sql (apply-rls.mjs) and the functions from
--- apply-issue-reports-functions.sql (apply-functions.mjs). This file builds the
--- test database. Keep the three in sync.
+-- The founder reads and the fixed/new switch go through three SECURITY
+-- DEFINER functions, like app_founder_feedback (0047). apply-functions.mjs
+-- applies a copy of them (apply-issue-reports-functions.sql) on every boot.
+--
+-- Staging and production get the tables themselves from drizzle-kit push on
+-- boot. This file builds the test database. Keep the three in sync.
+--
+-- A photo's family must be its report's family: the photo points at the
+-- report by (report_id, tenant_id), which needs the (id, tenant_id) unique
+-- rule on issue_reports.
 --
 -- Rollback: down/0049_issue_reports.down.sql.
 
@@ -29,6 +37,7 @@ CREATE TABLE "issue_reports" (
   "status" text DEFAULT 'new' NOT NULL,
   "fixed_at" timestamp with time zone,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  CONSTRAINT "issue_reports_id_tenant_id_unique" UNIQUE("id","tenant_id"),
   CONSTRAINT "issue_reports_status_check" CHECK ("status" IN ('new', 'fixed'))
 );
 --> statement-breakpoint
@@ -57,8 +66,8 @@ ALTER TABLE "issue_reports"
   FOREIGN KEY ("submitted_by_member_id") REFERENCES "public"."members"("id") ON DELETE SET NULL ON UPDATE NO ACTION;
 --> statement-breakpoint
 ALTER TABLE "issue_report_photos"
-  ADD CONSTRAINT "issue_report_photos_report_id_issue_reports_id_fk"
-  FOREIGN KEY ("report_id") REFERENCES "public"."issue_reports"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+  ADD CONSTRAINT "issue_report_photos_report_family_fk"
+  FOREIGN KEY ("report_id","tenant_id") REFERENCES "public"."issue_reports"("id","tenant_id") ON DELETE CASCADE ON UPDATE NO ACTION;
 --> statement-breakpoint
 ALTER TABLE "issue_report_photos"
   ADD CONSTRAINT "issue_report_photos_tenant_id_tenants_id_fk"
@@ -73,7 +82,7 @@ CREATE INDEX "issue_report_photos_report_id_idx" ON "issue_report_photos" USING 
 CREATE INDEX "issue_report_photos_tenant_id_idx" ON "issue_report_photos" USING btree ("tenant_id");
 --> statement-breakpoint
 
--- RLS: same pattern as beta_feedback (0037) and every other family table.
+-- The family lock: the same policy every other family table uses (0028).
 ALTER TABLE "issue_reports" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "issue_reports" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON "issue_reports";
@@ -104,6 +113,16 @@ RETURNS TABLE (
   photos jsonb
 )
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $fn$
+  -- Every new report, plus the newest p_limit fixed ones (at most 500), so a
+  -- report nobody has fixed yet never drops off the founder's list.
+  WITH shown AS (
+    SELECT r.* FROM public.issue_reports r WHERE r.status = 'new'
+    UNION ALL
+    (SELECT r.* FROM public.issue_reports r
+      WHERE r.status = 'fixed'
+      ORDER BY r.created_at DESC, r.id DESC
+      LIMIT LEAST(GREATEST(p_limit, 1), 500))
+  )
   SELECT r.id, r.created_at, r.screen, r.description, r.status, r.fixed_at,
          t.name::text, u.email::text, m.display_name::text,
          COALESCE(
@@ -114,12 +133,11 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $fn$
               FROM public.issue_report_photos p
              WHERE p.report_id = r.id),
            '[]'::jsonb)
-    FROM public.issue_reports r
+    FROM shown r
     JOIN public.tenants t ON t.id = r.tenant_id
     LEFT JOIN public.users u ON u.id = r.submitted_by_user_id
     LEFT JOIN public.members m ON m.id = r.submitted_by_member_id
    ORDER BY r.created_at DESC, r.id DESC
-   LIMIT LEAST(GREATEST(p_limit, 1), 500)
 $fn$;
 
 CREATE OR REPLACE FUNCTION app_founder_issue_photo(p_issue uuid, p_photo uuid)

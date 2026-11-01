@@ -26,6 +26,16 @@ RETURNS TABLE (
   photos jsonb
 )
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $fn$
+  -- Every new report, plus the newest p_limit fixed ones (at most 500), so a
+  -- report nobody has fixed yet never drops off the founder's list.
+  WITH shown AS (
+    SELECT r.* FROM public.issue_reports r WHERE r.status = 'new'
+    UNION ALL
+    (SELECT r.* FROM public.issue_reports r
+      WHERE r.status = 'fixed'
+      ORDER BY r.created_at DESC, r.id DESC
+      LIMIT LEAST(GREATEST(p_limit, 1), 500))
+  )
   SELECT r.id, r.created_at, r.screen, r.description, r.status, r.fixed_at,
          t.name::text, u.email::text, m.display_name::text,
          COALESCE(
@@ -36,12 +46,11 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $fn$
               FROM public.issue_report_photos p
              WHERE p.report_id = r.id),
            '[]'::jsonb)
-    FROM public.issue_reports r
+    FROM shown r
     JOIN public.tenants t ON t.id = r.tenant_id
     LEFT JOIN public.users u ON u.id = r.submitted_by_user_id
     LEFT JOIN public.members m ON m.id = r.submitted_by_member_id
    ORDER BY r.created_at DESC, r.id DESC
-   LIMIT LEAST(GREATEST(p_limit, 1), 500)
 $fn$;
 
 CREATE OR REPLACE FUNCTION app_founder_issue_photo(p_issue uuid, p_photo uuid)

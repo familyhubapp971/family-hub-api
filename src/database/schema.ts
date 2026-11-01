@@ -14,6 +14,7 @@ import {
   check,
   customType,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -24,6 +25,7 @@ import {
   real,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   varchar,
@@ -1827,6 +1829,9 @@ export const issueReports = pgTable(
   (t) => [
     index('issue_reports_created_idx').on(t.createdAt.desc()),
     index('issue_reports_tenant_id_idx').on(t.tenantId),
+    // Lets a photo point at (report, family), so it can never sit in another
+    // family than its report. A new table, so push adds it with no prompt.
+    unique('issue_reports_id_tenant_id_unique').on(t.id, t.tenantId),
     check('issue_reports_status_check', sql`"status" IN ('new', 'fixed')`),
   ],
 );
@@ -1843,9 +1848,7 @@ export const issueReportPhotos = pgTable(
   'issue_report_photos',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    reportId: uuid('report_id')
-      .notNull()
-      .references(() => issueReports.id, { onDelete: 'cascade' }),
+    reportId: uuid('report_id').notNull(),
     tenantId: uuid('tenant_id')
       .notNull()
       .references(() => tenants.id, { onDelete: 'cascade' }),
@@ -1855,6 +1858,11 @@ export const issueReportPhotos = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    foreignKey({
+      name: 'issue_report_photos_report_family_fk',
+      columns: [t.reportId, t.tenantId],
+      foreignColumns: [issueReports.id, issueReports.tenantId],
+    }).onDelete('cascade'),
     index('issue_report_photos_report_id_idx').on(t.reportId),
     index('issue_report_photos_tenant_id_idx').on(t.tenantId),
     check(

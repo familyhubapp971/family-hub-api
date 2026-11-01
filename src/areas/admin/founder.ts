@@ -295,8 +295,9 @@ export function createFounderRouter(getSecrets: () => FounderSecrets | null) {
         return c.json(founderFeedbackResponseSchema.parse({ rows }));
       })
 
-      // GET /api/founder/issues: FHS-717, newest first, every family. Photo
-      // details only; the bytes come one at a time from the photo route.
+      // GET /api/founder/issues: FHS-717, newest first, every family: every
+      // new report plus the newest 500 fixed ones. Photo details only; the
+      // bytes come one at a time from the photo route.
       .get('/issues', async (c) => {
         const denied = founderGate(c);
         if (denied) return denied;
