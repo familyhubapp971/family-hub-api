@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   MAX_PHOTO_BYTES,
   MAX_REQUEST_BYTES,
+  cleanText,
   createIssueReportsRouter,
   readIssueReportForm,
   sniffImageType,
@@ -13,8 +14,25 @@ import {
 import { _resetRateLimitForTests } from '../../../../../src/security/rate-limit.js';
 import type { User } from '../../../../../src/database/schema.js';
 
-const dbMock = { select: vi.fn(), transaction: vi.fn() };
-vi.mock('../../../../../src/database/client.js', () => ({ getDb: () => dbMock }));
+const dbMock = { select: vi.fn(), execute: vi.fn(), transaction: vi.fn() };
+
+// A stand-in connection pool: `max` connections at once, later callers wait.
+// The route opens its own short connections through runWithRequestDb.
+const pool = { max: Infinity, active: 0, opened: 0, waiting: [] as Array<() => void> };
+vi.mock('../../../../../src/database/client.js', () => ({
+  getDb: () => dbMock,
+  runWithRequestDb: async (fn: () => Promise<unknown>) => {
+    while (pool.active >= pool.max) await new Promise<void>((r) => pool.waiting.push(r));
+    pool.active += 1;
+    pool.opened += 1;
+    try {
+      return await fn();
+    } finally {
+      pool.active -= 1;
+      pool.waiting.shift()?.();
+    }
+  },
+}));
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '00000000-0000-4000-8000-000000000717';
@@ -201,6 +219,52 @@ describe('readIssueReportForm', () => {
   });
 });
 
+describe('cleanText', () => {
+  it('turns every kind of line break into one LF', () => {
+    expect(cleanText('a\r\nb\rc\nd')).toBe('a\nb\nc\nd');
+  });
+
+  it('drops a zero byte and other control characters but keeps tabs', () => {
+    expect(cleanText('a\u0000b\u0007c\u007fd\u0085e\tf')).toBe('abcde\tf');
+  });
+});
+
+describe('readIssueReportForm: hidden characters and stray files', () => {
+  it('stores the description without a zero byte', async () => {
+    const r = await readIssueReportForm({ screen: 'today', description: 'bro\u0000ken' });
+    expect(r.ok && r.report.description).toBe('broken');
+  });
+
+  it('refuses a screen name with a zero byte', async () => {
+    const r = await readIssueReportForm({ screen: 'today\u0000', description: 'x' });
+    expect(r).toMatchObject({ ok: false, status: 400, body: { errorCode: 'INVALID_FIELDS' } });
+  });
+
+  it('counts a line break sent as CRLF as one character', async () => {
+    const typed = 'a'.repeat(999) + '\n' + 'b'.repeat(1000);
+    const r = await readIssueReportForm({
+      screen: 'today',
+      description: typed.replace(/\n/g, '\r\n'),
+    });
+    expect(r.ok && r.report.description).toBe(typed);
+  });
+
+  it('refuses a file sent under another name', async () => {
+    const r = await readIssueReportForm({ screen: 'today', description: 'x', image: file(JPEG) });
+    expect(r).toMatchObject({ ok: false, status: 400, body: { errorCode: 'UNEXPECTED_FILE' } });
+  });
+
+  it('refuses a file hidden among repeated text boxes', async () => {
+    const r = await readIssueReportForm({ screen: 'today', notes: ['x', file(PNG)] });
+    expect(r).toMatchObject({ ok: false, status: 400, body: { errorCode: 'UNEXPECTED_FILE' } });
+  });
+
+  it('ignores extra text boxes', async () => {
+    const r = await readIssueReportForm({ screen: 'today', description: 'x', extra: 'y' });
+    expect(r.ok).toBe(true);
+  });
+});
+
 // ─── The route ────────────────────────────────────────────────────────────────
 
 function chain(rows: unknown): unknown {
@@ -219,14 +283,27 @@ interface Inserted {
   photos?: Array<Record<string, unknown>>;
 }
 
-function buildApp(opts: { role: string | null; tenant?: boolean; perHour?: number }) {
+interface BuildOpts {
+  role: string | null;
+  tenant?: boolean;
+  perHour?: number;
+  readTimeoutMs?: number;
+  /** The family's reports in the last 24 hours, at the early check. */
+  recent?: number;
+  /** The same count, taken again under the lock when saving. */
+  recentWhenSaving?: number;
+}
+
+function buildApp(opts: BuildOpts) {
   const inserted: Inserted = {};
   dbMock.select.mockImplementation(() =>
     chain(opts.role ? [{ id: MEMBER_ID, role: opts.role }] : []),
   );
+  dbMock.execute.mockResolvedValue({ rows: [{ n: opts.recent ?? 0 }] });
   dbMock.transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
     let call = 0;
     const tx = {
+      execute: vi.fn().mockResolvedValue({ rows: [{ n: opts.recentWhenSaving ?? 0 }] }),
       insert: () => ({
         values: (v: unknown) => {
           call += 1;
@@ -250,7 +327,13 @@ function buildApp(opts: { role: string | null; tenant?: boolean; perHour?: numbe
   };
   const app = new Hono();
   app.use('*', seed);
-  app.route('/api/feedback/issues', createIssueReportsRouter({ perHour: opts.perHour ?? 100 }));
+  app.route(
+    '/api/feedback/issues',
+    createIssueReportsRouter({
+      perHour: opts.perHour ?? 100,
+      ...(opts.readTimeoutMs ? { readTimeoutMs: opts.readTimeoutMs } : {}),
+    }),
+  );
   return { app, inserted };
 }
 
@@ -264,9 +347,22 @@ function form(fields: Record<string, string>, photos: File[] = []): FormData {
 const post = (app: Hono, body: BodyInit, headers: Record<string, string> = {}) =>
   app.request('/api/feedback/issues', { method: 'POST', body, headers });
 
+// The form as bytes on the wire, with the content type that names its boundary.
+async function wire(fd: FormData) {
+  const r = new Response(fd);
+  return {
+    type: r.headers.get('content-type')!,
+    bytes: new Uint8Array(await r.arrayBuffer()),
+  };
+}
+
 describe('POST /api/feedback/issues', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pool.max = Infinity;
+    pool.active = 0;
+    pool.opened = 0;
+    pool.waiting = [];
   });
   afterEach(() => {
     _resetRateLimitForTests();
@@ -391,5 +487,124 @@ describe('POST /api/feedback/issues', () => {
     const third = await post(app, form({ screen: 'today', description: '3' }));
     expect(third.status).toBe(429);
     expect(third.headers.get('retry-after')).toBeTruthy();
+  });
+
+  it('stores a typed 2000 characters with line breaks, sent as real form data', async () => {
+    const { app, inserted } = buildApp({ role: 'adult' });
+    // 20 lines of 99 letters, 19 line breaks and one more letter: 2000 typed.
+    const typed = Array.from({ length: 20 }, () => 'a'.repeat(99)).join('\n') + 'b';
+    expect(typed).toHaveLength(2000);
+    const res = await post(app, form({ screen: 'today', description: typed }));
+    expect(res.status).toBe(201);
+    expect(inserted.report!['description']).toBe(typed);
+  });
+
+  it('still refuses 2001 typed characters with line breaks', async () => {
+    const { app } = buildApp({ role: 'adult' });
+    const typed = Array.from({ length: 20 }, () => 'a'.repeat(99)).join('\n') + 'bc';
+    const res = await post(app, form({ screen: 'today', description: typed }));
+    expect(res.status).toBe(400);
+  });
+
+  it('refuses a file sent under another field name', async () => {
+    const { app } = buildApp({ role: 'adult' });
+    const fd = form({ screen: 'today', description: 'x' });
+    fd.append('attachment', file(JPEG));
+    const res = await post(app, fd);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ errorCode: 'UNEXPECTED_FILE' });
+  });
+
+  it('refuses a 31st report in a day from one family with 429, before the upload', async () => {
+    const { app } = buildApp({ role: 'adult', recent: 30 });
+    const res = await post(app, form({ screen: 'today', description: 'x' }));
+    expect(res.status).toBe(429);
+    expect(await res.json()).toMatchObject({ errorCode: 'FAMILY_DAILY_LIMIT' });
+    expect(dbMock.transaction).not.toHaveBeenCalled();
+  });
+
+  it('checks the family limit again when saving, for reports sent at once', async () => {
+    const { app, inserted } = buildApp({ role: 'adult', recent: 29, recentWhenSaving: 30 });
+    const res = await post(app, form({ screen: 'today', description: 'x' }));
+    expect(res.status).toBe(429);
+    expect(inserted.report).toBeUndefined();
+  });
+
+  it('takes the 30th report of the day', async () => {
+    const { app } = buildApp({ role: 'adult', recent: 29, recentWhenSaving: 29 });
+    const res = await post(app, form({ screen: 'today', description: 'x' }));
+    expect(res.status).toBe(201);
+  });
+
+  it('holds no database connection while the form uploads', async () => {
+    // One connection only: if the slow upload kept it, the second report
+    // below would wait for ever and the test would time out.
+    pool.max = 1;
+    const { app } = buildApp({ role: 'adult' });
+    const { type, bytes } = await wire(
+      form({ screen: 'today', description: 'slow' }, [file(JPEG)]),
+    );
+    let finish!: () => void;
+    const rest = new Promise<void>((r) => (finish = r));
+    const body = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        controller.enqueue(bytes.slice(0, 40));
+        await rest;
+        controller.enqueue(bytes.slice(40));
+        controller.close();
+      },
+    });
+    const slow = app.request('/api/feedback/issues', {
+      method: 'POST',
+      body,
+      headers: { 'Content-Type': type },
+      // @ts-expect-error duplex is needed for a streamed body in Node.
+      duplex: 'half',
+    });
+
+    // The grown-up check has used and returned its connection...
+    await vi.waitFor(() => {
+      expect(pool.opened).toBe(1);
+      expect(pool.active).toBe(0);
+    });
+    // ...and while the rest of the form is stuck, no other one is taken.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(pool.opened).toBe(1);
+    expect(pool.active).toBe(0);
+    // ...so another family member's report goes through mid-upload.
+    const quick = await post(app, form({ screen: 'meals', description: 'quick' }));
+    expect(quick.status).toBe(201);
+    expect(pool.active).toBe(0);
+
+    finish();
+    expect((await slow).status).toBe(201);
+    expect(pool.active).toBe(0);
+  });
+
+  it('gives up with 408 when the form takes too long to arrive', async () => {
+    const { app } = buildApp({ role: 'adult', readTimeoutMs: 30 });
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        controller = c;
+        c.enqueue(new TextEncoder().encode('--xyz\r\n'));
+      },
+    });
+    const res = await app.request('/api/feedback/issues', {
+      method: 'POST',
+      body,
+      headers: { 'Content-Type': 'multipart/form-data; boundary=xyz' },
+      // @ts-expect-error duplex is needed for a streamed body in Node.
+      duplex: 'half',
+    });
+    expect(res.status).toBe(408);
+    expect(await res.json()).toEqual({
+      error: 'the upload took too long',
+      errorCode: 'UPLOAD_TIMEOUT',
+    });
+    expect(res.headers.get('connection')).toBe('close');
+    expect(dbMock.transaction).not.toHaveBeenCalled();
+    expect(pool.active).toBe(0);
+    controller.close();
   });
 });
