@@ -94,7 +94,9 @@ function toCamelCase(snakeCase: string): string {
 function camelizeRow(row: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(row)) {
-    out[toCamelCase(key)] = value;
+    // FHS-717: issue report photos are raw bytes. As base64 text they stay a
+    // usable file in the download instead of a giant list of numbers.
+    out[toCamelCase(key)] = Buffer.isBuffer(value) ? value.toString('base64') : value;
   }
   return out;
 }
