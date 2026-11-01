@@ -34,11 +34,12 @@ Feature: POST /api/invitations (FHS-91)
     And no member seat remains named "Ghost Seat"
     And no pending invitation remains for "ghost@example.com"
 
-  Scenario: Inviting an already-registered email returns a clear 409 (FHS-352)
+  Scenario: Inviting someone who already has an account keeps the invite waiting (FHS-714)
     When Supabase rejects the invite as already-registered and the inviter POSTs a named invitation for "Existing Person" at "exists@example.com"
-    Then the response status is 409
-    And the error detail mentions "already has a Family Hub account"
-    And no member seat remains named "Existing Person"
+    Then the response status is 201
+    And a sign-in link is emailed to "exists@example.com"
+    And exactly 1 row exists in pending_invitations with email "exists@example.com" and status "pending"
+    And a member seat remains named "Existing Person"
 
   Scenario: A normal user (adult, non-admin) cannot invite someone as admin (FHS-486)
     Given the inviter is a normal user (adult), not an admin, in tenant "khan"

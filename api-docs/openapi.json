@@ -11317,12 +11317,12 @@
                 "properties": {
                   "familyName": {
                     "type": "string",
-                    "minLength": 2,
+                    "minLength": 1,
                     "maxLength": 80
                   },
                   "displayName": {
                     "type": "string",
-                    "minLength": 2,
+                    "minLength": 1,
                     "maxLength": 80
                   },
                   "slug": {

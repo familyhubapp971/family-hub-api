@@ -36,6 +36,7 @@ vi.mock('../../../src/config.js', async () => {
 // Mock the Supabase admin call so the integration tests don't hit the
 // real Supabase API: we still exercise the full DB + auth path here.
 const inviteUserByEmail = vi.fn();
+const sendSignInLink = vi.fn();
 vi.mock('../../../src/security/supabase-admin.js', async () => {
   const actual = await vi.importActual<typeof import('../../../src/security/supabase-admin.js')>(
     '../../../src/security/supabase-admin.js',
@@ -43,6 +44,7 @@ vi.mock('../../../src/security/supabase-admin.js', async () => {
   return {
     ...actual,
     inviteUserByEmail: (...args: unknown[]) => inviteUserByEmail(...args),
+    sendSignInLink: (...args: unknown[]) => sendSignInLink(...args),
   };
 });
 
@@ -369,14 +371,18 @@ describeFeature(feature, ({ Background, Scenario }) => {
     },
   );
 
+  // FHS-714: an invite to an email that already has an account used to be
+  // deleted with "ask them to sign in", which then joined nothing. It now
+  // stays waiting, and they get a sign-in email.
   Scenario(
-    'Inviting an already-registered email returns a clear 409 (FHS-352)',
+    'Inviting someone who already has an account keeps the invite waiting (FHS-714)',
     ({ When, Then, And }) => {
       let res: Response;
-      let bodyJson: { detail?: string; error?: string };
       When(
         'Supabase rejects the invite as already-registered and the inviter POSTs a named invitation for {string} at {string}',
         async (_ctx, displayName: string, email: string) => {
+          sendSignInLink.mockReset();
+          sendSignInLink.mockResolvedValue(undefined);
           inviteUserByEmail.mockRejectedValueOnce(
             new SupabaseAdminError(
               'Supabase admin invite failed: 422',
@@ -393,20 +399,29 @@ describeFeature(feature, ({ Background, Scenario }) => {
             },
             body: JSON.stringify({ email, role: 'adult', displayName }),
           });
-          bodyJson = (await res.json()) as { detail?: string; error?: string };
         },
       );
-      Then('the response status is 409', () => {
-        expect(res.status).toBe(409);
+      Then('the response status is 201', () => {
+        expect(res.status).toBe(201);
       });
-      And('the error detail mentions {string}', (_ctx, substr: string) => {
-        expect(bodyJson.detail ?? '').toContain(substr);
+      And('a sign-in link is emailed to {string}', (_ctx, email: string) => {
+        expect(sendSignInLink).toHaveBeenCalledWith(expect.objectContaining({ email }));
       });
-      And('no member seat remains named {string}', async (_ctx, displayName: string) => {
+      And(
+        'exactly 1 row exists in pending_invitations with email {string} and status {string}',
+        async (_ctx, email: string, status: string) => {
+          const { rows } = await db.execute<{ count: string }>(
+            sql`SELECT COUNT(*)::text AS count FROM pending_invitations
+                WHERE email = ${email} AND status = ${status}`,
+          );
+          expect(Number(rows[0]?.count)).toBe(1);
+        },
+      );
+      And('a member seat remains named {string}', async (_ctx, displayName: string) => {
         const { rows } = await db.execute<{ count: string }>(
           sql`SELECT COUNT(*)::text AS count FROM members WHERE display_name = ${displayName}`,
         );
-        expect(Number(rows[0]?.count)).toBe(0);
+        expect(Number(rows[0]?.count)).toBe(1);
       });
     },
   );
