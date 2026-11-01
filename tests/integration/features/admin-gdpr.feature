@@ -15,6 +15,7 @@ Feature: Admin GDPR: export my data + delete my account (FHS-435)
     Then the export response status is 200
     And the export response is a downloadable JSON file
     And every exported table for "jones" contains only "jones" rows
+    And the exported issue report photos leave out the image bytes
 
   Scenario: Export is admin-only
     Given the "jones" tenant has a guest member "GuestUser"

@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
+import type { SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { adminRouter } from '../../../../../src/areas/admin/admin.js';
 import type { User } from '../../../../../src/database/schema.js';
@@ -300,6 +302,18 @@ describe('FHS-435: GET /api/admin/export', () => {
     expect(body.data).toHaveProperty('rewards');
     expect(body.data).toHaveProperty('redemptionRequests');
     expect(body.data).toHaveProperty('learnProgress');
+  });
+
+  it('FHS-717: lists issue report photos without their image bytes', async () => {
+    const app = buildExportApp('admin');
+    await app.request('/api/admin/export');
+    const dialect = new PgDialect();
+    const queries = dbMock.execute.mock.calls.map(
+      ([query]) => dialect.sqlToQuery(query as SQL).sql,
+    );
+    expect(queries.find((q) => q.includes('"issue_report_photos"'))).toBe(
+      'select "id", "report_id", "content_type", "size_bytes", "created_at" from "issue_report_photos" where tenant_id = $1',
+    );
   });
 });
 

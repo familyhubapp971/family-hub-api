@@ -94,12 +94,17 @@ function toCamelCase(snakeCase: string): string {
 function camelizeRow(row: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(row)) {
-    // FHS-717: issue report photos are raw bytes. As base64 text they stay a
-    // usable file in the download instead of a giant list of numbers.
-    out[toCamelCase(key)] = Buffer.isBuffer(value) ? value.toString('base64') : value;
+    out[toCamelCase(key)] = value;
   }
   return out;
 }
+
+// FHS-717: tables whose export lists only these columns. Issue report photos
+// are up to 3 MB of image bytes per report: the export says which photos
+// exist and leaves the bytes out, so the download stays small.
+const EXPORT_COLUMNS: Record<string, readonly string[]> = {
+  issue_report_photos: ['id', 'report_id', 'content_type', 'size_bytes', 'created_at'],
+};
 
 type Db = ReturnType<typeof getDb>;
 
@@ -266,8 +271,15 @@ export const adminRouter = new Hono()
     const data: Record<string, unknown[]> = {};
     for (const table of TENANT_SCOPED_TABLES) {
       const name = getTableConfig(table).name;
+      const only = EXPORT_COLUMNS[name];
+      const columns = only
+        ? sql.join(
+            only.map((col) => sql.identifier(col)),
+            sql`, `,
+          )
+        : sql`*`;
       const result = await db.execute(
-        sql`select * from ${sql.identifier(name)} where tenant_id = ${tenantId}`,
+        sql`select ${columns} from ${sql.identifier(name)} where tenant_id = ${tenantId}`,
       );
       data[toCamelCase(name)] = result.rows.map((row) => {
         const camel = camelizeRow(row) as Record<string, unknown>;
