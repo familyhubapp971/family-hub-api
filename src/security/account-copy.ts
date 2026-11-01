@@ -122,6 +122,11 @@ export function identitiesByProvider(users: SourceUser[]): Record<string, number
   return counts;
 }
 
+/** FHS-705: ids of accounts with no sign-in link, which nobody could sign in to. */
+export function usersWithoutLinks(users: SourceUser[]): string[] {
+  return users.filter((u) => (u.identities ?? []).length === 0).map((u) => u.id);
+}
+
 /** Ids present in `required` but missing from `available`. */
 export function missingIds(required: Iterable<string>, available: Iterable<string>): string[] {
   const have = new Set(available);
