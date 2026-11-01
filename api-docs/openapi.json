@@ -31,6 +31,9 @@
       "name": "events"
     },
     {
+      "name": "family-address"
+    },
+    {
       "name": "feedback"
     },
     {
@@ -1871,6 +1874,64 @@
                     "recurrenceEndDate",
                     "isRecurring",
                     "seriesStartDate"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/family-address/{oldSlug}": {
+      "get": {
+        "tags": [
+          "family-address"
+        ],
+        "summary": "Where a family's old surname address moved to (its own members only)",
+        "operationId": "get_api_family_address_oldSlug",
+        "parameters": [
+          {
+            "name": "oldSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-tenant-slug",
+            "in": "header",
+            "required": false,
+            "description": "The family's URL slug, e.g. khan-family.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The family code that replaced the old address; 404 for anyone else",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "slug",
+                    "name"
                   ],
                   "additionalProperties": false
                 }
@@ -11326,16 +11387,12 @@
                     "maxLength": 80
                   },
                   "slug": {
-                    "type": "string",
-                    "minLength": 2,
-                    "maxLength": 30,
-                    "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+                    "type": "string"
                   }
                 },
                 "required": [
                   "familyName",
-                  "displayName",
-                  "slug"
+                  "displayName"
                 ],
                 "additionalProperties": false
               }

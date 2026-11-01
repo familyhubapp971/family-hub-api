@@ -41,6 +41,7 @@ import {
 } from './areas/family/invitations.js';
 import { kidRouter } from './areas/kids/kid.js';
 import { meRouter } from './areas/family/me.js';
+import { familyAddressRouter } from './areas/family/family-address.js';
 import { mealsRouter } from './areas/meals/meals.js';
 import { membersRouter } from './areas/family/members.js';
 import { noticesRouter } from './areas/calendar/notices.js';
@@ -69,6 +70,7 @@ const TENANT_OPTIONAL_API_PREFIXES = [
   '/api/kid',
   '/api/invitations/claim',
   '/api/founder/',
+  '/api/family-address/',
 ];
 function isTenantOptionalPath(path: string): boolean {
   return TENANT_OPTIONAL_API_PREFIXES.some((p) => path.startsWith(p));
@@ -245,6 +247,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/health', healthRouter);
   app.route('/hello', helloRouter);
   app.route('/api/me', meRouter);
+  app.route('/api/family-address', familyAddressRouter);
   app.route('/api/public/tenant', publicTenantRouter);
   app.route('/api/public/slug-available', slugAvailableRouter);
   app.route('/api/public/kid-members', publicKidMembersRouter);

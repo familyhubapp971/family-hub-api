@@ -86,6 +86,13 @@ export const tenants = pgTable('tenants', {
   // 63 chars is the DNS label cap; we constrain at the schema level
   // so a too-long slug fails at insert-time, not at first DNS lookup.
   slug: varchar('slug', { length: 63 }).notNull().unique(),
+  // FHS-715: the family's address before it got its private code (usually
+  // the surname). Kept only so old links still reach the family for its own
+  // signed-in members; it never opens anything for anyone else.
+  previousSlug: varchar('previous_slug', { length: 63 }).unique(),
+  // FHS-716: the person who created this family. One family per home: a
+  // person can create one family, and still join others by invite.
+  createdBy: uuid('created_by'),
   name: text('name').notNull(),
   status: tenantStatus('status').notNull().default('active'),
   // Stripe plan key (ADR 0004): `starter | growth | scale | enterprise`.

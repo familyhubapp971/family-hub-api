@@ -13,6 +13,7 @@
 import { z } from 'zod';
 import type { ZodTypeAny } from 'zod';
 import { meResponseSchema } from '../areas/family/me.js';
+import { familyAddressResponseSchema } from '../areas/family/family-address.js';
 import {
   kidInvestmentsResponseSchema,
   kidMeResponseSchema,
@@ -162,6 +163,11 @@ const baseMeta: Record<string, RouteMeta> = {
     summary: 'The signed-in user + their families',
     response: meResponseSchema,
     responseDesc: 'The user and the tenants they belong to',
+  },
+  'GET /api/family-address/{oldSlug}': {
+    summary: "Where a family's old surname address moved to (its own members only)",
+    response: familyAddressResponseSchema,
+    responseDesc: 'The family code that replaced the old address; 404 for anyone else',
   },
 
   // Public / pre-tenant.
