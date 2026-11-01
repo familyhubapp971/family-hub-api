@@ -412,39 +412,6 @@
               }
             }
           ]
-        },
-        {
-          "name": "/api/public/slug-available",
-          "request": {
-            "method": "GET",
-            "auth": {
-              "type": "noauth"
-            },
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/slug-available",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "slug-available"
-              ]
-            },
-            "description": "Check if a family URL slug is free\n\n**Sign-in:** none\n**Success:** 200"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('returns 200', () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ]
         }
       ]
     },
@@ -638,7 +605,7 @@
             "description": "Create a family (sign-up onboarding)\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 200",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"familyName\": \"xx\",\n  \"displayName\": \"xx\",\n  \"slug\": \"xx\"\n}",
+              "raw": "{\n  \"familyName\": \"x\",\n  \"displayName\": \"x\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -7095,6 +7062,106 @@
                 }
               }
             }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "family-address",
+      "item": [
+        {
+          "name": "/api/family-address",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "x-tenant-slug",
+                "value": "{{tenantSlug}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/family-address",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "family-address"
+              ]
+            },
+            "description": "The family's private code and the old address it replaced (members only)\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 200"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/family-address/{oldSlug}",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "x-tenant-slug",
+                "value": "{{tenantSlug}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/family-address/:oldSlug",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "family-address",
+                ":oldSlug"
+              ],
+              "variable": [
+                {
+                  "key": "oldSlug",
+                  "value": "{{oldSlug}}"
+                }
+              ]
+            },
+            "description": "Where a family's old surname address moved to (its own members only)\n\n**Sign-in:** parent or adult token (`userToken`)\n**Success:** 200"
           },
           "event": [
             {

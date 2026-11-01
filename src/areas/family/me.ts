@@ -68,10 +68,12 @@ export const meRouter = new Hono().get('/', async (c) => {
   const db = getDb();
   let tenantRows: MeTenantRow[];
   try {
-    tenantRows = (
-      await db.execute<MeTenantRow>(sql`select tenant_id, slug, name, onboarding_completed, role
-         from app_user_memberships(${row.id})`)
-    ).rows;
+    tenantRows = // FHS-714: a fixed order, so a person in two families gets the same
+      // first family every time.
+      (
+        await db.execute<MeTenantRow>(sql`select tenant_id, slug, name, onboarding_completed, role
+         from app_user_memberships(${row.id}) order by slug`)
+      ).rows;
   } catch (err) {
     // FHS-357: the function is created on boot (apply-functions.mjs), not by
     // drizzle-kit push. If a deploy hasn't created it yet, never strand a user
@@ -92,7 +94,8 @@ export const meRouter = new Hono().get('/', async (c) => {
       })
       .from(members)
       .innerJoin(tenants, eq(members.tenantId, tenants.id))
-      .where(eq(members.userId, row.id));
+      .where(eq(members.userId, row.id))
+      .orderBy(tenants.slug);
     tenantRows = rows;
   }
 

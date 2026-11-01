@@ -81,45 +81,59 @@ export const tenantStatus = pgEnum('tenant_status', ['active', 'suspended', 'arc
  * `<slug>.familyhub.app`. Capped at 63 chars (DNS label limit) and
  * unique-indexed.
  */
-export const tenants = pgTable('tenants', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  // 63 chars is the DNS label cap; we constrain at the schema level
-  // so a too-long slug fails at insert-time, not at first DNS lookup.
-  slug: varchar('slug', { length: 63 }).notNull().unique(),
-  name: text('name').notNull(),
-  status: tenantStatus('status').notNull().default('active'),
-  // Stripe plan key (ADR 0004): `starter | growth | scale | enterprise`.
-  // Stored as text rather than an enum so adding a tier doesn't require
-  // a schema migration; values validated at the api edge by Zod.
-  plan: text('plan').notNull().default('starter'),
-  // IANA TZ string (e.g. "Asia/Dubai"). Default to UTC; UI surfaces
-  // a picker on family setup (Sprint 1 onboarding).
-  timezone: text('timezone').notNull().default('UTC'),
-  // ISO 4217 currency code (e.g. "AED", "USD"). Drives Stripe + UI.
-  currency: varchar('currency', { length: 3 }).notNull().default('USD'),
-  // Set to true by POST /api/onboarding/complete (FHS-37) once the
-  // family finishes the wizard. The /onboarding route bounces back
-  // to /dashboard when this is true so a returning user doesn't get
-  // the wizard a second time.
-  onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
-  // FHS-445: per-family secret that signs the calendar "subscribe link"
-  // token (HMAC). Null until the family first opens the sync card; rotating
-  // it invalidates every existing subscription. Never leaves the server.
-  calendarFeedKey: text('calendar_feed_key'),
-  // FHS-512: the family's default "1 sticker is worth" rate, in INTEGER
-  // MINOR UNITS of `currency` (e.g. 50 = 0.50 AED). Replaces the old
-  // hardcoded STICKER_TO_CASH=0.5 constant. A child can override this on
-  // their own `members` row; see `effectiveRateMinor` in lib/reward-config.ts.
-  // Never store this as a float: money is minor-unit integers only.
-  stickerRateMinor: integer('sticker_rate_minor').notNull().default(50),
-  // FHS-634: when an admin last saved the family's sticker rate. The rate
-  // column above is NOT NULL DEFAULT 50, so its value cannot tell us whether
-  // anyone ever chose it: this timestamp can. Drives the "Choose what a
-  // sticker is worth" step of the Getting started guide.
-  stickerRateSetAt: timestamp('sticker_rate_set_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const tenants = pgTable(
+  'tenants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // 63 chars is the DNS label cap; we constrain at the schema level
+    // so a too-long slug fails at insert-time, not at first DNS lookup.
+    slug: varchar('slug', { length: 63 }).notNull().unique(),
+    // FHS-715: the family's address before it got its private code (usually
+    // the surname). Kept only so old links still reach the family for its own
+    // signed-in members; it never opens anything for anyone else.
+    // Unique through the index below, not .unique(): drizzle-kit asks a question
+    // before adding a unique constraint to a table with rows, which boot cannot
+    // answer, so the column would never be added.
+    previousSlug: varchar('previous_slug', { length: 63 }),
+    // FHS-716: the person who created this family. One family per home: a
+    // person can create one family, and still join others by invite.
+    createdBy: uuid('created_by'),
+    name: text('name').notNull(),
+    status: tenantStatus('status').notNull().default('active'),
+    // Stripe plan key (ADR 0004): `starter | growth | scale | enterprise`.
+    // Stored as text rather than an enum so adding a tier doesn't require
+    // a schema migration; values validated at the api edge by Zod.
+    plan: text('plan').notNull().default('starter'),
+    // IANA TZ string (e.g. "Asia/Dubai"). Default to UTC; UI surfaces
+    // a picker on family setup (Sprint 1 onboarding).
+    timezone: text('timezone').notNull().default('UTC'),
+    // ISO 4217 currency code (e.g. "AED", "USD"). Drives Stripe + UI.
+    currency: varchar('currency', { length: 3 }).notNull().default('USD'),
+    // Set to true by POST /api/onboarding/complete (FHS-37) once the
+    // family finishes the wizard. The /onboarding route bounces back
+    // to /dashboard when this is true so a returning user doesn't get
+    // the wizard a second time.
+    onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
+    // FHS-445: per-family secret that signs the calendar "subscribe link"
+    // token (HMAC). Null until the family first opens the sync card; rotating
+    // it invalidates every existing subscription. Never leaves the server.
+    calendarFeedKey: text('calendar_feed_key'),
+    // FHS-512: the family's default "1 sticker is worth" rate, in INTEGER
+    // MINOR UNITS of `currency` (e.g. 50 = 0.50 AED). Replaces the old
+    // hardcoded STICKER_TO_CASH=0.5 constant. A child can override this on
+    // their own `members` row; see `effectiveRateMinor` in lib/reward-config.ts.
+    // Never store this as a float: money is minor-unit integers only.
+    stickerRateMinor: integer('sticker_rate_minor').notNull().default(50),
+    // FHS-634: when an admin last saved the family's sticker rate. The rate
+    // column above is NOT NULL DEFAULT 50, so its value cannot tell us whether
+    // anyone ever chose it: this timestamp can. Drives the "Choose what a
+    // sticker is worth" step of the Getting started guide.
+    stickerRateSetAt: timestamp('sticker_rate_set_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('tenants_previous_slug_unique').on(t.previousSlug)],
+);
 
 export type Tenant = typeof tenants.$inferSelect;
 export type NewTenant = typeof tenants.$inferInsert;

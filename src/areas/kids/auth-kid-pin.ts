@@ -32,11 +32,16 @@ import { members, tenants } from '../../database/schema.js';
 // `alg: 'none'` token or an algorithm-confusion attack is rejected.
 
 export const kidPinRequestSchema = z.object({
-  tenantSlug: z
-    .string()
-    .min(2)
-    .max(63)
-    .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, 'invalid tenant slug'),
+  // FHS-714: a family code typed or linked with capitals ("Khan") is the same
+  // family; phones capitalise the first letter on their own.
+  tenantSlug: z.preprocess(
+    (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+    z
+      .string()
+      .min(2)
+      .max(63)
+      .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, 'invalid tenant slug'),
+  ),
   memberId: z.string().uuid('memberId must be a UUID'),
   pin: z.string().regex(/^\d{4}$/, 'pin must be exactly 4 digits'),
 });

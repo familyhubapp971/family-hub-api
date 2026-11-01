@@ -169,6 +169,28 @@ export async function inviteUserByEmail(
 }
 
 /**
+ * FHS-714: email a sign-in link to someone who already has an account. Used
+ * when they are invited to another family: the sign-in server will not send
+ * an invite to an existing account, so they get an ordinary sign-in email and
+ * join the family when they sign in. Maps to POST {GOTRUE_URL}/otp.
+ */
+export async function sendSignInLink(opts: { email: string; redirectTo: string }): Promise<void> {
+  const { base, headers } = await adminTarget();
+  const res = await fetch(`${base}/otp?redirect_to=${encodeURIComponent(opts.redirectTo)}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ email: opts.email, create_user: false }),
+  });
+  if (!res.ok) {
+    throw new SupabaseAdminError(
+      `sign-in link failed: ${res.status}`,
+      res.status,
+      await res.text(),
+    );
+  }
+}
+
+/**
  * Change a Supabase auth user's sign-in email via the admin API (FHS-510).
  * `email_confirm: true` marks the new address confirmed immediately: we've
  * already verified ownership ourselves (the user clicked a one-time link

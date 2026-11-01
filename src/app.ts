@@ -41,6 +41,7 @@ import {
 } from './areas/family/invitations.js';
 import { kidRouter } from './areas/kids/kid.js';
 import { meRouter } from './areas/family/me.js';
+import { familyAddressRouter } from './areas/family/family-address.js';
 import { mealsRouter } from './areas/meals/meals.js';
 import { membersRouter } from './areas/family/members.js';
 import { noticesRouter } from './areas/calendar/notices.js';
@@ -54,7 +55,6 @@ import { publicFeedbackRouter } from './areas/feedback/public-feedback.js';
 import { founderRouter } from './areas/admin/founder.js';
 import { calendarRouter } from './areas/calendar/calendar.js';
 import { publicCalendarRouter } from './areas/calendar/public-calendar.js';
-import { slugAvailableRouter } from './areas/family/slug-available.js';
 import { captureException, captureMessage } from './services/sentry.js';
 
 const log = createLogger('app');
@@ -69,6 +69,7 @@ const TENANT_OPTIONAL_API_PREFIXES = [
   '/api/kid',
   '/api/invitations/claim',
   '/api/founder/',
+  '/api/family-address/',
 ];
 function isTenantOptionalPath(path: string): boolean {
   return TENANT_OPTIONAL_API_PREFIXES.some((p) => path.startsWith(p));
@@ -183,7 +184,7 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.use('*', authMiddleware(authOpts));
 
   // Tenant resolution runs AFTER auth so the JWT-claim source can use
-  // the verified payload. Public paths (slug-available, etc.) skipped
+  // the verified payload. Public paths (kid-members, etc.) skipped
   // auth and therefore have no user; resolveTenant falls through to
   // subdomain / path-prefix sources, or leaves tenantId undefined.
   const resolveTenantOpts: ResolveTenantOptions = opts.resolveTenant ?? {
@@ -245,8 +246,8 @@ export function buildApp(opts: BuildAppOptions = {}) {
   app.route('/health', healthRouter);
   app.route('/hello', helloRouter);
   app.route('/api/me', meRouter);
+  app.route('/api/family-address', familyAddressRouter);
   app.route('/api/public/tenant', publicTenantRouter);
-  app.route('/api/public/slug-available', slugAvailableRouter);
   app.route('/api/public/kid-members', publicKidMembersRouter);
   app.route('/api/public/feedback', publicFeedbackRouter);
   // FHS-672: founder feedback page; the passcode is the credential.

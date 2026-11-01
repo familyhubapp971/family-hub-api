@@ -125,16 +125,19 @@ describe('FHS-194: GET /api/me', () => {
     dbMock.select.mockReturnValue({
       from: () => ({
         innerJoin: () => ({
-          where: () =>
-            Promise.resolve([
-              {
-                tenant_id: '11111111-1111-4111-8111-111111111111',
-                slug: 'khans',
-                name: 'Khan Family',
-                onboarding_completed: true,
-                role: 'admin',
-              },
-            ]),
+          where: () => ({
+            // FHS-714: families come back in a fixed order.
+            orderBy: () =>
+              Promise.resolve([
+                {
+                  tenant_id: '11111111-1111-4111-8111-111111111111',
+                  slug: 'khans',
+                  name: 'Khan Family',
+                  onboarding_completed: true,
+                  role: 'admin',
+                },
+              ]),
+          }),
         }),
       }),
     });

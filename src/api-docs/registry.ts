@@ -14,6 +14,10 @@ import { z } from 'zod';
 import type { ZodTypeAny } from 'zod';
 import { meResponseSchema } from '../areas/family/me.js';
 import {
+  currentFamilyAddressResponseSchema,
+  familyAddressResponseSchema,
+} from '../areas/family/family-address.js';
+import {
   kidInvestmentsResponseSchema,
   kidMeResponseSchema,
   kidProfileResponseSchema,
@@ -74,7 +78,6 @@ import {
   createTenantRequestSchema,
   createTenantResponseSchema,
 } from '../areas/family/public-tenant.js';
-import { slugAvailableResponseSchema } from '../areas/family/slug-available.js';
 import { publicKidMembersResponseSchema } from '../areas/family/public-kid-members.js';
 import { kidPinRequestSchema, kidPinResponseSchema } from '../areas/kids/auth-kid-pin.js';
 import {
@@ -163,16 +166,21 @@ const baseMeta: Record<string, RouteMeta> = {
     response: meResponseSchema,
     responseDesc: 'The user and the tenants they belong to',
   },
+  'GET /api/family-address': {
+    summary: "The family's private code and the old address it replaced (members only)",
+    response: currentFamilyAddressResponseSchema,
+  },
+  'GET /api/family-address/{oldSlug}': {
+    summary: "Where a family's old surname address moved to (its own members only)",
+    response: familyAddressResponseSchema,
+    responseDesc: 'The family code that replaced the old address; 404 for anyone else',
+  },
 
   // Public / pre-tenant.
   'POST /api/public/tenant': {
     summary: 'Create a family (sign-up onboarding)',
     request: createTenantRequestSchema,
     response: createTenantResponseSchema,
-  },
-  'GET /api/public/slug-available': {
-    summary: 'Check if a family URL slug is free',
-    response: slugAvailableResponseSchema,
   },
   'GET /api/public/kid-members/{slug}': {
     summary: "List a family's kids who can log in with a PIN",

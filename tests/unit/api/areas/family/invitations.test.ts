@@ -23,6 +23,7 @@ vi.mock('../../../../../src/database/client.js', () => ({
 }));
 
 const inviteUserByEmail = vi.fn();
+const sendSignInLink = vi.fn();
 vi.mock('../../../../../src/security/supabase-admin.js', async () => {
   const actual = await vi.importActual<
     typeof import('../../../../../src/security/supabase-admin.js')
@@ -30,6 +31,7 @@ vi.mock('../../../../../src/security/supabase-admin.js', async () => {
   return {
     ...actual,
     inviteUserByEmail: (...args: unknown[]) => inviteUserByEmail(...args),
+    sendSignInLink: (...args: unknown[]) => sendSignInLink(...args),
   };
 });
 
@@ -125,6 +127,8 @@ beforeEach(() => {
   dbMock.insert.mockReset();
   dbMock.update.mockReset();
   inviteUserByEmail.mockReset();
+  sendSignInLink.mockReset();
+  sendSignInLink.mockResolvedValue(undefined);
 });
 
 // ─── Tests ────────────────────────────────────────────────────────────
@@ -330,5 +334,39 @@ describe('FHS-91: POST /api/invitations', () => {
     });
     expect(res.status).toBe(502);
     expect(updateBody).toMatchObject({ status: 'expired' });
+  });
+
+  it('FHS-714: keeps the invite waiting for an existing account and emails them a sign-in link', async () => {
+    const { SupabaseAdminError } = await import('../../../../../src/security/supabase-admin.js');
+    const app = buildAppWithSeed();
+    const inv = fixedInvitation();
+    dbMock.insert.mockReturnValue({
+      values: () => ({ returning: () => Promise.resolve([inv]) }),
+    });
+    let updateBody: unknown = null;
+    dbMock.update.mockReturnValue({
+      set: (val: unknown) => {
+        updateBody = val;
+        return { where: () => Promise.resolve() };
+      },
+    });
+    inviteUserByEmail.mockRejectedValue(
+      new SupabaseAdminError('auth admin invite failed: 422', 422, 'email_exists'),
+    );
+
+    const res = await app.request('/api/invitations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'invitee@example.com' }),
+    });
+    expect(res.status).toBe(201);
+    // Not expired or deleted: they join when they next sign in.
+    expect(updateBody).toBeNull();
+    expect(sendSignInLink).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'invitee@example.com',
+        redirectTo: expect.stringContaining(`/auth/callback?invite=${inv.id}`),
+      }),
+    );
   });
 });

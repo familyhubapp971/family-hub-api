@@ -94,72 +94,93 @@ describeFeature(feature, ({ Background, Scenario }) => {
     });
   });
 
-  Scenario('Happy path: creates tenant and member, returns 201', ({ When, Then, And }) => {
-    let res: Response;
-    let body: { tenant?: { slug: string } };
+  const post = (familyName: string, displayName: string) =>
+    app.request('/api/public/tenant', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ familyName, displayName }),
+    });
 
-    When(
-      'I POST to /api/public/tenant with familyName "Khan" displayName "Sarah" slug "khan"',
-      async () => {
-        res = await app.request('/api/public/tenant', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ familyName: 'Khan', displayName: 'Sarah', slug: 'khan' }),
-        });
+  const countTenantsMadeByTestUser = async () => {
+    const { rows } = await db.execute<{ count: string }>(
+      sql`SELECT COUNT(*)::text AS count FROM tenants t JOIN users u ON u.id = t.created_by`,
+    );
+    return Number(rows[0]?.count);
+  };
+
+  Scenario(
+    'Happy path: creates a family with a private code, returns 201',
+    ({ When, Then, And }) => {
+      let res: Response;
+      let body: { tenant?: { slug: string } };
+
+      When('I POST to /api/public/tenant with familyName "Smith" displayName "Sam"', async () => {
+        res = await post('Smith', 'Sam');
         body = (await res.json()) as { tenant?: { slug: string } };
-      },
-    );
+      });
+      Then('the response status is 201', () => {
+        expect(res.status).toBe(201);
+      });
+      And('the response body has a tenant with a private code', () => {
+        expect(body.tenant?.slug).toMatch(/^[0-9a-f]{4}-[0-9a-f]{4}$/);
+      });
+      And('exactly 1 row exists in tenants made by the test user', async () => {
+        expect(await countTenantsMadeByTestUser()).toBe(1);
+      });
+      And('exactly 1 row exists in members with displayName "Sam" and role "admin"', async () => {
+        const { rows } = await db.execute<{ count: string }>(
+          sql`SELECT COUNT(*)::text AS count FROM members WHERE display_name = ${'Sam'} AND role = 'admin'`,
+        );
+        expect(Number(rows[0]?.count)).toBe(1);
+      });
+    },
+  );
 
-    Then('the response status is 201', () => {
-      expect(res.status).toBe(201);
-    });
+  Scenario(
+    'Two families with the same surname both get their own code',
+    ({ Given, When, Then, And }) => {
+      let res: Response;
+      Given('another family called "Smith" already exists', async () => {
+        await db.insert(tenants).values({ slug: 'a1b2-c3d4', name: 'Smith' });
+      });
+      When('I POST to /api/public/tenant with familyName "Smith" displayName "Sam"', async () => {
+        res = await post('Smith', 'Sam');
+      });
+      Then('the response status is 201', () => {
+        expect(res.status).toBe(201);
+      });
+      And('exactly 2 rows exist in tenants named "Smith"', async () => {
+        const { rows } = await db.execute<{ count: string }>(
+          sql`SELECT COUNT(*)::text AS count FROM tenants WHERE name = ${'Smith'}`,
+        );
+        expect(Number(rows[0]?.count)).toBe(2);
+      });
+    },
+  );
 
-    And('the response body has a tenant with slug "khan"', () => {
-      expect(body.tenant?.slug).toBe('khan');
-    });
-
-    And('exactly 1 row exists in tenants with slug "khan"', async () => {
-      const { rows } = await db.execute<{ count: string }>(
-        sql`SELECT COUNT(*)::text AS count FROM tenants WHERE slug = ${'khan'}`,
-      );
-      expect(Number(rows[0]?.count)).toBe(1);
-    });
-
-    And('exactly 1 row exists in members with displayName "Sarah" and role "admin"', async () => {
-      const { rows } = await db.execute<{ count: string }>(
-        sql`SELECT COUNT(*)::text AS count FROM members WHERE display_name = ${'Sarah'} AND role = 'admin'`,
-      );
-      expect(Number(rows[0]?.count)).toBe(1);
-    });
-  });
-
-  Scenario('Slug already taken: returns 409 and inserts nothing', ({ Given, When, Then, And }) => {
-    let res: Response;
-
-    Given('a tenant exists with slug "khan"', async () => {
-      await db.insert(tenants).values({ slug: 'khan', name: 'Pre-existing Khan' });
-    });
-
-    When(
-      'I POST to /api/public/tenant with familyName "Khan" displayName "Sarah" slug "khan"',
-      async () => {
-        res = await app.request('/api/public/tenant', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ familyName: 'Khan', displayName: 'Sarah', slug: 'khan' }),
-        });
-      },
-    );
-
-    Then('the response status is 409', () => {
-      expect(res.status).toBe(409);
-    });
-
-    And('exactly 1 row exists in tenants with slug "khan"', async () => {
-      const { rows } = await db.execute<{ count: string }>(
-        sql`SELECT COUNT(*)::text AS count FROM tenants WHERE slug = ${'khan'}`,
-      );
-      expect(Number(rows[0]?.count)).toBe(1);
-    });
-  });
+  Scenario(
+    'One family per home: a second create returns the first family',
+    ({ Given, When, Then, And }) => {
+      let res: Response;
+      let firstSlug = '';
+      let body: { tenant?: { slug: string } };
+      Given('I already created a family called "Smith"', async () => {
+        const first = await post('Smith', 'Sam');
+        firstSlug = ((await first.json()) as { tenant: { slug: string } }).tenant.slug;
+      });
+      When('I POST to /api/public/tenant with familyName "Jones" displayName "Sam"', async () => {
+        res = await post('Jones', 'Sam');
+        body = (await res.json()) as { tenant?: { slug: string } };
+      });
+      Then('the response status is 200', () => {
+        expect(res.status).toBe(200);
+      });
+      And('the response body is the family I already created', () => {
+        expect(body.tenant?.slug).toBe(firstSlug);
+      });
+      And('exactly 1 row exists in tenants made by the test user', async () => {
+        expect(await countTenantsMadeByTestUser()).toBe(1);
+      });
+    },
+  );
 });

@@ -129,6 +129,16 @@ describe('FHS-236: POST /api/auth/kid-pin', () => {
     expect(res.status).toBe(400);
   });
 
+  it('FHS-714: reads a family code typed or linked with capitals as the same family', async () => {
+    const { kidPinRequestSchema } = await import('../../../../../src/areas/kids/auth-kid-pin.js');
+    const parsed = kidPinRequestSchema.parse({
+      tenantSlug: ' Khan ',
+      memberId: MEMBER_ID,
+      pin: '1234',
+    });
+    expect(parsed.tenantSlug).toBe('khan');
+  });
+
   it('returns 401 when the tenant does not exist', async () => {
     const app = buildApp({ tenantHit: false });
     const res = await app.request(
